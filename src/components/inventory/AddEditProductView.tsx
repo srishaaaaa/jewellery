@@ -12,7 +12,6 @@ import {
   Layers,
   Ruler,
   SlidersHorizontal,
-  Dices,
   Gem,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
@@ -24,7 +23,6 @@ import { getErrorMessage } from '../../lib/errorMessage'
 import { normalizeBarcode } from '../../lib/barcode'
 import { roundTo } from '../../lib/retail'
 import { UNIT_OPTIONS, findUnitOption } from '../../lib/units'
-import { DateInputDDMMYYYY } from '../DateInputDDMMYYYY'
 import { UnitSelect } from './UnitSelect'
 import { defaultLowStockThreshold } from '../../lib/stockLevels'
 import { formatCurrency } from '../../lib/retail'
@@ -48,9 +46,6 @@ import { currentProductPrice } from '../../lib/jewelleryProduct'
 import { useMetalRateStore } from '../../store/metalRateStore'
 import { isMissingSchemaError } from '../../services/productService'
 
-// Makes the shared date input match the other fields in this form (height, padding,
-// background, text size); `!` is needed to beat the component's own defaults.
-const DATE_INPUT_CLASS = '!h-10 !py-0 !pl-3.5 !pr-10 !text-xs !bg-[#FAFAFA]'
 
 export interface VariantInputRow {
   id: string
@@ -181,23 +176,6 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
       return { unitType: 'unit' as const, unit: custom.toLowerCase(), suffix: custom }
     }
     return { unitType: preset.unitType, unit: preset.unit, suffix: preset.suffix }
-  }
-
-  const generateRandomDates = () => {
-    const today = new Date()
-
-    const mfgDaysAgo = Math.floor(Math.random() * 30) + 1
-    const mfgDate = new Date(today)
-    mfgDate.setDate(mfgDate.getDate() - mfgDaysAgo)
-    const mfgFormatted = `${String(mfgDate.getDate()).padStart(2, '0')}/${String(mfgDate.getMonth() + 1).padStart(2, '0')}/${mfgDate.getFullYear()}`
-
-    const expiryDaysFromToday = Math.floor(Math.random() * 335) + 30
-    const expiryDate = new Date(today)
-    expiryDate.setDate(expiryDate.getDate() + expiryDaysFromToday)
-    const expiryFormatted = `${String(expiryDate.getDate()).padStart(2, '0')}/${String(expiryDate.getMonth() + 1).padStart(2, '0')}/${expiryDate.getFullYear()}`
-
-    setMfgDate(mfgFormatted)
-    setExpiryDate(expiryFormatted)
   }
 
   useEffect(() => {
@@ -1807,24 +1785,6 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                             </button>
                           </div>
 
-                          <div className="sm:col-span-6">
-                            <label className="block text-[10px] font-bold text-gray-600 mb-0.5">Mfg Date</label>
-                            <DateInputDDMMYYYY
-                              value={v.mfgDate || ''}
-                              onChange={(val) => handleUpdateVariantRow(v.id, 'mfgDate', val)}
-                              placeholder="DD/MM/YYYY"
-                              className={DATE_INPUT_CLASS}
-                            />
-                          </div>
-                          <div className="sm:col-span-6">
-                            <label className="block text-[10px] font-bold text-gray-600 mb-0.5">Expiry Date</label>
-                            <DateInputDDMMYYYY
-                              value={v.expiryDate || ''}
-                              onChange={(val) => handleUpdateVariantRow(v.id, 'expiryDate', val)}
-                              placeholder="DD/MM/YYYY"
-                              className={DATE_INPUT_CLASS}
-                            />
-                          </div>
                         </div>
                       ))}
                     </div>
@@ -1839,7 +1799,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                   </div>
 
                   <div className="space-y-4">
-                    {/* Category, Barcode, Storage Location, Low Stock Alert, Manufacture Date, and Expiry Date */}
+                    {/* Category, Barcode, Storage Location and Low Stock Alert */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-3 items-start">
                       <div>
                         <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">
@@ -1925,44 +1885,6 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                         />
                       </div>
 
-                      {!hasVariants && !isJewellery && (<>
-                      <div>
-                        <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">
-                          Mfg Date
-                        </label>
-                        <div className="flex gap-2 items-center">
-                          <div className="flex-1 min-w-0">
-                            <DateInputDDMMYYYY
-                              value={mfgDate}
-                              onChange={setMfgDate}
-                              placeholder="DD/MM/YYYY"
-                              className={DATE_INPUT_CLASS}
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            onClick={generateRandomDates}
-                            title="Generate random manufacture and expiry dates"
-                            aria-label="Generate random manufacture and expiry dates"
-                            className="h-10 w-10 shrink-0 flex items-center justify-center rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-700 transition-colors"
-                          >
-                            <Dices size={16} />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">
-                          Expiry Date
-                        </label>
-                        <DateInputDDMMYYYY
-                          value={expiryDate}
-                          onChange={setExpiryDate}
-                          placeholder="DD/MM/YYYY"
-                          className={DATE_INPUT_CLASS}
-                        />
-                      </div>
-                      </>)}
                     </div>
 
                     {/* Description (with pack sizes it sits beside Low Stock Alert above) */}

@@ -674,9 +674,22 @@ export default function Pos(props: PosProps = {}) {
     note?: string
     unit?: string
     unitType?: 'unit' | 'weight' | 'volume' | 'bundle'
+    jewellery?: JewellerySnapshot | null
   }) => {
     try {
       const product = await getOrCreateUnregisteredProduct(input.name, input.price)
+      if (input.jewellery) {
+        // A weighed jewellery piece is its own bill line (two pieces of the same name differ in weight).
+        const base = makePosItem({
+          id: `${product.id}-${Date.now()}`, name: input.name, category: 'Unregistered', remedy: [],
+          price: input.price, offerPrice: null, stock: 999999, stockQuantity: 999999, hasVariants: false,
+          unitType: 'unit', unitLabel: 'pcs', baseQuantity: 1, stockUnit: 'pcs', allowDecimalQuantity: false,
+          predefinedOptions: [], isActive: true, sortOrder: 999, unit: 'pcs', rating: 5, description: '', benefits: '',
+          image: '/product-placeholder.svg', imageUrl: '/product-placeholder.svg',
+        }, input.quantity)
+        setItems((cur) => [{ ...base, source: 'manual', note: input.note || null, parentProductId: String(product.id), jewellery: input.jewellery, jewelleryError: null }, ...cur])
+        return
+      }
       const unitType = input.unitType || 'unit'
       const unitLabel = input.unit || 'piece'
       const allowDecimal = unitType === 'weight' || unitType === 'volume'
