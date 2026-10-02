@@ -10,7 +10,7 @@ function getShopInfo() {
     name: storeSettings?.name || BRAND_EN,
     phone: storeSettings?.phone || BRAND_PRIMARY_PHONE_DISPLAY,
     instagramHandle,
-    instagramUrl: `https://instagram.com/${instagramHandle}`,
+    instagramUrl: instagramHandle ? `https://instagram.com/${instagramHandle}` : '',
   }
 }
 
@@ -102,7 +102,7 @@ export const publicInvoiceUrl = (invoiceNumberOrId: string) => {
     envUrl ||
     (typeof window !== 'undefined' && window.location?.origin && !window.location.origin.includes('localhost')
       ? window.location.origin
-      : BRAND_PRODUCTION_DOMAIN)
+      : BRAND_PRODUCTION_DOMAIN || (typeof window !== 'undefined' ? window.location.origin : ''))
   return `${origin}/invoice/${encodeURIComponent(identifier)}`
 }
 
@@ -149,9 +149,7 @@ ${input.invoiceDate ? `📅 *Date:* ${new Date(input.invoiceDate).toLocaleDateSt
 ${itemsText ? `📦 *ITEMS ORDERED:*\n${itemsText}\n\n` : ''}📄 *View & Download Digital Invoice / PDF:*
 👉 ${invoiceUrl}
 
-📞 *Shop Contact:* ${shop.phone}
-📷 *Follow us on Instagram:* ${shop.instagramUrl}
-
+${shop.phone ? `📞 *Shop Contact:* ${shop.phone}\n` : ''}${shop.instagramUrl ? `📷 *Follow us on Instagram:* ${shop.instagramUrl}\n` : ''}
 Thank you, and visit us again! ✨`
 }
 
@@ -181,7 +179,7 @@ ${statusLine}
 
 Kindly clear the payment at your earliest convenience. Thank you for your continued support!
 
-📞 *Shop Contact:* ${shop.phone}`
+${shop.phone ? `📞 *Shop Contact:* ${shop.phone}` : ''}`
 }
 
 /** Sent from Credit Bills History: the pending amount has been cleared. */
@@ -208,8 +206,7 @@ ${paidDateText ? `📅 *Paid On:* ${paidDateText}\n` : ''}✔️ *Balance Due:* 
 
 Thank you for shopping with us — we look forward to seeing you again! 🙏
 
-📞 *Shop Contact:* ${shop.phone}
-📷 *Follow us on Instagram:* ${shop.instagramUrl}`
+${shop.phone ? `📞 *Shop Contact:* ${shop.phone}` : ''}${shop.instagramUrl ? `\n📷 *Follow us on Instagram:* ${shop.instagramUrl}` : ''}`
 }
 
 export const buildAdvanceDepositWhatsAppMessage = (input: AdvanceDepositWhatsAppInput) => {
@@ -245,8 +242,7 @@ We have successfully received your initial advance payment!
 
 Your jewellery is being prepared with utmost care. We will have everything ready on or before ${deliveryDateFormatted}!
 
-📞 *Shop Contact:* ${shop.phone}
-📷 *Instagram:* @${shop.instagramHandle}`
+${shop.phone ? `📞 *Shop Contact:* ${shop.phone}` : ''}${shop.instagramHandle ? `\n📷 *Instagram:* @${shop.instagramHandle}` : ''}`
 }
 
 /** Receipt for a savings-scheme installment. */
@@ -276,5 +272,5 @@ Thank you! We have received your savings scheme installment.
 📊 *Total Paid So Far:* ₹ ${Number(input.totalPaid || 0).toFixed(2)}
 ⏳ *Remaining:* ₹ ${Number(input.remainingAmount || 0).toFixed(2)}
 ${input.nextDueDate ? `📅 *Next Due Date:* ${fmtDate(input.nextDueDate)}\n` : '🎉 *All installments completed!*\n'}
-📞 *Shop Contact:* ${shop.phone}`
+${shop.phone ? `📞 *Shop Contact:* ${shop.phone}` : ''}`
 }

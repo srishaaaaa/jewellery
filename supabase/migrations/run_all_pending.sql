@@ -1,5 +1,5 @@
 -- ============================================================================
--- ALL PENDING DATABASE UPDATES IN ONE FILE (New Mahalashmi Stores)
+-- ALL PENDING DATABASE UPDATES IN ONE FILE 
 -- Run once in the Supabase SQL Editor: paste everything and click Run.
 -- Runs as one transaction: if any part fails, nothing is changed.
 -- Safe to re-run.

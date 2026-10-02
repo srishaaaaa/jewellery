@@ -48,7 +48,7 @@ function getHeaders(auth = false): HeadersInit {
   }
 
   if (auth) {
-    const token = localStorage.getItem('mahalashmi-stores-token')
+    const token = localStorage.getItem('jewellery-pos-token')
     if (token) {
       headers.Authorization = `Bearer ${token}`
     }

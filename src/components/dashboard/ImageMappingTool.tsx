@@ -38,7 +38,7 @@ type UploadResult = {
   url?: string
 }
 
-const LS_KEY = 'mahalashmi-stores-image-mappings'
+const LS_KEY = 'jewellery-pos-image-mappings'
 const IMAGES_BASE = '/assets/Images_V2/'
 
 // ─────────────────────────────────────────────────────────────────────────────

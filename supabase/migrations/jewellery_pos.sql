@@ -7,7 +7,7 @@
 -- Safe to re-run: everything is additive (ADD COLUMN IF NOT EXISTS / CREATE
 -- TABLE IF NOT EXISTS / CREATE OR REPLACE). No existing rows are changed or
 -- deleted — existing products, customers, orders and invoices keep working.
--- Apply AFTER mahalashmi_production.sql.
+-- Apply AFTER production_schema.sql.
 -- ============================================================================
 
 -- ----------------------------------------------------------------------------

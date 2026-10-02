@@ -20,7 +20,7 @@ const DEFAULT_CONFIG: EventOfferConfig = {
   message: '',
 }
 
-const LOCAL_KEY = 'mahalashmi-customer-event-messages'
+const LOCAL_KEY = 'jewellery-pos-customer-event-messages'
 export const SAMPLE_CUSTOMER_NAME = 'Aarav'
 
 const readLocal = (): StoredConfigs => {
@@ -52,7 +52,7 @@ export function defaultEventTemplate(kind: EventKind) {
   const instagram = settings?.instagramHandle || BRAND_INSTAGRAM
   const phone = settings?.phone || BRAND_PRIMARY_PHONE_DISPLAY
   const greeting = kind === 'birthday' ? '🎂 Happy Birthday!' : '💍 Happy Anniversary!'
-  return `Hi {name}! ${greeting}\n\nHere's a special treat from ${shop}:\n🎁 {offer}\n\nVisit us in store or call ${phone}.\nFollow us on Instagram @${instagram}\n\n– ${shop}`
+  return `Hi {name}! ${greeting}\n\nHere's a special treat from ${shop}:\n🎁 {offer}\n\nVisit us in store${phone ? ` or call ${phone}` : ''}.${instagram ? `\nFollow us on Instagram @${instagram}` : ''}\n\n– ${shop}`
 }
 
 export function renderEventMessage(template: string, customerName: string, offer: string) {

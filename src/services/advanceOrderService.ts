@@ -33,9 +33,9 @@ export type AdvanceOrder = {
 export type AdvanceTimeline = { id: number; advance_order_id: string; event_type: string; label: string; remarks: string; created_at: string }
 export type AdvancePayment = { id: string; advance_order_id: string; payment_type: 'deposit' | 'remaining'; amount: number; payment_method: string; remarks: string; received_at: string }
 
-const STORAGE_ORDERS_KEY = 'mahalashmi_stores_advance_orders_v1'
-const STORAGE_TIMELINE_KEY = 'mahalashmi_stores_advance_timeline_v1'
-const STORAGE_PAYMENTS_KEY = 'mahalashmi_stores_advance_payments_v1'
+const STORAGE_ORDERS_KEY = 'jewellery_pos_advance_orders_v1'
+const STORAGE_TIMELINE_KEY = 'jewellery_pos_advance_timeline_v1'
+const STORAGE_PAYMENTS_KEY = 'jewellery_pos_advance_payments_v1'
 
 const loadLocalOrders = (): AdvanceOrder[] => {
   try {

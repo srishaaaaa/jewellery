@@ -13,7 +13,7 @@ const DEVICES = [
   { name: 'Desktop (1920x1080)', width: 1920, height: 1080 },
 ];
 
-let report = ['MAHALASHMI POS - COMPREHENSIVE DEVICE CHECK\n' + '='.repeat(80) + '\n'];
+let report = ['JEWELLERY POS - COMPREHENSIVE DEVICE CHECK\n' + '='.repeat(80) + '\n'];
 
 function log(msg) {
   console.log(msg);

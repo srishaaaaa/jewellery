@@ -20,7 +20,7 @@ const DEVICE_SIZES = [
 ];
 
 let report = [
-  'MAHALASHMI POS - FULL PAGE RESPONSIVENESS CHECK',
+  'JEWELLERY POS - FULL PAGE RESPONSIVENESS CHECK',
   '='.repeat(100),
   `Start Time: ${new Date().toLocaleString()}`,
   `Base URL: ${BASE_URL}`,

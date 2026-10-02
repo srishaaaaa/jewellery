@@ -137,7 +137,7 @@ export function printThermalReceipt(data: ThermalReceiptData) {
           <div class="font-bold" style="font-size: 16px; letter-spacing: 2px;">${storeName}</div>
           <div style="font-size: 10px; margin-top: 2px;">${storeAddress}</div>
           <div class="mt-1" style="font-size: 10px;">Ph: ${storePhone}</div>
-          <div style="font-size: 9px; color: #000;">${storeEmail} | Insta: @${storeInstagram}</div>
+          ${storeEmail || storeInstagram ? `<div style="font-size: 9px; color: #000;">${[storeEmail, storeInstagram ? `Insta: @${storeInstagram}` : ''].filter(Boolean).join(' | ')}</div>` : ''}
         </div>
 
         <div class="border-bottom border-top" style="font-size: 11px;">
@@ -255,7 +255,7 @@ export function printThermalReceipt(data: ThermalReceiptData) {
             : isSettledCredit
               ? `<div class="font-bold">Credit bill — paid in full${paidDateStr ? ` on ${paidDateStr}` : ''}. Thank you!</div>`
               : `<div class="font-bold">Thank you for shopping at ${storeName}!</div>`}
-          <div>Follow us on Instagram: @${storeInstagram}</div>
+          ${storeInstagram ? `<div>Follow us on Instagram: @${storeInstagram}</div>` : ''}
         </div>
       </body>
     </html>

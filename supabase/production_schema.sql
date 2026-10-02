@@ -1,5 +1,5 @@
 -- ============================================================================
--- Mahalashmi Stores - Complete Deployment Schema
+-- Jewellery POS - Complete Deployment Schema
 --
 -- PRODUCTION READY: All tables, functions, policies, and migrations merged
 -- This is the ONLY file needed for fresh deployment, and it is safe to re-run on
@@ -298,13 +298,13 @@ CREATE TABLE IF NOT EXISTS public.order_items (
 
 CREATE TABLE IF NOT EXISTS public.store_settings (
   id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
-  name TEXT NOT NULL DEFAULT 'New Mahalashmi Stores',
-  owner_name TEXT NOT NULL DEFAULT 'M. Senthamil',
-  phone TEXT NOT NULL DEFAULT '9865975714, 8668151051',
-  email TEXT NOT NULL DEFAULT 'senthamil75714@gmail.com',
-  address TEXT NOT NULL DEFAULT '5/85, Teacher''s Colony, Masinaickanpatty, Ayyothiyapattanam, Salem - 636103',
+  name TEXT NOT NULL DEFAULT 'Jewellery Store',
+  owner_name TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  address TEXT NOT NULL DEFAULT '',
   gst_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-  instagram_handle TEXT NOT NULL DEFAULT 'mahalashmi_stores',
+  instagram_handle TEXT NOT NULL DEFAULT '',
   low_stock_threshold NUMERIC(12,3) NOT NULL DEFAULT 5,
   logo_url TEXT,
   admin_id TEXT,
@@ -314,7 +314,7 @@ CREATE TABLE IF NOT EXISTS public.store_settings (
   expiry_alert_days INTEGER NOT NULL DEFAULT 30,
   accent_color TEXT NOT NULL DEFAULT '#2E7D32',
   business_type TEXT NOT NULL DEFAULT '',
-  shop_contact_number TEXT NOT NULL DEFAULT '9865975714, 8668151051',
+  shop_contact_number TEXT NOT NULL DEFAULT '',
   customer_event_messages JSONB NOT NULL DEFAULT '{}'::JSONB,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -1577,31 +1577,26 @@ DROP POLICY IF EXISTS customers_all ON public.customers;
 CREATE POLICY customers_all ON public.customers FOR ALL USING (TRUE) WITH CHECK (TRUE);
 
 -- ============================================================================
--- SEED DATA - MAHALASHMI STORES (Fresh Deployment)
+-- SEED DATA (Fresh Deployment)
+-- Jewellery categories are added by migrations/jewellery_pos.sql.
+-- Shop name, phone, address etc. are entered in Store Settings.
 -- ============================================================================
 
+-- Used by billing for ad-hoc items added at the counter.
 INSERT INTO public.categories (name_en, name_ta, is_active, sort_order) VALUES
-  ('Spices', 'Spices', TRUE, 1),
-  ('Grains', 'Grains', TRUE, 2),
-  ('Beverages', 'Beverages', TRUE, 3),
-  ('Oils & Condiments', 'Oils & Condiments', TRUE, 4),
-  ('Snacks & Dry Fruits', 'Snacks & Dry Fruits', TRUE, 5),
-  ('Dairy & Eggs', 'Dairy & Eggs', TRUE, 6),
-  ('Vegetables', 'Vegetables', TRUE, 7),
-  ('Fruits', 'Fruits', TRUE, 8),
   ('Unregistered', 'Unregistered', TRUE, 999)
 ON CONFLICT (name_en) DO NOTHING;
 
 INSERT INTO public.store_settings (id, name, owner_name, phone, email, address, instagram_handle, shop_contact_number, accent_color)
 VALUES (
   1,
-  'New Mahalashmi Stores',
-  'M. Senthamil',
-  '9865975714, 8668151051',
-  'senthamil75714@gmail.com',
-  '5/85, Teacher''s Colony, Masinaickanpatty, Ayyothiyapattanam, Salem - 636103',
-  'mahalashmi_stores',
-  '9865975714, 8668151051',
+  'Jewellery Store',
+  '',
+  '',
+  '',
+  '',
+  '',
+  '',
   '#2E7D32'
 )
 -- Only seeds a fresh database: never overwrite settings the shop has edited.

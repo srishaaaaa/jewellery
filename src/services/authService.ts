@@ -56,7 +56,7 @@ const normalizeLocalUser = (value: unknown): LocalUser | null => {
 // Helper for localStorage fallback
 const getUsers = (): LocalUser[] => {
   try {
-    const raw = localStorage.getItem('mahalashmi_stores_users') || '[]'
+    const raw = localStorage.getItem('jewellery_pos_users') || '[]'
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
     return parsed
@@ -67,7 +67,7 @@ const getUsers = (): LocalUser[] => {
   }
 }
 
-const saveUsers = (u: LocalUser[]) => localStorage.setItem('mahalashmi_stores_users', JSON.stringify(u))
+const saveUsers = (u: LocalUser[]) => localStorage.setItem('jewellery_pos_users', JSON.stringify(u))
 
 const getProductionAuthError = () => ({ user: null, error: 'Supabase is required for authentication in production' })
 
@@ -132,7 +132,7 @@ export const authService = {
       orders: [],
     }
     saveUsers([...users, newUser])
-    localStorage.setItem('mahalashmi_stores_session', newUser.id)
+    localStorage.setItem('jewellery_pos_session', newUser.id)
     return { user: { id: newUser.id, name: newUser.name, mobile: newUser.mobile, email: newUser.email, role: 'customer' }, error: null }
   },
 
@@ -173,7 +173,7 @@ export const authService = {
       (u.email === loginEmail || u.mobile === loginEmail) && u.password === password
     )
     if (!match) return { user: null, error: 'Invalid credentials' }
-    localStorage.setItem('mahalashmi_stores_session', match.id)
+    localStorage.setItem('jewellery_pos_session', match.id)
     return { user: { id: match.id, name: match.name, mobile: match.mobile, email: match.email, role: match.role }, error: null }
   },
 
@@ -182,7 +182,7 @@ export const authService = {
       await supabase.auth.signOut()
     }
     if (USE_LOCAL_AUTH_FALLBACK) {
-      localStorage.removeItem('mahalashmi_stores_session')
+      localStorage.removeItem('jewellery_pos_session')
     }
   },
 
@@ -211,7 +211,7 @@ export const authService = {
     }
 
     // localStorage fallback
-    const sid = localStorage.getItem('mahalashmi_stores_session')
+    const sid = localStorage.getItem('jewellery_pos_session')
     if (!sid) return null
     const users = getUsers()
     const u = users.find((x) => x.id === sid)
@@ -233,7 +233,7 @@ export const authService = {
       return { error: 'Supabase is required for profile updates in production' }
     }
 
-    const sid = localStorage.getItem('mahalashmi_stores_session')
+    const sid = localStorage.getItem('jewellery_pos_session')
     if (sid) {
       const users = getUsers()
       const updated = users.map((u) => (u.id === sid ? { ...u, ...updates } : u))

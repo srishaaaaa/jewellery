@@ -12,12 +12,12 @@ const SoundContext = createContext<SoundContextType | undefined>(undefined);
 
 export function SoundProvider({ children }: { children: React.ReactNode }) {
   const [soundEnabled, setSoundEnabled] = useState(() => {
-    const saved = localStorage.getItem('mahalashmi_sounds');
+    const saved = localStorage.getItem('jewellery_pos_sounds');
     return saved !== null ? JSON.parse(saved) : true;
   });
 
   useEffect(() => {
-    localStorage.setItem('mahalashmi_sounds', JSON.stringify(soundEnabled));
+    localStorage.setItem('jewellery_pos_sounds', JSON.stringify(soundEnabled));
   }, [soundEnabled]);
 
   const play = (type: SoundType) => {

@@ -38,8 +38,8 @@ export interface ExpenseFilterPayload {
   categoryId?: number | string
 }
 
-const STORAGE_EXPENSES_KEY = 'mahalashmi_stores_expenses_records_v1'
-const STORAGE_CATEGORIES_KEY = 'mahalashmi_stores_expense_categories_v1'
+const STORAGE_EXPENSES_KEY = 'jewellery_pos_expenses_records_v1'
+const STORAGE_CATEGORIES_KEY = 'jewellery_pos_expense_categories_v1'
 
 // Default starter categories
 export const DEFAULT_EXPENSE_CATEGORIES: string[] = [

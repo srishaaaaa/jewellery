@@ -35,7 +35,7 @@ export type LocalOrder = {
   created_at: string
 }
 
-const STORAGE_KEY = 'mahalashmi_stores_orders'
+const STORAGE_KEY = 'jewellery_pos_orders'
 
 export function getLocalOrders(): LocalOrder[] {
   try {

@@ -74,6 +74,6 @@ export const useLangStore = create<LangState>()(
       setLang: (lang) => set({ lang }),
       t: (key) => getTranslation(dict[get().lang], key) || getTranslation(dict.en, key) || humanizeKey(key),
     }),
-    { name: 'mahalashmi-stores-lang' },
+    { name: 'jewellery-pos-lang' },
   ),
 )

@@ -93,9 +93,9 @@ export const DEFAULT_BARCODE_SETTINGS: BarcodeSettings = {
   showDiscount: false,
 }
 
-const SETTINGS_KEY = 'mahalashmi_stores_barcode_settings'
+const SETTINGS_KEY = 'jewellery_pos_barcode_settings'
 const LEGACY_SETTINGS_KEY = 'chaji_barcode_settings'
-const CUSTOM_SIZES_KEY = 'mahalashmi_stores_custom_label_sizes'
+const CUSTOM_SIZES_KEY = 'jewellery_pos_custom_label_sizes'
 const LEGACY_CUSTOM_SIZES_KEY = 'chaji_custom_label_sizes'
 
 export function getStoredBarcodeSettings(): BarcodeSettings {

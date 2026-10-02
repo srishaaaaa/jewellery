@@ -391,7 +391,7 @@ export const useAuthStore = create<AuthState>()(
         }
       }
     }),
-    { name: 'mahalashmi-stores-auth' }
+    { name: 'jewellery-pos-auth' }
   )
 )
 
@@ -652,7 +652,7 @@ export const useAdminAuthStore = create<AdminAuthState>()(
       logout: () => set({ isLoggedIn: false, role: null, adminId: null }),
     }),
     {
-      name: 'mahalashmi-stores-admin-session',
+      name: 'jewellery-pos-admin-session',
       // Using sessionStorage so the session is cleared when the tab is closed
       storage: {
         getItem: (name) => {

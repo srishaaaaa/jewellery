@@ -176,9 +176,9 @@ export const Invoice: React.FC<InvoiceProps> = ({
               {shopAddress}
             </div>
             <div style={{ fontSize: 11, color: '#4b5563', marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              <span>📞 {shopPhone}</span>
-              <span>✉️ {shopEmail}</span>
-              <span>📷 @{shopInstagram}</span>
+              {shopPhone && <span>📞 {shopPhone}</span>}
+              {shopEmail && <span>✉️ {shopEmail}</span>}
+              {shopInstagram && <span>📷 @{shopInstagram}</span>}
             </div>
           </div>
         </div>
@@ -348,7 +348,7 @@ export const Invoice: React.FC<InvoiceProps> = ({
               ? `Credit Bill — Paid In Full${paidDateStr ? ` On ${paidDateStr}` : ''}`
               : 'Thank You For Shopping With Us'}
         </div>
-        <div style={{ fontSize: 10, color: '#777', marginTop: 4 }}>Follow us on Instagram: @{shopInstagram}</div>
+        {shopInstagram && <div style={{ fontSize: 10, color: '#777', marginTop: 4 }}>Follow us on Instagram: @{shopInstagram}</div>}
         {onPrintReceipt && (
           <button
             type="button"
