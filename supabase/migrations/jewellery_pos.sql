@@ -58,7 +58,8 @@ CREATE INDEX IF NOT EXISTS products_huid_idx ON public.products(huid) WHERE huid
 -- 2. Jewellery categories (only added if missing; existing ones untouched)
 -- ----------------------------------------------------------------------------
 INSERT INTO public.categories (name_en, name_ta, is_active, sort_order)
-VALUES
+SELECT v.name_en, v.name_ta, v.is_active, v.sort_order
+FROM (VALUES
   ('Gold Jewellery', '', TRUE, 1),
   ('Silver Jewellery', '', TRUE, 2),
   ('Platinum Jewellery', '', TRUE, 3),
@@ -79,7 +80,8 @@ VALUES
   ('Other', '', TRUE, 18),
   ('German Silver Products', '', TRUE, 19),
   ('Photo Frames', '', TRUE, 20)
-ON CONFLICT (name_en) DO NOTHING;
+) AS v(name_en, name_ta, is_active, sort_order)
+WHERE NOT EXISTS (SELECT 1 FROM public.categories c WHERE LOWER(BTRIM(c.name_en)) = LOWER(v.name_en));
 
 -- ----------------------------------------------------------------------------
 -- 3. Daily metal rates — append-only history.
@@ -254,6 +256,26 @@ RETURNS TEXT LANGUAGE sql STABLE AS $$
   SELECT CASE WHEN p_maturity <= CURRENT_DATE THEN 'matured' ELSE 'completed' END;
 $$;
 
+-- Finds the customer by phone (updating the name if given) or creates them.
+CREATE OR REPLACE FUNCTION public.jewellery_upsert_customer(p_phone TEXT, p_name TEXT)
+RETURNS UUID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_id UUID;
+  v_name TEXT := COALESCE(BTRIM(p_name), '');
+BEGIN
+  SELECT id INTO v_id FROM public.customers WHERE phone = p_phone ORDER BY created_at LIMIT 1 FOR UPDATE;
+  IF FOUND THEN
+    IF v_name <> '' THEN
+      UPDATE public.customers SET name = v_name, updated_at = NOW() WHERE id = v_id;
+    END IF;
+    RETURN v_id;
+  END IF;
+  INSERT INTO public.customers (phone, name) VALUES (p_phone, v_name) RETURNING id INTO v_id;
+  RETURN v_id;
+END;
+$$;
+
 -- Earlier version without the plan (frequency) parameter.
 DROP FUNCTION IF EXISTS public.create_jewellery_scheme(TEXT, TEXT, TEXT, NUMERIC, INTEGER, INTEGER, DATE, DATE, TEXT, NUMERIC, TEXT, NUMERIC, TEXT, TEXT, TEXT);
 
@@ -295,12 +317,7 @@ BEGIN
   END IF;
 
   -- Reuse the existing customer record (keyed by phone) or create it.
-  INSERT INTO public.customers (phone, name)
-  VALUES (v_phone, COALESCE(BTRIM(p_customer_name), ''))
-  ON CONFLICT (phone) DO UPDATE
-    SET name = CASE WHEN BTRIM(COALESCE(EXCLUDED.name, '')) <> '' THEN EXCLUDED.name ELSE public.customers.name END,
-        updated_at = NOW()
-  RETURNING id INTO v_customer_id;
+  v_customer_id := public.jewellery_upsert_customer(v_phone, p_customer_name);
 
   LOOP
     v_number := 'SCH' || LPAD(nextval('public.scheme_number_seq')::TEXT, 6, '0');
@@ -541,12 +558,7 @@ BEGIN
     RAISE EXCEPTION 'Scheme % is % and cannot be transferred.', v_scheme.scheme_number, v_scheme.status;
   END IF;
 
-  INSERT INTO public.customers (phone, name)
-  VALUES (v_phone, COALESCE(BTRIM(p_customer_name), ''))
-  ON CONFLICT (phone) DO UPDATE
-    SET name = CASE WHEN BTRIM(COALESCE(EXCLUDED.name, '')) <> '' THEN EXCLUDED.name ELSE public.customers.name END,
-        updated_at = NOW()
-  RETURNING id INTO v_customer_id;
+  v_customer_id := public.jewellery_upsert_customer(v_phone, p_customer_name);
 
   UPDATE public.jewellery_schemes
   SET transfer_history = transfer_history || jsonb_build_array(jsonb_build_object(
