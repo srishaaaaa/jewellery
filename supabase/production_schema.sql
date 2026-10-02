@@ -298,7 +298,7 @@ CREATE TABLE IF NOT EXISTS public.order_items (
 
 CREATE TABLE IF NOT EXISTS public.store_settings (
   id SMALLINT PRIMARY KEY DEFAULT 1 CHECK (id = 1),
-  name TEXT NOT NULL DEFAULT 'Jewellery Store',
+  name TEXT NOT NULL DEFAULT 'NANDI JEWELLERS',
   owner_name TEXT NOT NULL DEFAULT '',
   phone TEXT NOT NULL DEFAULT '',
   email TEXT NOT NULL DEFAULT '',
@@ -312,7 +312,7 @@ CREATE TABLE IF NOT EXISTS public.store_settings (
   staff_id TEXT,
   staff_password TEXT,
   expiry_alert_days INTEGER NOT NULL DEFAULT 30,
-  accent_color TEXT NOT NULL DEFAULT '#2E7D32',
+  accent_color TEXT NOT NULL DEFAULT '#CA8A04',
   business_type TEXT NOT NULL DEFAULT '',
   shop_contact_number TEXT NOT NULL DEFAULT '',
   customer_event_messages JSONB NOT NULL DEFAULT '{}'::JSONB,
@@ -1590,14 +1590,14 @@ ON CONFLICT (name_en) DO NOTHING;
 INSERT INTO public.store_settings (id, name, owner_name, phone, email, address, instagram_handle, shop_contact_number, accent_color)
 VALUES (
   1,
-  'Jewellery Store',
-  '',
-  '',
-  '',
-  '',
-  '',
-  '',
-  '#2E7D32'
+  'NANDI JEWELLERS',
+  'R. Balamurugan',
+  '9176269221',
+  'surapetnandijewellers@gmail.com',
+  'SS Complex, No-247, Sivaprakasam Nagar, Surapet, Chennai 600066',
+  'bm2415981980',
+  '7448412223',
+  '#CA8A04'
 )
 -- Only seeds a fresh database: never overwrite settings the shop has edited.
 ON CONFLICT (id) DO NOTHING;

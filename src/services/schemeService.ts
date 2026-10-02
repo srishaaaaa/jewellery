@@ -172,8 +172,15 @@ export const schemeService = {
       p_wastage_benefit_unit: input.wastageBenefitUnit,
       p_created_by: input.createdBy,
       p_notes: input.notes || '',
+      p_frequency: input.frequency,
     })
-    if (error) throw toError(error, 'Unable to create scheme')
+    if (error) {
+      // PGRST202 = function signature not found: the database still has the monthly-only version.
+      if ((error as { code?: string }).code === 'PGRST202') {
+        throw new Error('Daily / weekly / one-time plans need the database update: run supabase/migrations/jewellery_pos.sql again in the Supabase SQL Editor.')
+      }
+      throw toError(error, 'Unable to create scheme')
+    }
     const row = Array.isArray(data) ? data[0] : data
     return mapSchemeRow(row as Record<string, unknown>)
   },

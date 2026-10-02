@@ -3,7 +3,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { useAuthStore, useProductStore, useVariantStore, useAdminAuthStore, useSettingsStore } from './store/store'
 import { useMetalRateStore } from './store/metalRateStore'
-import { BRAND_EN } from './lib/brand'
+import { BRAND_ACCENT, BRAND_EN } from './lib/brand'
 import { clearLocalOrders } from './lib/ordersFallback'
 import { isSupabaseConfigured, supabase } from './lib/supabase'
 import { darkenHex, hexToRgba, ACCENT_ALPHA_STEPS } from './lib/color'
@@ -73,7 +73,7 @@ function AppShell() {
 
   // Site-wide accent colour, customizable in Store Settings > Appearance.
   useEffect(() => {
-    const hex = accentColor || '#2E7D32'
+    const hex = accentColor || BRAND_ACCENT
     document.documentElement.style.setProperty('--accent', hex)
     document.documentElement.style.setProperty('--accent-dark', darkenHex(hex))
     for (const step of ACCENT_ALPHA_STEPS) {
@@ -184,7 +184,6 @@ function AppShell() {
             <Route path="/admin" element={<Dashboard />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/advance-orders" element={<Dashboard />} />
-            <Route path="/expiry-alerts" element={<Dashboard />} />
           </Route>
 
           {/* Admin-Only Dedicated Routes */}

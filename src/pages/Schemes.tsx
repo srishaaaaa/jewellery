@@ -15,8 +15,12 @@ import { buildSchemeInstallmentWhatsAppMessage } from '../lib/whatsappMessage'
 import { paymentMethodLabel, printSchemeReceipt, totalsAfterInstallment } from '../lib/schemeReceipt'
 import {
   BENEFIT_TYPE_LABELS,
+  FREQUENCY_LABELS,
+  FREQUENCY_PERIOD,
+  SCHEME_FREQUENCIES,
   SCHEME_STATUS_LABELS,
-  addMonthsIso,
+  defaultMaturityDate,
+  monthsBetween,
   deriveSchemeStatus,
   describeSchemeBenefit,
   installmentsDueCount,
@@ -29,6 +33,7 @@ import {
   type BenefitUnit,
   type JewelleryScheme,
   type SchemeBenefitType,
+  type SchemeFrequency,
   type SchemeRules,
   type SchemeStatus,
 } from '../lib/jewellery'
@@ -55,6 +60,7 @@ const PAYMENT_METHODS = ['cash', 'qr', 'card'] as const
 type PaymentMethod = typeof PAYMENT_METHODS[number]
 
 type CreateForm = {
+  frequency: SchemeFrequency
   phone: string
   customerName: string
   schemeName: string
@@ -72,6 +78,13 @@ type CreateForm = {
   wastageBenefitUnit: BenefitUnit
   notes: string
 }
+
+/** "₹5,000 / month", "₹100 / day", "₹50,000 one-time deposit". */
+const installmentLabel = (s: Pick<JewelleryScheme, 'frequency' | 'monthlyAmount'>) =>
+  s.frequency === 'one_time' ? `${formatCurrency(s.monthlyAmount)} one-time` : `${formatCurrency(s.monthlyAmount)} / ${FREQUENCY_PERIOD[s.frequency]}`
+
+/** Default number of installments when a plan is picked. */
+const DEFAULT_INSTALLMENTS: Record<SchemeFrequency, number> = { monthly: 11, weekly: 52, daily: 365, one_time: 1 }
 
 const redemptionLabel = (s: JewelleryScheme) => {
   if (s.status === 'redeemed') return 'Redeemed'
@@ -191,11 +204,12 @@ export default function Schemes() {
 
   // ── Create ──────────────────────────────────────────────────────────────
   const openCreate = () => {
-    const installments = Math.min(Math.max(11, rules.minInstallments), rules.maxInstallments)
+    const installments = Math.min(Math.max(DEFAULT_INSTALLMENTS.monthly, rules.minInstallments), rules.maxInstallments)
     setForm({
+      frequency: 'monthly',
       phone: '', customerName: '', schemeName: 'Gold Savings Scheme', monthlyAmount: '',
       totalInstallments: String(installments), durationMonths: String(installments), durationTouched: false,
-      startDate: today, maturityDate: addMonthsIso(today, installments), maturityTouched: false,
+      startDate: today, maturityDate: defaultMaturityDate(today, 'monthly', installments, installments), maturityTouched: false,
       benefitType: rules.defaultBenefitType,
       makingBenefitValue: String(rules.defaultMakingBenefitValue), makingBenefitUnit: rules.defaultMakingBenefitUnit,
       wastageBenefitValue: String(rules.defaultWastageBenefitValue), wastageBenefitUnit: rules.defaultWastageBenefitUnit,
@@ -209,10 +223,21 @@ export default function Schemes() {
     setForm((f) => {
       if (!f) return f
       const next = { ...f, ...patch }
-      if ('totalInstallments' in patch && !next.durationTouched) next.durationMonths = patch.totalInstallments || ''
-      if (!next.maturityTouched && ('totalInstallments' in patch || 'durationMonths' in patch || 'startDate' in patch)) {
+      if (patch.frequency && patch.frequency !== f.frequency) {
+        // Sensible defaults for the newly picked plan
+        const inst = DEFAULT_INSTALLMENTS[patch.frequency]
+        next.totalInstallments = String(inst)
+        next.durationMonths = String(patch.frequency === 'one_time' ? 12 : inst)
+        next.durationTouched = false
+        next.schemeName = patch.frequency === 'one_time' ? 'One-time Deposit Scheme' : `${FREQUENCY_LABELS[patch.frequency]} Scheme`
+      }
+      if ('totalInstallments' in patch && !next.durationTouched && next.frequency === 'monthly') next.durationMonths = patch.totalInstallments || ''
+      if (!next.maturityTouched && ('frequency' in patch || 'totalInstallments' in patch || 'durationMonths' in patch || 'startDate' in patch)) {
         const months = Number(next.durationMonths) || 0
-        if (/^\d{4}-\d{2}-\d{2}$/.test(next.startDate) && months > 0) next.maturityDate = addMonthsIso(next.startDate, months)
+        const inst = Number(next.totalInstallments) || 0
+        if (/^\d{4}-\d{2}-\d{2}$/.test(next.startDate) && (months > 0 || inst > 0)) {
+          next.maturityDate = defaultMaturityDate(next.startDate, next.frequency, inst, months)
+        }
       }
       return next
     })
@@ -231,13 +256,18 @@ export default function Schemes() {
     if (!form) return
     const phone = normalizePhone(form.phone)
     if (!phone) { setModalError('Enter a valid Indian mobile number for the customer.'); return }
+    const totalInstallments = form.frequency === 'one_time' ? 1 : Number(form.totalInstallments)
     const input = {
+      frequency: form.frequency,
       customerName: form.customerName,
       phone,
       schemeName: form.schemeName,
       monthlyAmount: Number(form.monthlyAmount),
-      totalInstallments: Number(form.totalInstallments),
-      durationMonths: Number(form.durationMonths),
+      totalInstallments,
+      // Daily / weekly plans: duration is simply the months from start to maturity.
+      durationMonths: form.frequency === 'daily' || form.frequency === 'weekly'
+        ? monthsBetween(form.startDate, form.maturityDate)
+        : Number(form.durationMonths),
       startDate: form.startDate,
       maturityDate: form.maturityDate,
       benefitType: form.benefitType,
@@ -404,9 +434,9 @@ export default function Schemes() {
 
   // ── Export ──────────────────────────────────────────────────────────────
   const exportSchemes = () => downloadCsv(`schemes_${today}.csv`, [
-    ['Scheme ID', 'Scheme', 'Customer', 'Phone', 'Start Date', 'Maturity Date', 'Monthly (INR)', 'Installments', 'Paid Installments', 'Total Paid (INR)', 'Remaining (INR)', 'Balance Available (INR)', 'Next Due', 'Status', 'Benefit', 'Redemption'],
+    ['Scheme ID', 'Scheme', 'Plan', 'Customer', 'Phone', 'Start Date', 'Maturity Date', 'Installment (INR)', 'Installments', 'Paid Installments', 'Total Paid (INR)', 'Remaining (INR)', 'Balance Available (INR)', 'Next Due', 'Status', 'Benefit', 'Redemption'],
     ...filtered.map((s) => [
-      s.schemeNumber, s.schemeName, s.customerName, csvPhone(s.phone), csvDate(s.startDate), csvDate(s.maturityDate),
+      s.schemeNumber, s.schemeName, FREQUENCY_LABELS[s.frequency], s.customerName, csvPhone(s.phone), csvDate(s.startDate), csvDate(s.maturityDate),
       s.monthlyAmount.toFixed(2), s.totalInstallments, s.installmentsPaid, s.totalPaid.toFixed(2), schemeRemaining(s).toFixed(2),
       schemeBalance(s).toFixed(2), csvDate(s.nextDueDate), SCHEME_STATUS_LABELS[deriveSchemeStatus(s, today)],
       describeSchemeBenefit(s, (n) => `Rs.${n}`), redemptionLabel(s),
@@ -430,14 +460,14 @@ export default function Schemes() {
     ['Pending Payments', formatCurrency(stats.pending), Clock3, 'text-orange-700 bg-orange-50'],
   ] as const
 
-  const createTarget = form ? (Number(form.monthlyAmount) || 0) * (Number(form.totalInstallments) || 0) : 0
+  const createTarget = form ? (Number(form.monthlyAmount) || 0) * (form.frequency === 'one_time' ? 1 : (Number(form.totalInstallments) || 0)) : 0
 
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
         <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-600">Jewellery savings scheme</p>
         <h2 className="text-2xl font-black text-[#273126]">Schema</h2>
-        <p className="mt-1 text-sm text-[#6B7280]">Monthly installments that customers redeem against a jewellery purchase with a making / wastage benefit.</p>
+        <p className="mt-1 text-sm text-[#6B7280]">Daily, weekly or monthly savings and one-time deposits that customers redeem against a jewellery purchase with a making / wastage benefit.</p>
       </div>
       <div className="flex gap-2">
         <button onClick={openCreate} className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-black text-white hover:opacity-90 cursor-pointer">
@@ -502,7 +532,7 @@ export default function Schemes() {
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-[#F8F7F4] text-[10px] font-black uppercase tracking-wider text-[#737B72]">
               <tr>
-                {['Scheme ID / Start', 'Customer', 'Monthly / Installments', 'Paid / Remaining', 'Next Due / Maturity', 'Benefit', 'Status', 'Actions'].map((h) => (
+                {['Scheme ID / Start', 'Customer', 'Installment / Paid', 'Paid / Remaining', 'Next Due / Maturity', 'Benefit', 'Status', 'Actions'].map((h) => (
                   <th key={h} className="px-4 py-3.5 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -519,14 +549,14 @@ export default function Schemes() {
                   <tr key={s.id} className="hover:bg-emerald-50/30 transition-colors">
                     <td className="px-4 py-3.5 align-middle">
                       <p className="font-black text-emerald-700">{s.schemeNumber}</p>
-                      <p className="text-[11px] text-[#8B9389]">{s.schemeName} • {fmtDate(s.startDate)}</p>
+                      <p className="text-[11px] text-[#8B9389]">{FREQUENCY_LABELS[s.frequency]} • {fmtDate(s.startDate)}</p>
                     </td>
                     <td className="px-4 py-3.5 align-middle">
                       <p className="font-bold text-[#273126]">{s.customerName || '—'}</p>
                       <p className="text-xs text-[#727970]">{s.phone}</p>
                     </td>
                     <td className="px-4 py-3.5 align-middle text-xs">
-                      <p className="font-bold text-[#273126]">{formatCurrency(s.monthlyAmount)} / month</p>
+                      <p className="font-bold text-[#273126]">{installmentLabel(s)}</p>
                       <p className="text-[#858C83]">{s.installmentsPaid} of {s.totalInstallments} paid</p>
                     </td>
                     <td className="px-4 py-3.5 align-middle text-xs">
@@ -615,7 +645,7 @@ export default function Schemes() {
     {createOpen && form && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
       <form onSubmit={submitCreate} className="flex w-full max-w-3xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
         <div className="shrink-0 flex items-start justify-between border-b border-gray-100 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
-          <div><h3 className="text-xl font-black text-[#273126]">Create Scheme</h3><p className="text-xs text-[#6B7280]">Installment rows are created automatically — collect each month from the scheme list.</p></div>
+          <div><h3 className="text-xl font-black text-[#273126]">Create Scheme</h3><p className="text-xs text-[#6B7280]">Installment rows are created automatically — collect each payment from the scheme list.</p></div>
           <button type="button" onClick={() => setCreateOpen(false)} className="shrink-0 text-[#858C83] hover:text-black"><X size={20} /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
@@ -630,14 +660,29 @@ export default function Schemes() {
           </div>
           <p className="mt-5 mb-2 text-[11px] font-black uppercase tracking-wide text-[#879086]">Scheme Details</p>
           <div className="grid gap-4 md:grid-cols-3">
-            <div className="md:col-span-2"><Field label="Scheme Name *"><input required className={inputClass} value={form.schemeName} onChange={(e) => updateForm({ schemeName: e.target.value })} /></Field></div>
+            <Field label="Plan *">
+              <select className={inputClass} value={form.frequency} onChange={(e) => updateForm({ frequency: e.target.value as SchemeFrequency })}>
+                {SCHEME_FREQUENCIES.map((f) => <option key={f} value={f}>{FREQUENCY_LABELS[f]}</option>)}
+              </select>
+            </Field>
+            <Field label="Scheme Name *"><input required className={inputClass} value={form.schemeName} onChange={(e) => updateForm({ schemeName: e.target.value })} /></Field>
             <Field label="Scheme Number"><div className="rounded-xl bg-[#F8F7F4] px-3.5 py-2.5 text-sm font-bold text-[#858C83]">Auto (SCH…)</div></Field>
-            <Field label="Monthly Installment (₹) *"><input required type="number" min="1" step="0.01" className={inputClass} value={form.monthlyAmount} onChange={(e) => updateForm({ monthlyAmount: e.target.value })} placeholder={`Min ${rules.minMonthlyAmount}`} /></Field>
-            <Field label="Number of Installments *"><input required type="number" min={rules.minInstallments} max={rules.maxInstallments} step="1" className={inputClass} value={form.totalInstallments} onChange={(e) => updateForm({ totalInstallments: e.target.value })} /></Field>
-            <Field label="Duration (months)"><input required type="number" min="1" step="1" className={inputClass} value={form.durationMonths} onChange={(e) => updateForm({ durationMonths: e.target.value, durationTouched: true })} /></Field>
+            <Field label={form.frequency === 'one_time' ? 'Deposit Amount (₹) *' : `${form.frequency === 'daily' ? 'Daily' : form.frequency === 'weekly' ? 'Weekly' : 'Monthly'} Installment (₹) *`}>
+              <input required type="number" min="1" step="0.01" className={inputClass} value={form.monthlyAmount} onChange={(e) => updateForm({ monthlyAmount: e.target.value })} placeholder={form.frequency === 'monthly' ? `Min ${rules.minMonthlyAmount}` : '0'} />
+            </Field>
+            {form.frequency !== 'one_time' && (
+              <Field label={`Number of Installments (${FREQUENCY_PERIOD[form.frequency]}s) *`}>
+                <input required type="number" min={form.frequency === 'monthly' ? rules.minInstallments : 1} max={form.frequency === 'monthly' ? rules.maxInstallments : 1000} step="1" className={inputClass} value={form.totalInstallments} onChange={(e) => updateForm({ totalInstallments: e.target.value })} />
+              </Field>
+            )}
+            {(form.frequency === 'monthly' || form.frequency === 'one_time') && (
+              <Field label={form.frequency === 'one_time' ? 'Deposit Term (months)' : 'Duration (months)'}>
+                <input required type="number" min="1" step="1" className={inputClass} value={form.durationMonths} onChange={(e) => updateForm({ durationMonths: e.target.value, durationTouched: true })} />
+              </Field>
+            )}
             <Field label="Start Date *"><input required type="date" className={inputClass} value={form.startDate} onChange={(e) => updateForm({ startDate: e.target.value })} /></Field>
             <Field label="Maturity Date *"><input required type="date" className={inputClass} value={form.maturityDate} onChange={(e) => updateForm({ maturityDate: e.target.value, maturityTouched: true })} /></Field>
-            <Field label="Total to be saved"><div className="rounded-xl bg-emerald-50 px-3.5 py-2.5 text-sm font-black text-emerald-800">{formatCurrency(createTarget)}</div></Field>
+            <Field label={form.frequency === 'one_time' ? 'Deposit' : 'Total to be saved'}><div className="rounded-xl bg-emerald-50 px-3.5 py-2.5 text-sm font-black text-emerald-800">{formatCurrency(createTarget)}</div></Field>
           </div>
           <p className="mt-5 mb-2 text-[11px] font-black uppercase tracking-wide text-[#879086]">Benefit on redemption</p>
           <div className="grid gap-4 md:grid-cols-3">
@@ -758,7 +803,7 @@ export default function Schemes() {
           {[
             ['Customer', detail.customerName || '—'], ['Phone', detail.phone], ['Status', SCHEME_STATUS_LABELS[deriveSchemeStatus(detail, today)]],
             ['Start Date', fmtDate(detail.startDate)], ['Maturity Date', fmtDate(detail.maturityDate)], ['Next Due', fmtDate(detail.nextDueDate)],
-            ['Monthly Amount', formatCurrency(detail.monthlyAmount)], ['Installments', `${detail.installmentsPaid} of ${detail.totalInstallments} paid`], ['Duration', `${detail.durationMonths} months`],
+            ['Plan', FREQUENCY_LABELS[detail.frequency]], ['Installment', installmentLabel(detail)], ['Installments', `${detail.installmentsPaid} of ${detail.totalInstallments} paid`],
             ['Total Paid', formatCurrency(detail.totalPaid)], ['Remaining', formatCurrency(schemeRemaining(detail))], ['Scheme Target', formatCurrency(schemeTarget(detail))],
             ['Benefit', describeSchemeBenefit(detail, formatCurrency)], ['Redemption', redemptionLabel(detail)], ['Balance Available', formatCurrency(schemeBalance(detail))],
           ].map(([k, v]) => <div key={k} className="rounded-xl bg-[#F8F7F4] p-3"><p className="text-[10px] font-black uppercase text-[#858C83]">{k}</p><p className="mt-1 break-words text-sm font-bold">{v}</p></div>)}
@@ -853,10 +898,10 @@ export default function Schemes() {
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 space-y-4">
           {modalError && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Minimum installments"><input type="number" min="1" className={inputClass} value={rulesForm.minInstallments} onChange={(e) => setRulesForm((r) => ({ ...r, minInstallments: Number(e.target.value) }))} /></Field>
-            <Field label="Maximum installments"><input type="number" min="1" className={inputClass} value={rulesForm.maxInstallments} onChange={(e) => setRulesForm((r) => ({ ...r, maxInstallments: Number(e.target.value) }))} /></Field>
-            <Field label="Minimum monthly amount (₹)"><input type="number" min="0" className={inputClass} value={rulesForm.minMonthlyAmount} onChange={(e) => setRulesForm((r) => ({ ...r, minMonthlyAmount: Number(e.target.value) }))} /></Field>
-            <Field label="Maximum monthly amount (₹, 0 = no limit)"><input type="number" min="0" className={inputClass} value={rulesForm.maxMonthlyAmount} onChange={(e) => setRulesForm((r) => ({ ...r, maxMonthlyAmount: Number(e.target.value) }))} /></Field>
+            <Field label="Minimum installments (monthly plans)"><input type="number" min="1" className={inputClass} value={rulesForm.minInstallments} onChange={(e) => setRulesForm((r) => ({ ...r, minInstallments: Number(e.target.value) }))} /></Field>
+            <Field label="Maximum installments (monthly plans)"><input type="number" min="1" className={inputClass} value={rulesForm.maxInstallments} onChange={(e) => setRulesForm((r) => ({ ...r, maxInstallments: Number(e.target.value) }))} /></Field>
+            <Field label="Minimum monthly installment (₹)"><input type="number" min="0" className={inputClass} value={rulesForm.minMonthlyAmount} onChange={(e) => setRulesForm((r) => ({ ...r, minMonthlyAmount: Number(e.target.value) }))} /></Field>
+            <Field label="Maximum monthly installment (₹, 0 = no limit)"><input type="number" min="0" className={inputClass} value={rulesForm.maxMonthlyAmount} onChange={(e) => setRulesForm((r) => ({ ...r, maxMonthlyAmount: Number(e.target.value) }))} /></Field>
             <Field label="Default benefit type">
               <select className={inputClass} value={rulesForm.defaultBenefitType} onChange={(e) => setRulesForm((r) => ({ ...r, defaultBenefitType: e.target.value as SchemeBenefitType }))}>
                 {(Object.keys(BENEFIT_TYPE_LABELS) as SchemeBenefitType[]).map((t) => <option key={t} value={t}>{BENEFIT_TYPE_LABELS[t]}</option>)}

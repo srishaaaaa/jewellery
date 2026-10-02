@@ -76,7 +76,9 @@ VALUES
   ('Wedding Jewellery', '', TRUE, 15),
   ('Kids Jewellery', '', TRUE, 16),
   ('Coins', '', TRUE, 17),
-  ('Other', '', TRUE, 18)
+  ('Other', '', TRUE, 18),
+  ('German Silver Products', '', TRUE, 19),
+  ('Photo Frames', '', TRUE, 20)
 ON CONFLICT (name_en) DO NOTHING;
 
 -- ----------------------------------------------------------------------------
@@ -165,6 +167,16 @@ CREATE TABLE IF NOT EXISTS public.jewellery_schemes (
   CONSTRAINT jewellery_schemes_balance_check CHECK (amount_redeemed >= 0 AND amount_redeemed <= total_paid)
 );
 
+-- Savings plan: installments every day / week / month, or a single one-time deposit.
+ALTER TABLE public.jewellery_schemes ADD COLUMN IF NOT EXISTS frequency TEXT NOT NULL DEFAULT 'monthly';
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'jewellery_schemes_frequency_check') THEN
+    ALTER TABLE public.jewellery_schemes ADD CONSTRAINT jewellery_schemes_frequency_check
+      CHECK (frequency IN ('daily', 'weekly', 'monthly', 'one_time'));
+  END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS jewellery_schemes_phone_idx ON public.jewellery_schemes(phone);
 CREATE INDEX IF NOT EXISTS jewellery_schemes_status_idx ON public.jewellery_schemes(status);
 CREATE INDEX IF NOT EXISTS jewellery_schemes_next_due_idx ON public.jewellery_schemes(next_due_date) WHERE status = 'active';
@@ -242,6 +254,9 @@ RETURNS TEXT LANGUAGE sql STABLE AS $$
   SELECT CASE WHEN p_maturity <= CURRENT_DATE THEN 'matured' ELSE 'completed' END;
 $$;
 
+-- Earlier version without the plan (frequency) parameter.
+DROP FUNCTION IF EXISTS public.create_jewellery_scheme(TEXT, TEXT, TEXT, NUMERIC, INTEGER, INTEGER, DATE, DATE, TEXT, NUMERIC, TEXT, NUMERIC, TEXT, TEXT, TEXT);
+
 CREATE OR REPLACE FUNCTION public.create_jewellery_scheme(
   p_phone TEXT,
   p_customer_name TEXT,
@@ -257,12 +272,14 @@ CREATE OR REPLACE FUNCTION public.create_jewellery_scheme(
   p_wastage_benefit_value NUMERIC,
   p_wastage_benefit_unit TEXT,
   p_created_by TEXT DEFAULT 'Admin',
-  p_notes TEXT DEFAULT ''
+  p_notes TEXT DEFAULT '',
+  p_frequency TEXT DEFAULT 'monthly'
 )
 RETURNS public.jewellery_schemes
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_phone TEXT := BTRIM(COALESCE(p_phone, ''));
+  v_freq TEXT := COALESCE(NULLIF(BTRIM(p_frequency), ''), 'monthly');
   v_customer_id UUID;
   v_scheme public.jewellery_schemes;
   v_number TEXT;
@@ -271,6 +288,8 @@ BEGIN
   IF v_phone = '' THEN RAISE EXCEPTION 'Customer phone number is required.'; END IF;
   IF COALESCE(p_monthly_amount, 0) <= 0 THEN RAISE EXCEPTION 'Monthly installment must be greater than zero.'; END IF;
   IF COALESCE(p_total_installments, 0) <= 0 THEN RAISE EXCEPTION 'Number of installments must be at least 1.'; END IF;
+  IF v_freq NOT IN ('daily', 'weekly', 'monthly', 'one_time') THEN RAISE EXCEPTION 'Invalid savings plan: %.', v_freq; END IF;
+  IF v_freq = 'one_time' AND p_total_installments <> 1 THEN RAISE EXCEPTION 'A one-time deposit has exactly one payment.'; END IF;
   IF p_start_date IS NULL OR p_maturity_date IS NULL OR p_maturity_date < p_start_date THEN
     RAISE EXCEPTION 'Maturity date must be on or after the start date.';
   END IF;
@@ -292,19 +311,23 @@ BEGIN
     scheme_number, customer_id, customer_name, phone, scheme_name, monthly_amount,
     duration_months, total_installments, start_date, maturity_date, benefit_type,
     making_benefit_value, making_benefit_unit, wastage_benefit_value, wastage_benefit_unit,
-    status, next_due_date, notes, created_by
+    status, next_due_date, notes, created_by, frequency
   ) VALUES (
     v_number, v_customer_id, COALESCE(BTRIM(p_customer_name), ''), v_phone, BTRIM(p_scheme_name), p_monthly_amount,
     COALESCE(p_duration_months, p_total_installments), p_total_installments, p_start_date, p_maturity_date,
     COALESCE(p_benefit_type, 'making'),
     COALESCE(p_making_benefit_value, 0), COALESCE(p_making_benefit_unit, 'percent'),
     COALESCE(p_wastage_benefit_value, 0), COALESCE(p_wastage_benefit_unit, 'percent'),
-    'active', p_start_date, COALESCE(p_notes, ''), COALESCE(p_created_by, 'Admin')
+    'active', p_start_date, COALESCE(p_notes, ''), COALESCE(p_created_by, 'Admin'), v_freq
   ) RETURNING * INTO v_scheme;
 
   FOR i IN 1..p_total_installments LOOP
     INSERT INTO public.scheme_installments (scheme_id, installment_number, due_date, amount_due)
-    VALUES (v_scheme.id, i, (p_start_date + make_interval(months => i - 1))::DATE, p_monthly_amount);
+    VALUES (v_scheme.id, i, CASE v_freq
+      WHEN 'daily' THEN p_start_date + (i - 1)
+      WHEN 'weekly' THEN p_start_date + 7 * (i - 1)
+      ELSE (p_start_date + make_interval(months => i - 1))::DATE
+    END, p_monthly_amount);
   END LOOP;
 
   RETURN v_scheme;
@@ -554,7 +577,7 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.create_jewellery_scheme(TEXT, TEXT, TEXT, NUMERIC, INTEGER, INTEGER, DATE, DATE, TEXT, NUMERIC, TEXT, NUMERIC, TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.create_jewellery_scheme(TEXT, TEXT, TEXT, NUMERIC, INTEGER, INTEGER, DATE, DATE, TEXT, NUMERIC, TEXT, NUMERIC, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.record_scheme_installment(UUID, TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.redeem_jewellery_scheme(UUID, NUMERIC, NUMERIC, BOOLEAN, BOOLEAN, INTEGER, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.link_scheme_redemption(UUID, UUID, TEXT) TO anon, authenticated;

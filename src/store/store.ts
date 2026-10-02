@@ -5,7 +5,7 @@ import { getErrorMessage } from '../lib/errorMessage'
 import { supabase } from '../lib/supabase'
 import { fetchAllCategories, fetchAllProducts } from '../services/productService'
 import { fetchAllVariants, type ProductVariant } from '../services/variantService'
-import { BRAND_ADDRESS, BRAND_EN, BRAND_PHONE_DISPLAY, BRAND_INSTAGRAM, BRAND_OWNER_NAME } from '../lib/brand'
+import { BRAND_ACCENT, BRAND_ADDRESS, BRAND_EN, BRAND_PHONE_DISPLAY, BRAND_INSTAGRAM, BRAND_OWNER_NAME } from '../lib/brand'
 import {
   normalizeUnitType,
   toNumber,
@@ -502,7 +502,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
             expiryAlertDays: Number(data.expiry_alert_days ?? 30),
             logoUrl,
             logoBase64: null,
-            accentColor: data.accent_color || '#2E7D32',
+            accentColor: data.accent_color || BRAND_ACCENT,
             businessType: data.business_type || '',
             shopContactNumber: data.shop_contact_number || '',
           },
@@ -531,7 +531,7 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
         expiryAlertDays: 30,
         logoUrl: null,
         logoBase64: null,
-        accentColor: '#2E7D32',
+        accentColor: BRAND_ACCENT,
         businessType: '',
         shopContactNumber: '',
       },

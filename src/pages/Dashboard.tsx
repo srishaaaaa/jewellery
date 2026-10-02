@@ -3,7 +3,7 @@ import {
   BarChart2, Trash2, Edit2, List, ShoppingCart, LayoutDashboard,
   Box, AlertCircle, Power, Download, TrendingUp, TrendingDown,
   Package, Search, RefreshCw, ShieldCheck, ShieldOff, Trophy,
-  MessageCircle, ChevronDown, Eye, FileText, Printer, X, Layers, Receipt, Settings, Bell, Wallet, Gift,
+  MessageCircle, ChevronDown, Eye, FileText, Printer, X, Layers, Receipt, Settings, Wallet, Gift,
   Gem, PiggyBank,
 } from 'lucide-react'
 
@@ -48,8 +48,6 @@ import { toWhatsAppUrl } from '../lib/phone'
 import { toDaysOverdue } from '../services/creditService'
 import Pos from './Pos'
 import AdvanceOrders from './AdvanceOrders'
-import ExpiryAlerts from './ExpiryAlerts'
-import CustomerEvents from './CustomerEvents'
 import MetalRates from './MetalRates'
 import Schemes from './Schemes'
 import JewelleryReports from '../components/dashboard/JewelleryReports'
@@ -61,7 +59,6 @@ import { expenseService, type ExpenseRecord } from '../services/expenseService'
 import { useNavigationStore } from '../store/navigationStore'
 import { useHardwareBarcodeScanner } from '../hooks/useHardwareBarcodeScanner'
 import { BarcodeRedirectDialog } from '../components/pos/BarcodeRedirectDialog'
-import ExpiryAlarmModal from '../components/dashboard/ExpiryAlarmModal'
 import CreditDueAlarmModal from '../components/dashboard/CreditDueAlarmModal'
 import CustomerEventAlarmModal from '../components/dashboard/CustomerEventAlarmModal'
 import { OutstandingCreditsView } from '../components/dashboard/OutstandingCreditsView'
@@ -131,7 +128,7 @@ type DashboardCoupon = {
   usage_count: number
   min_order_value: number
 }
-type TabKey = 'overview' | 'whatsapp' | 'pos_analytics' | 'billing' | 'advance_orders' | 'inventory' | 'expiry_alerts' | 'expenses' | 'coupons' | 'users' | 'history' | 'settings' | 'outstanding_credits' | 'customer_events' | 'metal_rates' | 'schemes'
+type TabKey = 'overview' | 'whatsapp' | 'pos_analytics' | 'billing' | 'advance_orders' | 'inventory' | 'expenses' | 'coupons' | 'users' | 'history' | 'settings' | 'outstanding_credits' | 'customer_events' | 'metal_rates' | 'schemes'
 type PosAnalyticsTab = 'revenue' | 'today' | 'products' | 'categories' | 'coupons' | 'jewellery'
 type ProfileUser = { id: string; email: string; name: string; mobile: string; role: string; created_at: string }
 
@@ -212,18 +209,17 @@ export default function Dashboard() {
   const { products, fetchProducts } = useProductStore()
   const logoUrl = useSettingsStore(s => s.settings?.logoUrl) || BRAND_LOGO
   const shopName = useSettingsStore(s => s.settings?.name) || BRAND_EN
-  const expiryAlertDays = useSettingsStore(s => s.settings?.expiryAlertDays) ?? 30
   const location = useLocation()
   const navigate = useNavigate()
   const role = useAdminAuthStore(state => state.role)
   const [tab, setTab] = useState<TabKey>(() => {
     const params = new URLSearchParams(location.search)
     const tabParam = params.get('tab') as TabKey | null
-    if (tabParam) return tabParam
+    // 'expiry_alerts' was removed; old links open the billing panel instead.
+    if (tabParam && (tabParam as string) !== 'expiry_alerts') return tabParam
     if (location.pathname === '/whatsapp-center') return 'whatsapp'
     if (location.pathname === '/pos-analytics' && role === 'admin') return 'pos_analytics'
     if (location.pathname === '/advance-orders') return 'advance_orders'
-    if (location.pathname === '/expiry-alerts') return 'expiry_alerts'
     if (location.pathname === '/expenses' || location.pathname === '/dashboard/expenses') return 'expenses'
     return 'billing'
   })
@@ -307,7 +303,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (role === 'staff') {
-      const staffAllowedTabs: TabKey[] = ['billing', 'inventory', 'metal_rates', 'schemes', 'advance_orders', 'expiry_alerts', 'history', 'customer_events']
+      const staffAllowedTabs: TabKey[] = ['billing', 'inventory', 'metal_rates', 'schemes', 'advance_orders', 'history', 'customer_events']
       if (!staffAllowedTabs.includes(tab)) {
         setTab('billing')
         navigate('/dashboard', { replace: true })
@@ -317,7 +313,7 @@ export default function Dashboard() {
 
   const handleTabClick = (tabKey: TabKey) => {
     if (role === 'staff') {
-      const staffAllowedTabs: TabKey[] = ['billing', 'inventory', 'metal_rates', 'schemes', 'advance_orders', 'expiry_alerts', 'history', 'customer_events']
+      const staffAllowedTabs: TabKey[] = ['billing', 'inventory', 'metal_rates', 'schemes', 'advance_orders', 'history', 'customer_events']
       if (!staffAllowedTabs.includes(tabKey)) return
     }
     setTab(tabKey)
@@ -328,8 +324,6 @@ export default function Dashboard() {
       navigate('/dashboard?tab=expenses', { replace: true })
     } else if (tabKey === 'advance_orders') {
       navigate('/dashboard?tab=advance_orders', { replace: true })
-    } else if (tabKey === 'expiry_alerts') {
-      navigate('/dashboard?tab=expiry_alerts', { replace: true })
     } else if (tabKey === 'metal_rates' || tabKey === 'schemes') {
       navigate(`/dashboard?tab=${tabKey}`, { replace: true })
     } else {
@@ -1305,16 +1299,6 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [tab, posAnalyticsTab, loadData])
 
-  const expiryAlertCount = useMemo(() => {
-    const today = new Date(); today.setHours(0, 0, 0, 0)
-    const msPerDay = 24 * 60 * 60 * 1000
-    return products.filter(p => {
-      if (p.isActive === false || !p.expiryDate) return false
-      if ((p.category || '').trim().toLowerCase() === 'unregistered') return false
-      const daysLeft = Math.round((new Date(`${p.expiryDate}T00:00:00`).getTime() - today.getTime()) / msPerDay)
-      return daysLeft <= expiryAlertDays
-    }).length
-  }, [products, expiryAlertDays])
 
   const [outstandingCreditCount, setOutstandingCreditCount] = useState(0)
   const refreshOutstandingCreditCount = useCallback(() => {
@@ -1372,7 +1356,6 @@ export default function Dashboard() {
         { id: 'metal_rates',    icon: <Gem size={18} />,          label: 'Metal Rates' },
         { id: 'schemes',        icon: <PiggyBank size={18} />,    label: 'Schema' },
         { id: 'advance_orders', icon: <FileText size={18} />,     label: 'Advance Orders' },
-        { id: 'expiry_alerts',  icon: <Bell size={18} />,         label: 'Expiry Alerts', badge: expiryAlertCount },
         { id: 'customer_events', icon: <Gift size={18} />,        label: 'Customers & Occasions' },
         { id: 'history',        icon: <List size={18} />,         label: 'Order History' },
       ]
@@ -1382,7 +1365,6 @@ export default function Dashboard() {
         { id: 'metal_rates',    icon: <Gem size={18} />,          label: 'Metal Rates' },
         { id: 'schemes',        icon: <PiggyBank size={18} />,    label: 'Schema' },
         { id: 'advance_orders', icon: <FileText size={18} />,     label: 'Advance Orders' },
-        { id: 'expiry_alerts',  icon: <Bell size={18} />,         label: 'Expiry Alerts', badge: expiryAlertCount },
         { id: 'customer_events', icon: <Gift size={18} />,        label: 'Customers & Occasions' },
         { id: 'expenses',       icon: <Receipt size={18} />,      label: 'Expenses' },
         { id: 'outstanding_credits', icon: <Wallet size={18} />, label: 'Outstanding Credits', badge: outstandingCreditCount },
@@ -1395,7 +1377,6 @@ export default function Dashboard() {
   return (
     <div className="admin-shell h-dvh max-h-dvh min-h-dvh bg-bgMain flex flex-col lg:flex-row overflow-hidden">
       <LowStockAlarmModal triggerKey={tab} />
-      <ExpiryAlarmModal triggerKey={tab} />
       <CreditDueAlarmModal triggerKey={tab} />
       <CustomerEventAlarmModal triggerKey={tab} />
       {/* Sidebar */}
@@ -3005,7 +2986,6 @@ export default function Dashboard() {
           />
         )}
 
-        {tab === 'expiry_alerts' && <ExpiryAlerts />}
         {tab === 'customer_events' && <BirthdayDashboard />}
         {tab === 'metal_rates' && <MetalRates />}
         {tab === 'schemes' && <Schemes />}

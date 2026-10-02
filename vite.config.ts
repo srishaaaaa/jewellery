@@ -15,8 +15,8 @@ export default defineConfig({
         'robots.txt',
       ],
       manifest: {
-        name: 'Jewellery POS',
-        short_name: 'Jewellery POS',
+        name: 'NANDI JEWELLERS POS',
+        short_name: 'Nandi Jewellers',
         description: 'Jewellery billing, daily metal rates, savings schemes, barcode stock, receipts and invoices.',
         theme_color: '#0A0A0A',
         background_color: '#FBFAF6',

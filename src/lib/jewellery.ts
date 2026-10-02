@@ -431,6 +431,28 @@ export const snapshotSummary = (s: JewellerySnapshot, money: (n: number) => stri
 
 // ── Savings schemes ("Schema") ─────────────────────────────────────────────
 export type SchemeBenefitType = 'making' | 'wastage' | 'both'
+/** Savings plan: an installment every day / week / month, or one single deposit. */
+export type SchemeFrequency = 'daily' | 'weekly' | 'monthly' | 'one_time'
+
+export const SCHEME_FREQUENCIES: SchemeFrequency[] = ['monthly', 'weekly', 'daily', 'one_time']
+
+export const FREQUENCY_LABELS: Record<SchemeFrequency, string> = {
+  daily: 'Daily Savings',
+  weekly: 'Weekly Savings',
+  monthly: 'Monthly Savings',
+  one_time: 'One-time Deposit',
+}
+
+/** "day" / "week" / "month" for "₹100 / day"; empty for a one-time deposit. */
+export const FREQUENCY_PERIOD: Record<SchemeFrequency, string> = {
+  daily: 'day',
+  weekly: 'week',
+  monthly: 'month',
+  one_time: '',
+}
+
+export const normalizeFrequency = (v: unknown): SchemeFrequency =>
+  v === 'daily' || v === 'weekly' || v === 'one_time' ? v : 'monthly'
 export type BenefitUnit = 'percent' | 'fixed'
 export type SchemeStoredStatus = 'active' | 'completed' | 'matured' | 'redeemed' | 'cancelled'
 export type SchemeStatus = SchemeStoredStatus | 'payment_due'
@@ -516,6 +538,7 @@ export const normalizeSchemeRules = (raw: unknown): SchemeRules => {
 
 export interface JewelleryScheme {
   id: string
+  frequency: SchemeFrequency
   schemeNumber: string
   customerId: string | null
   customerName: string
@@ -550,6 +573,7 @@ export const mapSchemeRow = (row: Record<string, unknown>): JewelleryScheme => {
   const status = String(row.status || 'active')
   return {
     id: String(row.id),
+    frequency: normalizeFrequency(row.frequency),
     schemeNumber: String(row.scheme_number || ''),
     customerId: row.customer_id ? String(row.customer_id) : null,
     customerName: String(row.customer_name || ''),
@@ -595,6 +619,38 @@ export const addMonthsIso = (iso: string, months: number) => {
   const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate()
   target.setDate(Math.min(d, lastDay))
   return localIsoDate(target)
+}
+
+const addDaysIso = (iso: string, days: number) => {
+  const [y, m, d] = iso.split('-').map(Number)
+  if (!y || !m || !d) return iso
+  return localIsoDate(new Date(y, m - 1, d + days))
+}
+
+/** Moves a yyyy-mm-dd date forward by n plan periods (days, weeks or months). */
+export const addPeriodsIso = (iso: string, n: number, frequency: SchemeFrequency) =>
+  frequency === 'daily' ? addDaysIso(iso, n)
+    : frequency === 'weekly' ? addDaysIso(iso, 7 * n)
+      : addMonthsIso(iso, n)
+
+/** Due date of installment k (1-based) — the same rule the database uses. */
+export const installmentDueDate = (startIso: string, k: number, frequency: SchemeFrequency) =>
+  addPeriodsIso(startIso, k - 1, frequency)
+
+/**
+ * Suggested maturity date: monthly and one-time plans mature after the chosen number of
+ * months; daily and weekly plans one period after the last installment is due.
+ */
+export const defaultMaturityDate = (startIso: string, frequency: SchemeFrequency, installments: number, durationMonths: number) =>
+  frequency === 'daily' || frequency === 'weekly'
+    ? addPeriodsIso(startIso, Math.max(1, installments), frequency)
+    : addMonthsIso(startIso, Math.max(1, durationMonths))
+
+/** Whole months between two yyyy-mm-dd dates (at least 1). */
+export const monthsBetween = (fromIso: string, toIso: string) => {
+  const [y1, m1] = fromIso.split('-').map(Number)
+  const [y2, m2] = toIso.split('-').map(Number)
+  return Math.max(1, (y2 - y1) * 12 + (m2 - m1))
 }
 
 export const schemeBalance = (s: Pick<JewelleryScheme, 'totalPaid' | 'amountRedeemed'>) =>
@@ -688,6 +744,7 @@ export const describeSchemeBenefit = (
 }
 
 export type SchemeInput = {
+  frequency: SchemeFrequency
   customerName: string
   phone: string
   schemeName: string
@@ -707,13 +764,22 @@ export type SchemeInput = {
 export const validateSchemeInput = (input: SchemeInput, rules: SchemeRules): string | null => {
   if (!input.phone.trim()) return 'Select or enter the customer phone number.'
   if (!input.schemeName.trim()) return 'Enter a scheme name.'
-  if (!Number.isFinite(input.monthlyAmount) || input.monthlyAmount <= 0) return 'Monthly installment must be greater than zero.'
-  if (input.monthlyAmount < rules.minMonthlyAmount) return `Monthly installment must be at least ₹${rules.minMonthlyAmount}.`
-  if (rules.maxMonthlyAmount > 0 && input.monthlyAmount > rules.maxMonthlyAmount) return `Monthly installment cannot exceed ₹${rules.maxMonthlyAmount}.`
+  const amountName = input.frequency === 'one_time' ? 'Deposit amount' : 'Installment amount'
+  if (!Number.isFinite(input.monthlyAmount) || input.monthlyAmount <= 0) return `${amountName} must be greater than zero.`
   if (!Number.isInteger(input.totalInstallments) || input.totalInstallments < 1) return 'Number of installments must be a whole number of at least 1.'
-  if (input.totalInstallments < rules.minInstallments) return `A scheme needs at least ${rules.minInstallments} installments.`
-  if (input.totalInstallments > rules.maxInstallments) return `A scheme can have at most ${rules.maxInstallments} installments.`
-  if (!Number.isInteger(input.durationMonths) || input.durationMonths < input.totalInstallments) return 'Duration (months) cannot be shorter than the number of monthly installments.'
+  if (input.frequency === 'monthly') {
+    // The store's limits on amount and installment count are for monthly plans.
+    if (input.monthlyAmount < rules.minMonthlyAmount) return `Monthly installment must be at least ₹${rules.minMonthlyAmount}.`
+    if (rules.maxMonthlyAmount > 0 && input.monthlyAmount > rules.maxMonthlyAmount) return `Monthly installment cannot exceed ₹${rules.maxMonthlyAmount}.`
+    if (input.totalInstallments < rules.minInstallments) return `A monthly scheme needs at least ${rules.minInstallments} installments.`
+    if (input.totalInstallments > rules.maxInstallments) return `A monthly scheme can have at most ${rules.maxInstallments} installments.`
+    if (!Number.isInteger(input.durationMonths) || input.durationMonths < input.totalInstallments) return 'Duration (months) cannot be shorter than the number of monthly installments.'
+  } else if (input.frequency === 'one_time') {
+    if (input.totalInstallments !== 1) return 'A one-time deposit has exactly one payment.'
+    if (!Number.isInteger(input.durationMonths) || input.durationMonths < 1) return 'Enter the deposit term in months.'
+  } else if (input.totalInstallments > 1000) {
+    return 'A scheme can have at most 1000 installments.'
+  }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.startDate)) return 'Select a valid start date.'
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.maturityDate) || input.maturityDate < input.startDate) return 'Maturity date must be on or after the start date.'
   const usesMaking = input.benefitType !== 'wastage'
@@ -725,13 +791,13 @@ export const validateSchemeInput = (input: SchemeInput, rules: SchemeRules): str
 
 /** Installments whose due date has arrived (today or earlier) but are not yet paid. */
 export const installmentsDueCount = (
-  s: Pick<JewelleryScheme, 'status' | 'startDate' | 'installmentsPaid' | 'totalInstallments'>,
+  s: Pick<JewelleryScheme, 'status' | 'startDate' | 'installmentsPaid' | 'totalInstallments'> & { frequency?: SchemeFrequency },
   today: string = localIsoDate(),
 ) => {
   if (s.status !== 'active') return 0
   let due = 0
   for (let k = s.installmentsPaid + 1; k <= s.totalInstallments; k++) {
-    if (addMonthsIso(s.startDate, k - 1) <= today) due++
+    if (installmentDueDate(s.startDate, k, s.frequency || 'monthly') <= today) due++
     else break
   }
   return due

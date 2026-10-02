@@ -8,7 +8,7 @@ import { useAlarmQueueStore } from '../../store/alarmQueueStore'
 import { ModalPortal } from '../ModalPortal'
 
 /**
- * Mirrors ExpiryAlarmModal: fires its check on mount (i.e. right after
+ * Mirrors LowStockAlarmModal: fires its check on mount (i.e. right after
  * login) and again only when `triggerKey` becomes "overview" or "history".
  * Flags any customer whose birthday or anniversary falls on today's date.
  */

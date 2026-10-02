@@ -376,16 +376,6 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                   <p className={`mt-1 text-[11px] font-semibold ${applyMsg.type === 'ok' ? 'text-emerald-700' : 'text-red-600'}`}>{applyMsg.text}</p>
                 )}
               </div>
-              <div className="flex-1">
-                <Field label="Expiry Alert Window (days)">
-                  <NumberInput
-                    min={1} className={inputCls}
-                    value={form.expiryAlertDays}
-                    onCommit={n => setForm(f => ({ ...f, expiryAlertDays: n }))}
-                  />
-                </Field>
-                <p className="text-[11px] text-[#6B7280] mt-1.5">Products with an expiry date land in "Expiring Soon" once they're within this many days of it.</p>
-              </div>
               <label className="flex items-start gap-2.5 sm:mt-6 cursor-pointer">
                 <input
                   type="checkbox" checked={form.gstEnabled}

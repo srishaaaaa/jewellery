@@ -220,9 +220,21 @@ export default function MetalRates() {
           <option value="">All Metals</option>
           {(['gold', 'silver', 'platinum'] as const).map((m) => <option key={m} value={m}>{METAL_LABELS[m]}</option>)}
         </select>
-        <select className={inputClass} value={filterPurity} onChange={(e) => setFilterPurity(e.target.value)} disabled={filterMetal !== 'gold'} aria-label="Purity">
+        <select
+          className={inputClass}
+          value={filterPurity}
+          onChange={(e) => {
+            const purity = e.target.value
+            setFilterPurity(purity)
+            // A gold purity implies gold; "Standard" keeps silver/platinum (or all metals).
+            if ((GOLD_PURITIES as readonly string[]).includes(purity)) setFilterMetal('gold')
+            else if (purity === STANDARD_PURITY && filterMetal === 'gold') setFilterMetal('')
+          }}
+          aria-label="Purity"
+        >
           <option value="">All Purities</option>
-          {GOLD_PURITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+          {(filterMetal === '' || filterMetal === 'gold') && GOLD_PURITIES.map((p) => <option key={p} value={p}>Gold {p}</option>)}
+          {filterMetal !== 'gold' && <option value={STANDARD_PURITY}>Standard (Silver / Platinum)</option>}
         </select>
         <input type="date" className={inputClass} value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)} aria-label="From date" />
         <input type="date" className={inputClass} value={filterTo} onChange={(e) => setFilterTo(e.target.value)} aria-label="To date" />

@@ -10,7 +10,7 @@ interface AlarmQueueState {
 }
 
 /**
- * LowStockAlarmModal, ExpiryAlarmModal, CreditDueAlarmModal, and
+ * LowStockAlarmModal, CreditDueAlarmModal, and
  * CustomerEventAlarmModal are each independent full-screen popups that can
  * decide, on their own schedule, that they have something to show. Without
  * coordination the later one to mount just paints over the earlier one,

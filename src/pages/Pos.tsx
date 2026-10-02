@@ -392,6 +392,18 @@ export default function Pos(props: PosProps = {}) {
   }, [products, search, activeCategory])
 
   const subtotal = items.reduce((s, i) => s + i.lineTotal, 0)
+
+  // Jewellery price breakdown for the order summary (from each item's pricing snapshot × qty)
+  const jewelleryBreakdown = items.reduce((acc, i) => {
+    const j = i.jewellery
+    if (!j) return acc
+    acc.metal += j.metal_value * i.qty
+    acc.makingWastage += (j.making_amount + j.wastage_amount) * i.qty
+    acc.stone += j.stone_charge * i.qty
+    acc.other += j.other_charge * i.qty
+    if (j.metal_type !== 'gold') acc.allGold = false
+    return acc
+  }, { metal: 0, makingWastage: 0, stone: 0, other: 0, allGold: true })
   const isValidCoupon = appliedCoupon && subtotal >= (appliedCoupon.minOrderValue || 0)
   const couponDiscount = isValidCoupon
     ? ((appliedCoupon.percentage || 0) > 0
@@ -2078,6 +2090,25 @@ export default function Pos(props: PosProps = {}) {
 
               {/* Summary calculations */}
               <div className="bg-[#FAFAF8] rounded-xl border border-gray-200 p-2.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-[#374151]">{jewelleryBreakdown.allGold ? 'Gold Value' : 'Metal Value'}</span>
+                  <span className="text-[12px] font-black text-[#111111]">{formatCurrency(jewelleryBreakdown.metal)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-[#374151]">Making &amp; Wastage</span>
+                  <span className="text-[12px] font-black text-[#111111]">{formatCurrency(jewelleryBreakdown.makingWastage)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-black text-[#374151]">Stone Charges</span>
+                  <span className="text-[12px] font-black text-[#111111]">{formatCurrency(jewelleryBreakdown.stone)}</span>
+                </div>
+                {jewelleryBreakdown.other > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black text-[#374151]">Other Charges</span>
+                    <span className="text-[12px] font-black text-[#111111]">{formatCurrency(jewelleryBreakdown.other)}</span>
+                  </div>
+                )}
+                <div className="h-px bg-gray-200"></div>
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-black text-[#374151]">Subtotal ({items.length} items)</span>
                   <span className="text-[12px] font-black text-[#111111]">{formatCurrency(subtotal)}</span>
