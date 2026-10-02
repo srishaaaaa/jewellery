@@ -7,7 +7,8 @@ import { getErrorMessage } from '../lib/errorMessage'
 import { formatCurrency, formatInvoiceNo, formatPaymentMode, normalizeStructuredOrderItem, COUNTER_PAYMENT_METHODS } from '../lib/retail'
 import { normalizePhone, toWhatsAppUrl, formatPhoneDisplay } from '../lib/phone'
 import { csvDate, csvPhone, downloadCsv } from '../lib/csv'
-import { formatWeight, metalLabel, normalizeMetalType, readJewellerySnapshot } from '../lib/jewellery'
+import { calculateNetWeight, calculateOldGoldValue, formatWeight, GOLD_PURITIES, metalLabel, normalizeMetalType, readJewellerySnapshot, STANDARD_PURITY, suggestOldGoldRate } from '../lib/jewellery'
+import { useMetalRateStore } from '../store/metalRateStore'
 import { ModalPortal } from '../components/ModalPortal'
 import { useAdminAuthStore, useSettingsStore } from '../store/store'
 import { invoicePdfFile } from '../lib/invoicePdf'
@@ -265,6 +266,65 @@ export default function SalesDesk() {
     footer: 'The original invoice remains unchanged.',
   })
 
+  // ── Old gold ─────────────────────────────────────────────────────────────
+  // Billing = taken as part-payment on a bill (recorded from the Billing Panel).
+  // Counter = bought here without a bill: paid out now, or kept as store credit (an advance).
+  const rates = useMetalRateStore((s) => s.rates)
+  const [ogFilter, setOgFilter] = useState<'all' | 'billing' | 'counter'>('all')
+  const emptyOldGold = { phone: '', name: '', description: '', metalType: 'gold', purity: '22K', testedPurity: '', grossWeight: '', stoneWeight: '', meltingDeduction: '', exchangeRate: '', otherDeduction: '', settlement: 'paid' as 'paid' | 'credit', payoutMethod: 'cash' }
+  const [ogOpen, setOgOpen] = useState(false)
+  const [ogForm, setOgForm] = useState(emptyOldGold)
+  const ogSuggestedRate = suggestOldGoldRate(ogForm.metalType, ogForm.purity, Number(ogForm.testedPurity), rates)
+  const ogNet = calculateNetWeight(Number(ogForm.grossWeight) || 0, Number(ogForm.stoneWeight) || 0)
+  const ogRate = ogForm.exchangeRate.trim() === '' ? ogSuggestedRate : Number(ogForm.exchangeRate) || 0
+  const ogPreview = calculateOldGoldValue({ netWeight: ogNet, meltingDeductionPercent: Number(ogForm.meltingDeduction) || 0, exchangeRate: ogRate, otherDeduction: Number(ogForm.otherDeduction) || 0 })
+  const ogSourceCounts = { all: oldGold.length, billing: oldGold.filter((x) => x.source === 'billing').length, counter: oldGold.filter((x) => x.source === 'counter').length }
+  const visibleOldGold = oldGold.filter((x) => (ogFilter === 'all' || x.source === ogFilter) && matches(x.exchangeNumber, x.invoiceNo, x.customerName, x.phone))
+
+  const printOldGold = (x: OldGoldRecord, creditReceipt?: string) => printDeskReceipt({
+    title: x.source === 'counter' ? 'Old Gold Purchase' : 'Old Gold Exchange', number: x.exchangeNumber, date: fmtDate(x.createdAt, true),
+    customerName: x.customerName, phone: x.phone,
+    rows: [
+      ...(x.invoiceNo ? [['Against Invoice', formatInvoiceNo(x.invoiceNo)] as [string, string]] : []),
+      ['Metal', `${metalLabel(normalizeMetalType(x.metalType), x.purity)}${x.testedPurity != null ? ` (tested ${x.testedPurity}%)` : ''}`],
+      ...(x.description ? [['Item', x.description] as [string, string]] : []),
+      ['Gross / Stone', `${formatWeight(x.grossWeight)} / ${formatWeight(x.stoneWeight)}`], ['Net Weight', formatWeight(x.netWeight)],
+      ['Melting Loss', `${x.meltingDeductionPercent}%`], ['Rate', `${formatCurrency(x.exchangeRate)}/g`],
+      ...(x.otherDeduction ? [['Other Deduction', formatCurrency(x.otherDeduction)] as [string, string]] : []),
+    ],
+    totals: [[x.source === 'billing' ? 'Adjusted on bill' : x.settlement === 'credit' ? `Store credit${creditReceipt ? ` (${creditReceipt})` : ''}` : `Paid (${formatPaymentMode(x.payoutMethod)})`, formatCurrency(x.netValue)]],
+    footer: x.source === 'billing' ? 'Value adjusted against the invoice above.' : x.settlement === 'credit' ? 'Credit is adjusted against your next purchase.' : 'Old gold purchased by the store.',
+  })
+  const submitOldGold = async (event: FormEvent) => {
+    event.preventDefault()
+    const phone = normalizePhone(ogForm.phone)
+    if (!phone) { setModalError('Enter a valid mobile number.'); return }
+    if (ogNet <= 0) { setModalError('Enter the old gold weight.'); return }
+    if (ogRate <= 0) { setModalError('Enter the exchange rate (no metal rate set for today).'); return }
+    if (ogPreview.value <= 0) { setModalError('The old gold value must be more than zero.'); return }
+    setSaving(true)
+    setModalError('')
+    try {
+      const { exchange, advance } = await oldGoldService.recordCounter({
+        description: ogForm.description.trim(), metalType: ogForm.metalType, purity: ogForm.metalType === 'gold' ? ogForm.purity : STANDARD_PURITY,
+        testedPurity: ogForm.testedPurity.trim() === '' ? null : Number(ogForm.testedPurity),
+        grossWeight: Number(ogForm.grossWeight) || 0, stoneWeight: Number(ogForm.stoneWeight) || 0,
+        meltingDeductionPercent: Number(ogForm.meltingDeduction) || 0, exchangeRate: ogRate, otherDeduction: Number(ogForm.otherDeduction) || 0,
+      }, { customerName: ogForm.name, phone }, ogForm.settlement, ogForm.payoutMethod)
+      void auditService.log({ action: 'old_gold_purchased', entityType: 'old_gold_exchange', entityId: exchange.exchangeNumber, newValue: { value: exchange.netValue, settlement: exchange.settlement, credit: advance?.receiptNumber } })
+      setOldGold((rows) => [exchange, ...rows])
+      setOgOpen(false)
+      setNotice(advance
+        ? `${exchange.exchangeNumber} recorded. ${formatCurrency(exchange.netValue)} added as store credit ${advance.receiptNumber} — apply it on the customer's next bill (Advances).`
+        : `${exchange.exchangeNumber} recorded. Pay the customer ${formatCurrency(exchange.netValue)} by ${formatPaymentMode(exchange.payoutMethod)}.`)
+      printOldGold(exchange, advance?.receiptNumber)
+    } catch (err) {
+      setModalError(getErrorMessage(err, 'Unable to record the old gold purchase'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   // ── Advances ─────────────────────────────────────────────────────────────
   const [advanceOpen, setAdvanceOpen] = useState(false)
   const [advanceForm, setAdvanceForm] = useState({ phone: '', name: '', amount: '', method: 'cash', purpose: '', notes: '' })
@@ -289,7 +349,7 @@ export default function SalesDesk() {
     }
   }
   const printAdvance = (a: CustomerAdvance) => printDeskReceipt({
-    title: a.source === 'exchange' ? 'Exchange Credit' : 'Advance Receipt', number: a.receiptNumber, date: fmtDate(a.createdAt, true),
+    title: a.source === 'exchange' ? 'Exchange Credit' : a.source === 'old_gold' ? 'Old Gold Credit' : 'Advance Receipt', number: a.receiptNumber, date: fmtDate(a.createdAt, true),
     customerName: a.customerName, phone: a.phone,
     rows: [['Purpose', a.purpose || '—'], ['Payment', formatPaymentMode(a.paymentMethod)], ['Used on bills', formatCurrency(a.amountUsed)]],
     totals: [['Amount', formatCurrency(a.amount)], ['Balance', formatCurrency(a.balance)]],
@@ -372,8 +432,9 @@ export default function SalesDesk() {
       ...quotations.map((x) => [x.quotationNumber, csvDate(x.createdAt), x.customerName, csvPhone(x.phone), x.items.length, x.total.toFixed(2), csvDate(x.validUntil), x.status])])
     if (tab === 'returns') downloadCsv(`returns_${d}.csv`, [['No', 'Date', 'Invoice', 'Customer', 'Type', 'Amount (INR)', 'Reason', 'Status', 'By', 'Approved By'],
       ...returns.map((x) => [x.returnNumber, csvDate(x.createdAt, true), formatInvoiceNo(x.invoiceNo), x.customerName, x.returnType, x.refundAmount.toFixed(2), x.reason, x.status, x.createdBy, x.approvedBy])])
-    if (tab === 'old_gold') downloadCsv(`old_gold_${d}.csv`, [['No', 'Date', 'Invoice', 'Customer', 'Metal', 'Purity', 'Tested %', 'Gross (g)', 'Stone (g)', 'Net (g)', 'Melting %', 'Rate / g', 'Deduction', 'Value (INR)'],
-      ...oldGold.map((x) => [x.exchangeNumber, csvDate(x.createdAt, true), x.invoiceNo ? formatInvoiceNo(x.invoiceNo) : '', x.customerName, x.metalType, x.purity, x.testedPurity ?? '', x.grossWeight, x.stoneWeight, x.netWeight, x.meltingDeductionPercent, x.exchangeRate, x.otherDeduction, x.netValue.toFixed(2)])])
+    if (tab === 'old_gold') downloadCsv(`old_gold_${d}.csv`, [['No', 'Date', 'Source', 'Settlement', 'Invoice', 'Customer', 'Metal', 'Purity', 'Tested %', 'Gross (g)', 'Stone (g)', 'Net (g)', 'Melting %', 'Rate / g', 'Deduction', 'Value (INR)'],
+      ...visibleOldGold.map((x) => [x.exchangeNumber, csvDate(x.createdAt, true), x.source === 'billing' ? 'Billing exchange' : 'Counter purchase',
+        x.source === 'billing' ? 'On bill' : x.settlement === 'credit' ? 'Store credit' : `Paid ${formatPaymentMode(x.payoutMethod)}`, x.invoiceNo ? formatInvoiceNo(x.invoiceNo) : '', x.customerName, x.metalType, x.purity, x.testedPurity ?? '', x.grossWeight, x.stoneWeight, x.netWeight, x.meltingDeductionPercent, x.exchangeRate, x.otherDeduction, x.netValue.toFixed(2)])])
     if (tab === 'advances') downloadCsv(`advances_${d}.csv`, [['Receipt', 'Date', 'Customer', 'Phone', 'Amount', 'Used', 'Balance', 'Method', 'Purpose', 'Status'],
       ...advances.map((x) => [x.receiptNumber, csvDate(x.createdAt), x.customerName, csvPhone(x.phone), x.amount.toFixed(2), x.amountUsed.toFixed(2), x.balance.toFixed(2), formatPaymentMode(x.paymentMethod), x.purpose, x.status])])
     if (tab === 'repairs') downloadCsv(`repairs_${d}.csv`, [['No', 'Received', 'Customer', 'Phone', 'Item', 'Expected', 'Charge', 'Advance', 'Balance', 'Status'],
@@ -387,6 +448,7 @@ export default function SalesDesk() {
 
   const newButton = tab === 'returns' ? { label: 'New Return / Exchange', onClick: openReturn }
     : tab === 'advances' ? { label: 'New Advance', onClick: () => { setAdvanceForm({ phone: '', name: '', amount: '', method: 'cash', purpose: '', notes: '' }); setModalError(''); setAdvanceOpen(true) } }
+      : tab === 'old_gold' ? { label: 'New Old Gold Purchase', onClick: () => { setOgForm(emptyOldGold); setModalError(''); setOgOpen(true) } }
       : tab === 'repairs' ? { label: 'New Repair', onClick: () => { setRepairForm(emptyRepair); setModalError(''); setRepairOpen(true) } }
         : null
 
@@ -429,7 +491,17 @@ export default function SalesDesk() {
         </button>
       </div>
       {tab === 'quotations' && <p className="mt-2 text-[11px] font-semibold text-[#6B7280]">Create a quotation from the Billing Panel with "Save as Quotation". It uses today's metal rate and is not an invoice.</p>}
-      {tab === 'old_gold' && <p className="mt-2 text-[11px] font-semibold text-[#6B7280]">Old gold is recorded while billing (Current Order → Old Gold Exchange) and linked to that invoice.</p>}
+      {tab === 'old_gold' && <>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {([['all', 'All'], ['billing', 'Billing exchange'], ['counter', 'Counter purchase']] as const).map(([key, label]) => (
+            <button key={key} onClick={() => setOgFilter(key)}
+              className={`rounded-xl px-3 py-1.5 text-xs font-black transition-colors cursor-pointer ${ogFilter === key ? 'bg-[var(--accent-dark)] text-white' : 'bg-[#F3F2EE] text-[#6B7280] hover:text-[#111111]'}`}>
+              {label} <span className="opacity-70">({ogSourceCounts[key]})</span>
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-[11px] font-semibold text-[#6B7280]"><b>Billing exchange</b>: old gold taken as part-payment in the Billing Panel, linked to that invoice. <b>Counter purchase</b>: old gold bought here without a bill, paid to the customer or kept as store credit.</p>
+      </>}
       {tab === 'returns' && !isAdmin && <p className="mt-2 text-[11px] font-semibold text-[#6B7280]">Returns recorded by staff wait for admin approval before stock and refunds are updated.</p>}
     </div>
 
@@ -486,21 +558,27 @@ export default function SalesDesk() {
           </>}
 
           {tab === 'old_gold' && <>
-            {thead(['Exchange', 'Invoice / Customer', 'Metal', 'Weight', 'Rate', 'Deductions', 'Value', ...(isAdmin ? ['Actions'] : [])])}
+            {thead(['Exchange', 'Source', 'Customer', 'Metal', 'Weight', 'Rate', 'Deductions', 'Value', 'Actions'])}
             <tbody className="divide-y divide-[#F0EEE9]">
-              {loading ? emptyRow(7, 'Loading…') : oldGold.filter((x) => matches(x.exchangeNumber, x.invoiceNo, x.customerName, x.phone)).length === 0 ? emptyRow(7, 'No old gold taken yet.')
-                : oldGold.filter((x) => matches(x.exchangeNumber, x.invoiceNo, x.customerName, x.phone)).map((x) => (
+              {loading ? emptyRow(9, 'Loading…') : visibleOldGold.length === 0 ? emptyRow(9, ogFilter === 'counter' ? 'No counter purchases yet.' : ogFilter === 'billing' ? 'No old gold taken on bills yet.' : 'No old gold taken yet.')
+                : visibleOldGold.map((x) => (
                   <tr key={x.id} className="hover:bg-[var(--accent-a5)] transition-colors">
                     <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.exchangeNumber}</p><p className="text-[11px] text-[#8B9389]">{fmtDate(x.createdAt, true)} • {x.createdBy}</p></td>
-                    <td className="px-4 py-3.5"><p className="font-bold text-[#273126]">{x.invoiceNo ? formatInvoiceNo(x.invoiceNo) : '—'}</p><p className="text-xs text-[#727970]">{x.customerName} {x.phone && `• ${x.phone}`}</p></td>
+                    <td className="px-4 py-3.5">{x.source === 'billing'
+                      ? <>{statusChip('Billing exchange', 'blue')}<p className="mt-1 text-[11px] font-bold text-[#273126]">{x.invoiceNo ? formatInvoiceNo(x.invoiceNo) : '—'}</p></>
+                      : <>{statusChip('Counter purchase', 'amber')}<p className="mt-1 text-[11px] font-bold text-[#273126]">{x.settlement === 'credit' ? 'Store credit' : x.settlement === 'paid' ? `Paid · ${formatPaymentMode(x.payoutMethod)}` : '—'}</p></>}</td>
+                    <td className="px-4 py-3.5"><p className="font-bold text-[#273126]">{x.customerName || '—'}</p><p className="text-xs text-[#727970]">{x.phone}</p></td>
                     <td className="px-4 py-3.5 text-xs"><p className="font-bold">{metalLabel(normalizeMetalType(x.metalType), x.purity)}</p>{x.testedPurity != null && <p className="text-[#858C83]">Tested {x.testedPurity}%</p>}{x.description && <p className="text-[#858C83]">{x.description}</p>}</td>
                     <td className="px-4 py-3.5 text-xs">Gross {formatWeight(x.grossWeight)}<br />Stone {formatWeight(x.stoneWeight)}<br /><b>Net {formatWeight(x.netWeight)}</b></td>
                     <td className="px-4 py-3.5 text-xs">{formatCurrency(x.exchangeRate)}/g</td>
                     <td className="px-4 py-3.5 text-xs">Melting {x.meltingDeductionPercent}%<br />Other {formatCurrency(x.otherDeduction)}</td>
                     <td className="px-4 py-3.5 font-black">{formatCurrency(x.netValue)}</td>
-                    {isAdmin && <td className="px-4 py-3.5">{x.invoiceNo
-                      ? <span className="text-[10px] font-semibold text-[#8B9389]" title="Part-payment on a bill: delete the bill to remove it">On bill</span>
-                      : deleteBtn(() => void deleteRecord('old_gold_exchanges', x.id, x.exchangeNumber, 'old gold record'))}</td>}
+                    <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
+                      <button className={`${iconBtn} bg-amber-50 text-amber-700 hover:bg-amber-100`} title="Print slip" onClick={() => printOldGold(x)}><Printer size={15} /></button>
+                      {isAdmin && (x.source === 'billing'
+                        ? <span className="text-[10px] font-semibold text-[#8B9389]" title="Part-payment on a bill: delete the bill to remove it">On bill</span>
+                        : deleteBtn(() => void deleteRecord('old_gold_exchanges', x.id, x.exchangeNumber, 'old gold purchase', x.settlement === 'credit' ? 'Its store credit is removed too (not allowed once the credit is used on a bill).' : '')))}
+                    </div></td>
                   </tr>
                 ))}
             </tbody>
@@ -514,7 +592,7 @@ export default function SalesDesk() {
                   <tr key={x.id} className="hover:bg-[var(--accent-a5)] transition-colors">
                     <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.receiptNumber}</p><p className="text-[11px] text-[#8B9389]">{fmtDate(x.createdAt, true)} • {x.createdBy}</p></td>
                     <td className="px-4 py-3.5"><p className="font-bold text-[#273126]">{x.customerName || '—'}</p><p className="text-xs text-[#727970]">{x.phone}</p></td>
-                    <td className="px-4 py-3.5 text-xs whitespace-normal max-w-[220px]">{x.purpose || '—'}{x.source === 'exchange' && <p className="text-[#858C83]">From return {x.sourceRef}</p>}</td>
+                    <td className="px-4 py-3.5 text-xs whitespace-normal max-w-[220px]">{x.purpose || '—'}{x.source === 'exchange' && <p className="text-[#858C83]">From return {x.sourceRef}</p>}{x.source === 'old_gold' && <p className="text-[#858C83]">From old gold {x.sourceRef}</p>}</td>
                     <td className="px-4 py-3.5 font-black">{formatCurrency(x.amount)}<p className="text-[11px] font-semibold text-[#858C83]">{formatPaymentMode(x.paymentMethod)}</p></td>
                     <td className="px-4 py-3.5 text-xs"><p>Used {formatCurrency(x.amountUsed)}</p><p className="font-black text-emerald-700">Balance {formatCurrency(x.balance)}</p></td>
                     <td className="px-4 py-3.5">{statusChip(x.status === 'active' ? 'Available' : x.status === 'used' ? 'Fully used' : 'Cancelled', x.status === 'active' ? 'green' : 'gray')}</td>
@@ -522,7 +600,7 @@ export default function SalesDesk() {
                       <button className={`${iconBtn} bg-amber-50 text-amber-700 hover:bg-amber-100`} title="Print receipt" onClick={() => printAdvance(x)}><Printer size={15} /></button>
                       <button className={`${iconBtn} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`} title="Send on WhatsApp" onClick={() => whatsappAdvance(x)}><MessageCircle size={15} /></button>
                       {isAdmin && x.status === 'active' && x.amountUsed === 0 && <button className={`${iconBtn} bg-red-50 text-red-600 hover:bg-red-100`} title="Cancel / refund advance" onClick={() => void cancelAdvance(x)}><XCircle size={15} /></button>}
-                      {isAdmin && x.amountUsed === 0 && deleteBtn(() => void deleteRecord('customer_advances', x.id, x.receiptNumber, 'advance', x.status === 'active' ? 'Only delete an advance entered by mistake. To give money back, use Cancel / refund instead.' : ''))}
+                      {isAdmin && x.amountUsed === 0 && x.source !== 'old_gold' && deleteBtn(() => void deleteRecord('customer_advances', x.id, x.receiptNumber, 'advance', x.status === 'active' ? 'Only delete an advance entered by mistake. To give money back, use Cancel / refund instead.' : ''))}
                     </div></td>
                   </tr>
                 ))}
@@ -623,6 +701,67 @@ export default function SalesDesk() {
         <div className="shrink-0 flex gap-3 border-t border-gray-100 bg-white px-4 py-3 sm:px-6">
           <button type="button" onClick={() => setReturnOpen(false)} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button>
           <button disabled={saving || !returnOrder} className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Saving…' : isAdmin ? 'Record & Approve' : 'Send for Approval'}</button>
+        </div>
+      </form>
+    </div></ModalPortal>}
+
+    {/* ── New counter old gold purchase ── */}
+    {ogOpen && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
+      <form onSubmit={submitOldGold} className="flex w-full max-w-2xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
+        <div className="shrink-0 flex items-start justify-between border-b border-gray-100 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
+          <div><p className="text-[11px] font-black uppercase tracking-[.16em] text-[var(--accent-dark)]">Counter purchase · no bill</p><h3 className="text-xl font-black text-[#273126]">Buy Old Gold</h3><p className="text-xs text-[#6B7280]">Old gold given as part-payment on a bill is added in the Billing Panel instead.</p></div>
+          <button type="button" onClick={() => setOgOpen(false)} className="shrink-0 text-[#858C83] hover:text-black"><X size={20} /></button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 grid gap-4 sm:grid-cols-2">
+          {modalError && <div className="sm:col-span-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
+          <Field label="Mobile Number *"><input required className={inputClass} value={ogForm.phone} onChange={(e) => setOgForm((f) => ({ ...f, phone: e.target.value }))} /></Field>
+          <Field label="Customer Name"><input className={inputClass} value={ogForm.name} onChange={(e) => setOgForm((f) => ({ ...f, name: e.target.value }))} /></Field>
+          <div className="sm:col-span-2"><Field label="Description"><input className={inputClass} value={ogForm.description} onChange={(e) => setOgForm((f) => ({ ...f, description: e.target.value }))} placeholder="e.g. Old chain, 2 bangles" /></Field></div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Metal">
+              <select className={inputClass} value={ogForm.metalType} onChange={(e) => setOgForm((f) => ({ ...f, metalType: e.target.value }))}>
+                <option value="gold">Gold</option><option value="silver">Silver</option><option value="platinum">Platinum</option>
+              </select>
+            </Field>
+            <Field label="Stated purity">
+              {ogForm.metalType === 'gold'
+                ? <select className={inputClass} value={ogForm.purity} onChange={(e) => setOgForm((f) => ({ ...f, purity: e.target.value }))}>{GOLD_PURITIES.map((pu) => <option key={pu} value={pu}>{pu}</option>)}</select>
+                : <div className={`${inputClass} bg-gray-50 text-gray-500`}>Standard</div>}
+            </Field>
+          </div>
+          <Field label="Tested purity (%)"><input type="number" min="0" max="100" step="0.01" className={inputClass} value={ogForm.testedPurity} onChange={(e) => setOgForm((f) => ({ ...f, testedPurity: e.target.value }))} placeholder="e.g. 91.6" /></Field>
+          <div className="grid grid-cols-3 gap-3 sm:col-span-2">
+            <Field label="Gross wt (g) *"><input required type="number" min="0" step="0.001" className={inputClass} value={ogForm.grossWeight} onChange={(e) => setOgForm((f) => ({ ...f, grossWeight: e.target.value }))} /></Field>
+            <Field label="Stone wt (g)"><input type="number" min="0" step="0.001" className={inputClass} value={ogForm.stoneWeight} onChange={(e) => setOgForm((f) => ({ ...f, stoneWeight: e.target.value }))} /></Field>
+            <Field label="Net wt (g)"><div className={`${inputClass} bg-gray-50 font-bold`}>{ogNet.toFixed(3)}</div></Field>
+          </div>
+          <div className="grid grid-cols-3 gap-3 sm:col-span-2">
+            <Field label="Melting (%)"><input type="number" min="0" max="100" step="0.01" className={inputClass} value={ogForm.meltingDeduction} onChange={(e) => setOgForm((f) => ({ ...f, meltingDeduction: e.target.value }))} placeholder="0" /></Field>
+            <Field label="Rate (₹/g)"><input type="number" min="0" step="0.01" className={inputClass} value={ogForm.exchangeRate} onChange={(e) => setOgForm((f) => ({ ...f, exchangeRate: e.target.value }))} placeholder={ogSuggestedRate ? String(ogSuggestedRate) : 'Rate'} /></Field>
+            <Field label="Other ded. (₹)"><input type="number" min="0" step="0.01" className={inputClass} value={ogForm.otherDeduction} onChange={(e) => setOgForm((f) => ({ ...f, otherDeduction: e.target.value }))} placeholder="0" /></Field>
+          </div>
+          <div className="sm:col-span-2 rounded-2xl bg-[var(--accent-a10)] p-3 text-[12px] font-bold text-[#374151] space-y-0.5">
+            <div className="flex justify-between"><span>Weight after melting loss</span><span>{ogPreview.effectiveWeight.toFixed(3)} g</span></div>
+            <div className="flex justify-between"><span>@ {formatCurrency(ogRate)}/g{ogForm.exchangeRate.trim() === '' && ogSuggestedRate ? " (today's rate)" : ''}</span><span>{formatCurrency(ogPreview.grossValue)}</span></div>
+            <div className="flex justify-between text-[14px] font-black text-[#111111] pt-1 border-t border-[var(--accent-a30)]"><span>Value to customer</span><span>{formatCurrency(ogPreview.value)}</span></div>
+          </div>
+          <div className="sm:col-span-2 grid gap-2 sm:grid-cols-2">
+            {([['paid', 'Pay the customer now', 'Cash / UPI / bank paid out today'], ['credit', 'Keep as store credit', 'Becomes an advance used on a later bill']] as const).map(([key, title, sub]) => (
+              <button type="button" key={key} onClick={() => setOgForm((f) => ({ ...f, settlement: key }))}
+                className={`rounded-xl border-2 p-3 text-left transition-colors ${ogForm.settlement === key ? 'border-[var(--accent-dark)] bg-[var(--accent-a5)]' : 'border-[#E5E7EB]'}`}>
+                <p className="text-sm font-black text-[#273126]">{title}</p><p className="text-[11px] text-[#6B7280]">{sub}</p>
+              </button>
+            ))}
+          </div>
+          {ogForm.settlement === 'paid' && <Field label="Paid by">
+            <select className={inputClass} value={ogForm.payoutMethod} onChange={(e) => setOgForm((f) => ({ ...f, payoutMethod: e.target.value }))}>
+              {COUNTER_PAYMENT_METHODS.map((m) => <option key={m} value={m}>{formatPaymentMode(m)}</option>)}
+            </select>
+          </Field>}
+        </div>
+        <div className="shrink-0 flex gap-3 border-t border-gray-100 bg-white px-4 py-3 sm:px-6">
+          <button type="button" onClick={() => setOgOpen(false)} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button>
+          <button disabled={saving} className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save & Print Slip'}</button>
         </div>
       </form>
     </div></ModalPortal>}

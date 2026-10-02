@@ -66,6 +66,12 @@ export type SchemeInstallmentWhatsAppInput = {
   totalPaid: number
   remainingAmount: number
   nextDueDate?: string | null
+  /** Gold rate (₹/g) on the payment day and the grams this payment bought */
+  goldRate?: number | null
+  goldPurity?: string | null
+  goldGrams?: number | null
+  /** Grams accumulated in the scheme so far */
+  totalGrams?: number | null
 }
 
 export type CreditReminderWhatsAppInput = {
@@ -272,9 +278,9 @@ Thank you! We have received your savings scheme installment.
 🔢 *Installment:* ${input.installmentNumber} of ${input.totalInstallments}
 💰 *Amount Paid:* ₹ ${Number(input.amount || 0).toFixed(2)}${method ? ` (${method})` : ''}
 📅 *Paid On:* ${fmtDate(input.paidAt)}
-
+${input.goldRate && input.goldGrams ? `🪙 *Gold Rate:* ₹ ${Number(input.goldRate).toFixed(2)}/g${input.goldPurity ? ` (${input.goldPurity})` : ''}\n⚖️ *Gold Credited:* ${Number(input.goldGrams).toFixed(3)} g\n` : ''}
 📊 *Total Paid So Far:* ₹ ${Number(input.totalPaid || 0).toFixed(2)}
-⏳ *Remaining:* ₹ ${Number(input.remainingAmount || 0).toFixed(2)}
+${input.totalGrams ? `🪙 *Total Gold Saved:* ${Number(input.totalGrams).toFixed(3)} g\n` : ''}⏳ *Remaining:* ₹ ${Number(input.remainingAmount || 0).toFixed(2)}
 ${input.nextDueDate ? `📅 *Next Due Date:* ${fmtDate(input.nextDueDate)}\n` : '🎉 *All installments completed!*\n'}
 ${shop.phone ? `📞 *Shop Contact:* ${shop.phone}` : ''}`
 }

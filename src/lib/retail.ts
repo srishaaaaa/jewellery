@@ -85,7 +85,7 @@ export const isUuid = (value: unknown): value is string =>
 
 export const PAYMENT_LABELS: Record<string, string> = {
   cash: 'Cash', qr: 'UPI', upi: 'UPI', card: 'Card', bank: 'Bank Transfer', cheque: 'Cheque',
-  credit: 'Credit', online: 'Online', advance: 'Advance', exchange: 'Exchange Credit',
+  credit: 'Credit', online: 'Online', advance: 'Advance', exchange: 'Exchange Credit', old_gold: 'Old Gold',
 }
 
 /** Payment methods offered at the counter (keys stored on the bill). */

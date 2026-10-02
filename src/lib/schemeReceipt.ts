@@ -15,15 +15,17 @@ export const paymentMethodLabel = (method: string | null | undefined) => {
   return m ? m.toUpperCase() : '—'
 }
 
-export type ReceiptTotals = { totalPaid: number; remaining: number; nextDueDate: string | null }
+export type ReceiptTotals = { totalPaid: number; remaining: number; nextDueDate: string | null; totalGrams: number }
 
 /** Totals as they stood right after the given installment was paid (for reprints). */
 export const totalsAfterInstallment = (scheme: JewelleryScheme, installments: SchemeInstallment[], installment: SchemeInstallment): ReceiptTotals => {
   const paidUpTo = installments.filter((i) => i.status === 'paid' && i.installmentNumber <= installment.installmentNumber)
   const totalPaid = Math.round(paidUpTo.reduce((sum, i) => sum + i.amountPaid, 0) * 100) / 100
+  const totalGrams = Math.round(paidUpTo.reduce((sum, i) => sum + (i.goldGrams || 0), 0) * 1000) / 1000
   const next = installments.find((i) => i.installmentNumber > installment.installmentNumber)
   return {
     totalPaid,
+    totalGrams,
     remaining: Math.max(0, Math.round((scheme.monthlyAmount * scheme.totalInstallments - totalPaid) * 100) / 100),
     nextDueDate: next ? next.dueDate : null,
   }
@@ -31,7 +33,7 @@ export const totalsAfterInstallment = (scheme: JewelleryScheme, installments: Sc
 
 /** Prints an 80mm thermal receipt for one scheme installment (same layout as the advance receipt). */
 export function printSchemeReceipt(scheme: JewelleryScheme, installment: SchemeInstallment, totals?: ReceiptTotals) {
-  const t: ReceiptTotals = totals || { totalPaid: scheme.totalPaid, remaining: schemeRemaining(scheme), nextDueDate: scheme.nextDueDate }
+  const t: ReceiptTotals = totals || { totalPaid: scheme.totalPaid, remaining: schemeRemaining(scheme), nextDueDate: scheme.nextDueDate, totalGrams: scheme.totalGrams }
   const settings = useSettingsStore.getState().settings
   const shop = {
     name: settings?.name || BRAND_EN,
@@ -80,7 +82,10 @@ export function printSchemeReceipt(scheme: JewelleryScheme, installment: SchemeI
 ${installment.createdBy ? `<div class="r"><span class="label">Received By</span><span>${esc(installment.createdBy)}</span></div>` : ''}
 <div class="line"></div>
 <div class="r big"><span>Amount Paid</span><span>${esc(formatCurrency(installment.amountPaid))}</span></div>
+${installment.goldRate && installment.goldGrams ? `<div class="r"><span class="label">Gold Rate${installment.goldPurity ? ` (${esc(installment.goldPurity)})` : ''}</span><span>${esc(formatCurrency(installment.goldRate))}/g</span></div>
+<div class="r"><span>Gold Credited</span><span class="bold">${installment.goldGrams.toFixed(3)} g</span></div>` : ''}
 <div class="r"><span>Total Paid</span><span class="bold">${esc(formatCurrency(t.totalPaid))}</span></div>
+${t.totalGrams > 0 ? `<div class="r"><span>Total Gold Saved</span><span class="bold">${t.totalGrams.toFixed(3)} g</span></div>` : ''}
 <div class="r"><span>Remaining</span><span class="bold">${esc(formatCurrency(t.remaining))}</span></div>
 ${t.nextDueDate ? `<div class="r"><span>Next Due</span><span>${esc(new Date(`${t.nextDueDate}T00:00:00`).toLocaleDateString('en-IN'))}</span></div>` : ''}
 <div class="line"></div>

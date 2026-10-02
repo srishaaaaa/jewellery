@@ -299,6 +299,17 @@ export const calculateOldGoldValue = (input: OldGoldInput) => {
 export const oldGoldRateFromPurity = (rate24k: number, testedPurityPercent: number) =>
   roundTo(Math.max(0, rate24k) * Math.min(100, Math.max(0, testedPurityPercent)) / 99.9, 2)
 
+/** Today's exchange rate for old metal: from the tested purity when given, else the rate for the stated purity. */
+export const suggestOldGoldRate = (metal: string, purity: string, testedPurity: number, rates: CurrentRates) => {
+  if (metal === 'gold') {
+    const base24 = rates[rateKey('gold', '24K')]?.ratePerGram || 0
+    if (testedPurity > 0 && base24) return oldGoldRateFromPurity(base24, testedPurity)
+    return rates[rateKey('gold', purity)]?.ratePerGram || 0
+  }
+  const std = rates[rateKey(metal, STANDARD_PURITY)]?.ratePerGram || 0
+  return testedPurity > 0 && std ? roundTo(std * Math.min(100, testedPurity) / 99.9, 2) : std
+}
+
 export type PriceInput = {
   netWeight: number
   ratePerGram: number
@@ -687,6 +698,12 @@ export interface JewelleryScheme {
   cancelledAt: string | null
   cancelReason: string | null
   transferHistory: Array<Record<string, unknown>>
+  /** Gold purity the installments are converted at (fixed by the first payment). */
+  goldPurity: string
+  /** Grams of gold accumulated: the sum of each installment's amount / gold rate on its payment day. */
+  totalGrams: number
+  /** Cancel / resume history, oldest first. */
+  statusHistory: Array<{ action: 'cancelled' | 'resumed'; at: string; by: string; reason: string; rescheduledDays?: number }>
   createdBy: string
   createdAt: string
   updatedAt: string
@@ -722,6 +739,13 @@ export const mapSchemeRow = (row: Record<string, unknown>): JewelleryScheme => {
     cancelledAt: row.cancelled_at ? String(row.cancelled_at) : null,
     cancelReason: row.cancel_reason ? String(row.cancel_reason) : null,
     transferHistory: Array.isArray(row.transfer_history) ? (row.transfer_history as Array<Record<string, unknown>>) : [],
+    goldPurity: String(row.gold_purity || '22K'),
+    totalGrams: toNumber(row.total_grams, 0),
+    statusHistory: (Array.isArray(row.status_history) ? (row.status_history as Array<Record<string, unknown>>) : []).map((h) => ({
+      action: h.action === 'resumed' ? 'resumed' as const : 'cancelled' as const,
+      at: String(h.at || ''), by: String(h.by || ''), reason: String(h.reason || ''),
+      rescheduledDays: h.rescheduled_days == null ? undefined : toNumber(h.rescheduled_days, 0),
+    })),
     createdBy: String(row.created_by || ''),
     createdAt: String(row.created_at || ''),
     updatedAt: String(row.updated_at || ''),

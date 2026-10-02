@@ -31,6 +31,11 @@ export interface SchemeInstallment {
   status: 'pending' | 'paid'
   notes: string
   createdBy: string | null
+  /** Gold rate (₹/g) on the payment day; null for payments recorded before rates were kept. */
+  goldRate: number | null
+  goldPurity: string | null
+  /** Grams this payment buys at goldRate. */
+  goldGrams: number | null
 }
 
 export interface SchemeRedemption {
@@ -59,6 +64,9 @@ export const mapInstallmentRow = (row: Record<string, unknown>): SchemeInstallme
   status: row.status === 'paid' ? 'paid' : 'pending',
   notes: String(row.notes || ''),
   createdBy: row.created_by ? String(row.created_by) : null,
+  goldRate: row.gold_rate == null ? null : toNumber(row.gold_rate, 0),
+  goldPurity: row.gold_purity ? String(row.gold_purity) : null,
+  goldGrams: row.gold_grams == null ? null : toNumber(row.gold_grams, 0),
 })
 
 const mapRedemptionRow = (row: Record<string, unknown>): SchemeRedemption => ({
@@ -185,15 +193,25 @@ export const schemeService = {
     return mapSchemeRow(row as Record<string, unknown>)
   },
 
-  /** Collects the next pending installment. Returns the paid installment and the updated scheme. */
-  async recordInstallment(schemeId: string, paymentMethod: string, createdBy: string, notes = '') {
+  /**
+   * Collects the next pending installment at the given gold rate (₹/g; null = today's rate for the
+   * scheme's purity). Returns the paid installment, with the grams it bought, and the updated scheme.
+   */
+  async recordInstallment(schemeId: string, paymentMethod: string, createdBy: string, notes = '', gold: { rate: number | null; purity: string } | null = null) {
     const { data, error } = await supabase.rpc('record_scheme_installment', {
       p_scheme_id: schemeId,
       p_payment_method: paymentMethod,
       p_created_by: createdBy,
       p_notes: notes,
+      p_gold_rate: gold?.rate ?? null,
+      p_gold_purity: gold?.purity ?? null,
     })
-    if (error) throw toError(error, 'Unable to record the installment')
+    if (error) {
+      if ((error as { code?: string }).code === 'PGRST202') {
+        throw new Error('Recording the gold rate needs the database update: run supabase/migrations/jewellery_pos.sql again in the Supabase SQL Editor.')
+      }
+      throw toError(error, 'Unable to record the installment')
+    }
     const payload = (data || {}) as { installment?: Record<string, unknown>; scheme?: Record<string, unknown> }
     if (!payload.installment || !payload.scheme) throw new Error('Installment was not recorded')
     return { installment: mapInstallmentRow(payload.installment), scheme: mapSchemeRow(payload.scheme) }
@@ -272,6 +290,23 @@ export const schemeService = {
     const { data: gone, error } = await supabase.from('jewellery_schemes').delete().eq('id', schemeId).select('id')
     if (error) throw toError(error, 'Unable to delete the scheme')
     if (!gone || gone.length === 0) throw new Error('The scheme was not deleted.')
+  },
+
+  /** Re-opens a cancelled scheme; with reschedule, the remaining installments restart from today. */
+  async resume(schemeId: string, reason: string, reschedule: boolean, createdBy: string): Promise<JewelleryScheme> {
+    const { data, error } = await supabase.rpc('resume_jewellery_scheme', {
+      p_scheme_id: schemeId,
+      p_reason: reason,
+      p_reschedule: reschedule,
+      p_created_by: createdBy,
+    })
+    if (error) {
+      if ((error as { code?: string }).code === 'PGRST202') {
+        throw new Error('Resuming schemes needs the database update: run supabase/migrations/jewellery_pos.sql again in the Supabase SQL Editor.')
+      }
+      throw toError(error, 'Unable to resume the scheme')
+    }
+    return mapSchemeRow((Array.isArray(data) ? data[0] : data) as Record<string, unknown>)
   },
 
   async transfer(schemeId: string, phone: string, customerName: string, createdBy: string): Promise<JewelleryScheme> {
