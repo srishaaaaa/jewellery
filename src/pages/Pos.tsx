@@ -156,6 +156,38 @@ const makePosItem = (p: Product, qty?: number): PosItem => {
   }
 }
 
+const MANUAL_JEWELLERY_ID = 'manual-jewellery-entry'
+const roundMoney = (n: number) => Math.round(Math.max(0, n) * 100) / 100
+
+/**
+ * Amounts typed into the Gold Value / Making & Wastage / Stone Charges rows of the
+ * order summary become one bill line ("Gold (manual entry)") with a jewellery snapshot,
+ * so invoices, receipts, reports and scheme benefits treat it like any jewellery item.
+ */
+const buildManualJewelleryItem = (gold: number, making: number, stone: number): PosItem | null => {
+  const g = roundMoney(gold)
+  const m = roundMoney(making)
+  const st = roundMoney(stone)
+  const total = roundMoney(g + m + st)
+  if (total <= 0) return null
+  const base = makePosItem({
+    id: MANUAL_JEWELLERY_ID, name: 'Gold (manual entry)', category: 'Unregistered', remedy: [],
+    price: total, offerPrice: null, stock: 999999, stockQuantity: 999999, hasVariants: false,
+    unitType: 'unit', unitLabel: 'pcs', baseQuantity: 1, stockUnit: 'pcs', allowDecimalQuantity: false,
+    predefinedOptions: [], isActive: true, sortOrder: 999, unit: 'pcs', rating: 5, description: '', benefits: '',
+    image: '/product-placeholder.svg', imageUrl: '/product-placeholder.svg',
+  }, 1)
+  const snapshot: JewellerySnapshot = {
+    metal_type: 'gold', purity: '', rate_per_gram: 0, rate_source: 'fixed', rate_id: null, rate_effective_from: null,
+    gross_weight: 0, stone_weight: 0, net_weight: 0,
+    making_charge: m, making_charge_type: 'fixed', making_amount: m,
+    wastage: 0, wastage_type: 'percentage', wastage_weight: 0, wastage_amount: 0,
+    stone_charge: st, other_charge: 0, metal_value: g, unit_price: total,
+    huid: null, sku: null, barcode: null, design_number: null, priced_at: new Date().toISOString(),
+  }
+  return { ...base, source: 'manual', jewellery: snapshot, jewelleryError: null }
+}
+
 const repriceJewelleryItem = (item: PosItem, rates: CurrentRates): PosItem => {
   if (!item.metalType) return item
   const pricing = priceJewellery(item, rates)
@@ -335,6 +367,10 @@ export default function Pos(props: PosProps = {}) {
   const [appliedScheme, setAppliedScheme] = useState<JewelleryScheme | null>(null)
   const [schemeUseAmount, setSchemeUseAmount] = useState('')
   const [schemeUseBenefit, setSchemeUseBenefit] = useState(true)
+  // Amounts typed straight into the order summary (Gold Value / Making & Wastage / Stone Charges)
+  const [manualGold, setManualGold] = useState('')
+  const [manualMaking, setManualMaking] = useState('')
+  const [manualStone, setManualStone] = useState('')
 
   useEffect(() => {
     void fetchProducts()
@@ -391,7 +427,10 @@ export default function Pos(props: PosProps = {}) {
     return src.slice(0, 120)
   }, [products, search, activeCategory])
 
-  const subtotal = items.reduce((s, i) => s + i.lineTotal, 0)
+  const manualJewelleryItem = buildManualJewelleryItem(Number(manualGold) || 0, Number(manualMaking) || 0, Number(manualStone) || 0)
+  /** Everything on the bill: cart items plus the manually typed jewellery amounts (if any). */
+  const billItems = manualJewelleryItem ? [...items, manualJewelleryItem] : items
+  const subtotal = billItems.reduce((s, i) => s + i.lineTotal, 0)
 
   // Jewellery price breakdown for the order summary (from each item's pricing snapshot × qty)
   const jewelleryBreakdown = items.reduce((acc, i) => {
@@ -417,7 +456,7 @@ export default function Pos(props: PosProps = {}) {
 
   // Scheme benefit: a discount on making charges and/or wastage only — never on the metal value.
   const appliedSchemeBenefit = appliedScheme && schemeUseBenefit && !appliedScheme.benefitUsed
-    ? calculateSchemeBenefit(appliedScheme, items
+    ? calculateSchemeBenefit(appliedScheme, billItems
         .filter((item) => item.jewellery)
         .map((item) => ({ makingAmount: item.jewellery!.making_amount, wastageAmount: item.jewellery!.wastage_amount, qty: item.qty })))
     : null
@@ -820,6 +859,9 @@ export default function Pos(props: PosProps = {}) {
     setSchemeUseAmount('')
     setSchemeUseBenefit(true)
     setExpandedJewelleryId(null)
+    setManualGold('')
+    setManualMaking('')
+    setManualStone('')
     searchRef.current?.focus()
   }
 
@@ -897,10 +939,10 @@ export default function Pos(props: PosProps = {}) {
     setCouponError('')
   }
 
-  const getOrderType = (): 'pos_sale' | 'manual_sale' => (items.length > 0 && items.every((item) => item.source === 'manual') ? 'manual_sale' : 'pos_sale')
+  const getOrderType = (): 'pos_sale' | 'manual_sale' => (billItems.length > 0 && billItems.every((item) => item.source === 'manual') ? 'manual_sale' : 'pos_sale')
 
   const openDepositOrder = () => {
-    if (!items.length) { setError('Add at least one product before creating a deposit order.'); return }
+    if (!billItems.length) { setError('Add at least one product before creating a deposit order.'); return }
     if (!customer.name.trim()) { setError('Enter the customer name for the deposit order.'); return }
     if (!customer.phone.trim()) { setError('Enter the customer phone number for the deposit order.'); return }
     if (total <= 0) { setError('The order total must be greater than zero.'); return }
@@ -919,12 +961,12 @@ export default function Pos(props: PosProps = {}) {
     if (!depositForm.expectedDeliveryDate) { setError('Select the expected delivery date.'); return }
     setSaving(true); setError('')
     try {
-      const allocationBase = items.reduce((sum, item) => sum + item.lineTotal, 0)
+      const allocationBase = billItems.reduce((sum, item) => sum + item.lineTotal, 0)
       let allocated = 0
-      const productsSnapshot = items.map((item, index) => {
-        const lineTotal = index === items.length - 1
+      const productsSnapshot = billItems.map((item, index) => {
+        const lineTotal = index === billItems.length - 1
           ? Math.max(0, Math.round((total - allocated) * 100) / 100)
-          : Math.max(0, Math.round((allocationBase > 0 ? total * item.lineTotal / allocationBase : total / items.length) * 100) / 100)
+          : Math.max(0, Math.round((allocationBase > 0 ? total * item.lineTotal / allocationBase : total / billItems.length) * 100) / 100)
         allocated += lineTotal
         return {
           product_id: item.parentProductId || toProductId(item.id), variant_id: item.variantId || null,
@@ -937,9 +979,9 @@ export default function Pos(props: PosProps = {}) {
       })
       const created = await createAdvanceOrder({
         customerName: customer.name.trim(), phone: customer.phone.trim(), address: depositForm.address.trim(),
-        productName: items.map(item => `${item.qty}× ${item.name}`).join(', '),
-        category: Array.from(new Set(items.map(item => item.category).filter(Boolean))).join(', '),
-        description: items.map(item => `${item.qty}× ${item.name}${item.note ? ` — ${item.note}` : ''}`).join('\n'),
+        productName: billItems.map(item => `${item.qty}× ${item.name}`).join(', '),
+        category: Array.from(new Set(billItems.map(item => item.category).filter(Boolean))).join(', '),
+        description: billItems.map(item => `${item.qty}× ${item.name}${item.note ? ` — ${item.note}` : ''}`).join('\n'),
         totalAmount: total, depositAmount, expectedDeliveryDate: depositForm.expectedDeliveryDate,
         remarks: depositForm.remarks, referenceNumber: depositForm.referenceNumber, paymentMethod: depositForm.paymentMethod, createdByName: role || 'Staff',
         products: productsSnapshot,
@@ -956,7 +998,7 @@ export default function Pos(props: PosProps = {}) {
 
   // ── Generate bill ─────────────────────────────────────────────────────
   const generateBill = async () => {
-    if (!items.length) { setError('Add at least one product.'); return }
+    if (!billItems.length) { setError('Add at least one item, or enter Gold Value / Making & Wastage / Stone Charges.'); return }
     // Validate required phone
     const normalizedPhone = normalizePhone(customer.phone || '')
     if (!normalizedPhone) { setError('Please enter a valid Indian mobile number (e.g. 9876543210 or +91 9876543210)'); return }
@@ -1005,7 +1047,7 @@ export default function Pos(props: PosProps = {}) {
         customerName: customer.name.trim() || 'Walk-in Customer',
         phone: normalizedPhone,
         address: customer.address.trim() || 'POS Counter',
-        items: items.map(item => buildStructuredOrderItem({
+        items: billItems.map(item => buildStructuredOrderItem({
           productId:    item.parentProductId ? item.parentProductId : toProductId(item.id),
           variantId:    item.variantId   ?? null,
           variantName:  item.variantName ?? null,
@@ -1089,7 +1131,7 @@ export default function Pos(props: PosProps = {}) {
         invoiceNo: created.invoiceNo,
         orderType: getOrderType(),
         date: billingDate.trim() ? new Date(billingDate).toISOString() : created.createdAt,
-        items: [...items],
+        items: [...billItems],
         subtotal,
         shipping: Number(shipping || 0),
         couponCode: appliedCoupon?.code,
@@ -1136,6 +1178,9 @@ export default function Pos(props: PosProps = {}) {
       setCustomerSchemes([])
       setAppliedScheme(null)
       setSchemeUseAmount('')
+      setManualGold('')
+      setManualMaking('')
+      setManualStone('')
       void fetchProducts()
     } catch (err: unknown) {
       if (schemeReservation && !orderCreated) {
@@ -1353,7 +1398,7 @@ export default function Pos(props: PosProps = {}) {
                   </div>
                   {item.jewellery && (
                     <p className="mt-0.5 text-[11px] font-semibold text-textMuted break-words">
-                      {metalLabel(item.jewellery.metal_type, item.jewellery.purity)} · Net {formatWeight(item.jewellery.net_weight)} @ {formatCurrency(item.jewellery.rate_per_gram)}/g
+                      {metalLabel(item.jewellery.metal_type, item.jewellery.purity)}{item.jewellery.net_weight > 0 ? ` · Net ${formatWeight(item.jewellery.net_weight)}` : ''}{item.jewellery.rate_per_gram > 0 ? ` @ ${formatCurrency(item.jewellery.rate_per_gram)}/g` : ''}
                     </p>
                   )}
                   {item.specialOfferNote && (
@@ -2103,17 +2148,47 @@ export default function Pos(props: PosProps = {}) {
 
               {/* Summary calculations */}
               <div className="bg-[#FAFAF8] rounded-xl border border-gray-200 p-2.5 space-y-1.5">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-[11px] font-black text-[#374151]">{jewelleryBreakdown.allGold ? 'Gold Value' : 'Metal Value'}</span>
-                  <span className="text-[12px] font-black text-[#111111]">{formatCurrency(jewelleryBreakdown.metal)}</span>
+                  <div className="flex items-center gap-1.5">
+                    {jewelleryBreakdown.metal > 0 && <span className="text-[12px] font-black text-[#111111] whitespace-nowrap">{formatCurrency(jewelleryBreakdown.metal)} +</span>}
+                    <input
+                      type="number" min="0" step="0.01" onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                      value={manualGold}
+                      onChange={e => setManualGold(e.target.value)}
+                      placeholder="0"
+                      aria-label="Gold Value (enter manually)"
+                      className="w-24 h-8 px-2 bg-white border border-gray-200 rounded-lg text-[12px] font-black text-[#111111] text-right focus:outline-none focus:border-[var(--accent)]"
+                    />
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-[11px] font-black text-[#374151]">Making &amp; Wastage</span>
-                  <span className="text-[12px] font-black text-[#111111]">{formatCurrency(jewelleryBreakdown.makingWastage)}</span>
+                  <div className="flex items-center gap-1.5">
+                    {jewelleryBreakdown.makingWastage > 0 && <span className="text-[12px] font-black text-[#111111] whitespace-nowrap">{formatCurrency(jewelleryBreakdown.makingWastage)} +</span>}
+                    <input
+                      type="number" min="0" step="0.01" onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                      value={manualMaking}
+                      onChange={e => setManualMaking(e.target.value)}
+                      placeholder="0"
+                      aria-label="Making &amp; Wastage (enter manually)"
+                      className="w-24 h-8 px-2 bg-white border border-gray-200 rounded-lg text-[12px] font-black text-[#111111] text-right focus:outline-none focus:border-[var(--accent)]"
+                    />
+                  </div>
                 </div>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-[11px] font-black text-[#374151]">Stone Charges</span>
-                  <span className="text-[12px] font-black text-[#111111]">{formatCurrency(jewelleryBreakdown.stone)}</span>
+                  <div className="flex items-center gap-1.5">
+                    {jewelleryBreakdown.stone > 0 && <span className="text-[12px] font-black text-[#111111] whitespace-nowrap">{formatCurrency(jewelleryBreakdown.stone)} +</span>}
+                    <input
+                      type="number" min="0" step="0.01" onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                      value={manualStone}
+                      onChange={e => setManualStone(e.target.value)}
+                      placeholder="0"
+                      aria-label="Stone Charges (enter manually)"
+                      className="w-24 h-8 px-2 bg-white border border-gray-200 rounded-lg text-[12px] font-black text-[#111111] text-right focus:outline-none focus:border-[var(--accent)]"
+                    />
+                  </div>
                 </div>
                 {jewelleryBreakdown.other > 0 && (
                   <div className="flex items-center justify-between">
@@ -2123,7 +2198,7 @@ export default function Pos(props: PosProps = {}) {
                 )}
                 <div className="h-px bg-gray-200"></div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black text-[#374151]">Subtotal ({items.length} items)</span>
+                  <span className="text-[11px] font-black text-[#374151]">Subtotal ({billItems.length} items)</span>
                   <span className="text-[12px] font-black text-[#111111]">{formatCurrency(subtotal)}</span>
                 </div>
 
@@ -2333,7 +2408,7 @@ export default function Pos(props: PosProps = {}) {
                 <button
                   type="button"
                   onClick={openDepositOrder}
-                  disabled={saving || items.length === 0}
+                  disabled={saving || billItems.length === 0}
                   className="min-h-[44px] rounded-xl border-2 border-[#0A0A0A] bg-white px-3 py-3 text-[12px] font-black uppercase tracking-wide text-[#0A0A0A] transition-colors hover:bg-[#0A0A0A] hover:text-[var(--accent)] disabled:opacity-40 cursor-pointer"
                 >
                   Save as Deposit Order
@@ -2368,7 +2443,7 @@ export default function Pos(props: PosProps = {}) {
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-6 sm:py-4">
             <div className="mb-3 sm:mb-4 rounded-2xl bg-violet-50 p-3 sm:p-4">
               <div className="flex justify-between text-sm"><span className="font-bold text-violet-700">Order total</span><span className="font-black text-violet-900">{formatCurrency(total)}</span></div>
-              <div className="mt-2 max-h-16 sm:max-h-24 space-y-1 overflow-y-auto border-t border-violet-200 pt-2">{items.map(item => <div key={item.id} className="flex justify-between gap-3 text-xs"><span className="break-words">{item.qty}× {item.name}</span><span className="font-bold">{formatCurrency(item.lineTotal)}</span></div>)}</div>
+              <div className="mt-2 max-h-16 sm:max-h-24 space-y-1 overflow-y-auto border-t border-violet-200 pt-2">{billItems.map(item => <div key={item.id} className="flex justify-between gap-3 text-xs"><span className="break-words">{item.qty}× {item.name}</span><span className="font-bold">{formatCurrency(item.lineTotal)}</span></div>)}</div>
             </div>
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <label className="block min-w-0"><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-[#6B7280]">Deposit received *</span><input required autoFocus type="number" onWheel={(e) => (e.target as HTMLInputElement).blur()} min="0.01" max={Math.max(0, total - 0.01)} step="0.01" value={depositForm.amount} onChange={e => setDepositForm({...depositForm, amount:e.target.value})} className="w-full rounded-xl border px-3 py-2.5 text-sm font-bold outline-none focus:border-violet-600"/></label>
