@@ -1,0 +1,416 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --brand-black: #0A0A0A;
+    --brand-black-surface: #141414;
+    --brand-gold: #2E7D32;
+    --brand-gold-hover: #256428;
+    --brand-gold-light: #EAF6EC;
+    --brand-gold-border: #B7E1BE;
+    --brand-surface: #FBFAF6;
+    --brand-text-dark: #111111;
+    --brand-text-muted: #6B7280;
+    /* Site-wide accent colour, customizable in Store Settings > Appearance.
+       Kept up to date at runtime by App.tsx from settings.accentColor. */
+    --accent: #2E7D32;
+    --accent-dark: #1B5E20;
+    --accent-a5: rgba(46, 125, 50, 0.05);
+    --accent-a10: rgba(46, 125, 50, 0.1);
+    --accent-a15: rgba(46, 125, 50, 0.15);
+    --accent-a20: rgba(46, 125, 50, 0.2);
+    --accent-a30: rgba(46, 125, 50, 0.3);
+    --accent-a40: rgba(46, 125, 50, 0.4);
+    --accent-a50: rgba(46, 125, 50, 0.5);
+  }
+
+  *, *::before, *::after {
+    box-sizing: border-box;
+    font-family: 'DM Sans', 'Outfit', 'Noto Sans Tamil', system-ui, -apple-system, sans-serif;
+    font-optical-sizing: auto;
+    font-style: normal;
+  }
+
+  html {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background-color: #0A0A0A;
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+    touch-action: manipulation;
+    width: 100%;
+    max-width: 100vw;
+    overscroll-behavior-x: contain;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    font-family: 'DM Sans', 'Outfit', 'Noto Sans Tamil', system-ui, -apple-system, sans-serif;
+    font-optical-sizing: auto;
+    font-style: normal;
+  }
+
+  /* Fluid Typography for Desktops/Laptops (>= 1024px) */
+  @media (min-width: 1024px) {
+    html {
+      font-size: clamp(13px, 0.35vw + 10.5px, 16px);
+    }
+  }
+
+  /* Tablet & Standard Mobile Baseline (361px - 1023px) */
+  @media (min-width: 361px) and (max-width: 1023px) {
+    html {
+      font-size: 13.5px;
+    }
+  }
+
+  /* Ultra-compact Mobile Screen Optimization (<= 360px down to 320px) */
+  @media (max-width: 360px) {
+    html {
+      font-size: 12px;
+    }
+    .admin-shell {
+      font-size: 12px;
+    }
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background-color: #FBFAF6;
+    background-image:
+      radial-gradient(circle at top left, rgba(46, 125, 50, 0.06), transparent 34%),
+      radial-gradient(circle at top right, rgba(10, 10, 10, 0.04), transparent 28%);
+    color: #111111;
+    font-family: 'DM Sans', 'Outfit', 'Noto Sans Tamil', system-ui, -apple-system, sans-serif;
+    font-optical-sizing: auto;
+    font-style: normal;
+    -webkit-font-smoothing: antialiased;
+    width: 100%;
+    max-width: 100vw;
+    overscroll-behavior-x: contain;
+    overscroll-behavior-y: contain;
+    text-rendering: optimizeLegibility;
+    position: relative;
+  }
+
+  button, a, input, textarea, select, option, optgroup, label {
+    font-family: 'DM Sans', 'Outfit', 'Noto Sans Tamil', system-ui, -apple-system, sans-serif;
+    font-optical-sizing: auto;
+    font-style: normal;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  table, thead, tbody, tr, th, td {
+    font-family: 'DM Sans', 'Outfit', 'Noto Sans Tamil', system-ui, -apple-system, sans-serif !important;
+    font-optical-sizing: auto;
+    font-style: normal;
+  }
+
+  img {
+    max-width: 100%;
+    display: block;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'DM Sans', 'Outfit', 'Noto Sans Tamil', system-ui, sans-serif;
+    font-optical-sizing: auto;
+    font-style: normal;
+    letter-spacing: -0.01em;
+  }
+
+  .brand-font, .font-brand {
+    font-family: 'Cinzel', 'DM Sans', 'Outfit', 'Noto Sans Tamil', serif;
+  }
+
+  .font-headline {
+    font-family: 'DM Sans', 'Outfit', 'Noto Sans Tamil', system-ui, sans-serif;
+    font-optical-sizing: auto;
+    font-style: normal;
+  }
+
+  .font-sans {
+    font-family: 'DM Sans', 'Outfit', 'Noto Sans Tamil', system-ui, -apple-system, sans-serif !important;
+    font-optical-sizing: auto;
+    font-style: normal;
+  }
+
+  .dm-sans, .dmsans, .font-dm-sans, .font-dmsans {
+    font-family: 'DM Sans', sans-serif !important;
+    font-optical-sizing: auto;
+    font-style: normal;
+  }
+
+  .outfit, .font-outfit {
+    font-family: 'Outfit', sans-serif !important;
+    font-optical-sizing: auto;
+    font-style: normal;
+  }
+
+  .font-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
+  }
+
+  .ta-text {
+    font-family: 'Noto Sans Tamil', system-ui, sans-serif;
+    line-height: 1.75;
+    letter-spacing: 0;
+  }
+  [lang="ta"], :lang(ta) {
+    font-family: 'Noto Sans Tamil', system-ui, sans-serif;
+    line-height: 1.75;
+    letter-spacing: 0;
+  }
+
+  /* Modal & Popup Anti-Overflow Shield */
+  .modal-overlay {
+    padding: 0.75rem;
+  }
+  .modal-container {
+    width: 100%;
+    max-width: min(95vw, var(--modal-max-w, 56rem));
+    max-height: min(92vh, 880px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .modal-body {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    flex: 1 1 auto;
+  }
+
+  /* No overscroll-behavior: contain on general scroll containers - a table
+     or card wrapper with overflow-x-auto is also a vertical scroll container,
+     and "contain" on it swallows the wheel/swipe so the page never scrolls
+     while the pointer or finger is over it. No -webkit-overflow-scrolling
+     either: modern iOS has momentum scrolling built in, and the old property
+     clips position: fixed pop-ups to the scroll area on iPhone. */
+
+  /* Pop-ups and side drawers: keep their scroll from moving the page behind */
+  .fixed .overflow-y-auto, .fixed .overflow-auto, .fixed.overflow-y-auto, .fixed.overflow-auto {
+    overscroll-behavior: contain;
+  }
+
+  /* Ensure main app container scrolls properly */
+  #root {
+    width: 100%;
+    max-width: 100vw;
+    height: 100%;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Fix for sidebar and main content scrolling */
+  .admin-shell {
+    display: flex;
+    width: 100%;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .admin-shell > main {
+    overflow-y: auto;
+    flex: 1;
+    min-height: 0;
+  }
+
+  /* Mobile-specific scroll optimization */
+  @supports (padding: max(0px)) {
+    body {
+      padding-left: max(0px, env(safe-area-inset-left));
+      padding-right: max(0px, env(safe-area-inset-right));
+      padding-top: max(0px, env(safe-area-inset-top));
+      padding-bottom: max(0px, env(safe-area-inset-bottom));
+    }
+  }
+}
+
+@layer components {
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px];
+  }
+
+  .shadow-soft {
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.06);
+  }
+
+  .surface-panel {
+    @apply rounded-2xl border border-[#B7E1BE]/40 bg-white shadow-soft;
+  }
+
+  .surface-panel-compact {
+    @apply rounded-xl border border-[#B7E1BE]/40 bg-white shadow-soft;
+  }
+
+  .mobile-chip {
+    @apply inline-flex min-h-[44px] items-center justify-center rounded-full px-3.5 py-2 text-[12px] font-black;
+  }
+
+  .mobile-cta-bar {
+    @apply border-t border-[#B7E1BE]/50 bg-white/95 backdrop-blur pb-[calc(env(safe-area-inset-bottom)+0.75rem)];
+  }
+
+  .mobile-section-title {
+    @apply text-[11px] font-black uppercase tracking-[0.24em] text-[#1B5E20];
+  }
+
+  .mobile-page-shell {
+    @apply bg-[#FBFAF6] min-h-screen;
+  }
+
+  .btn-primary {
+    @apply px-6 py-3 rounded-xl bg-[#0A0A0A] text-[#2E7D32] border border-[#2E7D32] font-bold hover:bg-[#1A1A1A] transition-all;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-3 rounded-xl border border-[#B7E1BE] bg-white text-[#111111] font-bold hover:bg-gray-50 transition-colors;
+  }
+
+  .btn-small {
+    @apply px-3 py-2 rounded-xl font-bold text-sm transition-colors;
+  }
+}
+
+@layer utilities {
+  .hide-scrollbar::-webkit-scrollbar { display: none; }
+  .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Visible scrollbar styling */
+  .scrollbar-visible::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-visible::-webkit-scrollbar-track {
+    background: #f1f1f1;
+  }
+  .scrollbar-visible::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 3px;
+  }
+  .scrollbar-visible::-webkit-scrollbar-thumb:hover {
+    background: #555;
+  }
+  .scrollbar-visible {
+    scrollbar-width: thin;
+    scrollbar-color: #888 #f1f1f1;
+  }
+
+  /* Smooth scrolling utilities */
+  .smooth-scroll {
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+  }
+
+  .no-scroll {
+    overflow: hidden;
+    height: 100%;
+  }
+
+  .scroll-smooth-y {
+    scroll-behavior: smooth;
+  }
+
+  .scroll-contain {
+    overscroll-behavior: contain;
+  }
+
+  /* Force scroll on element */
+  .force-scroll {
+    overflow: auto !important;
+  }
+
+  /* Prevent scroll chaining */
+  .scroll-lock {
+    overscroll-behavior: none;
+  }
+
+  /* Touch optimization */
+  .touch-auto {
+    touch-action: auto;
+  }
+
+  .touch-manipulation {
+    touch-action: manipulation;
+  }
+
+  .touch-none {
+    touch-action: none;
+  }
+
+  /* Performance optimization for scrolling */
+  .will-scroll {
+    will-change: scroll-position;
+  }
+
+  .glass {
+    background: rgba(255, 255, 255, 0.92) !important;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .bg-bgMain { background-color: #FBFAF6 !important; }
+  .bg-cardBg  { background-color: #FFFFFF !important; }
+}
+
+#root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  min-height: 100dvh;
+  width: 100%;
+  max-width: 100vw;
+  overscroll-behavior-x: contain;
+  background:
+    radial-gradient(circle at top left, rgba(46, 125, 50, 0.05), transparent 30%),
+    #FBFAF6;
+}
+
+/* ── PRINT STYLES — A4 invoice ─────────────────────────── */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm 12mm 12mm 12mm;
+  }
+
+  html, body, #root {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    color: #000 !important;
+  }
+
+  .print\:hidden,
+  .print-hidden,
+  nav,
+  footer { display: none !important; }
+
+  #invoice-print-root {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+    min-height: 0 !important;
+  }
+
+  #invoice-print-root * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .bg-bgMain {
+    background: #fff !important;
+    padding: 0 !important;
+  }
+}

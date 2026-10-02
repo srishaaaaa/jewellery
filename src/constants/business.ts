@@ -1,0 +1,3 @@
+export const BUSINESS_PHONE = '917010312145'
+export const BUSINESS_PHONE_DISPLAY = '+91 70103 12145'
+export const BUSINESS_WHATSAPP_LINK = `https://wa.me/${BUSINESS_PHONE}`
