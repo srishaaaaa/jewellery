@@ -464,6 +464,362 @@ CREATE TABLE IF NOT EXISTS public.customers (
 );
 
 -- ============================================================================
+-- UPGRADE TABLES CREATED BY AN OLDER VERSION
+-- Databases set up with an earlier version of this file already have some of
+-- these tables, so CREATE TABLE IF NOT EXISTS skipped them: add any missing
+-- columns. Existing rows and columns are left as they are.
+-- ============================================================================
+
+ALTER TABLE public.unit_types ADD COLUMN IF NOT EXISTS code TEXT;
+ALTER TABLE public.unit_types ADD COLUMN IF NOT EXISTS name_en TEXT;
+ALTER TABLE public.unit_types ADD COLUMN IF NOT EXISTS name_ta TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.unit_types ADD COLUMN IF NOT EXISTS abbreviation TEXT;
+ALTER TABLE public.unit_types ADD COLUMN IF NOT EXISTS category TEXT CHECK (category IN ('weight', 'volume', 'count', 'length', 'area'));
+ALTER TABLE public.unit_types ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE public.unit_types ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.unit_types ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.unit_conversions ADD COLUMN IF NOT EXISTS from_unit_id BIGINT REFERENCES public.unit_types(id) ON DELETE RESTRICT;
+ALTER TABLE public.unit_conversions ADD COLUMN IF NOT EXISTS to_unit_id BIGINT REFERENCES public.unit_types(id) ON DELETE RESTRICT;
+ALTER TABLE public.unit_conversions ADD COLUMN IF NOT EXISTS conversion_factor NUMERIC(12,4) CHECK (conversion_factor > 0);
+ALTER TABLE public.unit_conversions ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS customer_code TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS mobile TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'customer' CHECK (role IN ('admin', 'customer'));
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.categories ADD COLUMN IF NOT EXISTS name_en TEXT;
+ALTER TABLE public.categories ADD COLUMN IF NOT EXISTS name_ta TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.categories ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE public.categories ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.categories ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.categories ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS name_ta TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS tamil_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS category_id BIGINT REFERENCES public.categories(id) ON DELETE SET NULL;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS remedy TEXT[] NOT NULL DEFAULT '{}';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS price NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS offer_price NUMERIC(12,2);
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS purchase_price NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS mrp NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS gst_percent NUMERIC(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS unit_type TEXT NOT NULL DEFAULT 'unit' CHECK (unit_type IN ('unit', 'weight', 'volume', 'bundle'));
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS unit_label TEXT NOT NULL DEFAULT 'piece';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS unit TEXT NOT NULL DEFAULT 'piece';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS base_quantity NUMERIC(12,3) NOT NULL DEFAULT 1;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS stock_quantity NUMERIC(12,3) NOT NULL DEFAULT 0;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS opening_stock NUMERIC(12,3) NOT NULL DEFAULT 0;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS stock INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS stock_unit TEXT NOT NULL DEFAULT 'piece';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS low_stock_alert NUMERIC(12,3) NOT NULL DEFAULT 5;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS allow_decimal_quantity BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS predefined_options JSONB NOT NULL DEFAULT '[]'::JSONB;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS description_ta TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS benefits TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS benefits_ta TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS image TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS image_url TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS sku TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS barcode TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS brand TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS supplier TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS size TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS color TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS rating NUMERIC(3,1) NOT NULL DEFAULT 5;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS has_variants BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS has_special_offer BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS special_offer_note TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS special_offer_cost NUMERIC NOT NULL DEFAULT 0;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS expiry_date DATE;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS mfg_date DATE;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS location TEXT;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS product_id BIGINT REFERENCES public.products(id) ON DELETE CASCADE;
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS variant_name TEXT;
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS size_label TEXT;
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS quantity NUMERIC(12,3);
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS quantity_unit_id BIGINT REFERENCES public.unit_types(id) ON DELETE SET NULL;
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS weight_value NUMERIC(12,3);
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS weight_unit TEXT;
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS sku TEXT;
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS barcode TEXT;
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS purchase_price NUMERIC(12,2);
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS mrp NUMERIC(12,2);
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS price NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS stock NUMERIC(12,3) NOT NULL DEFAULT 0;
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS damage_stock NUMERIC(12,3) NOT NULL DEFAULT 0;
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS expiry_date DATE;
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS mfg_date DATE;
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS is_default BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS image_url TEXT;
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS group_name TEXT;
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.product_variants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.product_price_history ADD COLUMN IF NOT EXISTS product_id BIGINT REFERENCES public.products(id) ON DELETE CASCADE;
+ALTER TABLE public.product_price_history ADD COLUMN IF NOT EXISTS variant_id UUID REFERENCES public.product_variants(id) ON DELETE CASCADE;
+ALTER TABLE public.product_price_history ADD COLUMN IF NOT EXISTS old_purchase_price NUMERIC(12,2);
+ALTER TABLE public.product_price_history ADD COLUMN IF NOT EXISTS new_purchase_price NUMERIC(12,2);
+ALTER TABLE public.product_price_history ADD COLUMN IF NOT EXISTS old_selling_price NUMERIC(12,2);
+ALTER TABLE public.product_price_history ADD COLUMN IF NOT EXISTS new_selling_price NUMERIC(12,2);
+ALTER TABLE public.product_price_history ADD COLUMN IF NOT EXISTS change_reason TEXT;
+ALTER TABLE public.product_price_history ADD COLUMN IF NOT EXISTS changed_by_name TEXT NOT NULL DEFAULT 'Staff';
+ALTER TABLE public.product_price_history ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.damage_stock ADD COLUMN IF NOT EXISTS product_id BIGINT REFERENCES public.products(id) ON DELETE CASCADE;
+ALTER TABLE public.damage_stock ADD COLUMN IF NOT EXISTS variant_id UUID REFERENCES public.product_variants(id) ON DELETE CASCADE;
+ALTER TABLE public.damage_stock ADD COLUMN IF NOT EXISTS quantity NUMERIC(12,3) CHECK (quantity > 0);
+ALTER TABLE public.damage_stock ADD COLUMN IF NOT EXISTS unit_id BIGINT REFERENCES public.unit_types(id) ON DELETE SET NULL;
+ALTER TABLE public.damage_stock ADD COLUMN IF NOT EXISTS reason TEXT;
+ALTER TABLE public.damage_stock ADD COLUMN IF NOT EXISTS reported_by_name TEXT NOT NULL DEFAULT 'Staff';
+ALTER TABLE public.damage_stock ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.coupons ADD COLUMN IF NOT EXISTS code TEXT;
+ALTER TABLE public.coupons ADD COLUMN IF NOT EXISTS percentage NUMERIC(5,2) CHECK (percentage > 0 AND percentage <= 100);
+ALTER TABLE public.coupons ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE public.coupons ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMPTZ;
+ALTER TABLE public.coupons ADD COLUMN IF NOT EXISTS usage_limit INTEGER CHECK (usage_limit IS NULL OR usage_limit > 0);
+ALTER TABLE public.coupons ADD COLUMN IF NOT EXISTS usage_count INTEGER NOT NULL DEFAULT 0 CHECK (usage_count >= 0);
+ALTER TABLE public.coupons ADD COLUMN IF NOT EXISTS min_order_value NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.coupons ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.coupons ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS invoice_no TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT 'Customer';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS items JSONB NOT NULL DEFAULT '[]'::JSONB;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS subtotal NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS shipping NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS total NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS order_mode TEXT NOT NULL DEFAULT 'offline';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS order_type TEXT NOT NULL DEFAULT 'pos_sale';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS delivery_charge NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS manual_discount_amount NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS manual_discount_type TEXT NOT NULL DEFAULT 'flat';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS manual_discount_value NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS coupon_code TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS coupon_percentage NUMERIC(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS total_gst NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS gst_amount NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS gst_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT 'cash';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS payment_mode TEXT NOT NULL DEFAULT 'cash';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS split_details JSONB NOT NULL DEFAULT '{}'::JSONB;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS remarks TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS reference_number TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS billing_date TIMESTAMPTZ;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS invoice_pdf_url TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS is_credit BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS credit_due_date DATE;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS credit_status TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS credit_paid_at TIMESTAMPTZ;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS order_id UUID REFERENCES public.orders(id) ON DELETE CASCADE;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS product_id BIGINT REFERENCES public.products(id) ON DELETE SET NULL;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS variant_id UUID REFERENCES public.product_variants(id) ON DELETE SET NULL;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS product_name TEXT NOT NULL DEFAULT 'Product';
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT 'Product';
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS product_tamil_name TEXT;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS tamil_name TEXT;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS variant_name TEXT;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS quantity NUMERIC(12,3) NOT NULL DEFAULT 0;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS unit TEXT NOT NULL DEFAULT 'piece';
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS unit_type TEXT NOT NULL DEFAULT 'unit';
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS base_quantity NUMERIC(12,3) NOT NULL DEFAULT 1;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS base_price NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS unit_price NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS line_total NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS image_url TEXT;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS is_manual BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS discount NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS gst_amount NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS gst_rate NUMERIC(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'catalogue';
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS note TEXT;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS category TEXT;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS special_offer_note TEXT;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS special_offer_cost NUMERIC;
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT 'NANDI JEWELLERS';
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS owner_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS phone TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS gst_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS instagram_handle TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS low_stock_threshold NUMERIC(12,3) NOT NULL DEFAULT 5;
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS logo_url TEXT;
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS admin_id TEXT;
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS admin_password TEXT;
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS staff_id TEXT;
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS staff_password TEXT;
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS expiry_alert_days INTEGER NOT NULL DEFAULT 30;
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS accent_color TEXT NOT NULL DEFAULT '#CA8A04';
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS business_type TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS shop_contact_number TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS customer_event_messages JSONB NOT NULL DEFAULT '{}'::JSONB;
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS deposit_id TEXT;
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS customer_name TEXT;
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS product_name TEXT;
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS products JSONB NOT NULL DEFAULT '[]'::JSONB;
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS total_amount NUMERIC(12,2) CHECK (total_amount > 0);
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS deposit_amount NUMERIC(12,2) CHECK (deposit_amount > 0);
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS remaining_balance NUMERIC(12,2) GENERATED ALWAYS AS (total_amount - deposit_amount) STORED;
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS expected_delivery_date DATE;
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'pending_deposit' CHECK (status IN ('pending_deposit','ready_for_delivery','waiting_final_payment','completed','cancelled'));
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS remarks TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS created_by_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS completed_order_id UUID REFERENCES public.orders(id) ON DELETE SET NULL;
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS invoice_number TEXT;
+ALTER TABLE public.advance_orders ADD COLUMN IF NOT EXISTS final_payment_method TEXT;
+
+ALTER TABLE public.advance_order_timeline ADD COLUMN IF NOT EXISTS advance_order_id UUID REFERENCES public.advance_orders(id) ON DELETE CASCADE;
+ALTER TABLE public.advance_order_timeline ADD COLUMN IF NOT EXISTS event_type TEXT;
+ALTER TABLE public.advance_order_timeline ADD COLUMN IF NOT EXISTS label TEXT;
+ALTER TABLE public.advance_order_timeline ADD COLUMN IF NOT EXISTS remarks TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.advance_order_timeline ADD COLUMN IF NOT EXISTS created_by UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE public.advance_order_timeline ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.advance_order_payments ADD COLUMN IF NOT EXISTS advance_order_id UUID REFERENCES public.advance_orders(id) ON DELETE CASCADE;
+ALTER TABLE public.advance_order_payments ADD COLUMN IF NOT EXISTS payment_type TEXT CHECK (payment_type IN ('deposit','remaining'));
+ALTER TABLE public.advance_order_payments ADD COLUMN IF NOT EXISTS amount NUMERIC(12,2) CHECK (amount >= 0);
+ALTER TABLE public.advance_order_payments ADD COLUMN IF NOT EXISTS payment_method TEXT CHECK (payment_method IN ('cash','upi','card'));
+ALTER TABLE public.advance_order_payments ADD COLUMN IF NOT EXISTS remarks TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.advance_order_payments ADD COLUMN IF NOT EXISTS received_by UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE public.advance_order_payments ADD COLUMN IF NOT EXISTS received_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.store_reviews ADD COLUMN IF NOT EXISTS store_id TEXT;
+ALTER TABLE public.store_reviews ADD COLUMN IF NOT EXISTS reviewer TEXT;
+ALTER TABLE public.store_reviews ADD COLUMN IF NOT EXISTS rating INTEGER CHECK (rating BETWEEN 1 AND 5);
+ALTER TABLE public.store_reviews ADD COLUMN IF NOT EXISTS comment TEXT;
+ALTER TABLE public.store_reviews ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.barcode_registry ADD COLUMN IF NOT EXISTS barcode_value TEXT;
+ALTER TABLE public.barcode_registry ADD COLUMN IF NOT EXISTS entity_type TEXT CHECK (entity_type IN ('product', 'variant'));
+ALTER TABLE public.barcode_registry ADD COLUMN IF NOT EXISTS product_id BIGINT REFERENCES public.products(id) ON DELETE RESTRICT;
+ALTER TABLE public.barcode_registry ADD COLUMN IF NOT EXISTS variant_id UUID REFERENCES public.product_variants(id) ON DELETE RESTRICT;
+ALTER TABLE public.barcode_registry ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE public.barcode_registry ADD COLUMN IF NOT EXISTS created_by_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.barcode_registry ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.barcode_registry ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS product_id BIGINT REFERENCES public.products(id) ON DELETE SET NULL;
+ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS variant_id UUID REFERENCES public.product_variants(id) ON DELETE SET NULL;
+ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS barcode_id UUID REFERENCES public.barcode_registry(id) ON DELETE SET NULL;
+ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS movement_type TEXT CHECK ( movement_type IN ('INITIAL_BARCODE_STOCK', 'RESTOCK', 'SALE', 'RETURN', 'DAMAGE', 'CORRECTION', 'VOID') );
+ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS quantity_delta NUMERIC;
+ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS quantity_before NUMERIC;
+ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS quantity_after NUMERIC;
+ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS unit_cost NUMERIC DEFAULT NULL;
+ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS reference_type TEXT DEFAULT NULL;
+ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS reference_id TEXT DEFAULT NULL;
+ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS note TEXT DEFAULT '';
+ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS created_by_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.inventory_movements ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.expense_categories ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE public.expense_categories ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE public.expense_categories ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.expense_categories ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS expense_date DATE NOT NULL DEFAULT CURRENT_DATE;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS category_id BIGINT REFERENCES public.expense_categories(id) ON DELETE SET NULL;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS category_name TEXT;
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS amount NUMERIC(12, 2) CHECK (amount > 0);
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS payment_mode TEXT DEFAULT 'cash';
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS recorded_by_name TEXT DEFAULT 'Staff';
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.barcode_custom_sizes ADD COLUMN IF NOT EXISTS name TEXT;
+ALTER TABLE public.barcode_custom_sizes ADD COLUMN IF NOT EXISTS labels_per_row INTEGER NOT NULL DEFAULT 1 CHECK (labels_per_row >= 1);
+ALTER TABLE public.barcode_custom_sizes ADD COLUMN IF NOT EXISTS width_mm NUMERIC(8, 2) CHECK (width_mm > 0);
+ALTER TABLE public.barcode_custom_sizes ADD COLUMN IF NOT EXISTS height_mm NUMERIC(8, 2) CHECK (height_mm > 0);
+ALTER TABLE public.barcode_custom_sizes ADD COLUMN IF NOT EXISTS horizontal_gap_mm NUMERIC(8, 2) NOT NULL DEFAULT 0 CHECK (horizontal_gap_mm >= 0);
+ALTER TABLE public.barcode_custom_sizes ADD COLUMN IF NOT EXISTS is_custom BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE public.barcode_custom_sizes ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.barcode_custom_sizes ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS phone TEXT;
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS birthday DATE;
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS anniversary DATE;
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS birthday_wish_sent_on DATE;
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS anniversary_wish_sent_on DATE;
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+-- Unique keys the app relies on (added only when existing data has no duplicates).
+DO $$
+DECLARE
+  k RECORD;
+  v_dups BOOLEAN;
+BEGIN
+  FOR k IN SELECT * FROM (VALUES
+    ('categories', 'name_en', 'categories_name_en_key'),
+    ('customers', 'phone', 'customers_phone_key'),
+    ('orders', 'invoice_no', 'orders_invoice_no_key'),
+    ('barcode_registry', 'barcode_value', 'barcode_registry_barcode_value_key'),
+    ('advance_orders', 'deposit_id', 'advance_orders_deposit_id_key'),
+    ('advance_order_payments', 'advance_order_id, payment_type', 'advance_order_payments_advance_order_id_payment_type_key'),
+    ('expense_categories', 'name', 'uq_expense_category_name'),
+    ('unit_types', 'code', 'unit_types_code_key'),
+    ('profiles', 'customer_code', 'profiles_customer_code_key')
+  ) AS v(tbl, cols, idx) LOOP
+    -- Already unique (constraint or unique index on exactly these columns)?
+    CONTINUE WHEN EXISTS (
+      SELECT 1 FROM pg_index i
+      JOIN pg_class c ON c.oid = i.indrelid
+      JOIN pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public' AND c.relname = k.tbl AND i.indisunique AND i.indexprs IS NULL
+        AND (SELECT string_agg(a.attname, ', ' ORDER BY x.ord)
+             FROM unnest(i.indkey) WITH ORDINALITY AS x(attnum, ord)
+             JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum = x.attnum) = k.cols
+    );
+    EXECUTE format('SELECT EXISTS (SELECT 1 FROM public.%I GROUP BY %s HAVING COUNT(*) > 1)', k.tbl, k.cols) INTO v_dups;
+    IF v_dups THEN
+      RAISE NOTICE 'public.% has duplicate % values: unique key not added.', k.tbl, k.cols;
+    ELSE
+      EXECUTE format('CREATE UNIQUE INDEX IF NOT EXISTS %I ON public.%I (%s)', k.idx, k.tbl, k.cols);
+    END IF;
+  END LOOP;
+END $$;
+
+-- ============================================================================
 -- INDEXES
 -- ============================================================================
 
@@ -1583,12 +1939,12 @@ CREATE POLICY customers_all ON public.customers FOR ALL USING (TRUE) WITH CHECK 
 -- ============================================================================
 
 -- Used by billing for ad-hoc items added at the counter.
-INSERT INTO public.categories (name_en, name_ta, is_active, sort_order) VALUES
-  ('Unregistered', 'Unregistered', TRUE, 999)
-ON CONFLICT (name_en) DO NOTHING;
+INSERT INTO public.categories (name_en, name_ta, is_active, sort_order)
+SELECT 'Unregistered', 'Unregistered', TRUE, 999
+WHERE NOT EXISTS (SELECT 1 FROM public.categories WHERE name_en = 'Unregistered');
 
 INSERT INTO public.store_settings (id, name, owner_name, phone, email, address, instagram_handle, shop_contact_number, accent_color)
-VALUES (
+SELECT
   1,
   'NANDI JEWELLERS',
   'R. Balamurugan',
@@ -1598,9 +1954,8 @@ VALUES (
   'bm2415981980',
   '7448412223',
   '#CA8A04'
-)
 -- Only seeds a fresh database: never overwrite settings the shop has edited.
-ON CONFLICT (id) DO NOTHING;
+WHERE NOT EXISTS (SELECT 1 FROM public.store_settings WHERE id = 1);
 
 -- ============================================================================
 -- END OF SCHEMA
