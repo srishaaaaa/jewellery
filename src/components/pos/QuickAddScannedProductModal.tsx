@@ -91,7 +91,7 @@ export const QuickAddScannedProductModal: React.FC<QuickAddScannedProductModalPr
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-in fade-in duration-150"
     >
-      <div className="bg-white rounded-3xl w-full max-w-sm max-h-[90vh] overflow-y-auto border border-[#B7E1BE] shadow-2xl flex flex-col animate-in zoom-in-95 duration-150">
+      <div className="bg-white rounded-3xl w-full max-w-sm max-h-[90vh] overflow-y-auto border border-[var(--accent-a40)] shadow-2xl flex flex-col animate-in zoom-in-95 duration-150">
         <div className="shrink-0 bg-[#0A0A0A] p-4 border-b border-[var(--accent-a30)] flex items-center justify-between text-white">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-10 h-10 rounded-2xl bg-[#1A1A1A] border border-[var(--accent)] flex items-center justify-center text-[var(--accent)] shrink-0 shadow-sm">
@@ -177,7 +177,7 @@ export const QuickAddScannedProductModal: React.FC<QuickAddScannedProductModalPr
           )}
         </form>
 
-        <div className="shrink-0 px-5 py-3.5 bg-white border-t border-[#B7E1BE] flex items-center justify-end gap-2.5">
+        <div className="shrink-0 px-5 py-3.5 bg-white border-t border-[var(--accent-a40)] flex items-center justify-end gap-2.5">
           <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-black rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer">
             Cancel
           </button>

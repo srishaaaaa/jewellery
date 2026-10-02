@@ -139,7 +139,7 @@ export const Invoice: React.FC<InvoiceProps> = ({
   return (
     <div
       id="invoice-print-root"
-      className="w-full max-w-[794px] mx-auto bg-white text-[#111111] box-border flex flex-col p-6 sm:p-[45px] print:p-0 print:max-w-full border border-[#B7E1BE]/40 shadow-xl rounded-3xl h-auto"
+      className="w-full max-w-[794px] mx-auto bg-white text-[#111111] box-border flex flex-col p-6 sm:p-[45px] print:p-0 print:max-w-full border border-[var(--accent-a20)] shadow-xl rounded-3xl h-auto"
       style={{
         fontFamily: "'Inter', 'Segoe UI', sans-serif",
       }}
@@ -149,7 +149,7 @@ export const Invoice: React.FC<InvoiceProps> = ({
         <div style={{ fontSize: 9, fontWeight: 800, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>{isCredit ? 'Credit Invoice' : 'Tax Invoice'}</div>
         <div style={{ fontSize: 12, fontWeight: 900, color: '#0A0A0A', textTransform: 'uppercase', letterSpacing: 0.5 }}>Invoice: #{formattedInvoiceNo}</div>
       </div>
-      <div style={{ borderBottom: '1px solid #B7E1BE', marginTop: 8, marginBottom: 16 }} />
+      <div style={{ borderBottom: '1px solid var(--accent-a40)', marginTop: 8, marginBottom: 16 }} />
 
       {isCredit && (
         <div style={{
@@ -165,7 +165,7 @@ export const Invoice: React.FC<InvoiceProps> = ({
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 20 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', minWidth: 0 }}>
-          <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 12, border: '1px solid var(--accent)', overflow: 'hidden', boxShadow: '0 4px 12px rgba(46, 125, 50,0.15)' }}>
+          <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 12, border: '1px solid var(--accent)', overflow: 'hidden', boxShadow: '0 4px 12px var(--accent-a15)' }}>
             <img src={logoUrl} alt={shopName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
           <div style={{ minWidth: 0 }}>
@@ -201,7 +201,7 @@ export const Invoice: React.FC<InvoiceProps> = ({
       </div>
 
       {/* ── BILL TO ──────────────────────────────────────────────── */}
-      <div style={{ padding: '12px 14px', borderRadius: 12, background: '#FBFAF6', border: '1px solid #B7E1BE', overflowWrap: 'anywhere', marginBottom: 20 }}>
+      <div style={{ padding: '12px 14px', borderRadius: 12, background: '#FBFAF6', border: '1px solid var(--accent-a40)', overflowWrap: 'anywhere', marginBottom: 20 }}>
         <div style={{ fontSize: 9, fontWeight: 800, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Bill To</div>
         <div style={{ fontSize: 13, fontWeight: 800, color: '#0A0A0A', lineHeight: 1.35, wordBreak: 'break-word', marginTop: 6 }}>{customerName || 'Walk-in Customer'}</div>
         <div style={{ fontSize: 9, fontWeight: 800, color: '#888', textTransform: 'uppercase', letterSpacing: 0.7, marginTop: 6 }}>Mobile Number</div>

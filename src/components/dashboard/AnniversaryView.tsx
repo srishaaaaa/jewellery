@@ -35,7 +35,7 @@ export default function AnniversaryView() {
           type="button"
           onClick={() => applyFilterPreset(key)}
           className={`rounded-lg px-2 py-1 text-[10px] font-bold transition-colors ${
-            filterPreset === key ? 'bg-[#2E7D32] text-white' : 'bg-[#F3F4F6] text-[#374151] hover:bg-[#E5E7EB]'
+            filterPreset === key ? 'bg-[var(--accent)] text-[#0A0A0A]' : 'bg-[#F3F4F6] text-[#374151] hover:bg-[#E5E7EB]'
           }`}
         >
           {label}
@@ -152,7 +152,7 @@ export default function AnniversaryView() {
           onClick={() => setCurrentPage('calendar')}
           className={`px-4 py-3 font-bold text-sm transition-colors ${
             currentPage === 'calendar'
-              ? 'text-[#2E7D32] border-b-2 border-[#2E7D32]'
+              ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
               : 'text-[#6B7280] hover:text-[#111111]'
           }`}
         >
@@ -162,7 +162,7 @@ export default function AnniversaryView() {
           onClick={() => setCurrentPage('customers')}
           className={`px-4 py-3 font-bold text-sm transition-colors ${
             currentPage === 'customers'
-              ? 'text-[#2E7D32] border-b-2 border-[#2E7D32]'
+              ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
               : 'text-[#6B7280] hover:text-[#111111]'
           }`}
         >

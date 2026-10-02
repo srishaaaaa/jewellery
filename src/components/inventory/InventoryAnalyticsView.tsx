@@ -192,7 +192,7 @@ export const InventoryAnalyticsView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Controls & Date Filters */}
-      <div className="bg-white border border-[#B7E1BE] rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         {/* Date Range Selector Pills */}
         <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 p-1 bg-[#FBFAF6] border border-gray-200 rounded-xl">
           <button
@@ -285,7 +285,7 @@ export const InventoryAnalyticsView: React.FC = () => {
       {/* KPI Cards (Exact Stock Math) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         {/* Incoming / Restocked Stock */}
-        <div className="bg-white border border-[#B7E1BE] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-black">
             <PackagePlus size={20} />
           </div>
@@ -300,7 +300,7 @@ export const InventoryAnalyticsView: React.FC = () => {
         </div>
 
         {/* Units Sold */}
-        <div className="bg-white border border-[#B7E1BE] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center font-black">
             <ShoppingCart size={20} />
           </div>
@@ -315,7 +315,7 @@ export const InventoryAnalyticsView: React.FC = () => {
         </div>
 
         {/* Units Damaged / Lost */}
-        <div className="bg-white border border-[#B7E1BE] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-red-50 text-red-700 border border-red-200 flex items-center justify-center font-black">
             <AlertOctagon size={20} />
           </div>
@@ -330,7 +330,7 @@ export const InventoryAnalyticsView: React.FC = () => {
         </div>
 
         {/* Net Movement Delta */}
-        <div className="bg-white border border-[#B7E1BE] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-[#0A0A0A] text-[var(--accent)] flex items-center justify-center font-black">
             {data.netDelta >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
           </div>

@@ -77,7 +77,7 @@ export const QuickPriceModal: React.FC<Props> = ({ isOpen, item, onClose, onSucc
 
   return (
     <ModalPortal><div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-[#B7E1BE]/50 animate-in fade-in zoom-in-95">
+      <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-[var(--accent-a20)] animate-in fade-in zoom-in-95">
         {/* Header */}
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-[#FBFAF6]">
           <div className="flex items-center gap-2.5">

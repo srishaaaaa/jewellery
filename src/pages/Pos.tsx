@@ -1579,9 +1579,9 @@ export default function Pos(props: PosProps = {}) {
           </div>
 
           {/* Order Items Card */}
-          <div className="bg-white rounded-2xl border border-[#B7E1BE] shadow-sm flex-1 flex flex-col min-h-[400px]">
+          <div className="bg-white rounded-2xl border border-[var(--accent-a40)] shadow-sm flex-1 flex flex-col min-h-[400px]">
             {/* Card Header & Barcode Scanner */}
-            <div className="flex flex-col gap-3 p-4 md:p-5 border-b border-[#B7E1BE]">
+            <div className="flex flex-col gap-3 p-4 md:p-5 border-b border-[var(--accent-a40)]">
               <div className="flex items-center justify-between">
                 <h3 className="text-[18px] md:text-[14px] font-black text-[#0A0A0A] flex items-center gap-2">
                   <Receipt size={16} className="text-[var(--accent)]" />
@@ -2510,7 +2510,7 @@ export default function Pos(props: PosProps = {}) {
       {/* Variant Picker Modal for Multi-Variant Products */}
       {variantPickerProduct && (
         <ModalPortal><div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] border border-[#B7E1BE] shadow-2xl overflow-y-auto flex flex-col animate-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-3xl max-w-md w-full max-h-[90vh] border border-[var(--accent-a40)] shadow-2xl overflow-y-auto flex flex-col animate-in zoom-in-95 duration-150">
             <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-[#FBFAF6]">
               <div>
                 <h3 className="text-sm font-black uppercase tracking-wider text-[#0A0A0A]">

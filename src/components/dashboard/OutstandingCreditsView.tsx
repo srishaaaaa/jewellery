@@ -152,7 +152,7 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
     <div className="space-y-6 animate-in fade-in duration-150">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-        <div className="bg-white border border-[#B7E1BE] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-[#0A0A0A] text-[var(--accent)] flex items-center justify-center font-black shrink-0">
             <Wallet size={20} />
           </div>
@@ -162,7 +162,7 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
           </div>
         </div>
 
-        <div className="bg-white border border-[#B7E1BE] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-black shrink-0">
             <IndianRupee size={20} />
           </div>
@@ -172,7 +172,7 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
           </div>
         </div>
 
-        <div className="bg-white border border-[#B7E1BE] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3 col-span-2 sm:col-span-1">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3 col-span-2 sm:col-span-1">
           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-red-50 text-red-700 border border-red-200 flex items-center justify-center font-black shrink-0">
             <AlertTriangle size={20} />
           </div>
@@ -183,7 +183,7 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
         </div>
 
         {/* Paid Credits Summary Card */}
-        <div className="bg-white border border-[#B7E1BE] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-green-50 text-green-700 border border-green-200 flex items-center justify-center font-black shrink-0">
             <CheckCircle2 size={20} />
           </div>

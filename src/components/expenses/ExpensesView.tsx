@@ -423,7 +423,7 @@ export const ExpensesView: React.FC = () => {
                           {exp.expense_date}
                         </td>
                         <td className="px-5 py-3.5">
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold bg-[#FBFAF6] text-[#0A0A0A] border border-[#B7E1BE]">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold bg-[#FBFAF6] text-[#0A0A0A] border border-[var(--accent-a40)]">
                             {exp.category_name}
                           </span>
                         </td>

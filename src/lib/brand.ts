@@ -1,6 +1,7 @@
 // Shop details used until Store Settings has loaded (the values saved in Store Settings take priority).
 export const BRAND_EN = 'NANDI JEWELLERS'
-export const BRAND_TA = 'NANDI JEWELLERS'
+/** Shop name in Tamil (shown under the English name on the login screen). */
+export const BRAND_TA = 'நந்தி ஜுவல்லர்ஸ்'
 export const BRAND_SHORT = 'Nandi Jewellers'
 export const BRAND_SUBTITLE = 'Blessed by God · Trusted by Families'
 /** Prefix for generated barcodes and export file names. */

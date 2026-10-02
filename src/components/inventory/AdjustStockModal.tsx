@@ -77,7 +77,7 @@ const MODES: Record<AdjustMode, {
     label: 'Reconciliation', hint: 'Set Exact Count', Icon: Target, reason: 'CORRECTION',
     activeCard: 'bg-amber-50 border-[var(--accent)] text-amber-950 ring-2 ring-[var(--accent-a30)]',
     activeIcon: 'bg-[var(--accent)] text-black',
-    panel: 'bg-amber-50/60 border-[#B7E1BE]', text: 'text-amber-950',
+    panel: 'bg-amber-50/60 border-[var(--accent-a40)]', text: 'text-amber-950',
     stepBtn: 'hover:bg-amber-100 text-amber-950 border-amber-300',
     input: 'border-[var(--accent)] text-black focus:border-black',
     presetActive: '', presetIdle: '',
@@ -291,7 +291,7 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
             )}
 
             {/* Product card */}
-            <div className="bg-[#FBFAF6] border border-[#B7E1BE] rounded-2xl p-3">
+            <div className="bg-[#FBFAF6] border border-[var(--accent-a40)] rounded-2xl p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-[10px] font-black uppercase tracking-wider text-[var(--accent-dark)] flex items-center gap-1">
@@ -320,7 +320,7 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
                 </div>
               </div>
               {item.barcode && (
-                <div className="mt-2 pt-2 border-t border-[#B7E1BE]/50 flex items-center gap-1.5 text-[11px] font-semibold text-gray-600">
+                <div className="mt-2 pt-2 border-t border-[var(--accent-a20)] flex items-center gap-1.5 text-[11px] font-semibold text-gray-600">
                   <span>Barcode:</span>
                   <strong className="font-mono text-black bg-white px-1.5 rounded border border-gray-200">{item.barcode}</strong>
                 </div>

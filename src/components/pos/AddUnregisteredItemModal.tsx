@@ -199,7 +199,7 @@ export const AddUnregisteredItemModal: React.FC<Props> = ({ isOpen, onClose, onS
 
   return (
     <ModalPortal><div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-[#B7E1BE]/50 animate-in fade-in zoom-in-95">
+      <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-[var(--accent-a20)] animate-in fade-in zoom-in-95">
         {/* Header */}
         <div className="px-4 sm:px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-[#FBFAF6] shrink-0">
           <div className="flex items-center gap-2">

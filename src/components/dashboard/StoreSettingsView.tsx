@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Store, Phone, MapPin, Palette, Package, SlidersHorizontal, Lock, RefreshCw, Camera, Trash2, X, Check, AlertCircle, Save } from 'lucide-react'
 import { useSettingsStore, useAdminAuthStore, useProductStore } from '../../store/store'
-import { BRAND_LOGO, BRAND_EN } from '../../lib/brand'
+import { BRAND_ACCENT, BRAND_LOGO, BRAND_EN } from '../../lib/brand'
 import { isSupabaseConfigured, supabase } from '../../lib/supabase'
 import { ModalPortal } from '../ModalPortal'
 
 const ACCENT_SWATCHES = [
-  '#2E7D32', '#0F5132', '#1B5E20', '#DC2626', '#EA580C', '#B91C1C',
+  '#CA8A04', '#A16207', '#D4AF37', '#2E7D32', '#0F5132', '#DC2626', '#EA580C', '#B91C1C',
   '#7C3AED', '#4338CA', '#2563EB', '#0EA5E9', '#7C2D92', '#701A75',
-  '#4C1D95', '#DB2777', '#BE185D', '#0D9488', '#0891B2', '#CA8A04',
+  '#4C1D95', '#DB2777', '#BE185D', '#0D9488', '#0891B2',
   '#111111', '#374151',
 ]
 
@@ -44,7 +44,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
 
   const [form, setForm] = useState({
     name: '', ownerName: '', phone: '', shopContactNumber: '', email: '', address: '', instagramHandle: '',
-    businessType: '', accentColor: '#2E7D32',
+    businessType: '', accentColor: BRAND_ACCENT,
     gstEnabled: false, lowStockThreshold: 5, expiryAlertDays: 30,
   })
   const [saveMsg, setSaveMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
@@ -71,7 +71,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
     address: s.address,
     instagramHandle: s.instagramHandle,
     businessType: s.businessType,
-    accentColor: s.accentColor || '#2E7D32',
+    accentColor: s.accentColor || BRAND_ACCENT,
     gstEnabled: s.gstEnabled,
     lowStockThreshold: s.lowStockThreshold,
     expiryAlertDays: s.expiryAlertDays,
@@ -302,7 +302,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                 <div className="flex items-center gap-2">
                   <input
                     type="color"
-                    value={/^#[0-9A-Fa-f]{6}$/.test(form.accentColor) ? form.accentColor : '#2E7D32'}
+                    value={/^#[0-9A-Fa-f]{6}$/.test(form.accentColor) ? form.accentColor : BRAND_ACCENT}
                     onChange={e => setForm(f => ({ ...f, accentColor: e.target.value }))}
                     className="w-11 h-11 shrink-0 rounded-xl border border-[#E5E7EB] cursor-pointer bg-white p-1"
                   />
@@ -310,11 +310,11 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                     className={`${inputCls} flex-1 uppercase`}
                     value={form.accentColor}
                     onChange={e => setForm(f => ({ ...f, accentColor: e.target.value }))}
-                    placeholder="#2E7D32"
+                    placeholder="#CA8A04"
                   />
                 </div>
               </Field>
-              <div className="mt-4 rounded-xl p-4 text-white" style={{ backgroundColor: /^#[0-9A-Fa-f]{6}$/.test(form.accentColor) ? form.accentColor : '#2E7D32' }}>
+              <div className="mt-4 rounded-xl p-4 text-white" style={{ backgroundColor: /^#[0-9A-Fa-f]{6}$/.test(form.accentColor) ? form.accentColor : BRAND_ACCENT }}>
                 <p className="text-[10px] font-black uppercase tracking-wider opacity-80">Card Preview</p>
                 <p className="text-[13px] font-bold mt-0.5">Selected colour + white stays the app theme.</p>
               </div>

@@ -49,7 +49,7 @@ export const BulkSetLocationModal: React.FC<BulkSetLocationModalProps> = ({
 
   return (
     <ModalPortal><div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-4 overflow-hidden">
-      <div className="bg-white rounded-2xl sm:rounded-3xl max-w-md w-full border border-[#B7E1BE] shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-2xl sm:rounded-3xl max-w-md w-full border border-[var(--accent-a40)] shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
         <div className="shrink-0 bg-[#0A0A0A] px-5 py-3.5 border-b border-[var(--accent-a30)] flex items-center justify-between text-white">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-[#1A1A1A] border border-[var(--accent)] flex items-center justify-center text-[var(--accent)]">

@@ -227,7 +227,7 @@ export const InventoryTable: React.FC = () => {
     <div className="space-y-6">
       {/* NAVIGATION / HEADER */}
       {role === 'admin' ? (
-        <div className="bg-white border border-[#B7E1BE] rounded-2xl p-2 sm:p-2.5 shadow-sm flex items-center justify-between gap-3 overflow-x-auto hide-scrollbar">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-2 sm:p-2.5 shadow-sm flex items-center justify-between gap-3 overflow-x-auto hide-scrollbar">
           <div className="flex items-center gap-1.5 p-1 bg-[#FBFAF6] border border-gray-200 rounded-xl shrink-0">
             <button
               type="button"
@@ -292,7 +292,7 @@ export const InventoryTable: React.FC = () => {
           </button>
         </div>
       ) : (
-        <div className="bg-white border border-[#B7E1BE] rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-[#0A0A0A] text-[var(--accent)] flex items-center justify-center font-black">
               <Box size={18} />
@@ -310,7 +310,7 @@ export const InventoryTable: React.FC = () => {
         <div className="space-y-6 animate-in fade-in duration-150">
           {/* Top KPI Metrics Cards */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <div className="bg-white border border-[#B7E1BE] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+            <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
               <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-[#0A0A0A] text-[var(--accent)] flex items-center justify-center font-black shrink-0">
                 <Layers size={20} />
               </div>
@@ -320,7 +320,7 @@ export const InventoryTable: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-white border border-[#B7E1BE] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+            <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
               <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-black shrink-0">
                 <Package size={20} />
               </div>
@@ -330,7 +330,7 @@ export const InventoryTable: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-white border border-[#B7E1BE] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+            <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
               <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-black shrink-0">
                 <AlertTriangle size={20} />
               </div>
@@ -340,8 +340,8 @@ export const InventoryTable: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-white border border-[#B7E1BE] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
-              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-[#FBFAF6] text-[#0A0A0A] border border-[#B7E1BE] flex items-center justify-center font-black text-sm shrink-0">
+            <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-[#FBFAF6] text-[#0A0A0A] border border-[var(--accent-a40)] flex items-center justify-center font-black text-sm shrink-0">
                 ₹
               </div>
               <div className="min-w-0">
@@ -352,7 +352,7 @@ export const InventoryTable: React.FC = () => {
           </div>
 
           {/* Toolbar & Filter Chips */}
-          <div className="bg-white border border-[#B7E1BE] rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             {/* Search */}
             <div className="relative flex-1 max-w-md">
               <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -505,7 +505,7 @@ export const InventoryTable: React.FC = () => {
                             {item.name}
                           </div>
                           {item.variant_name ? (
-                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded-md bg-[#FBFAF6] border border-[#B7E1BE] text-[#0A0A0A] font-bold text-[10px]">
+                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded-md bg-[#FBFAF6] border border-[var(--accent-a40)] text-[#0A0A0A] font-bold text-[10px]">
                               Size: {item.variant_name}
                             </span>
                           ) : jewelleryOf(item) ? (() => {

@@ -128,7 +128,7 @@ export const CategoryManagerView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Banner & Search */}
-      <div className="bg-white border border-[#B7E1BE] rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[#0A0A0A] text-[var(--accent)] flex items-center justify-center font-black">
             <Layers size={18} />

@@ -18,7 +18,7 @@ export function darkenHex(hex: string, amount = 0.22): string {
  */
 export function hexToRgba(hex: string, alpha: number): string {
   const clean = hex.replace('#', '')
-  if (!/^[0-9a-fA-F]{6}$/.test(clean)) return `rgba(46, 125, 50, ${alpha})`
+  if (!/^[0-9a-fA-F]{6}$/.test(clean)) return `rgba(202, 138, 4, ${alpha})`
   const num = parseInt(clean, 16)
   const r = (num >> 16) & 0xff
   const g = (num >> 8) & 0xff

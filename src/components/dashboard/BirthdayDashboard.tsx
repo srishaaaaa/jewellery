@@ -16,7 +16,7 @@ export default function BirthdayDashboard() {
           onClick={() => setActiveTab('birthday')}
           className={`px-4 py-3 font-bold text-sm whitespace-nowrap transition-colors ${
             activeTab === 'birthday'
-              ? 'text-[#2E7D32] border-b-2 border-[#2E7D32]'
+              ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
               : 'text-[#6B7280] hover:text-[#111111]'
           }`}
         >
@@ -26,7 +26,7 @@ export default function BirthdayDashboard() {
           onClick={() => setActiveTab('anniversary')}
           className={`px-4 py-3 font-bold text-sm whitespace-nowrap transition-colors ${
             activeTab === 'anniversary'
-              ? 'text-[#2E7D32] border-b-2 border-[#2E7D32]'
+              ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
               : 'text-[#6B7280] hover:text-[#111111]'
           }`}
         >
@@ -36,7 +36,7 @@ export default function BirthdayDashboard() {
           onClick={() => setActiveTab('profile')}
           className={`px-4 py-3 font-bold text-sm whitespace-nowrap transition-colors ${
             activeTab === 'profile'
-              ? 'text-[#2E7D32] border-b-2 border-[#2E7D32]'
+              ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
               : 'text-[#6B7280] hover:text-[#111111]'
           }`}
         >

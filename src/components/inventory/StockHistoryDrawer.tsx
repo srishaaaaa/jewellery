@@ -68,7 +68,7 @@ export const StockHistoryDrawer: React.FC<StockHistoryDrawerProps> = ({
 
   return (
     <ModalPortal><div className="fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-xs flex justify-end">
-      <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200 border-l border-[#B7E1BE] safe-area-inset-right">
+      <div className="bg-white w-full max-w-md h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-200 border-l border-[var(--accent-a40)] safe-area-inset-right">
         {/* Header */}
         <div className="bg-[#0A0A0A] px-5 py-4 border-b border-[var(--accent-a30)] flex items-center justify-between text-white sticky top-0 z-10 safe-area-inset-top min-h-16">
           <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -94,7 +94,7 @@ export const StockHistoryDrawer: React.FC<StockHistoryDrawerProps> = ({
         </div>
 
         {/* Item Summary Bar */}
-        <div className="bg-[#FBFAF6] border-b border-[#B7E1BE] p-4 sticky top-16 z-10">
+        <div className="bg-[#FBFAF6] border-b border-[var(--accent-a40)] p-4 sticky top-16 z-10">
           <div className="text-[11px] font-black uppercase tracking-wider text-[var(--accent-dark)] mb-1">
             📦 Target SKU
           </div>
@@ -139,7 +139,7 @@ export const StockHistoryDrawer: React.FC<StockHistoryDrawerProps> = ({
               return (
                 <div
                   key={m.id}
-                  className="bg-[#FBFAF6] border border-gray-200 hover:border-[#B7E1BE] rounded-2xl p-3.5 space-y-2 transition-all shadow-xs"
+                  className="bg-[#FBFAF6] border border-gray-200 hover:border-[var(--accent-a40)] rounded-2xl p-3.5 space-y-2 transition-all shadow-xs"
                 >
                   <div className="flex items-center justify-between">
                     <span

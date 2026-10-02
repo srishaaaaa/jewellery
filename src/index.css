@@ -6,24 +6,24 @@
   :root {
     --brand-black: #0A0A0A;
     --brand-black-surface: #141414;
-    --brand-gold: #2E7D32;
-    --brand-gold-hover: #256428;
-    --brand-gold-light: #EAF6EC;
-    --brand-gold-border: #B7E1BE;
+    --brand-gold: #CA8A04;
+    --brand-gold-hover: #A16207;
+    --brand-gold-light: #FEF9E7;
+    --brand-gold-border: #EAD9A5;
     --brand-surface: #FBFAF6;
     --brand-text-dark: #111111;
     --brand-text-muted: #6B7280;
     /* Site-wide accent colour, customizable in Store Settings > Appearance.
        Kept up to date at runtime by App.tsx from settings.accentColor. */
-    --accent: #2E7D32;
-    --accent-dark: #1B5E20;
-    --accent-a5: rgba(46, 125, 50, 0.05);
-    --accent-a10: rgba(46, 125, 50, 0.1);
-    --accent-a15: rgba(46, 125, 50, 0.15);
-    --accent-a20: rgba(46, 125, 50, 0.2);
-    --accent-a30: rgba(46, 125, 50, 0.3);
-    --accent-a40: rgba(46, 125, 50, 0.4);
-    --accent-a50: rgba(46, 125, 50, 0.5);
+    --accent: #CA8A04;
+    --accent-dark: #9E6C03;
+    --accent-a5: rgba(202, 138, 4, 0.05);
+    --accent-a10: rgba(202, 138, 4, 0.1);
+    --accent-a15: rgba(202, 138, 4, 0.15);
+    --accent-a20: rgba(202, 138, 4, 0.2);
+    --accent-a30: rgba(202, 138, 4, 0.3);
+    --accent-a40: rgba(202, 138, 4, 0.4);
+    --accent-a50: rgba(202, 138, 4, 0.5);
   }
 
   *, *::before, *::after {
@@ -82,7 +82,7 @@
     height: 100%;
     background-color: #FBFAF6;
     background-image:
-      radial-gradient(circle at top left, rgba(46, 125, 50, 0.06), transparent 34%),
+      radial-gradient(circle at top left, rgba(202, 138, 4, 0.06), transparent 34%),
       radial-gradient(circle at top right, rgba(10, 10, 10, 0.04), transparent 28%);
     color: #111111;
     font-family: 'DM Sans', 'Outfit', 'Noto Sans Tamil', system-ui, -apple-system, sans-serif;
@@ -240,11 +240,11 @@
   }
 
   .surface-panel {
-    @apply rounded-2xl border border-[#B7E1BE]/40 bg-white shadow-soft;
+    @apply rounded-2xl border border-[var(--accent-a20)] bg-white shadow-soft;
   }
 
   .surface-panel-compact {
-    @apply rounded-xl border border-[#B7E1BE]/40 bg-white shadow-soft;
+    @apply rounded-xl border border-[var(--accent-a20)] bg-white shadow-soft;
   }
 
   .mobile-chip {
@@ -252,11 +252,11 @@
   }
 
   .mobile-cta-bar {
-    @apply border-t border-[#B7E1BE]/50 bg-white/95 backdrop-blur pb-[calc(env(safe-area-inset-bottom)+0.75rem)];
+    @apply border-t border-[var(--accent-a20)] bg-white/95 backdrop-blur pb-[calc(env(safe-area-inset-bottom)+0.75rem)];
   }
 
   .mobile-section-title {
-    @apply text-[11px] font-black uppercase tracking-[0.24em] text-[#1B5E20];
+    @apply text-[11px] font-black uppercase tracking-[0.24em] text-[var(--accent-dark)];
   }
 
   .mobile-page-shell {
@@ -264,11 +264,11 @@
   }
 
   .btn-primary {
-    @apply px-6 py-3 rounded-xl bg-[#0A0A0A] text-[#2E7D32] border border-[#2E7D32] font-bold hover:bg-[#1A1A1A] transition-all;
+    @apply px-6 py-3 rounded-xl bg-[#0A0A0A] text-[var(--accent)] border border-[var(--accent)] font-bold hover:bg-[#1A1A1A] transition-all;
   }
 
   .btn-secondary {
-    @apply px-6 py-3 rounded-xl border border-[#B7E1BE] bg-white text-[#111111] font-bold hover:bg-gray-50 transition-colors;
+    @apply px-6 py-3 rounded-xl border border-[var(--accent-a40)] bg-white text-[#111111] font-bold hover:bg-gray-50 transition-colors;
   }
 
   .btn-small {
@@ -366,7 +366,7 @@
   max-width: 100vw;
   overscroll-behavior-x: contain;
   background:
-    radial-gradient(circle at top left, rgba(46, 125, 50, 0.05), transparent 30%),
+    radial-gradient(circle at top left, rgba(202, 138, 4, 0.05), transparent 30%),
     #FBFAF6;
 }
 

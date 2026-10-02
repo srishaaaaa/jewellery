@@ -2227,7 +2227,7 @@ export default function Dashboard() {
                       dateTo: analyticsDateTo,
                     })
                   }}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[#B7E1BE] text-[#0A0A0A] font-bold text-xs hover:bg-[#FBFAF6] shadow-xs transition-all cursor-pointer hover:scale-[1.02]"
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[var(--accent-a40)] text-[#0A0A0A] font-bold text-xs hover:bg-[#FBFAF6] shadow-xs transition-all cursor-pointer hover:scale-[1.02]"
                   title="Export current analytics view to Excel"
                 >
                   <Download size={14} className="text-[var(--accent-dark)]" />

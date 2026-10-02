@@ -389,7 +389,7 @@ export default function CustomerEvents() {
                           <button
                             type="button"
                             onClick={() => openView(c)}
-                            className="flex items-center justify-center w-6 h-6 rounded-lg border border-gray-200 text-gray-500 hover:text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[#EAF6EC] transition-all cursor-pointer"
+                            className="flex items-center justify-center w-6 h-6 rounded-lg border border-gray-200 text-gray-500 hover:text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[#FEF9E7] transition-all cursor-pointer"
                             title={`View "${c.name}"`}
                           >
                             <Eye size={12} />
@@ -397,7 +397,7 @@ export default function CustomerEvents() {
                           <button
                             type="button"
                             onClick={() => openEdit(c)}
-                            className="flex items-center justify-center w-6 h-6 rounded-lg border border-gray-200 text-gray-500 hover:text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[#EAF6EC] transition-all cursor-pointer"
+                            className="flex items-center justify-center w-6 h-6 rounded-lg border border-gray-200 text-gray-500 hover:text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[#FEF9E7] transition-all cursor-pointer"
                             title={`Edit "${c.name}"`}
                           >
                             <Pencil size={12} />
@@ -478,7 +478,7 @@ export default function CustomerEvents() {
                           <button
                             type="button"
                             onClick={() => openView(c)}
-                            className="flex items-center justify-center w-6 h-6 rounded-lg border border-gray-200 text-gray-500 hover:text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[#EAF6EC] transition-all cursor-pointer"
+                            className="flex items-center justify-center w-6 h-6 rounded-lg border border-gray-200 text-gray-500 hover:text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[#FEF9E7] transition-all cursor-pointer"
                             title={`View "${c.name}"`}
                           >
                             <Eye size={12} />
@@ -486,7 +486,7 @@ export default function CustomerEvents() {
                           <button
                             type="button"
                             onClick={() => openEdit(c)}
-                            className="flex items-center justify-center w-6 h-6 rounded-lg border border-gray-200 text-gray-500 hover:text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[#EAF6EC] transition-all cursor-pointer"
+                            className="flex items-center justify-center w-6 h-6 rounded-lg border border-gray-200 text-gray-500 hover:text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[#FEF9E7] transition-all cursor-pointer"
                             title={`Edit "${c.name}"`}
                           >
                             <Pencil size={12} />

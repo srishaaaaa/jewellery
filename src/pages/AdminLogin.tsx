@@ -49,10 +49,10 @@ export default function AdminLogin() {
               <span className="text-xs font-black tracking-widest text-white uppercase">{shopName}</span>
             </div>
             <p className="text-[10px] font-black uppercase tracking-[0.26em] text-[var(--accent)]">{BRAND_SUBTITLE}</p>
-            <h2 className="mt-3 max-w-xs text-2xl lg:text-3xl font-black leading-tight tracking-tight text-white">Everything you need to run retail billing clearly.</h2>
-            <p className="mt-3.5 max-w-sm text-xs leading-6 text-white/70">Manage barcodes, SKU variants, inventory ledger, POS billing, invoices, and customer communications from one secure portal.</p>
+            <h2 className="mt-3 max-w-xs text-2xl lg:text-3xl font-black leading-tight tracking-tight text-white">Everything you need to run your jewellery store.</h2>
+            <p className="mt-3.5 max-w-sm text-xs leading-6 text-white/70">Daily gold & silver rates, jewellery billing, savings schemes, barcodes, stock, invoices and customer messages — in one secure portal.</p>
           </div>
-          <div className="mt-6 flex items-center gap-2 text-xs font-bold text-[var(--accent)]"><ShieldCheck size={15} /> Secure retail workspace</div>
+          <div className="mt-6 flex items-center gap-2 text-xs font-bold text-[var(--accent)]"><ShieldCheck size={15} /> Secure jewellery workspace</div>
         </div>
         <div className="p-5 sm:p-7 lg:p-8 bg-white text-[#111111] overflow-y-auto hide-scrollbar flex flex-col justify-center">
           {/* Brand */}
@@ -91,7 +91,7 @@ export default function AdminLogin() {
                 type="text"
                 autoComplete="username"
                 placeholder="Enter portal ID"
-                className="w-full rounded-xl border-2 border-[#B7E1BE] bg-[#FBFAF6] px-3.5 py-3.5 sm:py-3.5 text-xs sm:text-sm font-semibold outline-none transition-colors placeholder:text-[#AAA69C] focus:border-[#0A0A0A] focus:bg-white text-[#111111] min-h-[44px]"
+                className="w-full rounded-xl border-2 border-[var(--accent-a40)] bg-[#FBFAF6] px-3.5 py-3.5 sm:py-3.5 text-xs sm:text-sm font-semibold outline-none transition-colors placeholder:text-[#AAA69C] focus:border-[#0A0A0A] focus:bg-white text-[#111111] min-h-[44px]"
                 value={portalId}
                 onChange={(e) => { setPortalId(e.target.value); setError('') }}
                 disabled={loading}
@@ -110,7 +110,7 @@ export default function AdminLogin() {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
                   placeholder="Enter portal password"
-                  className="w-full rounded-xl border-2 border-[#B7E1BE] bg-[#FBFAF6] px-3.5 py-3.5 sm:py-3.5 pr-11 text-xs sm:text-sm font-semibold outline-none transition-colors placeholder:text-[#AAA69C] focus:border-[#0A0A0A] focus:bg-white text-[#111111] min-h-[44px]"
+                  className="w-full rounded-xl border-2 border-[var(--accent-a40)] bg-[#FBFAF6] px-3.5 py-3.5 sm:py-3.5 pr-11 text-xs sm:text-sm font-semibold outline-none transition-colors placeholder:text-[#AAA69C] focus:border-[#0A0A0A] focus:bg-white text-[#111111] min-h-[44px]"
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setError('') }}
                   disabled={loading}

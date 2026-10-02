@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
-import { BRAND_ADDRESS, BRAND_EN, BRAND_PHONE_DISPLAY } from './brand'
+import { BRAND_ACCENT, BRAND_ADDRESS, BRAND_EN, BRAND_PHONE_DISPLAY } from './brand'
 import { formatCurrency, formatQuantityDisplay, normalizeStructuredOrderItem, formatInvoiceNo } from './retail'
 import { getActiveLogo } from './activeLogo'
 import { useSettingsStore } from '../store/store'
@@ -61,7 +61,7 @@ export function createInvoicePdf(data: InvoicePdfData): Blob {
   const pageWidth = 210
   const left = 16
   const right = 194
-  const primaryColor = storeSettings?.accentColor || '#2E7D32'
+  const primaryColor = storeSettings?.accentColor || BRAND_ACCENT
   const ink = '#18202a'
   const muted = '#68717c'
   let y = 16

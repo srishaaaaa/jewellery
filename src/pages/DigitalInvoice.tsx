@@ -314,7 +314,7 @@ export default function DigitalInvoice() {
     <div className="h-full overflow-y-auto bg-[#f9faf6] font-sans pb-12 print:bg-white print:pb-0">
       {/* Top action bar */}
       <div className="bg-[#f9faf6] p-3 sm:p-4 sticky top-0 z-50 print:hidden flex flex-wrap items-center justify-between gap-2 max-w-4xl mx-auto">
-        <button onClick={handleBack} className="flex items-center gap-1.5 sm:gap-2 text-[#0A0A0A] hover:text-[var(--accent)] font-semibold text-xs sm:text-sm transition-colors bg-white border border-[#B7E1BE] px-3 sm:px-4 py-1.5 sm:py-2 rounded-full shadow-sm cursor-pointer shrink-0">
+        <button onClick={handleBack} className="flex items-center gap-1.5 sm:gap-2 text-[#0A0A0A] hover:text-[var(--accent)] font-semibold text-xs sm:text-sm transition-colors bg-white border border-[var(--accent-a40)] px-3 sm:px-4 py-1.5 sm:py-2 rounded-full shadow-sm cursor-pointer shrink-0">
           <ArrowLeft size={16} /> Back
         </button>
         <div className="flex items-center gap-2 shrink-0">
