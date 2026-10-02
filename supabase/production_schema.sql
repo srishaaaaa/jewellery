@@ -1958,5 +1958,36 @@ SELECT
 WHERE NOT EXISTS (SELECT 1 FROM public.store_settings WHERE id = 1);
 
 -- ============================================================================
+-- STORAGE BUCKETS (item photos, invoice PDFs, shop logo) — public links,
+-- uploads from the app. Skipped where the Supabase storage schema is absent.
+-- ============================================================================
+
+DO $$
+DECLARE b TEXT;
+BEGIN
+  IF to_regclass('storage.buckets') IS NULL THEN
+    RETURN;
+  END IF;
+  FOREACH b IN ARRAY ARRAY['product-images', 'invoices', 'branding'] LOOP
+    INSERT INTO storage.buckets (id, name, public) VALUES (b, b, TRUE)
+    ON CONFLICT (id) DO UPDATE SET public = TRUE;
+  END LOOP;
+
+  DROP POLICY IF EXISTS pos_files_read ON storage.objects;
+  CREATE POLICY pos_files_read ON storage.objects FOR SELECT TO anon, authenticated
+    USING (bucket_id IN ('product-images', 'invoices', 'branding'));
+  DROP POLICY IF EXISTS pos_files_insert ON storage.objects;
+  CREATE POLICY pos_files_insert ON storage.objects FOR INSERT TO anon, authenticated
+    WITH CHECK (bucket_id IN ('product-images', 'invoices', 'branding'));
+  DROP POLICY IF EXISTS pos_files_update ON storage.objects;
+  CREATE POLICY pos_files_update ON storage.objects FOR UPDATE TO anon, authenticated
+    USING (bucket_id IN ('product-images', 'invoices', 'branding'))
+    WITH CHECK (bucket_id IN ('product-images', 'invoices', 'branding'));
+  DROP POLICY IF EXISTS pos_files_delete ON storage.objects;
+  CREATE POLICY pos_files_delete ON storage.objects FOR DELETE TO anon, authenticated
+    USING (bucket_id IN ('product-images', 'invoices', 'branding'));
+END $$;
+
+-- ============================================================================
 -- END OF SCHEMA
 -- ============================================================================
