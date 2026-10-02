@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
-  CheckCircle2, Download, FileText, Hammer, MessageCircle, Plus, Printer, RefreshCw, RotateCcw, Scale, Search, Wallet, X, XCircle,
+  CheckCircle2, Download, FileText, Hammer, MessageCircle, Plus, Printer, RefreshCw, RotateCcw, Scale, Search, Trash2, Wallet, X, XCircle,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { getErrorMessage } from '../lib/errorMessage'
@@ -13,7 +13,7 @@ import { useAdminAuthStore, useSettingsStore } from '../store/store'
 import { invoicePdfFile } from '../lib/invoicePdf'
 import { printDeskReceipt } from '../lib/deskReceipt'
 import { auditService } from '../services/auditService'
-import {
+import { deleteDeskRecord, type DeskTable,
   advanceService, oldGoldService, quotationService, repairService, returnService, REPAIR_STATUS_LABELS,
   type CustomerAdvance, type OldGoldRecord, type Quotation, type Repair, type RepairStatus, type ReturnLine, type SalesReturn,
 } from '../services/salesDeskService'
@@ -109,6 +109,26 @@ export default function SalesDesk() {
     }).join('\n')
     sendWhatsApp(qt.phone, `💎 *Quotation — ${shopName()}*\n\nDear ${qt.customerName || 'Customer'},\n\n📌 *Quotation No:* ${qt.quotationNumber}\n📅 *Date:* ${fmtDate(qt.createdAt)}${qt.validUntil ? `\n⏳ *Valid until:* ${fmtDate(qt.validUntil)}` : ''}\n\n${lines}\n\n💰 *Estimated Total:* ₹ ${qt.total.toFixed(2)}\n\nPrices are at today's metal rate and may change with the rate. This is not an invoice.`)
   }
+  // Admin only: permanently remove a record from one of the lists below.
+  const deleteRecord = async (table: DeskTable, id: string, number: string, what: string, warning = '') => {
+    if (!isAdmin) return
+    if (!window.confirm(`Delete ${what} ${number}? This cannot be undone.${warning ? `\n\n${warning}` : ''}`)) return
+    try {
+      await deleteDeskRecord(table, id)
+      void auditService.log({ action: 'record_deleted', entityType: table, entityId: number, note: what })
+      const drop = <T extends { id: string }>(rows: T[]) => rows.filter((r) => r.id !== id)
+      if (table === 'quotations') setQuotations(drop)
+      if (table === 'sales_returns') setReturns(drop)
+      if (table === 'old_gold_exchanges') setOldGold(drop)
+      if (table === 'customer_advances') setAdvances(drop)
+      if (table === 'repairs') setRepairs(drop)
+      setNotice(`${number} deleted.`)
+    } catch (err) { setError(getErrorMessage(err, 'Unable to delete')) }
+  }
+  const deleteBtn = (onClick: () => void) => (
+    <button className={`${iconBtn} bg-red-50 text-red-600 hover:bg-red-100`} title="Delete" onClick={onClick}><Trash2 size={15} /></button>
+  )
+
   const setQuotationStatus = async (qt: Quotation, status: Quotation['status']) => {
     try {
       await quotationService.setStatus(qt.id, status)
@@ -433,6 +453,7 @@ export default function SalesDesk() {
                       {x.phone && <button className={`${iconBtn} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`} title="Send on WhatsApp" onClick={() => quotationWhatsApp(x)}><MessageCircle size={15} /></button>}
                       {x.status === 'open' && <button className={`${iconBtn} bg-[var(--accent-a10)] text-[var(--accent-dark)] hover:bg-[var(--accent-a20)]`} title="Mark as billed" onClick={() => void setQuotationStatus(x, 'converted')}><CheckCircle2 size={15} /></button>}
                       {x.status === 'open' && <button className={`${iconBtn} bg-red-50 text-red-600 hover:bg-red-100`} title="Cancel quotation" onClick={() => void setQuotationStatus(x, 'cancelled')}><XCircle size={15} /></button>}
+                      {isAdmin && deleteBtn(() => void deleteRecord('quotations', x.id, x.quotationNumber, 'quotation'))}
                     </div></td>
                   </tr>
                 ))}
@@ -457,6 +478,7 @@ export default function SalesDesk() {
                         <button className={`${iconBtn} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`} title="Approve" onClick={() => void decideReturn(x, true)}><CheckCircle2 size={15} /></button>
                         <button className={`${iconBtn} bg-red-50 text-red-600 hover:bg-red-100`} title="Reject" onClick={() => void decideReturn(x, false)}><XCircle size={15} /></button>
                       </>}
+                      {isAdmin && x.status !== 'approved' && deleteBtn(() => void deleteRecord('sales_returns', x.id, x.returnNumber, 'return'))}
                     </div></td>
                   </tr>
                 ))}
@@ -464,7 +486,7 @@ export default function SalesDesk() {
           </>}
 
           {tab === 'old_gold' && <>
-            {thead(['Exchange', 'Invoice / Customer', 'Metal', 'Weight', 'Rate', 'Deductions', 'Value'])}
+            {thead(['Exchange', 'Invoice / Customer', 'Metal', 'Weight', 'Rate', 'Deductions', 'Value', ...(isAdmin ? ['Actions'] : [])])}
             <tbody className="divide-y divide-[#F0EEE9]">
               {loading ? emptyRow(7, 'Loading…') : oldGold.filter((x) => matches(x.exchangeNumber, x.invoiceNo, x.customerName, x.phone)).length === 0 ? emptyRow(7, 'No old gold taken yet.')
                 : oldGold.filter((x) => matches(x.exchangeNumber, x.invoiceNo, x.customerName, x.phone)).map((x) => (
@@ -476,6 +498,7 @@ export default function SalesDesk() {
                     <td className="px-4 py-3.5 text-xs">{formatCurrency(x.exchangeRate)}/g</td>
                     <td className="px-4 py-3.5 text-xs">Melting {x.meltingDeductionPercent}%<br />Other {formatCurrency(x.otherDeduction)}</td>
                     <td className="px-4 py-3.5 font-black">{formatCurrency(x.netValue)}</td>
+                    {isAdmin && <td className="px-4 py-3.5">{deleteBtn(() => void deleteRecord('old_gold_exchanges', x.id, x.exchangeNumber, 'old gold record', x.invoiceNo ? `The bill ${formatInvoiceNo(x.invoiceNo)} still shows this old gold as part-payment.` : ''))}</td>}
                   </tr>
                 ))}
             </tbody>
@@ -497,6 +520,7 @@ export default function SalesDesk() {
                       <button className={`${iconBtn} bg-amber-50 text-amber-700 hover:bg-amber-100`} title="Print receipt" onClick={() => printAdvance(x)}><Printer size={15} /></button>
                       <button className={`${iconBtn} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`} title="Send on WhatsApp" onClick={() => whatsappAdvance(x)}><MessageCircle size={15} /></button>
                       {isAdmin && x.status === 'active' && x.amountUsed === 0 && <button className={`${iconBtn} bg-red-50 text-red-600 hover:bg-red-100`} title="Cancel / refund advance" onClick={() => void cancelAdvance(x)}><XCircle size={15} /></button>}
+                      {isAdmin && x.amountUsed === 0 && deleteBtn(() => void deleteRecord('customer_advances', x.id, x.receiptNumber, 'advance', x.status === 'active' ? 'Only delete an advance entered by mistake. To give money back, use Cancel / refund instead.' : ''))}
                     </div></td>
                   </tr>
                 ))}
@@ -524,6 +548,7 @@ export default function SalesDesk() {
                       <button className={`${iconBtn} bg-[var(--accent-a10)] text-[var(--accent-dark)] hover:bg-[var(--accent-a20)]`} title="Update charges" onClick={() => { setRepairEdit(x); setRepairEditForm({ charge: String(x.repairCharge), advance: String(x.advancePaid), expectedDate: x.expectedDate || '' }); setModalError('') }}><Wallet size={15} /></button>
                       <button className={`${iconBtn} bg-amber-50 text-amber-700 hover:bg-amber-100`} title="Print receipt" onClick={() => printRepair(x)}><Printer size={15} /></button>
                       <button className={`${iconBtn} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`} title="Send on WhatsApp" onClick={() => whatsappRepair(x)}><MessageCircle size={15} /></button>
+                      {isAdmin && deleteBtn(() => void deleteRecord('repairs', x.id, x.repairNumber, 'repair'))}
                     </div></td>
                   </tr>
                 ))}

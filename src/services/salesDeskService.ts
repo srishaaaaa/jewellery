@@ -364,3 +364,16 @@ export const repairService = {
     return mapRepair(data as Record<string, unknown>)
   },
 }
+
+export type DeskTable = 'quotations' | 'sales_returns' | 'old_gold_exchanges' | 'customer_advances' | 'repairs'
+
+/** Permanently deletes one Sales Desk record (admin only in the app). */
+export async function deleteDeskRecord(table: DeskTable, id: string): Promise<void> {
+  const { data, error } = await supabase.from(table).delete().eq('id', id).select('id')
+  if (error) {
+    // An advance that was ever applied to a bill keeps its usage history and cannot be removed.
+    if (String((error as { code?: string }).code) === '23503') throw new Error('This record is linked to a bill and cannot be deleted.')
+    throw fail(error, 'Unable to delete the record')
+  }
+  if (!data || data.length === 0) throw new Error('The record was not deleted (it may already be gone).')
+}
