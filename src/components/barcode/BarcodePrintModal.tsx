@@ -6,6 +6,9 @@ import { BRAND_EN } from '../../lib/brand'
 import { getAllLabelSizes, labelBarcodeHtml, buildA4SheetPages, getStoredBarcodeSettings, saveStoredBarcodeSettings } from '../../lib/barcode'
 import { ModalPortal } from '../ModalPortal'
 
+/** Jewellery tag details printed instead of a price (the price follows the daily metal rate). */
+export type JewelleryTagInfo = { purity: string; grossWeight: number; netWeight: number; sku?: string; huid?: string }
+
 export interface BarcodePrintModalProps {
   isOpen: boolean
   onClose: () => void
@@ -15,6 +18,7 @@ export interface BarcodePrintModalProps {
   price: number
   mrp?: number | null
   defaultQuantity?: number
+  jewelleryTag?: JewelleryTagInfo | null
 }
 
 type LabelSizePreset = {
@@ -47,6 +51,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
   price,
   mrp,
   defaultQuantity = 1,
+  jewelleryTag,
 }) => {
   const presets = getAvailablePresets()
   const [quantity, setQuantity] = useState<string>(String(defaultQuantity || 1))
@@ -129,7 +134,23 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
     // Build standalone HTML for the printed stickers with strict thermal proportions
     const parsedQty = parseInt(quantity.trim(), 10)
     const validQuantity = !isNaN(parsedQty) && parsedQty > 0 ? parsedQty : 1
-    const singleStickerHtml = `
+    const jt = jewelleryTag
+    const singleStickerHtml = jt ? `
+      <div class="sticker">
+        <div class="header">
+          <div class="brand">${BRAND_EN}</div>
+          <div class="prod-title">${fullTitle}</div>
+          <div class="tag">${[jt.purity, `G ${jt.grossWeight.toFixed(3)}g`, `N ${jt.netWeight.toFixed(3)}g`].filter(Boolean).join(' · ')}</div>
+        </div>
+        <div class="barcode-box">
+          ${svgMarkup}
+        </div>
+        <div class="footer">
+          <span class="retail-tag">${jt.sku ? `SKU ${jt.sku}` : ''}</span>
+          <span class="retail-tag">${jt.huid ? `HUID ${jt.huid}` : ''}</span>
+        </div>
+      </div>
+    ` : `
       <div class="sticker">
         <div class="header">
           <div class="brand">${BRAND_EN}</div>
@@ -139,7 +160,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
           ${svgMarkup}
         </div>
         <div class="footer">
-          <span>${mrp && mrp > price ? `<span class="mrp">MRP ₹${mrp}</span>` : isNarrow ? '' : `<span class="retail-tag">${BRAND_EN} RETAIL</span>`}</span>
+          <span>${mrp && mrp > price ? `<span class="mrp">MRP ₹${mrp}</span>` : isNarrow ? '' : `<span class="retail-tag">${BRAND_EN}</span>`}</span>
           <span class="price">₹${price}</span>
         </div>
       </div>
@@ -311,6 +332,12 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
               padding-top: 0.5mm;
               line-height: 1;
               flex-shrink: 0;
+            }
+            .tag {
+              font-size: ${tagFontSize};
+              font-weight: 800;
+              color: #000;
+              margin-top: 0.3mm;
             }
             .retail-tag {
               font-size: ${tagFontSize};
@@ -583,6 +610,7 @@ export const BarcodePrintModal: React.FC<BarcodePrintModalProps> = ({
                 price={price}
                 mrp={mrp}
                 storeName={BRAND_EN}
+                jewelleryTag={jewelleryTag}
                 widthMm={selectedPreset.widthMm}
                 heightMm={selectedPreset.heightMm}
               />

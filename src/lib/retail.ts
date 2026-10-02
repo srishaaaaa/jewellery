@@ -83,7 +83,14 @@ export const safeId = (id: unknown): number | null => {
 export const isUuid = (value: unknown): value is string =>
   typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 
-const PAYMENT_LABELS: Record<string, string> = { cash: 'Cash', qr: 'QR', upi: 'QR', card: 'Card', credit: 'Credit', online: 'Online' }
+export const PAYMENT_LABELS: Record<string, string> = {
+  cash: 'Cash', qr: 'UPI', upi: 'UPI', card: 'Card', bank: 'Bank Transfer', cheque: 'Cheque',
+  credit: 'Credit', online: 'Online', advance: 'Advance', exchange: 'Exchange Credit',
+}
+
+/** Payment methods offered at the counter (keys stored on the bill). */
+export const COUNTER_PAYMENT_METHODS = ['cash', 'qr', 'card', 'bank', 'cheque'] as const
+export type CounterPaymentMethod = typeof COUNTER_PAYMENT_METHODS[number]
 
 /** "split" + { cash: 300, qr: 200 } -> "Split (Cash ₹300 + QR ₹200)"; other modes -> "Cash", "QR", ... */
 export const formatPaymentMode = (mode: unknown, splitDetails?: unknown): string => {

@@ -49,6 +49,8 @@ export type BuildWhatsAppMessageInput = {
   schemeDiscount?: number
   schemeAmountUsed?: number
   schemeBalanceAfter?: number | null
+  advanceAmountUsed?: number
+  exchangeAmount?: number
 }
 
 export type SchemeInstallmentWhatsAppInput = {
@@ -135,6 +137,8 @@ export const buildProfessionalWhatsAppMessage = (input: BuildWhatsAppMessageInpu
       ((input.schemeAmountUsed || 0) > 0 ? `💰 *Paid from Scheme:* ₹ ${Number(input.schemeAmountUsed).toFixed(2)}\n` : '') +
       (input.schemeBalanceAfter != null ? `📊 *Scheme Balance Left:* ₹ ${Number(input.schemeBalanceAfter).toFixed(2)}\n` : '')
     : ''
+  const adjustBlock = ((input.advanceAmountUsed || 0) > 0 ? `\n💵 *Advance Adjusted:* ₹ ${Number(input.advanceAmountUsed).toFixed(2)}\n` : '') +
+    ((input.exchangeAmount || 0) > 0 ? `🪙 *Old Gold Exchange:* ₹ ${Number(input.exchangeAmount).toFixed(2)}\n` : '')
 
   return `✨ *${shop.name}* ✨
 🛍️ *Official Purchase Invoice & Receipt* 🛍️
@@ -145,7 +149,7 @@ Thank you for shopping at ${shop.name}! We truly appreciate your patronage.
 
 🧾 *INVOICE DETAILS*
 📌 *Invoice No:* #${formattedNo}
-${input.invoiceDate ? `📅 *Date:* ${new Date(input.invoiceDate).toLocaleDateString('en-IN')}\n` : ''}${input.paymentMode ? `💳 *Payment Mode:* ${input.paymentMode}\n` : ''}${input.total !== undefined ? `💰 *Total Amount:* ₹ ${Number(input.total || 0).toFixed(2)}\n` : ''}${creditBlock}${schemeBlock}
+${input.invoiceDate ? `📅 *Date:* ${new Date(input.invoiceDate).toLocaleDateString('en-IN')}\n` : ''}${input.paymentMode ? `💳 *Payment Mode:* ${input.paymentMode}\n` : ''}${input.total !== undefined ? `💰 *Total Amount:* ₹ ${Number(input.total || 0).toFixed(2)}\n` : ''}${creditBlock}${schemeBlock}${adjustBlock}
 ${itemsText ? `📦 *ITEMS ORDERED:*\n${itemsText}\n\n` : ''}📄 *View & Download Digital Invoice / PDF:*
 👉 ${invoiceUrl}
 

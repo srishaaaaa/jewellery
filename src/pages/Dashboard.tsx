@@ -4,7 +4,7 @@ import {
   Box, AlertCircle, Power, Download, TrendingUp, TrendingDown,
   Package, Search, RefreshCw, ShieldCheck, ShieldOff, Trophy,
   MessageCircle, ChevronDown, Eye, FileText, Printer, X, Layers, Receipt, Settings, Wallet, Gift,
-  Gem, PiggyBank,
+  Gem, PiggyBank, Briefcase,
 } from 'lucide-react'
 
 // Custom Malaysian Ringgit icon — replaces the generic dollar-sign icon
@@ -50,7 +50,9 @@ import Pos from './Pos'
 import AdvanceOrders from './AdvanceOrders'
 import MetalRates from './MetalRates'
 import Schemes from './Schemes'
+import SalesDesk from './SalesDesk'
 import JewelleryReports from '../components/dashboard/JewelleryReports'
+import { auditService } from '../services/auditService'
 import BirthdayDashboard from '../components/dashboard/BirthdayDashboard'
 import type { AdvanceOrder } from '../services/advanceOrderService'
 import { InventoryTable } from '../components/inventory/InventoryTable'
@@ -90,6 +92,7 @@ export type DashboardOrder = {
   is_credit?: boolean; credit_due_date?: string | null; credit_status?: string | null; credit_paid_at?: string | null
   split_details?: Record<string, unknown> | null
   scheme_number?: string | null; scheme_amount_used?: number; scheme_discount?: number; scheme_balance_after?: number | null
+  advance_amount_used?: number; exchange_amount?: number; customer_gstin?: string | null
 }
 
 /**
@@ -100,8 +103,8 @@ const attachSchemeInfo = async (orders: DashboardOrder[]): Promise<DashboardOrde
   if (!orders.length || !isSupabaseConfigured) return orders
   const { data, error } = await supabase
     .from('orders')
-    .select('id, scheme_number, scheme_amount_used, scheme_discount, scheme_balance_after')
-    .not('scheme_number', 'is', null)
+    .select('id, scheme_number, scheme_amount_used, scheme_discount, scheme_balance_after, advance_amount_used, exchange_amount, customer_gstin')
+    .or('scheme_number.not.is.null,advance_amount_used.gt.0,exchange_amount.gt.0,customer_gstin.not.is.null')
     .order('created_at', { ascending: false })
     .limit(5000)
   if (error || !data?.length) return orders
@@ -114,6 +117,9 @@ const attachSchemeInfo = async (orders: DashboardOrder[]): Promise<DashboardOrde
       scheme_amount_used: toNumber(row.scheme_amount_used, 0),
       scheme_discount: toNumber(row.scheme_discount, 0),
       scheme_balance_after: row.scheme_balance_after == null ? null : toNumber(row.scheme_balance_after, 0),
+      advance_amount_used: toNumber(row.advance_amount_used, 0),
+      exchange_amount: toNumber(row.exchange_amount, 0),
+      customer_gstin: row.customer_gstin ? String(row.customer_gstin) : null,
     } : o
   })
 }
@@ -128,7 +134,7 @@ type DashboardCoupon = {
   usage_count: number
   min_order_value: number
 }
-type TabKey = 'overview' | 'whatsapp' | 'pos_analytics' | 'billing' | 'advance_orders' | 'inventory' | 'expenses' | 'coupons' | 'users' | 'history' | 'settings' | 'outstanding_credits' | 'customer_events' | 'metal_rates' | 'schemes'
+type TabKey = 'overview' | 'whatsapp' | 'pos_analytics' | 'billing' | 'advance_orders' | 'inventory' | 'expenses' | 'coupons' | 'users' | 'history' | 'settings' | 'outstanding_credits' | 'customer_events' | 'metal_rates' | 'schemes' | 'sales_desk'
 type PosAnalyticsTab = 'revenue' | 'today' | 'products' | 'categories' | 'coupons' | 'jewellery'
 type ProfileUser = { id: string; email: string; name: string; mobile: string; role: string; created_at: string }
 
@@ -303,7 +309,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (role === 'staff') {
-      const staffAllowedTabs: TabKey[] = ['billing', 'inventory', 'metal_rates', 'schemes', 'advance_orders', 'history', 'customer_events']
+      const staffAllowedTabs: TabKey[] = ['billing', 'inventory', 'metal_rates', 'schemes', 'sales_desk', 'advance_orders', 'history', 'customer_events']
       if (!staffAllowedTabs.includes(tab)) {
         setTab('billing')
         navigate('/dashboard', { replace: true })
@@ -313,7 +319,7 @@ export default function Dashboard() {
 
   const handleTabClick = (tabKey: TabKey) => {
     if (role === 'staff') {
-      const staffAllowedTabs: TabKey[] = ['billing', 'inventory', 'metal_rates', 'schemes', 'advance_orders', 'history', 'customer_events']
+      const staffAllowedTabs: TabKey[] = ['billing', 'inventory', 'metal_rates', 'schemes', 'sales_desk', 'advance_orders', 'history', 'customer_events']
       if (!staffAllowedTabs.includes(tabKey)) return
     }
     setTab(tabKey)
@@ -324,7 +330,7 @@ export default function Dashboard() {
       navigate('/dashboard?tab=expenses', { replace: true })
     } else if (tabKey === 'advance_orders') {
       navigate('/dashboard?tab=advance_orders', { replace: true })
-    } else if (tabKey === 'metal_rates' || tabKey === 'schemes') {
+    } else if (tabKey === 'metal_rates' || tabKey === 'schemes' || tabKey === 'sales_desk') {
       navigate(`/dashboard?tab=${tabKey}`, { replace: true })
     } else {
       navigate('/dashboard', { replace: true })
@@ -875,18 +881,21 @@ export default function Dashboard() {
   }
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
+    const before = orders.find(o => o.id === orderId)
     await supabase.from('orders').update({ status: newStatus }).eq('id', orderId)
+    void auditService.log({ action: 'invoice_status_changed', entityType: 'invoice', entityId: before?.invoice_no || orderId, oldValue: { status: before?.status }, newValue: { status: newStatus } })
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o))
     setSearchResults(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o))
   }
 
   const deleteOrder = async (orderId: string, invoiceNo: string) => {
-    if (role === 'staff') {
-      const confirmed = window.confirm(`Delete order ${formatInvoiceNo(invoiceNo)}? This action cannot be undone.`)
-      if (!confirmed) return
-    } else {
-      if (!window.confirm(`Are you sure you want to completely delete order ${formatInvoiceNo(invoiceNo)}? This cannot be undone.`)) return
+    // Invoices are deleted only by the admin; staff record a return instead (Sales Desk).
+    if (role !== 'admin') {
+      alert('Only the admin can delete an invoice. Record a return in Sales Desk instead.')
+      return
     }
+    if (!window.confirm(`Are you sure you want to completely delete order ${formatInvoiceNo(invoiceNo)}? This cannot be undone.`)) return
+    const before = orders.find(o => o.id === orderId) || searchResults.find(o => o.id === orderId)
     // Clear FK reference in advance_orders first (if this order was created from an advance order)
     await supabase.from('advance_orders').update({ completed_order_id: null }).eq('completed_order_id', orderId)
     const { error } = await supabase.from('orders').delete().eq('id', orderId)
@@ -894,6 +903,7 @@ export default function Dashboard() {
       alert(`Error deleting order: ${error.message}`)
       return
     }
+    void auditService.log({ action: 'invoice_deleted', entityType: 'invoice', entityId: invoiceNo, oldValue: before ? { total: before.total, customer: before.customer_name, phone: before.phone, date: before.created_at } : null })
     // Track deleted ID so re-searches don't bring it back
     deletedOrderIds.current.add(orderId)
     setOrders(prev => prev.filter(o => o.id !== orderId))
@@ -934,6 +944,8 @@ export default function Dashboard() {
       schemeDiscount: order.scheme_discount,
       schemeAmountUsed: order.scheme_amount_used,
       schemeBalanceAfter: order.scheme_balance_after,
+      advanceAmountUsed: order.advance_amount_used,
+      exchangeAmount: order.exchange_amount,
       isCredit: order.credit_status === 'outstanding' || order.credit_status === 'paid',
       creditDueDate: order.credit_status === 'outstanding' ? order.credit_due_date : undefined,
       creditPaidAt: order.credit_status === 'paid' ? order.credit_paid_at : undefined,
@@ -987,6 +999,8 @@ export default function Dashboard() {
       schemeDiscount: order.scheme_discount,
       schemeAmountUsed: order.scheme_amount_used,
       schemeBalanceAfter: order.scheme_balance_after,
+      advanceAmountUsed: order.advance_amount_used,
+      exchangeAmount: order.exchange_amount,
       couponDiscount: order.discount_amount || 0,
       totalGst: order.total_gst || 0,
       total: order.total,
@@ -1034,6 +1048,8 @@ export default function Dashboard() {
       schemeDiscount: order.scheme_discount,
       schemeAmountUsed: order.scheme_amount_used,
       schemeBalanceAfter: order.scheme_balance_after,
+      advanceAmountUsed: order.advance_amount_used,
+      exchangeAmount: order.exchange_amount,
       isCredit: order.credit_status === 'outstanding' || order.credit_status === 'paid',
       creditDueDate: order.credit_status === 'outstanding' ? order.credit_due_date : undefined,
       creditPaidAt: order.credit_status === 'paid' ? order.credit_paid_at : undefined,
@@ -1355,6 +1371,7 @@ export default function Dashboard() {
         { id: 'inventory',      icon: <Layers size={18} />,       label: 'Jewellery Stock' },
         { id: 'metal_rates',    icon: <Gem size={18} />,          label: 'Metal Rates' },
         { id: 'schemes',        icon: <PiggyBank size={18} />,    label: 'Schema' },
+        { id: 'sales_desk',     icon: <Briefcase size={18} />,    label: 'Sales Desk' },
         { id: 'advance_orders', icon: <FileText size={18} />,     label: 'Advance Orders' },
         { id: 'customer_events', icon: <Gift size={18} />,        label: 'Customers & Occasions' },
         { id: 'history',        icon: <List size={18} />,         label: 'Order History' },
@@ -1364,6 +1381,7 @@ export default function Dashboard() {
         { id: 'inventory',      icon: <Layers size={18} />,       label: 'Jewellery Stock & Barcodes' },
         { id: 'metal_rates',    icon: <Gem size={18} />,          label: 'Metal Rates' },
         { id: 'schemes',        icon: <PiggyBank size={18} />,    label: 'Schema' },
+        { id: 'sales_desk',     icon: <Briefcase size={18} />,    label: 'Sales Desk' },
         { id: 'advance_orders', icon: <FileText size={18} />,     label: 'Advance Orders' },
         { id: 'customer_events', icon: <Gift size={18} />,        label: 'Customers & Occasions' },
         { id: 'expenses',       icon: <Receipt size={18} />,      label: 'Expenses' },
@@ -2989,6 +3007,7 @@ export default function Dashboard() {
         {tab === 'customer_events' && <BirthdayDashboard />}
         {tab === 'metal_rates' && <MetalRates />}
         {tab === 'schemes' && <Schemes />}
+        {tab === 'sales_desk' && <SalesDesk />}
 
         {/* ── ORDER MANAGEMENT ── */}
         {tab === 'history' && (
@@ -3778,6 +3797,9 @@ export default function Dashboard() {
                     schemeDiscount={invoicePreviewOrder.scheme_discount || 0}
                     schemeAmountUsed={invoicePreviewOrder.scheme_amount_used || 0}
                     schemeBalanceAfter={invoicePreviewOrder.scheme_balance_after}
+                    advanceAmountUsed={invoicePreviewOrder.advance_amount_used || 0}
+                    exchangeAmount={invoicePreviewOrder.exchange_amount || 0}
+                    customerGstin={invoicePreviewOrder.customer_gstin}
                     total={invoicePreviewOrder.total}
                     status={invoicePreviewOrder.status}
                   />

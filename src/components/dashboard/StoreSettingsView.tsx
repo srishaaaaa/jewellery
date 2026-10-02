@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
-import { Store, Phone, MapPin, Palette, Package, SlidersHorizontal, Lock, RefreshCw, Camera, Trash2, X, Check, AlertCircle, Save } from 'lucide-react'
-import { useSettingsStore, useAdminAuthStore, useProductStore } from '../../store/store'
+import { Store, Phone, MapPin, Palette, Package, SlidersHorizontal, Lock, RefreshCw, Camera, Trash2, X, Check, AlertCircle, Save, Receipt, ShieldCheck } from 'lucide-react'
+import { useSettingsStore, useAdminAuthStore, useProductStore, DEFAULT_POS_PERMISSIONS } from '../../store/store'
+import { auditService } from '../../services/auditService'
+import AuditLogView from './AuditLogView'
 import { BRAND_ACCENT, BRAND_LOGO, BRAND_EN } from '../../lib/brand'
 import { isSupabaseConfigured, supabase } from '../../lib/supabase'
 import { ModalPortal } from '../ModalPortal'
@@ -46,6 +48,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
     name: '', ownerName: '', phone: '', shopContactNumber: '', email: '', address: '', instagramHandle: '',
     businessType: '', accentColor: BRAND_ACCENT,
     gstEnabled: false, lowStockThreshold: 5, expiryAlertDays: 30,
+    gstin: '', stateName: '', stateCode: '', posPermissions: DEFAULT_POS_PERMISSIONS,
   })
   const [saveMsg, setSaveMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const [logoUploading, setLogoUploading] = useState(false)
@@ -75,6 +78,10 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
     gstEnabled: s.gstEnabled,
     lowStockThreshold: s.lowStockThreshold,
     expiryAlertDays: s.expiryAlertDays,
+    gstin: s.gstin,
+    stateName: s.stateName,
+    stateCode: s.stateCode,
+    posPermissions: s.posPermissions,
   })
 
   // Sync the editable form from freshly-fetched/updated settings. Done during
@@ -94,7 +101,15 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
   const handleSave = async (e: FormEvent) => {
     e.preventDefault()
     setSaveMsg(null)
+    if (form.gstin.trim() && !/^[0-9]{2}[A-Z0-9]{13}$/i.test(form.gstin.trim())) {
+      setSaveMsg({ type: 'err', text: 'GSTIN must be 15 characters, starting with the 2-digit state code.' })
+      return
+    }
+    const before = settings
     const { error } = await updateSettings({ ...form, instagramHandle: form.instagramHandle.trim().replace(/^@+/, '') })
+    if (before && JSON.stringify(before.posPermissions) !== JSON.stringify(form.posPermissions)) {
+      void auditService.log({ action: 'settings_changed', entityType: 'staff_permissions', oldValue: before.posPermissions, newValue: form.posPermissions })
+    }
     setSaveMsg(error ? { type: 'err', text: error } : { type: 'ok', text: 'Configuration saved.' })
     if (!error) setTimeout(() => setSaveMsg(null), 3000)
   }
@@ -390,6 +405,58 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
             </div>
           </SectionCard>
 
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* GST details printed on invoices */}
+            <SectionCard icon={Receipt} title="Invoice GST Details" subtitle="Printed on every invoice">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-3">
+                  <Field label="GSTIN">
+                    <input className={inputCls} value={form.gstin} maxLength={15} placeholder="e.g. 33ABCDE1234F1Z5"
+                      onChange={e => setForm(f => ({ ...f, gstin: e.target.value.toUpperCase() }))} />
+                  </Field>
+                </div>
+                <div className="sm:col-span-2">
+                  <Field label="State">
+                    <input className={inputCls} value={form.stateName} placeholder="e.g. Tamil Nadu"
+                      onChange={e => setForm(f => ({ ...f, stateName: e.target.value }))} />
+                  </Field>
+                </div>
+                <Field label="State Code">
+                  <input className={inputCls} value={form.stateCode} maxLength={2} placeholder="e.g. 33"
+                    onChange={e => setForm(f => ({ ...f, stateCode: e.target.value.replace(/\D/g, '') }))} />
+                </Field>
+              </div>
+            </SectionCard>
+
+            {/* What staff may do at the counter */}
+            <SectionCard icon={ShieldCheck} title="Staff Permissions" subtitle="Limits for staff logins (admin is not limited)">
+              <div className="space-y-4">
+                <div>
+                  <Field label="Maximum staff discount (% of bill)">
+                    <NumberInput
+                      min={0} className={inputCls}
+                      value={form.posPermissions.staffMaxDiscountPercent}
+                      onCommit={n => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, staffMaxDiscountPercent: Math.min(100, n) } }))}
+                    />
+                  </Field>
+                  <p className="text-[11px] text-[#6B7280] mt-1.5">Staff cannot give a manual discount above this. A larger discount needs the admin login. 0 = no manual discounts by staff.</p>
+                </div>
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox" checked={form.posPermissions.staffCanCustomiseSchemes}
+                    onChange={e => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, staffCanCustomiseSchemes: e.target.checked } }))}
+                    className="mt-0.5 w-4 h-4 accent-[var(--accent)]"
+                  />
+                  <span>
+                    <span className="block text-[13px] font-bold text-[#111111]">Staff may change scheme terms</span>
+                    <span className="block text-[11px] text-[#6B7280]">Off: staff enrol customers only on the scheme types set up by admin, with their fixed terms.</span>
+                  </span>
+                </label>
+                <p className="text-[11px] text-[#6B7280]">Staff never change metal rates, Schema rules, invoices, completed payments, stock quantities or settings.</p>
+              </div>
+            </SectionCard>
+          </div>
+
           {/* Account Security */}
           <div className="bg-white rounded-2xl border border-[#E5E7EB]/60 p-4 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-2.5">
@@ -408,6 +475,8 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
           </div>
         </form>
       )}
+
+      {role === 'admin' && <AuditLogView />}
 
       {pwOpen && (
         <ModalPortal><div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={() => setPwOpen(false)}>

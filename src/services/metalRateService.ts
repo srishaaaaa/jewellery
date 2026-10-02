@@ -59,9 +59,9 @@ export const metalRateService = {
    * Saves new rates. Every entry becomes a new history row and immediately the
    * current rate; previous rates are kept, never overwritten.
    */
-  async addRates(entries: NewRateEntry[], meta: { createdBy: string; note?: string }): Promise<MetalRate[]> {
+  async addRates(entries: NewRateEntry[], meta: { createdBy: string; note?: string; effectiveFrom?: string }): Promise<MetalRate[]> {
     if (!entries.length) throw new Error('Enter at least one rate to update.')
-    const effectiveFrom = new Date().toISOString()
+    const effectiveFrom = meta.effectiveFrom ? new Date(meta.effectiveFrom).toISOString() : new Date().toISOString()
     const rows = entries.map((entry) => {
       const checked = validateRateInput(entry.metal, entry.purity, String(entry.rate))
       if (!checked.ok) throw new Error(checked.error)

@@ -19,6 +19,7 @@ export type DashboardTab =
   | 'customer_events'
   | 'metal_rates'
   | 'schemes'
+  | 'sales_desk'
 
 interface NavigationState {
   currentTab: DashboardTab

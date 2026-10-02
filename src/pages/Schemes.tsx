@@ -8,7 +8,8 @@ import { formatCurrency } from '../lib/retail'
 import { csvDate, csvPhone, downloadCsv } from '../lib/csv'
 import { normalizePhone, toWhatsAppUrl } from '../lib/phone'
 import { ModalPortal } from '../components/ModalPortal'
-import { useAdminAuthStore } from '../store/store'
+import { useAdminAuthStore, useSettingsStore } from '../store/store'
+import { auditService } from '../services/auditService'
 import { customerService, type CustomerRecord } from '../services/customerService'
 import { schemeService, type SchemeInstallment, type SchemeRedemption } from '../services/schemeService'
 import { buildSchemeInstallmentWhatsAppMessage } from '../lib/whatsappMessage'
@@ -19,6 +20,9 @@ import {
   FREQUENCY_PERIOD,
   SCHEME_FREQUENCIES,
   SCHEME_STATUS_LABELS,
+  INSTALLMENT_STATUS_LABELS,
+  installmentDisplayStatus,
+  installmentDueBreakdown,
   defaultMaturityDate,
   monthsBetween,
   deriveSchemeStatus,
@@ -35,6 +39,7 @@ import {
   type SchemeBenefitType,
   type SchemeFrequency,
   type SchemeRules,
+  type SchemeType,
   type SchemeStatus,
 } from '../lib/jewellery'
 
@@ -60,6 +65,8 @@ const PAYMENT_METHODS = ['cash', 'qr', 'card'] as const
 type PaymentMethod = typeof PAYMENT_METHODS[number]
 
 type CreateForm = {
+  /** Scheme type the terms come from ('' = custom terms, admin only) */
+  typeId: string
   frequency: SchemeFrequency
   phone: string
   customerName: string
@@ -97,6 +104,9 @@ export default function Schemes() {
   const role = useAdminAuthStore((s) => s.role)
   const adminId = useAdminAuthStore((s) => s.adminId)
   const isAdmin = role === 'admin'
+  const staffCanCustomise = useSettingsStore((st) => st.settings?.posPermissions.staffCanCustomiseSchemes) ?? false
+  /** Staff without the permission enrol customers only on admin-defined scheme types, with fixed terms. */
+  const termsLocked = !isAdmin && !staffCanCustomise
   const staffName = `${isAdmin ? 'Admin' : 'Staff'}${adminId ? ` (${adminId})` : ''}`
   const today = localIsoDate()
 
@@ -173,18 +183,20 @@ export default function Schemes() {
   const schemesById = useMemo(() => new Map(schemes.map((s) => [s.id, s])), [schemes])
 
   const stats = useMemo(() => {
-    let active = 0, completed = 0, matured = 0, dueInstallments = 0, pending = 0, collected = 0
+    let active = 0, completed = 0, matured = 0, redeemed = 0, dueToday = 0, overdue = 0, pending = 0, collected = 0
     for (const s of schemes) {
       const status = deriveSchemeStatus(s, today)
       if (status === 'active' || status === 'payment_due') active++
       if (status === 'completed') completed++
       if (status === 'matured') matured++
+      if (status === 'redeemed') redeemed++
       if (s.status !== 'cancelled') collected += s.totalPaid
-      const due = installmentsDueCount(s, today)
-      dueInstallments += due
-      pending += due * s.monthlyAmount
+      const due = installmentDueBreakdown(s, today)
+      dueToday += due.dueToday
+      overdue += due.overdue
+      pending += installmentsDueCount(s, today) * s.monthlyAmount
     }
-    return { active, completed, matured, dueInstallments, pending, collected }
+    return { active, completed, matured, redeemed, dueToday, overdue, pending, collected }
   }, [schemes, today])
 
   const filtered = useMemo(() => {
@@ -203,9 +215,26 @@ export default function Schemes() {
   }
 
   // ── Create ──────────────────────────────────────────────────────────────
+  const activeTypes = rules.types.filter((t) => t.active)
+
+  /** Form values for a scheme type (its terms are copied onto the customer's scheme). */
+  const formFromType = (t: SchemeType, base: CreateForm): CreateForm => ({
+    ...base,
+    typeId: t.id, frequency: t.frequency, schemeName: t.name, monthlyAmount: String(t.amount),
+    totalInstallments: String(t.installments), durationMonths: String(t.durationMonths), durationTouched: true, maturityTouched: false,
+    maturityDate: defaultMaturityDate(base.startDate, t.frequency, t.installments, t.durationMonths),
+    benefitType: t.benefitType, makingBenefitValue: String(t.makingBenefitValue), makingBenefitUnit: t.makingBenefitUnit,
+    wastageBenefitValue: String(t.wastageBenefitValue), wastageBenefitUnit: t.wastageBenefitUnit,
+  })
+
   const openCreate = () => {
+    if (termsLocked && !activeTypes.length) {
+      setError('No scheme types are set up yet. Ask the admin to add one (Schema → Rules → Scheme Types).')
+      return
+    }
     const installments = Math.min(Math.max(DEFAULT_INSTALLMENTS.monthly, rules.minInstallments), rules.maxInstallments)
-    setForm({
+    const blank: CreateForm = {
+      typeId: '',
       frequency: 'monthly',
       phone: '', customerName: '', schemeName: 'Gold Savings Scheme', monthlyAmount: '',
       totalInstallments: String(installments), durationMonths: String(installments), durationTouched: false,
@@ -214,9 +243,18 @@ export default function Schemes() {
       makingBenefitValue: String(rules.defaultMakingBenefitValue), makingBenefitUnit: rules.defaultMakingBenefitUnit,
       wastageBenefitValue: String(rules.defaultWastageBenefitValue), wastageBenefitUnit: rules.defaultWastageBenefitUnit,
       notes: '',
-    })
+    }
+    setForm(activeTypes.length ? formFromType(activeTypes[0], blank) : blank)
     setModalError('')
     setCreateOpen(true)
+  }
+
+  const pickType = (typeId: string) => {
+    setForm((f) => {
+      if (!f) return f
+      const t = activeTypes.find((x) => x.id === typeId)
+      return t ? formFromType(t, f) : { ...f, typeId: '' }
+    })
   }
 
   const updateForm = (patch: Partial<CreateForm>) => {
@@ -256,6 +294,7 @@ export default function Schemes() {
     if (!form) return
     const phone = normalizePhone(form.phone)
     if (!phone) { setModalError('Enter a valid Indian mobile number for the customer.'); return }
+    if (termsLocked && !activeTypes.some((t) => t.id === form.typeId)) { setModalError('Choose a scheme type.'); return }
     const totalInstallments = form.frequency === 'one_time' ? 1 : Number(form.totalInstallments)
     const input = {
       frequency: form.frequency,
@@ -276,7 +315,8 @@ export default function Schemes() {
       wastageBenefitValue: Number(form.wastageBenefitValue) || 0,
       wastageBenefitUnit: form.wastageBenefitUnit,
     }
-    const invalid = validateSchemeInput(input, rules)
+    // Admin-defined scheme types are not held to the general amount / installment limits.
+    const invalid = validateSchemeInput(input, form.typeId ? { ...rules, minMonthlyAmount: 0, maxMonthlyAmount: 0, minInstallments: 1, maxInstallments: 1000 } : rules)
     if (invalid) { setModalError(invalid); return }
     setSaving(true)
     setModalError('')
@@ -385,6 +425,7 @@ export default function Schemes() {
       const updated = await schemeService.cancel(detail.id, cancelReason.trim(), staffName)
       replaceScheme(updated)
       setDetailAction(null)
+      void auditService.log({ action: 'scheme_cancelled', entityType: 'scheme', entityId: updated.schemeNumber, oldValue: { status: detail.status, total_paid: detail.totalPaid }, newValue: { status: 'cancelled' }, note: cancelReason.trim() })
       setNotice(`Scheme ${updated.schemeNumber} cancelled.`)
     } catch (err) {
       setModalError(getErrorMessage(err, 'Unable to cancel the scheme'))
@@ -404,6 +445,7 @@ export default function Schemes() {
       const updated = await schemeService.transfer(detail.id, phone, transferForm.name.trim(), staffName)
       replaceScheme(updated)
       setDetailAction(null)
+      void auditService.log({ action: 'scheme_transferred', entityType: 'scheme', entityId: updated.schemeNumber, oldValue: { customer: detail.customerName, phone: detail.phone }, newValue: { customer: updated.customerName, phone: updated.phone } })
       setNotice(`Scheme ${updated.schemeNumber} transferred to ${updated.customerName || updated.phone}.`)
     } catch (err) {
       setModalError(getErrorMessage(err, 'Unable to transfer the scheme'))
@@ -418,10 +460,13 @@ export default function Schemes() {
     const next = normalizeSchemeRules(rulesForm)
     if (next.minInstallments > next.maxInstallments) { setModalError('Minimum installments cannot be more than the maximum.'); return }
     if (next.maxMonthlyAmount > 0 && next.minMonthlyAmount > next.maxMonthlyAmount) { setModalError('Minimum monthly amount cannot be more than the maximum.'); return }
+    const badType = next.types.find((t) => t.amount <= 0 || (t.frequency === 'one_time' ? t.installments !== 1 : t.installments < 1))
+    if (badType) { setModalError(`Scheme type "${badType.name}": enter the amount (and 1 installment for a one-time deposit).`); return }
     setSaving(true)
     setModalError('')
     try {
       await schemeService.saveRules(next)
+      void auditService.log({ action: 'scheme_rules_changed', entityType: 'scheme_rules', oldValue: { types: rules.types.length, min_installments: rules.minInstallments, max_installments: rules.maxInstallments, partial: rules.allowPartialRedemption, require_maturity: rules.requireMaturityForRedemption, expiry_months: rules.expiryMonths }, newValue: { types: next.types.length, min_installments: next.minInstallments, max_installments: next.maxInstallments, partial: next.allowPartialRedemption, require_maturity: next.requireMaturityForRedemption, expiry_months: next.expiryMonths } })
       setRules(next)
       setRulesOpen(false)
       setNotice('Scheme rules saved.')
@@ -454,10 +499,12 @@ export default function Schemes() {
   const cards = [
     ['Active Schemes', stats.active, PiggyBank, 'text-emerald-700 bg-emerald-50'],
     ['Total Amount Collected', formatCurrency(stats.collected), Wallet, 'text-fuchsia-700 bg-fuchsia-50'],
-    ['Due Installments', stats.dueInstallments, AlertTriangle, 'text-red-700 bg-red-50'],
+    ['Installments Due Today', stats.dueToday, Clock3, 'text-orange-700 bg-orange-50'],
+    ['Overdue Installments', stats.overdue, AlertTriangle, 'text-red-700 bg-red-50'],
+    ['Pending Payments', formatCurrency(stats.pending), Wallet, 'text-orange-700 bg-orange-50'],
     ['Completed Schemes', stats.completed, CheckCircle2, 'text-blue-700 bg-blue-50'],
     ['Matured Schemes', stats.matured, Trophy, 'text-amber-700 bg-amber-50'],
-    ['Pending Payments', formatCurrency(stats.pending), Clock3, 'text-orange-700 bg-orange-50'],
+    ['Redeemed Schemes', stats.redeemed, Gem, 'text-slate-700 bg-slate-100'],
   ] as const
 
   const createTarget = form ? (Number(form.monthlyAmount) || 0) * (form.frequency === 'one_time' ? 1 : (Number(form.totalInstallments) || 0)) : 0
@@ -487,7 +534,7 @@ export default function Schemes() {
     {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
     {notice && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</div>}
 
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {cards.map(([label, value, Icon, color]) => (
         <div key={label} className="rounded-2xl border border-[#ECE9E2] bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between">
@@ -659,6 +706,18 @@ export default function Schemes() {
             <Field label="Customer Name"><input className={inputClass} value={form.customerName} onChange={(e) => updateForm({ customerName: e.target.value })} placeholder="Filled in for existing customers" /></Field>
           </div>
           <p className="mt-5 mb-2 text-[11px] font-black uppercase tracking-wide text-[#879086]">Scheme Details</p>
+          {(activeTypes.length > 0 || termsLocked) && (
+            <div className="mb-4">
+              <Field label="Scheme Type *">
+                <select className={inputClass} value={form.typeId} onChange={(e) => pickType(e.target.value)}>
+                  {activeTypes.map((t) => <option key={t.id} value={t.id}>{t.name} — {formatCurrency(t.amount)} {t.frequency === 'one_time' ? 'one-time' : `/ ${FREQUENCY_PERIOD[t.frequency]} × ${t.installments}`}</option>)}
+                  {!termsLocked && <option value="">Custom terms</option>}
+                </select>
+              </Field>
+              {termsLocked && <p className="mt-1 text-[11px] font-semibold text-[#6B7280]">The terms come from the scheme type and cannot be changed here.</p>}
+            </div>
+          )}
+          <fieldset disabled={termsLocked} className="contents">
           <div className="grid gap-4 md:grid-cols-3">
             <Field label="Plan *">
               <select className={inputClass} value={form.frequency} onChange={(e) => updateForm({ frequency: e.target.value as SchemeFrequency })}>
@@ -680,11 +739,15 @@ export default function Schemes() {
                 <input required type="number" min="1" step="1" className={inputClass} value={form.durationMonths} onChange={(e) => updateForm({ durationMonths: e.target.value, durationTouched: true })} />
               </Field>
             )}
+          </div>
+          </fieldset>
+          <div className="grid gap-4 md:grid-cols-3 mt-4">
             <Field label="Start Date *"><input required type="date" className={inputClass} value={form.startDate} onChange={(e) => updateForm({ startDate: e.target.value })} /></Field>
             <Field label="Maturity Date *"><input required type="date" className={inputClass} value={form.maturityDate} onChange={(e) => updateForm({ maturityDate: e.target.value, maturityTouched: true })} /></Field>
             <Field label={form.frequency === 'one_time' ? 'Deposit' : 'Total to be saved'}><div className="rounded-xl bg-emerald-50 px-3.5 py-2.5 text-sm font-black text-emerald-800">{formatCurrency(createTarget)}</div></Field>
           </div>
           <p className="mt-5 mb-2 text-[11px] font-black uppercase tracking-wide text-[#879086]">Benefit on redemption</p>
+          <fieldset disabled={termsLocked} className="contents">
           <div className="grid gap-4 md:grid-cols-3">
             <Field label="Benefit Type">
               <select className={inputClass} value={form.benefitType} onChange={(e) => updateForm({ benefitType: e.target.value as SchemeBenefitType })}>
@@ -707,10 +770,11 @@ export default function Schemes() {
                 </div>
               </Field>
             )}
-            <div className="md:col-span-3"><Field label="Notes"><input className={inputClass} value={form.notes} onChange={(e) => updateForm({ notes: e.target.value })} placeholder="Optional" /></Field></div>
           </div>
+          </fieldset>
+          <div className="mt-4"><Field label="Notes"><input className={inputClass} value={form.notes} onChange={(e) => updateForm({ notes: e.target.value })} placeholder="Optional" /></Field></div>
           <p className="mt-4 rounded-xl bg-amber-50 p-3 text-[11px] font-semibold text-amber-800">
-            The benefit only reduces making charges / wastage when the scheme is redeemed on a jewellery bill — never the metal value.
+            The benefit only reduces making charges / wastage when the scheme is redeemed on a jewellery bill — never the metal value. These terms are saved with the customer's scheme; later changes to scheme types do not affect it.
           </p>
         </div>
         <div className="shrink-0 flex gap-3 border-t border-gray-100 bg-white px-4 py-3 sm:px-6">
@@ -820,9 +884,13 @@ export default function Schemes() {
                 {detailInstallments.map((i) => (
                   <tr key={i.id}>
                     <td className="px-3 py-2 font-bold">{i.installmentNumber}</td>
-                    <td className={`px-3 py-2 ${i.status === 'pending' && i.dueDate < today ? 'text-red-600 font-bold' : ''}`}>{fmtDate(i.dueDate)}</td>
+                    <td className={`px-3 py-2 ${installmentDisplayStatus(i, detail.status, today) === 'overdue' ? 'text-red-600 font-bold' : ''}`}>{fmtDate(i.dueDate)}</td>
                     <td className="px-3 py-2 font-bold">{formatCurrency(i.status === 'paid' ? i.amountPaid : i.amountDue)}</td>
-                    <td className="px-3 py-2"><span className={`rounded-lg px-2 py-0.5 text-[10px] font-black ${i.status === 'paid' ? 'bg-emerald-50 text-emerald-700' : i.dueDate < today ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-600'}`}>{i.status === 'paid' ? 'Paid' : i.dueDate < today ? 'Overdue' : 'Pending'}</span></td>
+                    <td className="px-3 py-2">{(() => {
+                      const st = installmentDisplayStatus(i, detail.status, today)
+                      const cls = { paid: 'bg-emerald-50 text-emerald-700', due: 'bg-amber-50 text-amber-800', overdue: 'bg-red-50 text-red-700', upcoming: 'bg-gray-100 text-gray-600', cancelled: 'bg-gray-50 text-gray-400' }[st]
+                      return <span className={`rounded-lg px-2 py-0.5 text-[10px] font-black ${cls}`}>{INSTALLMENT_STATUS_LABELS[st]}</span>
+                    })()}</td>
                     <td className="px-3 py-2">{fmtDate(i.paymentDate)}</td>
                     <td className="px-3 py-2">{i.status === 'paid' ? paymentMethodLabel(i.paymentMethod) : '—'}</td>
                     <td className="px-3 py-2 font-bold text-emerald-700">{i.receiptNumber || '—'}</td>
@@ -897,6 +965,47 @@ export default function Schemes() {
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 space-y-4">
           {modalError && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
+          <div className="rounded-2xl border border-[#ECE9E2] p-3 space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div><p className="text-sm font-black text-[#273126]">Scheme Types</p><p className="text-[11px] text-[#6B7280]">Plans offered to customers. Changing a type never changes schemes already created.</p></div>
+              <button type="button" onClick={() => setRulesForm((r) => ({ ...r, types: [...r.types, { id: `type-${Date.now()}`, name: 'Monthly Gold Savings', frequency: 'monthly', amount: 5000, installments: 11, durationMonths: 11, benefitType: r.defaultBenefitType, makingBenefitValue: r.defaultMakingBenefitValue, makingBenefitUnit: r.defaultMakingBenefitUnit, wastageBenefitValue: r.defaultWastageBenefitValue, wastageBenefitUnit: r.defaultWastageBenefitUnit, active: true }] }))}
+                className="shrink-0 rounded-lg bg-[#0A0A0A] px-3 py-1.5 text-xs font-black text-[var(--accent)]"><Plus size={12} className="inline -mt-0.5" /> Add Type</button>
+            </div>
+            {rulesForm.types.length === 0 && <p className="text-[11px] font-semibold text-[#6B7280]">No scheme types yet. Without types, only the admin (or staff with permission) can enrol customers with custom terms.</p>}
+            {rulesForm.types.map((t, idx) => {
+              const setT = (patch: Partial<SchemeType>) => setRulesForm((r) => ({ ...r, types: r.types.map((x, i) => (i === idx ? { ...x, ...patch } : x)) }))
+              return (
+                <div key={t.id} className={`rounded-xl border p-3 space-y-2 ${t.active ? 'border-[#ECE9E2] bg-[#FBFAF6]' : 'border-dashed border-gray-300 bg-gray-50 opacity-70'}`}>
+                  <div className="grid gap-2 sm:grid-cols-[2fr_1fr_auto]">
+                    <input className={inputClass} value={t.name} onChange={(e) => setT({ name: e.target.value })} aria-label="Scheme type name" />
+                    <select className={inputClass} value={t.frequency} onChange={(e) => { const f = e.target.value as SchemeFrequency; setT({ frequency: f, installments: f === 'one_time' ? 1 : DEFAULT_INSTALLMENTS[f], durationMonths: f === 'one_time' ? 12 : f === 'monthly' ? DEFAULT_INSTALLMENTS.monthly : 12 }) }} aria-label="Plan">
+                      {SCHEME_FREQUENCIES.map((f) => <option key={f} value={f}>{FREQUENCY_LABELS[f]}</option>)}
+                    </select>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-[#273126] whitespace-nowrap"><input type="checkbox" className="h-4 w-4 accent-[var(--accent)]" checked={t.active} onChange={(e) => setT({ active: e.target.checked })} /> Active</label>
+                  </div>
+                  <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
+                    <Field label={t.frequency === 'one_time' ? 'Deposit (₹)' : 'Installment (₹)'}><input type="number" min="1" className={inputClass} value={t.amount} onChange={(e) => setT({ amount: Number(e.target.value) })} /></Field>
+                    <Field label="Installments"><input type="number" min="1" disabled={t.frequency === 'one_time'} className={inputClass} value={t.installments} onChange={(e) => setT({ installments: Number(e.target.value) })} /></Field>
+                    <Field label="Duration (months)"><input type="number" min="1" className={inputClass} value={t.durationMonths} onChange={(e) => setT({ durationMonths: Number(e.target.value) })} /></Field>
+                    <Field label="Benefit">
+                      <select className={inputClass} value={t.benefitType} onChange={(e) => setT({ benefitType: e.target.value as SchemeBenefitType })}>
+                        <option value="making">Making</option><option value="wastage">Wastage</option><option value="both">Both</option>
+                      </select>
+                    </Field>
+                    {t.benefitType !== 'wastage' && <Field label="Making discount">
+                      <div className="flex gap-1.5"><select className="rounded-xl border border-[#E5E7EB] bg-white px-2 text-sm font-black" value={t.makingBenefitUnit} onChange={(e) => setT({ makingBenefitUnit: e.target.value as BenefitUnit })}><option value="percent">%</option><option value="fixed">₹</option></select>
+                      <input type="number" min="0" className={`${inputClass} flex-1`} value={t.makingBenefitValue} onChange={(e) => setT({ makingBenefitValue: Number(e.target.value) })} /></div>
+                    </Field>}
+                    {t.benefitType !== 'making' && <Field label="Wastage discount">
+                      <div className="flex gap-1.5"><select className="rounded-xl border border-[#E5E7EB] bg-white px-2 text-sm font-black" value={t.wastageBenefitUnit} onChange={(e) => setT({ wastageBenefitUnit: e.target.value as BenefitUnit })}><option value="percent">%</option><option value="fixed">₹</option></select>
+                      <input type="number" min="0" className={`${inputClass} flex-1`} value={t.wastageBenefitValue} onChange={(e) => setT({ wastageBenefitValue: Number(e.target.value) })} /></div>
+                    </Field>}
+                  </div>
+                  <p className="text-[11px] font-bold text-[var(--accent-dark)]">Total commitment: {formatCurrency(t.amount * (t.frequency === 'one_time' ? 1 : t.installments))}</p>
+                </div>
+              )
+            })}
+          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Minimum installments (monthly plans)"><input type="number" min="1" className={inputClass} value={rulesForm.minInstallments} onChange={(e) => setRulesForm((r) => ({ ...r, minInstallments: Number(e.target.value) }))} /></Field>
             <Field label="Maximum installments (monthly plans)"><input type="number" min="1" className={inputClass} value={rulesForm.maxInstallments} onChange={(e) => setRulesForm((r) => ({ ...r, maxInstallments: Number(e.target.value) }))} /></Field>

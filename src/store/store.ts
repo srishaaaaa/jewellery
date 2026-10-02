@@ -13,9 +13,13 @@ import {
   type UnitType,
 } from '../lib/retail'
 import {
+  normalizeHallmarkStatus,
   normalizeMakingChargeType,
   normalizeMetalType,
+  normalizeStoneDetails,
   normalizeWastageType,
+  type HallmarkStatus,
+  type StoneDetails,
   type MakingChargeType,
   type MetalType,
   type WastageType,
@@ -96,6 +100,9 @@ export interface Product {
   huid?: string
   designNumber?: string
   subcategory?: string
+  otherWeight?: number
+  hallmarkStatus?: HallmarkStatus | null
+  stoneDetails?: StoneDetails | null
 }
 
 interface AuthUser {
@@ -144,6 +151,30 @@ export interface StoreSettings {
   businessType: string
   /** Separate shop/business contact number, distinct from the owner's personal phone. */
   shopContactNumber: string
+  /** Shop GSTIN, state and state code, printed on invoices. */
+  gstin: string
+  stateName: string
+  stateCode: string
+  posPermissions: PosPermissions
+}
+
+/** What staff may do at the counter (configured by admin in Store Settings). */
+export interface PosPermissions {
+  /** Largest manual discount staff may give, as % of the bill subtotal (0 = none). Admin is not limited. */
+  staffMaxDiscountPercent: number
+  /** Whether staff may change a scheme type's terms when enrolling a customer. */
+  staffCanCustomiseSchemes: boolean
+}
+
+export const DEFAULT_POS_PERMISSIONS: PosPermissions = { staffMaxDiscountPercent: 5, staffCanCustomiseSchemes: false }
+
+export const normalizePosPermissions = (raw: unknown): PosPermissions => {
+  const r = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
+  const pct = Number(r.staffMaxDiscountPercent)
+  return {
+    staffMaxDiscountPercent: Number.isFinite(pct) ? Math.min(100, Math.max(0, pct)) : DEFAULT_POS_PERMISSIONS.staffMaxDiscountPercent,
+    staffCanCustomiseSchemes: typeof r.staffCanCustomiseSchemes === 'boolean' ? r.staffCanCustomiseSchemes : DEFAULT_POS_PERMISSIONS.staffCanCustomiseSchemes,
+  }
 }
 
 export interface StoreSettingsInput {
@@ -159,6 +190,10 @@ export interface StoreSettingsInput {
   accentColor: string
   businessType: string
   shopContactNumber: string
+  gstin: string
+  stateName: string
+  stateCode: string
+  posPermissions: PosPermissions
 }
 
 interface SettingsState {
@@ -314,6 +349,9 @@ const mapDbProduct = (input: unknown, categoriesById: Record<string, string> = {
     huid: readString(p.huid),
     designNumber: readString(p.design_number),
     subcategory: readString(p.subcategory),
+    otherWeight: toNumber(p.other_weight, 0),
+    hallmarkStatus: normalizeHallmarkStatus(p.hallmark_status),
+    stoneDetails: normalizeStoneDetails(p.stone_details),
   }
 }
 
@@ -505,6 +543,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
             accentColor: data.accent_color || BRAND_ACCENT,
             businessType: data.business_type || '',
             shopContactNumber: data.shop_contact_number || '',
+            gstin: String(data.gstin || ''),
+            stateName: String(data.state_name || ''),
+            stateCode: String(data.state_code || ''),
+            posPermissions: normalizePosPermissions(data.pos_permissions),
           },
           loading: false
         })
@@ -534,6 +576,10 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
         accentColor: BRAND_ACCENT,
         businessType: '',
         shopContactNumber: '',
+        gstin: '',
+        stateName: '',
+        stateCode: '',
+        posPermissions: DEFAULT_POS_PERMISSIONS,
       },
       loading: false
     })
@@ -559,9 +605,19 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
       shop_contact_number: input.shopContactNumber,
       updated_at: new Date().toISOString(),
     }).eq('id', 1)
+    if (error) { set({ saving: false }); return { error: error.message } }
+    // Saved separately: these columns come with the jewellery database update.
+    const { error: extraError } = await supabase.from('store_settings').update({
+      gstin: input.gstin.trim().toUpperCase(),
+      state_name: input.stateName.trim(),
+      state_code: input.stateCode.trim(),
+      pos_permissions: input.posPermissions,
+    }).eq('id', 1)
     set({ saving: false })
-    if (error) return { error: error.message }
-    set((state) => state.settings ? { settings: { ...state.settings, ...input } } : state)
+    set((state) => state.settings ? { settings: { ...state.settings, ...input, gstin: input.gstin.trim().toUpperCase() } } : state)
+    if (extraError) {
+      return { error: 'Shop details saved. GSTIN / state / staff permissions need the database update: run supabase/migrations/jewellery_pos.sql again.' }
+    }
     return { error: null }
   },
   uploadLogo: async (file) => {

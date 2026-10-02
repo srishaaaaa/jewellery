@@ -57,6 +57,11 @@ import {
   type SchemeRules,
 } from '../lib/jewellery'
 import { schemeService } from '../services/schemeService'
+import { advanceService, oldGoldService, quotationService, type CustomerAdvance, type OldGoldEntry } from '../services/salesDeskService'
+import { auditService } from '../services/auditService'
+import { useSettingsStore } from '../store/store'
+import { COUNTER_PAYMENT_METHODS, type CounterPaymentMethod } from '../lib/retail'
+import { calculateNetWeight, calculateOldGoldValue, normalizeMetalType, oldGoldRateFromPurity, rateKey as metalRateKey, STANDARD_PURITY, GOLD_PURITIES } from '../lib/jewellery'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type PosItem = Product & {
@@ -104,9 +109,16 @@ type InvoiceSnap = {
   schemeDiscount?: number
   schemeAmountUsed?: number
   schemeBalanceAfter?: number
-  /** Amount collected at the counter (total minus scheme balance used). */
+  /** Amount collected at the counter (total minus scheme, advance and old gold). */
   payable?: number
+  advanceAmountUsed?: number
+  exchangeAmount?: number
+  customerGstin?: string
 }
+
+type MixedPart = { method: CounterPaymentMethod; amount: string }
+const PAYMENT_BUTTON_LABELS: Record<string, string> = { cash: 'Cash', qr: 'UPI', card: 'Card', bank: 'Bank', cheque: 'Cheque', split: 'Mixed' }
+const EMPTY_OLD_GOLD = { description: '', metalType: 'gold', purity: '22K', testedPurity: '', grossWeight: '', stoneWeight: '', meltingDeduction: '', exchangeRate: '', otherDeduction: '' }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 // Returns the product ID if it looks like a real DB identifier (UUID or numeric),
@@ -306,9 +318,15 @@ export default function Pos(props: PosProps = {}) {
     if (!normalized) {
       setCustomerSchemes([])
       setAppliedScheme(null)
+      setCustomerAdvances([])
+      setAppliedAdvance(null)
       return
     }
     void loadCustomerSchemes(normalized)
+    advanceService.listActiveByPhone(normalized).then((list) => {
+      setCustomerAdvances(list)
+      setAppliedAdvance((cur) => (cur && !list.some((a) => a.id === cur.id) ? null : cur))
+    }).catch(() => setCustomerAdvances([]))
     const found = await customerService.findByPhone(normalized)
     if (!found) return
     setCustomer((prev) => ({
@@ -322,12 +340,23 @@ export default function Pos(props: PosProps = {}) {
   const [remarks, setRemarks] = useState('')
   const [referenceNumber, setReferenceNumber] = useState('')
   const [billingDate, setBillingDate] = useState('') // '' = use current date/time
-  const [paymentType, setPaymentType] = useState<'cash' | 'qr' | 'card' | 'split' | 'credit'>('cash')
-  // Split payment: two different methods (any two of cash / QR / card), each with its amount
-  const [splitCash, setSplitCash] = useState('') // amount of the first method
-  const [splitOther, setSplitOther] = useState('') // amount of the second method
-  const [splitFirstMethod, setSplitFirstMethod] = useState<'cash' | 'qr' | 'card'>('cash')
-  const [splitOtherMethod, setSplitOtherMethod] = useState<'cash' | 'qr' | 'card'>('qr')
+  const [paymentType, setPaymentType] = useState<CounterPaymentMethod | 'split' | 'credit'>('cash')
+  // Mixed payment: any number of different methods, each with its amount (stored per method on the bill)
+  const [mixedParts, setMixedParts] = useState<MixedPart[]>([{ method: 'cash', amount: '' }, { method: 'qr', amount: '' }])
+  // Customer GSTIN (business customers), old gold taken in part-payment, customer advance adjusted
+  const [customerGstin, setCustomerGstin] = useState('')
+  const [oldGoldEntries, setOldGoldEntries] = useState<OldGoldEntry[]>([])
+  const [oldGoldOpen, setOldGoldOpen] = useState(false)
+  const [oldGoldForm, setOldGoldForm] = useState(EMPTY_OLD_GOLD)
+  const [customerAdvances, setCustomerAdvances] = useState<CustomerAdvance[]>([])
+  const [appliedAdvance, setAppliedAdvance] = useState<CustomerAdvance | null>(null)
+  const [advanceUseAmount, setAdvanceUseAmount] = useState('')
+  // Quotation
+  const [quoteOpen, setQuoteOpen] = useState(false)
+  const [quoteValidUntil, setQuoteValidUntil] = useState('')
+  const [quoteNotes, setQuoteNotes] = useState('')
+  const [quoteSaved, setQuoteSaved] = useState('')
+  const posPermissions = useSettingsStore((st) => st.settings?.posPermissions)
   const [creditDueDate, setCreditDueDate] = useState('')
   const [saving, setSaving] = useState(false)
   const [shipping, setShipping] = useState<string>('0')
@@ -480,7 +509,52 @@ export default function Pos(props: PosProps = {}) {
         schemeRules.allowPartialRedemption ? (Number(schemeUseAmount) || 0) : appliedSchemeBalance,
       )) * 100) / 100
     : 0
-  const payable = Math.max(0, Math.round((total - schemeAmountUsed) * 100) / 100)
+  // Customer advance and old gold work like earlier payments too.
+  const exchangeTotal = Math.round(oldGoldEntries.reduce((sum, e) => sum + e.netValue, 0) * 100) / 100
+  const remainingAfterScheme = Math.max(0, total - schemeAmountUsed)
+  const advanceAmountUsed = appliedAdvance
+    ? Math.round(Math.max(0, Math.min(appliedAdvance.balance, remainingAfterScheme, Number(advanceUseAmount) || 0)) * 100) / 100
+    : 0
+  const adjustmentsTotal = Math.round((schemeAmountUsed + advanceAmountUsed + exchangeTotal) * 100) / 100
+  const payable = Math.max(0, Math.round((total - adjustmentsTotal) * 100) / 100)
+  const isStaff = role === 'staff'
+  const staffDiscountLimit = posPermissions?.staffMaxDiscountPercent ?? 5
+  const discountOverLimit = isStaff && manualDiscountAmount > 0 && manualDiscountAmount > Math.round(subtotal * staffDiscountLimit) / 100 + 0.009
+
+  // Today's exchange rate for old metal: from the tested purity when given, else the rate for the stated purity.
+  const suggestedOldGoldRate = (() => {
+    const metal = oldGoldForm.metalType
+    const tested = Number(oldGoldForm.testedPurity)
+    if (metal === 'gold') {
+      const base24 = rates[metalRateKey('gold', '24K')]?.ratePerGram || 0
+      if (tested > 0 && base24) return oldGoldRateFromPurity(base24, tested)
+      return rates[metalRateKey('gold', oldGoldForm.purity)]?.ratePerGram || 0
+    }
+    const std = rates[metalRateKey(metal, STANDARD_PURITY)]?.ratePerGram || 0
+    return tested > 0 && std ? Math.round(std * Math.min(100, tested) / 99.9 * 100) / 100 : std
+  })()
+  const oldGoldNet = calculateNetWeight(Number(oldGoldForm.grossWeight) || 0, Number(oldGoldForm.stoneWeight) || 0)
+  const oldGoldRate = oldGoldForm.exchangeRate.trim() === '' ? suggestedOldGoldRate : Number(oldGoldForm.exchangeRate) || 0
+  const oldGoldPreview = calculateOldGoldValue({
+    netWeight: oldGoldNet, meltingDeductionPercent: Number(oldGoldForm.meltingDeduction) || 0,
+    exchangeRate: oldGoldRate, otherDeduction: Number(oldGoldForm.otherDeduction) || 0,
+  })
+
+  const addOldGold = () => {
+    if (oldGoldNet <= 0) { setError('Enter the old gold weight.'); return }
+    if (oldGoldRate <= 0) { setError("Enter the exchange rate (no metal rate set for today)."); return }
+    if (oldGoldPreview.value <= 0) { setError('The old gold value must be more than zero.'); return }
+    setOldGoldEntries((cur) => [...cur, {
+      description: oldGoldForm.description.trim(), metalType: oldGoldForm.metalType, purity: oldGoldForm.metalType === 'gold' ? oldGoldForm.purity : STANDARD_PURITY,
+      testedPurity: oldGoldForm.testedPurity.trim() === '' ? null : Number(oldGoldForm.testedPurity),
+      grossWeight: Number(oldGoldForm.grossWeight) || 0, stoneWeight: Number(oldGoldForm.stoneWeight) || 0, netWeight: oldGoldNet,
+      meltingDeductionPercent: Number(oldGoldForm.meltingDeduction) || 0, exchangeRate: oldGoldRate,
+      otherDeduction: Number(oldGoldForm.otherDeduction) || 0, netValue: oldGoldPreview.value,
+    }])
+    setOldGoldForm(EMPTY_OLD_GOLD)
+    setOldGoldOpen(false)
+    setError('')
+  }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const itemQtyMap = useMemo(() => {
@@ -862,7 +936,48 @@ export default function Pos(props: PosProps = {}) {
     setManualGold('')
     setManualMaking('')
     setManualStone('')
+    setOldGoldEntries([])
+    setCustomerAdvances([])
+    setAppliedAdvance(null)
+    setAdvanceUseAmount('')
+    setCustomerGstin('')
+    setMixedParts([{ method: 'cash', amount: '' }, { method: 'qr', amount: '' }])
     searchRef.current?.focus()
+  }
+
+  const applyAdvance = (adv: CustomerAdvance) => {
+    if (paymentType === 'credit') { setError('An advance cannot be adjusted on a credit bill. Turn off "Bill on Credit" first.'); return }
+    setError('')
+    setAppliedAdvance(adv)
+    setAdvanceUseAmount(String(Math.min(adv.balance, Math.max(0, total - schemeAmountUsed))))
+  }
+
+  // ── Quotation: today's prices for the current items, not an invoice ──
+  const saveQuotation = async () => {
+    if (!billItems.length) { setError('Add at least one item to quote.'); return }
+    const unpricedQ = billItems.find((item) => item.jewelleryError)
+    if (unpricedQ) { setError(`${unpricedQ.name}: ${unpricedQ.jewelleryError}`); return }
+    setSaving(true)
+    setError('')
+    try {
+      const quote = await quotationService.create({
+        customerName: customer.name.trim(), phone: normalizePhone(customer.phone || '') || customer.phone.trim(),
+        items: billItems.map((item) => buildStructuredOrderItem({
+          productId: item.parentProductId ? item.parentProductId : toProductId(item.id), variantId: item.variantId ?? null, variantName: item.variantName ?? null,
+          name: item.name, quantity: item.qty, unit: item.selectedUnit, unitType: item.unitType, baseQuantity: item.baseQuantity,
+          basePrice: Number(item.basePrice) || 0, imageUrl: item.imageUrl || item.image || null, source: item.source || 'catalogue',
+          category: item.category || null, note: item.note || null, jewellery: item.jewellery || null,
+        })) as unknown as Array<Record<string, unknown>>,
+        subtotal, discount: Math.round((couponDiscount + manualDiscountAmount) * 100) / 100, gst: totalGst, total,
+        validUntil: quoteValidUntil || null, notes: quoteNotes.trim(),
+      })
+      setQuoteOpen(false)
+      setQuoteSaved(`${quote.quotationNumber} saved for ${formatCurrency(quote.total)}. Find it in Sales Desk → Quotations to download or send it.`)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Unable to save the quotation'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   const applyScheme = (scheme: JewelleryScheme) => {
@@ -1016,11 +1131,19 @@ export default function Pos(props: PosProps = {}) {
       }
       if (schemeAmountUsed <= 0 && schemeDiscount <= 0) { setError('Enter the scheme amount to use, or remove the scheme.'); return }
     }
+    if (adjustmentsTotal > total + 0.009) {
+      setError(`Scheme, advance and old gold (${formatCurrency(adjustmentsTotal)}) are more than the bill total. Reduce one of them, or record the extra as an advance in Sales Desk.`)
+      return
+    }
+    if (paymentType === 'credit' && (advanceAmountUsed > 0 || exchangeTotal > 0)) { setError('Advance or old gold cannot be adjusted on a credit bill. Turn off "Bill on Credit".'); return }
+    if (discountOverLimit) { setError(`Staff can give at most ${staffDiscountLimit}% discount (${formatCurrency(Math.round(subtotal * staffDiscountLimit) / 100)}). Ask the admin to log in for a larger discount.`); return }
+    if (customerGstin.trim() && !/^[0-9]{2}[A-Z0-9]{13}$/i.test(customerGstin.trim())) { setError('Customer GSTIN must be 15 characters, starting with the 2-digit state code.'); return }
     // Validate payment amount (only required for cash, and only when something is left to pay)
     if (paymentType === 'cash' && payable > 0 && !cashReceived.trim()) { setError('Enter the amount received from customer'); return }
     if (paymentType === 'cash' && cashReceivedNum < payable) { setError(`Insufficient payment. Customer still owes ${formatCurrency(payable - cashReceivedNum)}`); return }
     // Validate split payment: both parts entered and together equal the grand total
-    if (paymentType === 'split' && (splitCashNum <= 0 || splitOtherNum <= 0)) { setError(`Enter both split amounts (${formatPaymentMode(splitFirstMethod)} and ${formatPaymentMode(splitOtherMethod)})`); return }
+    if (paymentType === 'split' && mixedParts.some((part) => !(Number(part.amount) > 0))) { setError('Enter an amount for every payment in the mixed payment (or remove the empty one).'); return }
+    if (paymentType === 'split' && new Set(mixedParts.map((part) => part.method)).size !== mixedParts.length) { setError('Each payment method can be used only once in a mixed payment.'); return }
     if (paymentType === 'split' && splitDiff !== 0) { setError(splitDiff > 0 ? `Split amounts are short by ${formatCurrency(splitDiff)}` : `Split amounts exceed the total by ${formatCurrency(-splitDiff)}`); return }
     // Validate credit due date
     if (paymentType === 'credit' && !creditDueDate.trim()) { setError('Select a due date for this credit sale'); return }
@@ -1030,6 +1153,7 @@ export default function Pos(props: PosProps = {}) {
     // Scheme balance/benefit is reserved first (row-locked in the database) so it can never be
     // used twice; if the bill then fails, the reservation is released again.
     let schemeReservation: Awaited<ReturnType<typeof schemeService.reserveRedemption>> | null = null
+    let advanceReservation: Awaited<ReturnType<typeof advanceService.reserve>> | null = null
     let orderCreated = false
     try {
       if (appliedScheme) {
@@ -1041,8 +1165,13 @@ export default function Pos(props: PosProps = {}) {
           createdBy: role || 'Staff',
         })
       }
+      if (appliedAdvance && advanceAmountUsed > 0) {
+        advanceReservation = await advanceService.reserve(appliedAdvance.id, advanceAmountUsed)
+      }
       const paymentMode = ordermode === 'online' ? 'online' : paymentType
-      const splitPaymentDetails = paymentMode === 'split' ? { [splitFirstMethod]: splitCashNum, [splitOtherMethod]: splitOtherNum } : {}
+      const splitPaymentDetails: Record<string, number> = paymentMode === 'split'
+        ? Object.fromEntries(mixedParts.map((part) => [part.method, Math.round((Number(part.amount) || 0) * 100) / 100]))
+        : {}
       const created = await createOrderWithStock({
         customerName: customer.name.trim() || 'Walk-in Customer',
         phone: normalizedPhone,
@@ -1126,6 +1255,23 @@ export default function Pos(props: PosProps = {}) {
           console.error('Scheme redemption saved but not linked to the invoice:', linkErr)
         }
       }
+      // Jewellery bill details (separate update: these columns come with the jewellery database update)
+      if (advanceAmountUsed > 0 || exchangeTotal > 0 || customerGstin.trim() || adjustmentsTotal > 0) {
+        try {
+          const { error: extraErr } = await supabase.from('orders').update({
+            exchange_amount: exchangeTotal, advance_amount_used: advanceAmountUsed,
+            customer_gstin: customerGstin.trim().toUpperCase() || null, amount_paid: payable,
+          }).eq('id', created.orderId)
+          if (extraErr) throw extraErr
+          if (advanceReservation) await advanceService.link(advanceReservation.id, created.orderId, created.invoiceNo)
+          await oldGoldService.recordForOrder(oldGoldEntries, { orderId: created.orderId, invoiceNo: created.invoiceNo, customerName: customer.name.trim() || 'Walk-in Customer', phone: normalizedPhone })
+        } catch (extraErr) {
+          console.error('Bill saved, but advance / old gold details were not fully recorded:', extraErr)
+        }
+      }
+      if (manualDiscountAmount > 0) {
+        void auditService.log({ action: 'bill_discount', entityType: 'invoice', entityId: created.invoiceNo, newValue: { discount: manualDiscountAmount, subtotal }, note: `${manualDiscountType === 'percent' ? `${manualDiscountNumeric}%` : 'Flat'} discount` })
+      }
       const createdInvoice: InvoiceSnap = {
         id: created.orderId,
         invoiceNo: created.invoiceNo,
@@ -1157,6 +1303,9 @@ export default function Pos(props: PosProps = {}) {
           schemeBalanceAfter: schemeReservation.redemption.balanceAfter,
         } : {}),
         payable,
+        advanceAmountUsed,
+        exchangeAmount: exchangeTotal,
+        customerGstin: customerGstin.trim().toUpperCase() || undefined,
       }
       setInvoice(createdInvoice)
       void persistInvoicePdf(createdInvoice)
@@ -1171,8 +1320,6 @@ export default function Pos(props: PosProps = {}) {
       setItems([])
       setCustomer({ name: '', phone: '', address: '' })
       setCreditDueDate('')
-      setSplitCash('')
-      setSplitOther('')
       setCustomerBirthday('')
       setCustomerAnniversary('')
       setCustomerSchemes([])
@@ -1181,11 +1328,21 @@ export default function Pos(props: PosProps = {}) {
       setManualGold('')
       setManualMaking('')
       setManualStone('')
+      setOldGoldEntries([])
+      setCustomerAdvances([])
+      setAppliedAdvance(null)
+      setAdvanceUseAmount('')
+      setCustomerGstin('')
+      setMixedParts([{ method: 'cash', amount: '' }, { method: 'qr', amount: '' }])
       void fetchProducts()
     } catch (err: unknown) {
       if (schemeReservation && !orderCreated) {
         await schemeService.reverseRedemption(schemeReservation.redemption.id).catch((reverseErr) =>
           console.error('Failed to release scheme reservation:', reverseErr))
+      }
+      if (advanceReservation && !orderCreated) {
+        await advanceService.reverse(advanceReservation.id).catch((reverseErr) =>
+          console.error('Failed to release advance reservation:', reverseErr))
       }
       setError(getErrorMessage(err, 'Failed to generate bill'))
     } finally {
@@ -1194,10 +1351,9 @@ export default function Pos(props: PosProps = {}) {
   }
 
   const cashReceivedNum = Number(cashReceived) || 0
-  const splitCashNum = Math.max(0, Number(splitCash) || 0)
-  const splitOtherNum = Math.max(0, Number(splitOther) || 0)
+  const mixedTotal = mixedParts.reduce((sum, part) => sum + Math.max(0, Number(part.amount) || 0), 0)
   // What is still to collect (negative = entered more than the total)
-  const splitDiff = Math.round((payable - splitCashNum - splitOtherNum) * 100) / 100
+  const splitDiff = Math.round((payable - mixedTotal) * 100) / 100
   const balanceToReturn = cashReceivedNum > 0 && cashReceivedNum >= payable ? cashReceivedNum - payable : 0
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const isInsufficientPayment = cashReceived !== '' && cashReceivedNum > 0 && cashReceivedNum < total
@@ -1236,6 +1392,8 @@ export default function Pos(props: PosProps = {}) {
       schemeDiscount: inv.schemeDiscount,
       schemeAmountUsed: inv.schemeAmountUsed,
       schemeBalanceAfter: inv.schemeBalanceAfter,
+      advanceAmountUsed: inv.advanceAmountUsed,
+      exchangeAmount: inv.exchangeAmount,
     })
     window.open(toWhatsAppUrl(inv.phone || customer.phone || '', message), '_blank', 'noopener,noreferrer')
   }
@@ -1255,6 +1413,9 @@ export default function Pos(props: PosProps = {}) {
         schemeDiscount: inv.schemeDiscount,
         schemeAmountUsed: inv.schemeAmountUsed,
         schemeBalanceAfter: inv.schemeBalanceAfter,
+        advanceAmountUsed: inv.advanceAmountUsed,
+        exchangeAmount: inv.exchangeAmount,
+        customerGstin: inv.customerGstin,
         discountAmount: inv.couponDiscount,
         manualDiscountAmount: inv.manualDiscountAmount,
         gstAmount: inv.gstAmount,
@@ -1288,6 +1449,9 @@ export default function Pos(props: PosProps = {}) {
       schemeDiscount: inv.schemeDiscount,
       schemeAmountUsed: inv.schemeAmountUsed,
       schemeBalanceAfter: inv.schemeBalanceAfter,
+      advanceAmountUsed: inv.advanceAmountUsed,
+      exchangeAmount: inv.exchangeAmount,
+      customerGstin: inv.customerGstin,
       couponDiscount: inv.couponDiscount,
       manualDiscount: inv.manualDiscountAmount,
       totalGst: inv.gstAmount,
@@ -1347,7 +1511,19 @@ export default function Pos(props: PosProps = {}) {
                   <p className="text-xl font-black text-[var(--accent-dark)]">−{formatCurrency(invoice.schemeAmountUsed || 0)}</p>
                 </div>
               )}
-              {(invoice.schemeAmountUsed || 0) > 0 && (
+              {(invoice.advanceAmountUsed || 0) > 0 && (
+                <div className="flex justify-between items-center pb-2.5 border-b border-gray-100">
+                  <p className="text-sm font-bold text-textMuted">Advance Adjusted</p>
+                  <p className="text-xl font-black text-[var(--accent-dark)]">−{formatCurrency(invoice.advanceAmountUsed || 0)}</p>
+                </div>
+              )}
+              {(invoice.exchangeAmount || 0) > 0 && (
+                <div className="flex justify-between items-center pb-2.5 border-b border-gray-100">
+                  <p className="text-sm font-bold text-textMuted">Old Gold Exchange</p>
+                  <p className="text-xl font-black text-[var(--accent-dark)]">−{formatCurrency(invoice.exchangeAmount || 0)}</p>
+                </div>
+              )}
+              {((invoice.schemeAmountUsed || 0) + (invoice.advanceAmountUsed || 0) + (invoice.exchangeAmount || 0)) > 0 && (
                 <div className="flex justify-between items-center pb-2.5 border-b border-gray-100">
                   <p className="text-sm font-bold text-textMuted">Amount to Collect</p>
                   <p className="text-xl font-black text-textMain">{formatCurrency(collected)}</p>
@@ -1436,6 +1612,9 @@ export default function Pos(props: PosProps = {}) {
             schemeDiscount={invoice.schemeDiscount || 0}
             schemeAmountUsed={invoice.schemeAmountUsed || 0}
             schemeBalanceAfter={invoice.schemeBalanceAfter}
+            advanceAmountUsed={invoice.advanceAmountUsed || 0}
+            exchangeAmount={invoice.exchangeAmount || 0}
+            customerGstin={invoice.customerGstin}
           />
         </div>
       </div>
@@ -1574,6 +1753,17 @@ export default function Pos(props: PosProps = {}) {
                   title="Format: DD-MM-YYYY"
                 />
                 <p className="mt-1 text-[10px] text-gray-400 font-medium">Leave blank to use today's date &amp; time</p>
+              </div>
+              <div>
+                <label className="block text-[11px] md:text-[10px] font-bold text-[#374151] mb-1">Customer GSTIN (Optional)</label>
+                <input
+                  type="text"
+                  value={customerGstin}
+                  maxLength={15}
+                  onChange={e => setCustomerGstin(e.target.value.toUpperCase())}
+                  placeholder="For business customers"
+                  className="w-full h-10 sm:h-11 px-3 sm:px-4 bg-white border border-gray-200 rounded-xl focus:outline-none focus:border-[var(--accent)] text-[13px] font-bold text-[#111111] placeholder:text-gray-400 placeholder:font-medium"
+                />
               </div>
             </div>
           </div>
@@ -2033,6 +2223,12 @@ export default function Pos(props: PosProps = {}) {
                 </div>
               </div>
 
+              {isStaff && (
+                <p className={`-mt-1 text-[10px] font-bold ${discountOverLimit ? 'text-red-600' : 'text-[#6B7280]'}`}>
+                  Staff discount limit: {staffDiscountLimit}% ({formatCurrency(Math.round(subtotal * staffDiscountLimit) / 100)}){discountOverLimit ? ' — admin login needed for more' : ''}
+                </p>
+              )}
+
               {/* Savings Scheme (Schema) redemption */}
               <div>
                 <label className="block text-[10px] font-black text-[#374151] tracking-wider uppercase mb-1">Savings Scheme</label>
@@ -2107,6 +2303,69 @@ export default function Pos(props: PosProps = {}) {
                         </div>
                       )
                     })}
+                  </div>
+                )}
+              </div>
+
+              {/* Customer advance (incl. exchange credit) */}
+              {(appliedAdvance || customerAdvances.length > 0) && (
+                <div>
+                  <label className="block text-[10px] font-black text-[#374151] tracking-wider uppercase mb-1">Customer Advance</label>
+                  {appliedAdvance ? (
+                    <div className="rounded-xl border border-[var(--accent-a30)] bg-[var(--accent-a10)] p-2.5 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-[12px] font-black text-[#111111] break-words">{appliedAdvance.receiptNumber}{appliedAdvance.source === 'exchange' ? ' · Exchange credit' : ''}</p>
+                          <p className="text-[10px] font-bold text-[var(--accent-dark)]">Available {formatCurrency(appliedAdvance.balance)}</p>
+                        </div>
+                        <button type="button" onClick={() => { setAppliedAdvance(null); setAdvanceUseAmount('') }} className="h-7 px-2.5 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg text-[10px] font-black transition-colors shrink-0">Remove</button>
+                      </div>
+                      <input
+                        type="number" min="0" onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                        value={advanceUseAmount}
+                        onChange={e => setAdvanceUseAmount(e.target.value)}
+                        aria-label="Advance amount to adjust"
+                        className="w-full h-9 px-3 bg-white border border-gray-200 rounded-xl text-[12px] font-black text-[#111111] text-right focus:outline-none focus:border-[var(--accent)]"
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {customerAdvances.map(adv => (
+                        <div key={adv.id} className="flex items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-2.5 py-2">
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-black text-[#111111] break-words">{adv.receiptNumber}{adv.source === 'exchange' ? ' · Exchange credit' : ''}</p>
+                            <p className="text-[10px] font-bold text-[#6B7280]">Balance {formatCurrency(adv.balance)}{adv.purpose ? ` · ${adv.purpose}` : ''}</p>
+                          </div>
+                          <button type="button" onClick={() => applyAdvance(adv)} className="h-8 px-3 bg-[#0A0A0A] text-[var(--accent)] border border-[var(--accent)] hover:bg-[#1A1A1A] rounded-xl text-[11px] font-black transition-colors shrink-0">Use</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Old gold taken in exchange */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[10px] font-black text-[#374151] tracking-wider uppercase">Old Gold Exchange</label>
+                  <button type="button" onClick={() => { setOldGoldForm(EMPTY_OLD_GOLD); setOldGoldOpen(true) }} className="h-7 px-2.5 bg-[#0A0A0A] text-[var(--accent)] border border-[var(--accent)] hover:bg-[#1A1A1A] rounded-lg text-[10px] font-black">+ Add</button>
+                </div>
+                {oldGoldEntries.length === 0 ? (
+                  <p className="text-[10px] font-bold text-[#6B7280]">Customer giving old gold / silver in part-payment? Add it here.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {oldGoldEntries.map((e, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white px-2.5 py-2">
+                        <div className="min-w-0">
+                          <p className="text-[11px] font-black text-[#111111] break-words">{e.description || metalLabel(normalizeMetalType(e.metalType), e.purity)}{e.testedPurity != null ? ` · tested ${e.testedPurity}%` : ''}</p>
+                          <p className="text-[10px] font-bold text-[#6B7280]">Net {formatWeight(e.netWeight)} @ {formatCurrency(e.exchangeRate)}/g{e.meltingDeductionPercent ? ` − ${e.meltingDeductionPercent}% melting` : ''}</p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[12px] font-black text-[var(--accent-dark)]">{formatCurrency(e.netValue)}</span>
+                          <button type="button" onClick={() => setOldGoldEntries((cur) => cur.filter((_, i) => i !== idx))} className="w-7 h-7 rounded-lg text-red-500 hover:bg-red-50 flex items-center justify-center" aria-label="Remove old gold"><X size={13} /></button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -2233,12 +2492,26 @@ export default function Pos(props: PosProps = {}) {
                   <span className="text-[12px] font-black text-[#111111] uppercase tracking-wider">Grand Total</span>
                   <span className="text-[20px] font-black text-[#0A0A0A] tracking-tight">{formatCurrency(total)}</span>
                 </div>
-                {schemeAmountUsed > 0 && (
+                {adjustmentsTotal > 0 && (
                   <>
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-black text-[#374151]">Paid from Scheme</span>
-                      <span className="text-[12px] font-black text-[var(--accent-dark)]">−{formatCurrency(schemeAmountUsed)}</span>
-                    </div>
+                    {schemeAmountUsed > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black text-[#374151]">Paid from Scheme</span>
+                        <span className="text-[12px] font-black text-[var(--accent-dark)]">−{formatCurrency(schemeAmountUsed)}</span>
+                      </div>
+                    )}
+                    {advanceAmountUsed > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black text-[#374151]">Advance Adjusted</span>
+                        <span className="text-[12px] font-black text-[var(--accent-dark)]">−{formatCurrency(advanceAmountUsed)}</span>
+                      </div>
+                    )}
+                    {exchangeTotal > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-black text-[#374151]">Old Gold Exchange</span>
+                        <span className="text-[12px] font-black text-[var(--accent-dark)]">−{formatCurrency(exchangeTotal)}</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between">
                       <span className="text-[12px] font-black text-[#111111] uppercase tracking-wider">To Collect</span>
                       <span className="text-[16px] font-black text-[#0A0A0A] tracking-tight">{formatCurrency(payable)}</span>
@@ -2251,8 +2524,8 @@ export default function Pos(props: PosProps = {}) {
               {paymentType !== 'credit' && (
                 <div>
                   <label className="block text-[10px] font-black text-[#374151] tracking-wider uppercase mb-1">Payment Mode</label>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {(['cash', 'qr', 'card', 'split'] as const).map(mode => (
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {([...COUNTER_PAYMENT_METHODS, 'split'] as const).map(mode => (
                       <button
                         key={mode}
                         type="button"
@@ -2263,7 +2536,7 @@ export default function Pos(props: PosProps = {}) {
                             : 'bg-white text-[#374151] border-gray-200 hover:border-gray-300'
                         }`}
                       >
-                        {mode === 'qr' ? 'QR' : mode === 'card' ? 'Card' : mode === 'split' ? 'Split' : 'Cash'}
+                        {PAYMENT_BUTTON_LABELS[mode]}
                       </button>
                     ))}
                   </div>
@@ -2274,7 +2547,7 @@ export default function Pos(props: PosProps = {}) {
               <button
                 type="button"
                 onClick={() => {
-                  if (paymentType !== 'credit' && appliedScheme) { setError('A scheme cannot be redeemed on a credit bill. Remove the scheme first.'); return }
+                  if (paymentType !== 'credit' && (appliedScheme || appliedAdvance || oldGoldEntries.length)) { setError('A scheme, advance or old gold cannot be used on a credit bill. Remove them first.'); return }
                   setPaymentType(prev => prev === 'credit' ? 'cash' : 'credit')
                 }}
                 className={`w-full flex items-center justify-between gap-2 rounded-xl border-2 px-3 py-2.5 transition-colors ${
@@ -2311,63 +2584,60 @@ export default function Pos(props: PosProps = {}) {
                 ) : paymentType === 'split' ? (
                 <div className="border border-gray-200 rounded-xl p-2.5 bg-white space-y-2">
                   <label className="block text-[10px] font-black text-[#374151] tracking-wider uppercase">
-                    Split Payment — {formatPaymentMode(splitFirstMethod)} + {formatPaymentMode(splitOtherMethod)} (₹)
+                    Mixed Payment (₹)
                   </label>
-                  {([
-                    { key: 'first', label: 'Payment 1', method: splitFirstMethod, amount: splitCash },
-                    { key: 'second', label: 'Payment 2', method: splitOtherMethod, amount: splitOther },
-                  ] as const).map(row => (
-                    <div key={row.key} className="grid grid-cols-[1fr_1fr] gap-2 items-end">
-                      <div>
-                        <span className="block text-[9px] font-black text-gray-500 uppercase mb-0.5">{row.label}</span>
-                        <div className="grid grid-cols-3 gap-1">
-                          {(['cash', 'qr', 'card'] as const).map(m => (
-                            <button
-                              key={m}
-                              type="button"
-                              onClick={() => {
-                                // The two parts must use different methods: picking the other side's method swaps them
-                                if (row.key === 'first') {
-                                  if (m === splitOtherMethod) setSplitOtherMethod(splitFirstMethod)
-                                  setSplitFirstMethod(m)
-                                } else {
-                                  if (m === splitFirstMethod) setSplitFirstMethod(splitOtherMethod)
-                                  setSplitOtherMethod(m)
-                                }
-                              }}
-                              className={`h-9 rounded-lg text-[10px] font-black uppercase transition-colors ${
-                                row.method === m ? 'bg-[#0A0A0A] text-[var(--accent)]' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                              }`}
-                            >
-                              {formatPaymentMode(m)}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+                  {mixedParts.map((part, idx) => (
+                    <div key={idx} className="grid grid-cols-[1fr_1fr_28px] gap-2 items-center">
+                      <select
+                        value={part.method}
+                        onChange={e => setMixedParts((cur) => cur.map((p2, i) => (i === idx ? { ...p2, method: e.target.value as CounterPaymentMethod } : p2)))}
+                        aria-label={`Payment ${idx + 1} method`}
+                        className="h-9 rounded-xl border border-gray-200 bg-white px-2 text-[11px] font-black text-[#111111] focus:outline-none focus:border-[var(--accent)]"
+                      >
+                        {COUNTER_PAYMENT_METHODS.map(m => (
+                          <option key={m} value={m} disabled={m !== part.method && mixedParts.some((p2) => p2.method === m)}>{formatPaymentMode(m)}</option>
+                        ))}
+                      </select>
                       <input
                         type="number" min="0" onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                        value={row.amount}
+                        value={part.amount}
                         onChange={e => {
                           const v = e.target.value
-                          if (row.key === 'first') {
-                            setSplitCash(v)
-                            // Fill the second part with whatever is left of the total
-                            setSplitOther(v === '' ? '' : String(Math.max(0, Math.round((payable - (Number(v) || 0)) * 100) / 100)))
-                          } else {
-                            setSplitOther(v)
-                          }
+                          setMixedParts((cur) => {
+                            const next = cur.map((p2, i) => (i === idx ? { ...p2, amount: v } : p2))
+                            // With two parts, fill the other one with whatever is left to collect
+                            if (next.length === 2 && idx === 0) next[1] = { ...next[1], amount: v === '' ? '' : String(Math.max(0, Math.round((payable - (Number(v) || 0)) * 100) / 100)) }
+                            return next
+                          })
                         }}
                         placeholder="0.00"
-                        aria-label={`${row.label} amount`}
+                        aria-label={`Payment ${idx + 1} amount`}
                         className="w-full h-9 px-3 bg-[#FAFAFA] border border-gray-200 rounded-xl text-[13px] font-black text-[#111111] focus:outline-none focus:border-[var(--accent)]"
                       />
+                      <button
+                        type="button"
+                        disabled={mixedParts.length <= 2}
+                        onClick={() => setMixedParts((cur) => cur.filter((_, i) => i !== idx))}
+                        className="w-7 h-7 rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-30 flex items-center justify-center"
+                        aria-label={`Remove payment ${idx + 1}`}
+                      ><X size={13} /></button>
                     </div>
                   ))}
-                  {(splitCash !== '' || splitOther !== '') && (
+                  {mixedParts.length < COUNTER_PAYMENT_METHODS.length && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const unused = COUNTER_PAYMENT_METHODS.find((m) => !mixedParts.some((p2) => p2.method === m))
+                        if (unused) setMixedParts((cur) => [...cur, { method: unused, amount: splitDiff > 0 ? String(splitDiff) : '' }])
+                      }}
+                      className="text-[10px] font-black text-[var(--accent-dark)] hover:underline"
+                    >+ Add another payment</button>
+                  )}
+                  {mixedParts.some((part) => part.amount !== '') && (
                     <div className={`flex justify-between items-center px-3 py-1.5 rounded-lg border text-[10px] font-bold ${
                       splitDiff === 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-800' : 'bg-red-50 border-red-200 text-red-700'
                     }`}>
-                      <span>{splitDiff === 0 ? 'Matches grand total' : splitDiff > 0 ? 'Still to collect' : 'More than grand total by'}</span>
+                      <span>{splitDiff === 0 ? 'Matches amount to collect' : splitDiff > 0 ? 'Still to collect' : 'More than amount to collect by'}</span>
                       <span className="text-[12px] font-black">{splitDiff === 0 ? '✓' : formatCurrency(Math.abs(splitDiff))}</span>
                     </div>
                   )}
@@ -2375,7 +2645,7 @@ export default function Pos(props: PosProps = {}) {
                 ) : (
                 <div className="border border-gray-200 rounded-xl p-2.5 bg-white">
                   <label className="block text-[10px] font-black text-[#374151] tracking-wider uppercase mb-0.5">
-                    {paymentType === 'qr' ? 'QR' : paymentType === 'card' ? 'Card' : 'Cash'} — Amount Received (₹)
+                    {PAYMENT_BUTTON_LABELS[paymentType] || 'Cash'} — Amount Received (₹)
                   </label>
                   <input
                     type="number" onWheel={(e) => (e.target as HTMLInputElement).blur()}
@@ -2404,6 +2674,15 @@ export default function Pos(props: PosProps = {}) {
 
             {/* Action Buttons Fixed Footer */}
             <div className="shrink-0 border-t border-gray-200 bg-white p-3 shadow-[0_-8px_20px_rgba(0,0,0,0.04)]">
+              {quoteSaved && <p className="mb-2 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 text-[10px] font-bold text-emerald-800">{quoteSaved}</p>}
+              <button
+                type="button"
+                onClick={() => { setQuoteSaved(''); setQuoteValidUntil(toLocalDateStr(new Date())); setQuoteNotes(''); setQuoteOpen(true) }}
+                disabled={saving || billItems.length === 0}
+                className="mb-2 w-full min-h-[36px] rounded-xl border border-gray-300 bg-white px-3 py-2 text-[11px] font-black uppercase tracking-wide text-[#374151] transition-colors hover:border-[#0A0A0A] disabled:opacity-40 cursor-pointer"
+              >
+                Save as Quotation
+              </button>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   type="button"
@@ -2428,6 +2707,70 @@ export default function Pos(props: PosProps = {}) {
         </div>
 
       </div>
+
+      {oldGoldOpen && (<ModalPortal>
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/55 p-3 sm:p-4">
+          <div className="flex w-full max-w-lg max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
+            <div className="shrink-0 flex items-start justify-between gap-3 border-b border-gray-100 px-4 pt-4 pb-3 sm:px-6 sm:pt-5 sm:pb-4">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[.16em] text-[var(--accent-dark)]">Part-payment</p>
+                <h3 className="text-lg sm:text-xl font-black text-[#111111]">Old Gold Exchange</h3>
+                <p className="mt-0.5 text-[11px] sm:text-xs font-semibold text-[#6B7280]">Recorded separately and linked to this bill.</p>
+              </div>
+              <button type="button" onClick={() => setOldGoldOpen(false)} className="rounded-lg p-1 text-gray-500 hover:bg-gray-100 shrink-0"><X size={20} /></button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3 sm:px-6 sm:py-4 grid grid-cols-2 gap-3">
+              <label className="block col-span-2"><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-[#6B7280]">Description</span><input value={oldGoldForm.description} onChange={e => setOldGoldForm(f => ({ ...f, description: e.target.value }))} placeholder="e.g. Old chain, 2 bangles" className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]" /></label>
+              <label className="block"><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-[#6B7280]">Metal</span>
+                <select value={oldGoldForm.metalType} onChange={e => setOldGoldForm(f => ({ ...f, metalType: e.target.value }))} className="h-[42px] w-full rounded-xl border bg-white px-3 text-sm font-bold outline-none focus:border-[var(--accent)]">
+                  <option value="gold">Gold</option><option value="silver">Silver</option><option value="platinum">Platinum</option>
+                </select>
+              </label>
+              <label className="block"><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-[#6B7280]">Stated purity</span>
+                {oldGoldForm.metalType === 'gold' ? (
+                  <select value={oldGoldForm.purity} onChange={e => setOldGoldForm(f => ({ ...f, purity: e.target.value }))} className="h-[42px] w-full rounded-xl border bg-white px-3 text-sm font-bold outline-none focus:border-[var(--accent)]">
+                    {GOLD_PURITIES.map(pu => <option key={pu} value={pu}>{pu}</option>)}
+                  </select>
+                ) : <div className="h-[42px] rounded-xl border bg-gray-50 px-3 flex items-center text-sm text-gray-500">Standard</div>}
+              </label>
+              <label className="block"><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-[#6B7280]">Tested purity (%)</span><input type="number" min="0" max="100" step="0.01" value={oldGoldForm.testedPurity} onChange={e => setOldGoldForm(f => ({ ...f, testedPurity: e.target.value }))} placeholder="e.g. 91.6" className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]" /></label>
+              <label className="block"><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-[#6B7280]">Gross wt (g) *</span><input type="number" min="0" step="0.001" value={oldGoldForm.grossWeight} onChange={e => setOldGoldForm(f => ({ ...f, grossWeight: e.target.value }))} className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]" /></label>
+              <label className="block"><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-[#6B7280]">Stone wt (g)</span><input type="number" min="0" step="0.001" value={oldGoldForm.stoneWeight} onChange={e => setOldGoldForm(f => ({ ...f, stoneWeight: e.target.value }))} className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]" /></label>
+              <label className="block"><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-[#6B7280]">Net wt (g)</span><div className="rounded-xl bg-gray-50 border px-3 py-2.5 text-sm font-bold">{oldGoldNet.toFixed(3)}</div></label>
+              <label className="block"><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-[#6B7280]">Melting / wastage (%)</span><input type="number" min="0" max="100" step="0.01" value={oldGoldForm.meltingDeduction} onChange={e => setOldGoldForm(f => ({ ...f, meltingDeduction: e.target.value }))} placeholder="0" className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]" /></label>
+              <label className="block"><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-[#6B7280]">Exchange rate (₹/g)</span><input type="number" min="0" step="0.01" value={oldGoldForm.exchangeRate} onChange={e => setOldGoldForm(f => ({ ...f, exchangeRate: e.target.value }))} placeholder={suggestedOldGoldRate ? String(suggestedOldGoldRate) : 'Rate'} className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]" /></label>
+              <label className="block"><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-[#6B7280]">Other deduction (₹)</span><input type="number" min="0" step="0.01" value={oldGoldForm.otherDeduction} onChange={e => setOldGoldForm(f => ({ ...f, otherDeduction: e.target.value }))} placeholder="0" className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]" /></label>
+              <div className="col-span-2 rounded-2xl bg-[var(--accent-a10)] p-3 text-[12px] font-bold text-[#374151] space-y-0.5">
+                <div className="flex justify-between"><span>Weight after melting loss</span><span>{oldGoldPreview.effectiveWeight.toFixed(3)} g</span></div>
+                <div className="flex justify-between"><span>@ {formatCurrency(oldGoldRate)}/g{oldGoldForm.exchangeRate.trim() === '' && suggestedOldGoldRate ? ' (today\'s rate)' : ''}</span><span>{formatCurrency(oldGoldPreview.grossValue)}</span></div>
+                <div className="flex justify-between text-[14px] font-black text-[#111111] pt-1 border-t border-[var(--accent-a30)]"><span>Exchange value</span><span>{formatCurrency(oldGoldPreview.value)}</span></div>
+              </div>
+              {error && <div className="col-span-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-600">{error}</div>}
+            </div>
+            <div className="shrink-0 flex gap-3 border-t border-gray-100 bg-white px-4 py-3 sm:px-6"><button type="button" onClick={() => setOldGoldOpen(false)} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button><button type="button" onClick={addOldGold} className="flex-[1.5] rounded-xl bg-[#0A0A0A] py-3 text-sm font-black text-[var(--accent)]">Add to Bill</button></div>
+          </div>
+        </div>
+      </ModalPortal>)}
+
+      {quoteOpen && (<ModalPortal>
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/55 p-3 sm:p-4">
+          <div className="w-full max-w-md rounded-2xl sm:rounded-3xl bg-white p-5 shadow-2xl space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-black uppercase tracking-[.16em] text-[var(--accent-dark)]">Not an invoice</p>
+                <h3 className="text-lg sm:text-xl font-black text-[#111111]">Save as Quotation</h3>
+                <p className="mt-0.5 text-xs font-semibold text-[#6B7280]">{billItems.length} item(s) at today's metal rate · Estimated total {formatCurrency(total)}</p>
+              </div>
+              <button type="button" onClick={() => setQuoteOpen(false)} className="rounded-lg p-1 text-gray-500 hover:bg-gray-100 shrink-0"><X size={20} /></button>
+            </div>
+            <p className="text-xs font-semibold text-[#374151]">Customer: {customer.name || '—'} {customer.phone ? `• ${customer.phone}` : ''}</p>
+            <label className="block"><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-[#6B7280]">Valid until</span><input type="date" value={quoteValidUntil} min={toLocalDateStr(new Date())} onChange={e => setQuoteValidUntil(e.target.value)} className="h-[42px] w-full rounded-xl border bg-white px-3 text-sm font-bold outline-none focus:border-[var(--accent)]" /></label>
+            <label className="block"><span className="mb-1 block text-[10px] font-black uppercase tracking-wide text-[#6B7280]">Notes</span><input value={quoteNotes} onChange={e => setQuoteNotes(e.target.value)} className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]" placeholder="Optional" /></label>
+            {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-600">{error}</div>}
+            <div className="flex gap-3"><button type="button" onClick={() => setQuoteOpen(false)} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button><button type="button" disabled={saving} onClick={() => void saveQuotation()} className="flex-[1.5] rounded-xl bg-[#0A0A0A] py-3 text-sm font-black text-[var(--accent)] disabled:opacity-50">{saving ? 'Saving…' : 'Save Quotation'}</button></div>
+          </div>
+        </div>
+      </ModalPortal>)}
 
       {depositOpen && (<ModalPortal>
         <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/55 p-3 sm:p-4">

@@ -13,6 +13,7 @@ import {
   Ruler,
   SlidersHorizontal,
   Gem,
+  ImagePlus,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useProductStore, type Product } from '../../store/store'
@@ -45,6 +46,15 @@ import {
 import { currentProductPrice } from '../../lib/jewelleryProduct'
 import { useMetalRateStore } from '../../store/metalRateStore'
 import { isMissingSchemaError } from '../../services/productService'
+import { uploadProductImage } from '../../lib/storage'
+import { auditService } from '../../services/auditService'
+import {
+  EMPTY_STONE_DETAILS,
+  HALLMARK_LABELS,
+  normalizeStoneDetails,
+  type HallmarkStatus,
+  type StoneDetails,
+} from '../../lib/jewellery'
 
 
 export interface VariantInputRow {
@@ -160,6 +170,12 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
   const [sku, setSku] = useState<string>('')
   const [brand, setBrand] = useState<string>('')
   const [subcategory, setSubcategory] = useState<string>('')
+  const [otherWeight, setOtherWeight] = useState<string>('')
+  const [hallmarkStatus, setHallmarkStatus] = useState<HallmarkStatus | ''>('')
+  const [stoneDetails, setStoneDetails] = useState<StoneDetails>(EMPTY_STONE_DETAILS)
+  const [showStones, setShowStones] = useState(false)
+  const [imageUrl, setImageUrl] = useState<string>('')
+  const [imageUploading, setImageUploading] = useState(false)
 
   // Variants Rows for dynamic addition
   const [variantRows, setVariantRows] = useState<VariantInputRow[]>([])
@@ -225,6 +241,11 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     setSku('')
     setBrand('')
     setSubcategory('')
+    setOtherWeight('')
+    setHallmarkStatus('')
+    setStoneDetails(EMPTY_STONE_DETAILS)
+    setShowStones(false)
+    setImageUrl('')
   }
 
   const startEditProduct = async (p: Product) => {
@@ -271,7 +292,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     setGrossWeight(p.grossWeight ? String(p.grossWeight) : '')
     setStoneWeight(p.stoneWeight ? String(p.stoneWeight) : '')
     setNetWeight(p.netWeight ? String(p.netWeight) : '')
-    setNetWeightEdited(Boolean(p.netWeight) && p.netWeight !== calculateNetWeight(p.grossWeight || 0, p.stoneWeight || 0))
+    setNetWeightEdited(Boolean(p.netWeight) && p.netWeight !== calculateNetWeight(p.grossWeight || 0, p.stoneWeight || 0, p.otherWeight || 0))
     setMakingCharge(p.makingCharge ? String(p.makingCharge) : '')
     setMakingChargeType(p.makingChargeType || 'fixed')
     setWastage(p.wastage ? String(p.wastage) : '')
@@ -283,6 +304,11 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     setSku(p.sku || '')
     setBrand(p.brand || '')
     setSubcategory(p.subcategory || '')
+    setOtherWeight(p.otherWeight ? String(p.otherWeight) : '')
+    setHallmarkStatus(p.hallmarkStatus || '')
+    setStoneDetails(p.stoneDetails || EMPTY_STONE_DETAILS)
+    setShowStones(Boolean(p.stoneDetails))
+    setImageUrl(p.imageUrl && !p.imageUrl.includes('placeholder') ? p.imageUrl : '')
 
     if (p.hasVariants) {
       try {
@@ -347,6 +373,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     try {
       setLoading(true)
       await inventoryService.deleteInventoryItem(id)
+      void auditService.log({ action: 'product_deleted', entityType: 'product', entityId: prodName, oldValue: { id } })
       await fetchProducts(true)
       resetForm()
       setMobileView('catalog')
@@ -370,7 +397,8 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     : purityChoice === CUSTOM_PURITY || metalType === 'other'
       ? customPurity.trim().toUpperCase()
       : purityChoice
-  const computedNetWeight = calculateNetWeight(parseFloat(grossWeight) || 0, parseFloat(stoneWeight) || 0)
+  const computedNetWeight = calculateNetWeight(parseFloat(grossWeight) || 0, parseFloat(stoneWeight) || 0, parseFloat(otherWeight) || 0)
+  const cleanStoneDetails = showStones ? normalizeStoneDetails(stoneDetails) : null
   const effectiveNetWeight = netWeightEdited ? Math.max(0, parseFloat(netWeight) || 0) : computedNetWeight
   const jewelleryPreview = metalType
     ? priceJewelleryItem({
@@ -388,6 +416,9 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
         huid: huid.trim(),
         designNumber: designNumber.trim(),
         subcategory: subcategory.trim(),
+        otherWeight: parseFloat(otherWeight) || 0,
+        hallmarkStatus: hallmarkStatus || null,
+        stoneDetails: cleanStoneDetails,
       }, rates, { fallbackPrice: parseFloat(price) || 0 })
     : null
 
@@ -412,6 +443,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     const stone = parseFloat(stoneWeight) || 0
     if (gross < 0 || stone < 0 || effectiveNetWeight < 0) return 'Weights cannot be negative.'
     if (stone > gross) return 'Stone weight cannot be more than the gross weight.'
+    if (stone + (parseFloat(otherWeight) || 0) > gross) return 'Stone + other weight cannot be more than the gross weight.'
     if (gross > 0 && effectiveNetWeight > gross) return 'Net weight cannot be more than the gross weight.'
     if (isRatePriced && effectiveNetWeight <= 0) return 'Enter the gross weight (and stone weight) so the net weight is greater than zero.'
     if (metalType === 'gold' && purityChoice === CUSTOM_PURITY && !purityToKarat(effectivePurity)) {
@@ -424,7 +456,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
 
   /** Jewellery + identification columns for the products row. */
   const buildJewelleryColumns = (): Record<string, unknown> => {
-    const base: Record<string, unknown> = { sku: sku.trim() || null, brand: brand.trim() || null }
+    const base: Record<string, unknown> = { sku: sku.trim() || null, brand: brand.trim() || null, ...(imageUrl ? { image_url: imageUrl } : {}) }
     if (!metalType) {
       // Only touch jewellery columns when turning an existing jewellery item back into a regular one,
       // so regular products keep saving even before the jewellery migration is applied.
@@ -447,6 +479,23 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
       huid: huid.trim().toUpperCase() || null,
       design_number: designNumber.trim() || null,
       subcategory: subcategory.trim() || null,
+      other_weight: roundTo(parseFloat(otherWeight) || 0, 3),
+      hallmark_status: hallmarkStatus || null,
+      stone_details: cleanStoneDetails,
+    }
+  }
+
+  const handleImageFile = async (file: File | undefined) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) { setStatusMessage({ type: 'error', text: 'Choose an image file (JPEG, PNG or WebP).' }); return }
+    if (file.size > 5_000_000) { setStatusMessage({ type: 'error', text: 'Image must be under 5 MB.' }); return }
+    setImageUploading(true)
+    try {
+      setImageUrl(await uploadProductImage(file))
+    } catch (err) {
+      setStatusMessage({ type: 'error', text: `Image upload failed: ${getErrorMessage(err, 'check that the "product-images" storage bucket exists')}` })
+    } finally {
+      setImageUploading(false)
     }
   }
 
@@ -957,6 +1006,14 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
         }
       }
 
+      const before = selectedProductId ? products.find((prod) => Number(prod.id) === selectedProductId) : null
+      void auditService.log({
+        action: selectedProductId ? 'product_updated' : 'product_created',
+        entityType: 'product',
+        entityId: trimmedName,
+        oldValue: before ? { price: before.price, metal: before.metalType, purity: before.purity, gross_weight: before.grossWeight, net_weight: before.netWeight, making: before.makingCharge, wastage: before.wastage, stock: before.stockQuantity } : null,
+        newValue: { price: priceNum, metal: metalType || null, purity: effectivePurity || null, gross_weight: parseFloat(grossWeight) || 0, net_weight: effectiveNetWeight, making: parseFloat(makingCharge) || 0, wastage: parseFloat(wastage) || 0, stock: Number(stockQuantity) || 0 },
+      })
       await fetchProducts()
       onStockUpdated?.()
     } catch (err: unknown) {
@@ -1273,7 +1330,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 items-start">
                   <div>
                     <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">
                       Gross Weight (g) {isRatePriced && <span className="text-red-500 ml-0.5">*</span>}
@@ -1303,6 +1360,20 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                     />
                   </div>
                   <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Other Weight (g)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.001"
+                      inputMode="decimal"
+                      placeholder="0.000"
+                      value={otherWeight}
+                      onChange={(e) => setOtherWeight(e.target.value)}
+                      title="Non-metal weight such as thread, lac or beads"
+                      className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]"
+                    />
+                  </div>
+                  <div>
                     <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center justify-between gap-2">
                       <span>Net Weight (g)</span>
                       {netWeightEdited ? (
@@ -1310,7 +1381,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                           Auto
                         </button>
                       ) : (
-                        <span className="text-[10px] font-medium text-gray-400">Gross − Stone</span>
+                        <span className="text-[10px] font-medium text-gray-400">Gross − Stone − Other</span>
                       )}
                     </label>
                     <input
@@ -1405,7 +1476,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-start">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-start">
                   <div>
                     <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">
                       HUID / Hallmark No. <span className="text-gray-400 font-normal ml-1">(Optional)</span>
@@ -1420,6 +1491,17 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                       spellCheck={false}
                       className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Hallmark Status</label>
+                    <select
+                      value={hallmarkStatus}
+                      onChange={(e) => setHallmarkStatus(e.target.value as HallmarkStatus | '')}
+                      className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A] touch-manipulation appearance-none relative z-20"
+                    >
+                      <option value="">Not set</option>
+                      {(Object.keys(HALLMARK_LABELS) as HallmarkStatus[]).map((h) => <option key={h} value={h}>{HALLMARK_LABELS[h]}</option>)}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">
@@ -1447,6 +1529,27 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                       className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]"
                     />
                   </div>
+                </div>
+
+                {/* Stone / diamond details — only shown when the item has stones */}
+                <div className="rounded-xl border border-gray-200 bg-[#FBFAF6] p-3">
+                  <label className="flex items-center gap-2 text-[11px] font-black text-gray-700 cursor-pointer">
+                    <input type="checkbox" checked={showStones} onChange={(e) => setShowStones(e.target.checked)} className="w-4 h-4 accent-[var(--accent)]" />
+                    Stone / diamond details
+                  </label>
+                  {showStones && (
+                    <div className="mt-3 grid grid-cols-2 lg:grid-cols-4 gap-3">
+                      <div><label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Stone type</label><input className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]" placeholder="e.g. Diamond, Ruby" value={stoneDetails.type} onChange={(e) => setStoneDetails((d) => ({ ...d, type: e.target.value }))} /></div>
+                      <div><label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">No. of stones</label><input type="number" min="0" step="1" className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]" value={stoneDetails.count || ''} onChange={(e) => setStoneDetails((d) => ({ ...d, count: Number(e.target.value) || 0 }))} /></div>
+                      <div><label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Stone value (₹)</label><input type="number" min="0" step="0.01" className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]" value={stoneDetails.value || ''} onChange={(e) => setStoneDetails((d) => ({ ...d, value: Number(e.target.value) || 0 }))} /></div>
+                      <div><label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Diamond carat</label><input type="number" min="0" step="0.01" className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]" value={stoneDetails.carat || ''} onChange={(e) => setStoneDetails((d) => ({ ...d, carat: Number(e.target.value) || 0 }))} /></div>
+                      <div><label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Clarity</label><input className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]" placeholder="e.g. VS1" value={stoneDetails.clarity} onChange={(e) => setStoneDetails((d) => ({ ...d, clarity: e.target.value }))} /></div>
+                      <div><label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Colour</label><input className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]" placeholder="e.g. F" value={stoneDetails.colour} onChange={(e) => setStoneDetails((d) => ({ ...d, colour: e.target.value }))} /></div>
+                      <div><label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Cut</label><input className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]" placeholder="e.g. Excellent" value={stoneDetails.cut} onChange={(e) => setStoneDetails((d) => ({ ...d, cut: e.target.value }))} /></div>
+                      <div><label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Certificate No.</label><input className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]" placeholder="e.g. IGI 123456" value={stoneDetails.certificate} onChange={(e) => setStoneDetails((d) => ({ ...d, certificate: e.target.value }))} /></div>
+                      <p className="col-span-2 lg:col-span-4 text-[10px] font-medium text-gray-500">The price uses the Stone Charge above; these details are shown on the invoice.</p>
+                    </div>
+                  )}
                 </div>
 
                 {/* Live price preview with today's rate */}
@@ -1854,6 +1957,21 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                           onChange={(e) => setLocation(e.target.value)}
                           className="w-full h-10 px-3.5 rounded-xl border border-gray-200 bg-[#FAFAFA] text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]"
                         />
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">
+                          Item Photo <span className="text-gray-400 font-normal ml-1">(Optional)</span>
+                        </label>
+                        <div className="flex items-center gap-2">
+                          {imageUrl && <img src={imageUrl} alt="" className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 object-cover" />}
+                          <label className="flex-1 h-10 px-3.5 rounded-xl border border-gray-200 bg-[#FAFAFA] text-xs font-bold text-gray-700 flex items-center gap-2 cursor-pointer hover:border-[#0A0A0A]">
+                            <ImagePlus size={14} className="text-[var(--accent)]" />
+                            {imageUploading ? 'Uploading…' : imageUrl ? 'Change photo' : 'Upload photo'}
+                            <input type="file" accept="image/*" className="sr-only" disabled={imageUploading} onChange={(e) => void handleImageFile(e.target.files?.[0])} />
+                          </label>
+                          {imageUrl && <button type="button" onClick={() => setImageUrl('')} className="text-[11px] font-bold text-red-600 hover:underline">Remove</button>}
+                        </div>
                       </div>
 
                       {hasVariants && (

@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { auditService } from '../../services/auditService'
 import { X, Tag, IndianRupee, AlertCircle, Barcode, Check } from 'lucide-react'
 import { updateItemPrice } from '../../services/productService'
 import { getErrorMessage } from '../../lib/errorMessage'
@@ -60,6 +61,7 @@ export const QuickPriceModal: React.FC<Props> = ({ isOpen, item, onClose, onSucc
         newCostPrice: numCost,
       })
 
+      void auditService.log({ action: 'price_changed', entityType: item.entity_type, entityId: item.variant_name ? `${item.name} (${item.variant_name})` : item.name, oldValue: { price: item.price }, newValue: { price: numPrice, cost_price: numCost ?? null } })
       play('success')
       onSuccess({
         id: item.id,

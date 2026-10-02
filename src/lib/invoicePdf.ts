@@ -31,6 +31,11 @@ export type InvoicePdfData = {
   schemeDiscount?: number
   schemeAmountUsed?: number
   schemeBalanceAfter?: number | null
+  advanceAmountUsed?: number
+  exchangeAmount?: number
+  customerGstin?: string | null
+  /** For a quotation: 'QUOTATION'. Default: TAX INVOICE / CREDIT INVOICE. */
+  documentTitle?: string
 }
 
 // jsPDF's built-in Helvetica font has no ₹ (U+20B9) glyph — it renders as a
@@ -52,7 +57,8 @@ const pdfText = (value: unknown) =>
 
 /** Creates a compact A4 invoice that can be attached as a file to WhatsApp. */
 export function createInvoicePdf(data: InvoicePdfData): Blob {
-  const formattedNo = formatInvoiceNo(data.invoiceNo)
+  // Quotations etc. keep their own number format (QT000001)
+  const formattedNo = data.documentTitle ? data.invoiceNo : formatInvoiceNo(data.invoiceNo)
   const storeSettings = useSettingsStore.getState().settings
   const shopName = storeSettings?.name || BRAND_EN
   const shopAddress = storeSettings?.address || BRAND_ADDRESS
@@ -79,8 +85,8 @@ export function createInvoicePdf(data: InvoicePdfData): Blob {
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(8)
   doc.setTextColor(muted)
-  doc.text(data.isCredit ? 'CREDIT INVOICE' : 'TAX INVOICE', left, y)
-  doc.text(`Invoice: #${formattedNo}`, right, y, { align: 'right' })
+  doc.text(data.documentTitle || (data.isCredit ? 'CREDIT INVOICE' : 'TAX INVOICE'), left, y)
+  doc.text(`${data.documentTitle ? 'No' : 'Invoice'}: #${formattedNo}`, right, y, { align: 'right' })
   y += 7
   doc.setDrawColor('#d8dce0')
   doc.line(left, y, right, y)
@@ -108,6 +114,8 @@ export function createInvoicePdf(data: InvoicePdfData): Blob {
   doc.setFont('helvetica', 'normal')
   doc.text(shopAddress, left + 24, y + 10, { maxWidth: 85 })
   doc.text(`Phone: ${shopPhone}`, left + 24, y + 18)
+  const gstLine = [storeSettings?.gstin ? `GSTIN: ${storeSettings.gstin}` : '', storeSettings?.stateName ? `State: ${storeSettings.stateName}${storeSettings.stateCode ? ` (${storeSettings.stateCode})` : ''}` : ''].filter(Boolean).join('  |  ')
+  if (gstLine) doc.text(pdfText(gstLine), left + 24, y + 22)
   doc.text(`Date: ${new Date(data.date).toLocaleDateString('en-IN')}`, right, y + 2, { align: 'right' })
   // "Payment: Split (Card Rs.479.68 + Cash Rs.100)" wraps within the right column
   const paymentLines = doc.splitTextToSize(pdfText(`Payment: ${data.paymentMode || 'POS'}`), 62) as string[]
@@ -164,7 +172,7 @@ export function createInvoicePdf(data: InvoicePdfData): Blob {
   doc.setFontSize(8)
   doc.setTextColor(muted)
   const phoneY = y + 13 + customerNameLines.length * 4 + 2
-  doc.text(`Mobile Number: ${customerPhone}`, left + 5, phoneY)
+  doc.text(`Mobile Number: ${customerPhone}${data.customerGstin ? `   GSTIN: ${pdfText(data.customerGstin)}` : ''}`, left + 5, phoneY)
   if (customerAddressLines.length > 0) {
     doc.text(customerAddressLines, left + 5, phoneY + 5)
   }
@@ -208,6 +216,7 @@ export function createInvoicePdf(data: InvoicePdfData): Blob {
       const detailLines = [
         [metalLabel(j.metal_type, j.purity), j.huid ? `HUID ${j.huid}` : '', j.sku ? `SKU ${j.sku}` : '', j.barcode ? `Barcode ${j.barcode}` : ''].filter(Boolean).join(' | '),
         [j.gross_weight > 0 ? `Gross ${formatWeight(j.gross_weight)}` : '', j.stone_weight > 0 ? `Stone ${formatWeight(j.stone_weight)}` : '', j.net_weight > 0 ? `Net ${formatWeight(j.net_weight)}` : '', j.rate_per_gram > 0 ? `Rate ${money(j.rate_per_gram)}/g` : ''].filter(Boolean).join(' | '),
+        j.stone_summary ? `Stones: ${j.stone_summary}` : '',
         [j.metal_value > 0 ? `Metal ${money(j.metal_value)}` : '', j.making_amount > 0 ? `Making ${money(j.making_amount)}` : '', j.wastage_amount > 0 ? `Wastage ${money(j.wastage_amount)}` : '', j.stone_charge > 0 ? `Stone ${money(j.stone_charge)}` : '', j.other_charge > 0 ? `Other ${money(j.other_charge)}` : ''].filter(Boolean).join(' | '),
       ].filter(Boolean)
       doc.setFont('helvetica', 'normal')
@@ -264,22 +273,32 @@ export function createInvoicePdf(data: InvoicePdfData): Blob {
   doc.setTextColor(totalColor)
   doc.text(isUnpaidCredit ? 'AMOUNT DUE' : 'TOTAL', 143, y + 6, { align: 'right' })
   doc.text(money(data.total), right - 4, y + 6, { align: 'right' })
-  if ((data.schemeAmountUsed || 0) > 0) {
+  const adjustments: Array<[string, number]> = [
+    [`Paid from Scheme${data.schemeNumber ? ` (${data.schemeNumber})` : ''}`, data.schemeAmountUsed || 0],
+    ['Advance Adjusted', data.advanceAmountUsed || 0],
+    ['Old Gold Exchange', data.exchangeAmount || 0],
+  ].filter(([, v]) => (v as number) > 0) as Array<[string, number]>
+  let ay = y + 13
+  if (adjustments.length) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)
     doc.setTextColor(primaryColor)
-    doc.text(`Paid from Scheme${data.schemeNumber ? ` (${data.schemeNumber})` : ''}`, 143, y + 13, { align: 'right' })
-    doc.text(`-${money(data.schemeAmountUsed || 0)}`, right - 4, y + 13, { align: 'right' })
+    adjustments.forEach(([label, value]) => {
+      doc.text(label, 143, ay, { align: 'right' })
+      doc.text(`-${money(value)}`, right - 4, ay, { align: 'right' })
+      ay += 6
+    })
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(ink)
-    doc.text('Balance Paid', 143, y + 20, { align: 'right' })
-    doc.text(money(Math.max(0, data.total - (data.schemeAmountUsed || 0))), right - 4, y + 20, { align: 'right' })
+    doc.text('Amount Paid', 143, ay + 1, { align: 'right' })
+    doc.text(money(Math.max(0, data.total - adjustments.reduce((s2, [, v]) => s2 + v, 0))), right - 4, ay + 1, { align: 'right' })
+    ay += 7
   }
   if (data.schemeNumber && data.schemeBalanceAfter != null) {
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(7)
     doc.setTextColor(muted)
-    doc.text(`Scheme ${data.schemeNumber} balance remaining: ${money(data.schemeBalanceAfter)}`, right - 4, y + 26, { align: 'right' })
+    doc.text(`Scheme ${data.schemeNumber} balance remaining: ${money(data.schemeBalanceAfter)}`, right - 4, ay, { align: 'right' })
   }
 
   y = 275
@@ -294,7 +313,7 @@ export function createInvoicePdf(data: InvoicePdfData): Blob {
       ? `CREDIT SALE — KINDLY SETTLE${dueDateLabel ? ` BY ${dueDateLabel}` : ''}. THANK YOU!`
       : isSettledCredit
         ? `CREDIT BILL — PAID IN FULL${paidDateLabel ? ` ON ${paidDateLabel}` : ''}. THANK YOU!`
-        : 'THANK YOU FOR SHOPPING WITH US',
+        : data.documentTitle === 'QUOTATION' ? 'ESTIMATE AT TODAY\'S METAL RATE - NOT A TAX INVOICE' : 'THANK YOU FOR SHOPPING WITH US',
     pageWidth / 2,
     y + 8,
     { align: 'center' },
@@ -303,7 +322,8 @@ export function createInvoicePdf(data: InvoicePdfData): Blob {
 }
 
 export function invoicePdfFile(data: InvoicePdfData): File {
-  return new File([createInvoicePdf(data)], `Invoice-${formatInvoiceNo(data.invoiceNo)}.pdf`, { type: 'application/pdf' })
+  const fileName = data.documentTitle ? `${data.documentTitle.charAt(0)}${data.documentTitle.slice(1).toLowerCase()}-${data.invoiceNo}` : `Invoice-${formatInvoiceNo(data.invoiceNo)}`
+  return new File([createInvoicePdf(data)], `${fileName}.pdf`, { type: 'application/pdf' })
 }
 
 /** Captures the rendered invoice so the downloaded PDF matches the visible view. */

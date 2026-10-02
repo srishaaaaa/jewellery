@@ -10,12 +10,14 @@ import {
 /** Jewellery attributes of a catalogue product, or null for a regular (non-jewellery) item. */
 export const getJewelleryAttributes = (product: Pick<Product,
   'metalType' | 'purity' | 'grossWeight' | 'stoneWeight' | 'netWeight' | 'makingCharge' | 'makingChargeType'
-  | 'wastage' | 'wastageType' | 'stoneCharge' | 'otherCharge' | 'huid' | 'designNumber' | 'subcategory'>,
+  | 'wastage' | 'wastageType' | 'stoneCharge' | 'otherCharge' | 'huid' | 'designNumber' | 'subcategory'
+  | 'otherWeight' | 'hallmarkStatus' | 'stoneDetails'>,
 ): JewelleryAttributes | null => {
   if (!product.metalType) return null
   const gross = Number(product.grossWeight) || 0
   const stone = Number(product.stoneWeight) || 0
-  const net = Number(product.netWeight) || calculateNetWeight(gross, stone)
+  const other = Number(product.otherWeight) || 0
+  const net = Number(product.netWeight) || calculateNetWeight(gross, stone, other)
   return {
     metalType: product.metalType,
     purity: product.purity || '',
@@ -31,6 +33,9 @@ export const getJewelleryAttributes = (product: Pick<Product,
     huid: product.huid || '',
     designNumber: product.designNumber || '',
     subcategory: product.subcategory || '',
+    otherWeight: other,
+    hallmarkStatus: product.hallmarkStatus || null,
+    stoneDetails: product.stoneDetails || null,
   }
 }
 

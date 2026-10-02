@@ -619,3 +619,366 @@ BEGIN
     ALTER PUBLICATION supabase_realtime ADD TABLE public.metal_rates;
   END IF;
 END $$;
+
+-- ============================================================================
+-- 9. More jewellery item details
+-- ============================================================================
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS other_weight NUMERIC(12,3) NOT NULL DEFAULT 0;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS hallmark_status TEXT;
+-- Optional stone / diamond details: { type, count, value, carat, clarity, colour, cut, certificate }
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS stone_details JSONB;
+
+-- ============================================================================
+-- 10. Invoice / permission settings
+-- ============================================================================
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS gstin TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS state_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS state_code TEXT NOT NULL DEFAULT '';
+-- { staffMaxDiscountPercent, staffCanCustomiseSchemes }
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS pos_permissions JSONB;
+
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS customer_gstin TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS exchange_amount NUMERIC(12,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS advance_amount_used NUMERIC(12,2) NOT NULL DEFAULT 0;
+-- Amount collected at the counter (total minus scheme, advance and old-gold adjustments).
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS amount_paid NUMERIC(12,2);
+
+-- ============================================================================
+-- 11. Audit log — append-only record of sensitive changes
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+  id BIGSERIAL PRIMARY KEY,
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL DEFAULT '',
+  entity_id TEXT NOT NULL DEFAULT '',
+  old_value JSONB,
+  new_value JSONB,
+  user_name TEXT NOT NULL DEFAULT 'System',
+  note TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS audit_logs_created_idx ON public.audit_logs(created_at DESC);
+
+CREATE OR REPLACE FUNCTION public.audit_logs_append_only()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  RAISE EXCEPTION 'Audit log entries cannot be changed or deleted.';
+END;
+$$;
+DROP TRIGGER IF EXISTS audit_logs_no_change ON public.audit_logs;
+CREATE TRIGGER audit_logs_no_change
+  BEFORE UPDATE OR DELETE ON public.audit_logs
+  FOR EACH ROW EXECUTE FUNCTION public.audit_logs_append_only();
+
+-- Every metal rate change is logged by the database itself (old -> new).
+CREATE OR REPLACE FUNCTION public.audit_metal_rate_insert()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_prev NUMERIC;
+BEGIN
+  SELECT rate_per_gram INTO v_prev FROM public.metal_rates
+  WHERE metal_type = NEW.metal_type AND purity = NEW.purity AND id <> NEW.id AND effective_from <= NEW.effective_from
+  ORDER BY effective_from DESC, id DESC LIMIT 1;
+  INSERT INTO public.audit_logs (action, entity_type, entity_id, old_value, new_value, user_name, note)
+  VALUES ('metal_rate_changed', 'metal_rate', NEW.metal_type || ':' || NEW.purity,
+          CASE WHEN v_prev IS NULL THEN NULL ELSE jsonb_build_object('rate_per_gram', v_prev) END,
+          jsonb_build_object('rate_per_gram', NEW.rate_per_gram, 'effective_from', NEW.effective_from),
+          NEW.created_by, NEW.note);
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS metal_rates_audit ON public.metal_rates;
+CREATE TRIGGER metal_rates_audit AFTER INSERT ON public.metal_rates
+  FOR EACH ROW EXECUTE FUNCTION public.audit_metal_rate_insert();
+
+-- ============================================================================
+-- 12. Customer advances (advance payments usable on later bills)
+-- ============================================================================
+CREATE SEQUENCE IF NOT EXISTS public.advance_receipt_seq START WITH 1;
+CREATE TABLE IF NOT EXISTS public.customer_advances (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  receipt_number TEXT NOT NULL UNIQUE DEFAULT ('ADV' || LPAD(nextval('public.advance_receipt_seq')::TEXT, 6, '0')),
+  customer_id UUID REFERENCES public.customers(id) ON DELETE SET NULL,
+  customer_name TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL,
+  amount NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+  amount_used NUMERIC(12,2) NOT NULL DEFAULT 0,
+  payment_method TEXT NOT NULL DEFAULT 'cash',
+  purpose TEXT NOT NULL DEFAULT '',
+  source TEXT NOT NULL DEFAULT 'payment' CHECK (source IN ('payment', 'exchange')),
+  source_ref TEXT,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'used', 'cancelled')),
+  notes TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL DEFAULT 'Admin',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT customer_advances_used_check CHECK (amount_used >= 0 AND amount_used <= amount)
+);
+CREATE INDEX IF NOT EXISTS customer_advances_phone_idx ON public.customer_advances(phone);
+
+CREATE TABLE IF NOT EXISTS public.advance_usages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  advance_id UUID NOT NULL REFERENCES public.customer_advances(id) ON DELETE RESTRICT,
+  order_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
+  invoice_no TEXT,
+  amount NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+  status TEXT NOT NULL DEFAULT 'applied' CHECK (status IN ('applied', 'reversed')),
+  created_by TEXT NOT NULL DEFAULT 'Admin',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS advance_usages_advance_idx ON public.advance_usages(advance_id);
+
+-- Reserves part of an advance for a bill (row-locked so it can never be used twice).
+CREATE OR REPLACE FUNCTION public.reserve_customer_advance(p_advance_id UUID, p_amount NUMERIC, p_created_by TEXT DEFAULT 'Admin')
+RETURNS public.advance_usages
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_adv public.customer_advances;
+  v_amount NUMERIC := ROUND(COALESCE(p_amount, 0), 2);
+  v_usage public.advance_usages;
+BEGIN
+  SELECT * INTO v_adv FROM public.customer_advances WHERE id = p_advance_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Advance not found.'; END IF;
+  IF v_adv.status <> 'active' THEN RAISE EXCEPTION 'Advance % is %.', v_adv.receipt_number, v_adv.status; END IF;
+  IF v_amount <= 0 THEN RAISE EXCEPTION 'Advance amount to use must be greater than zero.'; END IF;
+  IF v_amount > v_adv.amount - v_adv.amount_used THEN
+    RAISE EXCEPTION 'Only % is left on advance %.', v_adv.amount - v_adv.amount_used, v_adv.receipt_number;
+  END IF;
+  UPDATE public.customer_advances
+  SET amount_used = amount_used + v_amount,
+      status = CASE WHEN amount_used + v_amount >= amount THEN 'used' ELSE 'active' END,
+      updated_at = NOW()
+  WHERE id = p_advance_id;
+  INSERT INTO public.advance_usages (advance_id, amount, created_by)
+  VALUES (p_advance_id, v_amount, COALESCE(p_created_by, 'Admin'))
+  RETURNING * INTO v_usage;
+  RETURN v_usage;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.link_advance_usage(p_usage_id UUID, p_order_id UUID, p_invoice_no TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  UPDATE public.advance_usages SET order_id = p_order_id, invoice_no = p_invoice_no
+  WHERE id = p_usage_id AND status = 'applied';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.reverse_advance_usage(p_usage_id UUID)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_use public.advance_usages;
+BEGIN
+  SELECT * INTO v_use FROM public.advance_usages WHERE id = p_usage_id FOR UPDATE;
+  IF NOT FOUND OR v_use.status <> 'applied' THEN RETURN; END IF;
+  IF v_use.order_id IS NOT NULL THEN RAISE EXCEPTION 'This advance is already on an invoice.'; END IF;
+  UPDATE public.customer_advances
+  SET amount_used = GREATEST(0, amount_used - v_use.amount), status = 'active', updated_at = NOW()
+  WHERE id = v_use.advance_id;
+  UPDATE public.advance_usages SET status = 'reversed' WHERE id = p_usage_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.cancel_customer_advance(p_advance_id UUID, p_reason TEXT, p_created_by TEXT DEFAULT 'Admin')
+RETURNS public.customer_advances
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_adv public.customer_advances;
+BEGIN
+  SELECT * INTO v_adv FROM public.customer_advances WHERE id = p_advance_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Advance not found.'; END IF;
+  IF v_adv.amount_used > 0 THEN RAISE EXCEPTION 'Advance % has already been used on a bill.', v_adv.receipt_number; END IF;
+  IF v_adv.status <> 'active' THEN RAISE EXCEPTION 'Advance % is already %.', v_adv.receipt_number, v_adv.status; END IF;
+  UPDATE public.customer_advances
+  SET status = 'cancelled',
+      notes = BTRIM(notes || ' Cancelled: ' || COALESCE(p_reason, '') || ' (by ' || COALESCE(p_created_by, 'Admin') || ')'),
+      updated_at = NOW()
+  WHERE id = p_advance_id RETURNING * INTO v_adv;
+  RETURN v_adv;
+END;
+$$;
+
+-- ============================================================================
+-- 13. Old gold exchange (taken in part-payment, linked to the bill)
+-- ============================================================================
+CREATE SEQUENCE IF NOT EXISTS public.old_gold_seq START WITH 1;
+CREATE TABLE IF NOT EXISTS public.old_gold_exchanges (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  exchange_number TEXT NOT NULL UNIQUE DEFAULT ('OG' || LPAD(nextval('public.old_gold_seq')::TEXT, 6, '0')),
+  order_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
+  invoice_no TEXT,
+  customer_name TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  metal_type TEXT NOT NULL DEFAULT 'gold',
+  purity TEXT NOT NULL DEFAULT '',
+  tested_purity NUMERIC(6,2),
+  gross_weight NUMERIC(12,3) NOT NULL DEFAULT 0,
+  stone_weight NUMERIC(12,3) NOT NULL DEFAULT 0,
+  net_weight NUMERIC(12,3) NOT NULL DEFAULT 0,
+  melting_deduction_percent NUMERIC(6,2) NOT NULL DEFAULT 0,
+  exchange_rate NUMERIC(12,2) NOT NULL DEFAULT 0,
+  other_deduction NUMERIC(12,2) NOT NULL DEFAULT 0,
+  net_value NUMERIC(12,2) NOT NULL CHECK (net_value >= 0),
+  created_by TEXT NOT NULL DEFAULT 'Admin',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS old_gold_exchanges_order_idx ON public.old_gold_exchanges(order_id);
+CREATE INDEX IF NOT EXISTS old_gold_exchanges_phone_idx ON public.old_gold_exchanges(phone);
+
+-- ============================================================================
+-- 14. Returns & exchanges — linked to the original invoice, which is never changed
+-- ============================================================================
+CREATE SEQUENCE IF NOT EXISTS public.return_number_seq START WITH 1;
+CREATE TABLE IF NOT EXISTS public.sales_returns (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  return_number TEXT NOT NULL UNIQUE DEFAULT ('RT' || LPAD(nextval('public.return_number_seq')::TEXT, 6, '0')),
+  order_id UUID REFERENCES public.orders(id) ON DELETE SET NULL,
+  invoice_no TEXT NOT NULL,
+  customer_name TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  -- [{ line, name, quantity, line_total, amount, product_id, variant_id, is_manual, jewellery }]
+  items JSONB NOT NULL DEFAULT '[]'::JSONB,
+  return_type TEXT NOT NULL DEFAULT 'refund' CHECK (return_type IN ('refund', 'exchange')),
+  reason TEXT NOT NULL DEFAULT '',
+  refund_amount NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (refund_amount >= 0),
+  refund_method TEXT NOT NULL DEFAULT 'cash',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  credit_advance_id UUID REFERENCES public.customer_advances(id) ON DELETE SET NULL,
+  created_by TEXT NOT NULL DEFAULT 'Staff',
+  approved_by TEXT,
+  approved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS sales_returns_order_idx ON public.sales_returns(order_id);
+
+-- Approving a return puts catalogue items back in stock and, for an exchange,
+-- creates a customer credit (advance) to use on the new bill.
+CREATE OR REPLACE FUNCTION public.approve_sales_return(p_return_id UUID, p_approved_by TEXT DEFAULT 'Admin')
+RETURNS public.sales_returns
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_ret public.sales_returns;
+  v_item JSONB;
+  v_pid BIGINT;
+  v_vid UUID;
+  v_qty NUMERIC;
+  v_before NUMERIC;
+  v_adv_id UUID;
+BEGIN
+  SELECT * INTO v_ret FROM public.sales_returns WHERE id = p_return_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Return not found.'; END IF;
+  IF v_ret.status <> 'pending' THEN RAISE EXCEPTION 'Return % is already %.', v_ret.return_number, v_ret.status; END IF;
+
+  FOR v_item IN SELECT value FROM jsonb_array_elements(v_ret.items) LOOP
+    CONTINUE WHEN LOWER(COALESCE(v_item->>'is_manual', 'false')) = 'true';
+    CONTINUE WHEN COALESCE(v_item->>'product_id', '') !~ '^[0-9]+$';
+    v_pid := (v_item->>'product_id')::BIGINT;
+    v_qty := CASE WHEN COALESCE(v_item->>'quantity', '') ~ '^[0-9]+(\.[0-9]+)?$' THEN (v_item->>'quantity')::NUMERIC ELSE 0 END;
+    CONTINUE WHEN v_qty <= 0;
+    CONTINUE WHEN NOT EXISTS (SELECT 1 FROM public.products WHERE id = v_pid AND COALESCE(category, '') <> 'Unregistered');
+    v_vid := NULL;
+    IF COALESCE(v_item->>'variant_id', '') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+      v_vid := (v_item->>'variant_id')::UUID;
+      UPDATE public.product_variants SET stock = stock + v_qty, updated_at = NOW() WHERE id = v_vid;
+    END IF;
+    SELECT stock_quantity INTO v_before FROM public.products WHERE id = v_pid FOR UPDATE;
+    UPDATE public.products SET stock_quantity = COALESCE(v_before, 0) + v_qty, updated_at = NOW() WHERE id = v_pid;
+    INSERT INTO public.inventory_movements (product_id, variant_id, movement_type, quantity_delta, quantity_before, quantity_after, reference_type, reference_id, note, created_by_name)
+    VALUES (v_pid, v_vid, 'RETURN', v_qty, COALESCE(v_before, 0), COALESCE(v_before, 0) + v_qty,
+            'return', v_ret.return_number, 'Returned from ' || v_ret.invoice_no, COALESCE(p_approved_by, 'Admin'));
+  END LOOP;
+
+  IF v_ret.return_type = 'exchange' AND v_ret.refund_amount > 0 THEN
+    INSERT INTO public.customer_advances (customer_name, phone, amount, payment_method, purpose, source, source_ref, created_by)
+    VALUES (v_ret.customer_name, v_ret.phone, v_ret.refund_amount, 'exchange',
+            'Exchange credit for ' || v_ret.invoice_no, 'exchange', v_ret.return_number, COALESCE(p_approved_by, 'Admin'))
+    RETURNING id INTO v_adv_id;
+  END IF;
+
+  UPDATE public.sales_returns
+  SET status = 'approved', approved_by = COALESCE(p_approved_by, 'Admin'), approved_at = NOW(), credit_advance_id = v_adv_id
+  WHERE id = p_return_id RETURNING * INTO v_ret;
+  RETURN v_ret;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.reject_sales_return(p_return_id UUID, p_rejected_by TEXT DEFAULT 'Admin')
+RETURNS public.sales_returns
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_ret public.sales_returns;
+BEGIN
+  UPDATE public.sales_returns SET status = 'rejected', approved_by = COALESCE(p_rejected_by, 'Admin'), approved_at = NOW()
+  WHERE id = p_return_id AND status = 'pending' RETURNING * INTO v_ret;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Only a pending return can be rejected.'; END IF;
+  RETURN v_ret;
+END;
+$$;
+
+-- ============================================================================
+-- 15. Quotations (estimates at the current rate — never an invoice)
+-- ============================================================================
+CREATE SEQUENCE IF NOT EXISTS public.quotation_number_seq START WITH 1;
+CREATE TABLE IF NOT EXISTS public.quotations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  quotation_number TEXT NOT NULL UNIQUE DEFAULT ('QT' || LPAD(nextval('public.quotation_number_seq')::TEXT, 6, '0')),
+  customer_name TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  items JSONB NOT NULL DEFAULT '[]'::JSONB,
+  subtotal NUMERIC(12,2) NOT NULL DEFAULT 0,
+  discount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  gst NUMERIC(12,2) NOT NULL DEFAULT 0,
+  total NUMERIC(12,2) NOT NULL DEFAULT 0,
+  valid_until DATE,
+  notes TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'converted', 'cancelled')),
+  created_by TEXT NOT NULL DEFAULT 'Admin',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- ============================================================================
+-- 16. Repairs
+-- ============================================================================
+CREATE SEQUENCE IF NOT EXISTS public.repair_number_seq START WITH 1;
+CREATE TABLE IF NOT EXISTS public.repairs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  repair_number TEXT NOT NULL UNIQUE DEFAULT ('RP' || LPAD(nextval('public.repair_number_seq')::TEXT, 6, '0')),
+  customer_name TEXT NOT NULL DEFAULT '',
+  phone TEXT NOT NULL DEFAULT '',
+  item_name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  metal_type TEXT NOT NULL DEFAULT '',
+  weight NUMERIC(12,3) NOT NULL DEFAULT 0,
+  received_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  expected_date DATE,
+  repair_charge NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (repair_charge >= 0),
+  advance_paid NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (advance_paid >= 0),
+  status TEXT NOT NULL DEFAULT 'received' CHECK (status IN ('received', 'in_repair', 'ready', 'delivered', 'cancelled')),
+  delivered_at TIMESTAMPTZ,
+  notes TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL DEFAULT 'Admin',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS repairs_phone_idx ON public.repairs(phone);
+
+-- ============================================================================
+-- 17. Access (same portal model) and grants for the new tables / functions
+-- ============================================================================
+DO $$
+DECLARE t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['audit_logs', 'customer_advances', 'advance_usages', 'old_gold_exchanges', 'sales_returns', 'quotations', 'repairs'] LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_portal_manage', t);
+    EXECUTE format('CREATE POLICY %I ON public.%I FOR ALL TO anon, authenticated USING (TRUE) WITH CHECK (TRUE)', t || '_portal_manage', t);
+  END LOOP;
+END $$;
+
+GRANT EXECUTE ON FUNCTION public.reserve_customer_advance(UUID, NUMERIC, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.link_advance_usage(UUID, UUID, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reverse_advance_usage(UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.cancel_customer_advance(UUID, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.approve_sales_return(UUID, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reject_sales_return(UUID, TEXT) TO anon, authenticated;

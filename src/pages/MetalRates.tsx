@@ -47,6 +47,7 @@ export default function MetalRates() {
   const [updateOpen, setUpdateOpen] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
   const [note, setNote] = useState('')
+  const [effectiveFrom, setEffectiveFrom] = useState('')
   const [confirming, setConfirming] = useState<PendingChange[] | null>(null)
   const [saving, setSaving] = useState(false)
   const today = localIsoDate()
@@ -76,6 +77,7 @@ export default function MetalRates() {
     }
     setForm(initial)
     setNote('')
+    setEffectiveFrom('')
     setConfirming(null)
     setError('')
     setUpdateOpen(true)
@@ -108,7 +110,7 @@ export default function MetalRates() {
     try {
       const entries: NewRateEntry[] = confirming.map((c) => ({ metal: c.metal, purity: c.purity, rate: c.to }))
       const createdBy = `${role === 'admin' ? 'Admin' : 'Staff'}${adminId ? ` (${adminId})` : ''}`
-      await metalRateService.addRates(entries, { createdBy, note })
+      await metalRateService.addRates(entries, { createdBy, note, effectiveFrom: effectiveFrom || undefined })
       await fetchRates()
       await loadHistory()
       setUpdateOpen(false)
@@ -170,9 +172,13 @@ export default function MetalRates() {
         <p className="mt-1 text-sm text-[#6B7280]">New bills use the latest rate automatically. Old invoices always keep the rate they were billed at.</p>
       </div>
       <div className="flex gap-2">
+        {role === 'admin' ? (
         <button onClick={openUpdate} className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-black text-white hover:opacity-90 cursor-pointer">
           <Gem size={16} /> Update Rates
         </button>
+        ) : (
+          <span className="rounded-xl border border-[#ECE9E2] bg-white px-3 py-2.5 text-xs font-bold text-[#6B7280]">View only — rates are updated by the admin</span>
+        )}
         <button onClick={refresh} className="rounded-xl border bg-white p-3 text-[#647064] cursor-pointer" title="Refresh">
           <RefreshCw size={18} className={ratesLoading || historyLoading ? 'animate-spin' : ''} />
         </button>
@@ -295,7 +301,7 @@ export default function MetalRates() {
                 </p>
               ))}
               <p className="rounded-xl bg-amber-50 p-3 text-[11px] font-semibold text-amber-800">
-                The previous rates stay in Rate History. From now on, new bills use these rates; invoices already generated are not changed.
+                {effectiveFrom ? `Effective from ${new Date(effectiveFrom).toLocaleString('en-IN')}. ` : ''}The previous rates stay in Rate History. From now on, new bills use these rates; invoices already generated are not changed.
               </p>
             </div>
           ) : (
@@ -321,6 +327,9 @@ export default function MetalRates() {
                   </Field>
                 ))}
               </div>
+              <Field label="Effective from (leave blank for now)">
+                <input type="datetime-local" className={inputClass} value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
+              </Field>
               <Field label="Note (optional)">
                 <input className={inputClass} value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Morning board rate" />
               </Field>

@@ -40,6 +40,9 @@ export interface ThermalReceiptData {
   schemeDiscount?: number
   schemeAmountUsed?: number
   schemeBalanceAfter?: number | null
+  advanceAmountUsed?: number
+  exchangeAmount?: number
+  customerGstin?: string | null
 }
 
 const jewelleryReceiptLines = (raw: unknown) => {
@@ -137,6 +140,7 @@ export function printThermalReceipt(data: ThermalReceiptData) {
           <div class="font-bold" style="font-size: 16px; letter-spacing: 2px;">${storeName}</div>
           <div style="font-size: 10px; margin-top: 2px;">${storeAddress}</div>
           <div class="mt-1" style="font-size: 10px;">Ph: ${storePhone}</div>
+          ${liveSettings?.gstin ? `<div style="font-size: 10px;">GSTIN: ${liveSettings.gstin}${liveSettings.stateCode ? ` | State Code: ${liveSettings.stateCode}` : ''}</div>` : ''}
           ${storeEmail || storeInstagram ? `<div style="font-size: 9px; color: #000;">${[storeEmail, storeInstagram ? `Insta: @${storeInstagram}` : ''].filter(Boolean).join(' | ')}</div>` : ''}
         </div>
 
@@ -146,6 +150,7 @@ export function printThermalReceipt(data: ThermalReceiptData) {
           ${data.paymentMode ? `<div>Payment: ${data.paymentMode}</div>` : ''}
           ${data.customerName ? `<div>Name: ${data.customerName}</div>` : ''}
           ${data.phone ? `<div>Tel: ${formatPhoneDisplay(data.phone)}</div>` : ''}
+          ${data.customerGstin ? `<div>GSTIN: ${data.customerGstin}</div>` : ''}
         </div>
 
         ${data.isCredit ? `
@@ -234,10 +239,21 @@ export function printThermalReceipt(data: ThermalReceiptData) {
               <tr>
                 <td class="text-left">Paid from Scheme${data.schemeNumber ? ` (${data.schemeNumber})` : ''}</td>
                 <td class="text-right">-${formatCurrency(data.schemeAmountUsed || 0)}</td>
-              </tr>
+              </tr>` : ''}
+            ${(data.advanceAmountUsed || 0) > 0 ? `
+              <tr>
+                <td class="text-left">Advance Adjusted</td>
+                <td class="text-right">-${formatCurrency(data.advanceAmountUsed || 0)}</td>
+              </tr>` : ''}
+            ${(data.exchangeAmount || 0) > 0 ? `
+              <tr>
+                <td class="text-left">Old Gold Exchange</td>
+                <td class="text-right">-${formatCurrency(data.exchangeAmount || 0)}</td>
+              </tr>` : ''}
+            ${(data.schemeAmountUsed || 0) + (data.advanceAmountUsed || 0) + (data.exchangeAmount || 0) > 0 ? `
               <tr class="font-bold">
-                <td class="text-left">Balance Paid</td>
-                <td class="text-right">${formatCurrency(Math.max(0, data.total - (data.schemeAmountUsed || 0)))}</td>
+                <td class="text-left">Amount Paid</td>
+                <td class="text-right">${formatCurrency(Math.max(0, data.total - (data.schemeAmountUsed || 0) - (data.advanceAmountUsed || 0) - (data.exchangeAmount || 0)))}</td>
               </tr>
             ` : ''}
             ${data.schemeNumber && data.schemeBalanceAfter != null ? `

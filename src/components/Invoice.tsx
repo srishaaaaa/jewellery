@@ -50,6 +50,11 @@ export interface InvoiceProps {
   schemeDiscount?: number
   schemeAmountUsed?: number
   schemeBalanceAfter?: number | null
+  /** Customer advance adjusted on this bill */
+  advanceAmountUsed?: number
+  /** Value of old gold taken in exchange on this bill */
+  exchangeAmount?: number
+  customerGstin?: string | null
   onPrintReceipt?: () => void
 }
 
@@ -59,6 +64,7 @@ const JewelleryLineDetails: React.FC<{ j: JewellerySnapshot }> = ({ j }) => {
   const weightParts = [
     j.gross_weight > 0 ? `Gross ${formatWeight(j.gross_weight)}` : '',
     j.stone_weight > 0 ? `Stone ${formatWeight(j.stone_weight)}` : '',
+    j.other_weight ? `Other ${formatWeight(j.other_weight)}` : '',
     j.net_weight > 0 ? `Net ${formatWeight(j.net_weight)}` : '',
     j.rate_per_gram > 0 ? `Rate ${formatCurrency(j.rate_per_gram)}/g` : '',
   ].filter(Boolean)
@@ -74,6 +80,9 @@ const JewelleryLineDetails: React.FC<{ j: JewellerySnapshot }> = ({ j }) => {
       <div style={{ fontWeight: 700, color: '#374151' }}>{idParts.join(' · ')}</div>
       {weightParts.length > 0 && <div>{weightParts.join(' · ')}</div>}
       {chargeParts.length > 0 && <div>{chargeParts.join(' · ')}</div>}
+      {(j.stone_summary || j.hallmark_status === 'hallmarked') && (
+        <div>{[j.stone_summary ? `Stones: ${j.stone_summary}` : '', j.hallmark_status === 'hallmarked' ? 'BIS Hallmarked' : ''].filter(Boolean).join(' · ')}</div>
+      )}
     </div>
   )
 }
@@ -103,6 +112,9 @@ export const Invoice: React.FC<InvoiceProps> = ({
   schemeDiscount = 0,
   schemeAmountUsed = 0,
   schemeBalanceAfter,
+  advanceAmountUsed = 0,
+  exchangeAmount = 0,
+  customerGstin,
   onPrintReceipt,
 }) => {
   const formattedInvoiceNo = formatInvoiceNo(invoiceNo)
@@ -180,6 +192,12 @@ export const Invoice: React.FC<InvoiceProps> = ({
               {shopEmail && <span>✉️ {shopEmail}</span>}
               {shopInstagram && <span>📷 @{shopInstagram}</span>}
             </div>
+            {(storeSettings?.gstin || storeSettings?.stateName) && (
+              <div style={{ fontSize: 11, color: '#4b5563', marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap', fontWeight: 700 }}>
+                {storeSettings?.gstin && <span>GSTIN: {storeSettings.gstin}</span>}
+                {storeSettings?.stateName && <span>State: {storeSettings.stateName}{storeSettings.stateCode ? ` (Code ${storeSettings.stateCode})` : ''}</span>}
+              </div>
+            )}
           </div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -207,6 +225,7 @@ export const Invoice: React.FC<InvoiceProps> = ({
         <div style={{ fontSize: 9, fontWeight: 800, color: '#888', textTransform: 'uppercase', letterSpacing: 0.7, marginTop: 6 }}>Mobile Number</div>
         <div style={{ fontSize: 12, color: '#555', lineHeight: 1.4, wordBreak: 'break-word' }}>{phone ? formatPhoneDisplay(phone) : '—'}</div>
         {address && <div style={{ fontSize: 11, color: '#777', marginTop: 4, lineHeight: 1.4, wordBreak: 'break-word' }}>Address: {address}</div>}
+        {customerGstin && <div style={{ fontSize: 11, color: '#555', marginTop: 4, fontWeight: 700 }}>GSTIN: {customerGstin}</div>}
       </div>
 
       {/* ── ITEMS TABLE ──────────────────────────────────────────── */}
@@ -313,15 +332,29 @@ export const Invoice: React.FC<InvoiceProps> = ({
               <span style={{ fontSize: 15, fontWeight: 900, color: isUnpaidCredit ? '#B91C1C' : '#0A0A0A', textTransform: 'uppercase', letterSpacing: 0.5 }}>{isUnpaidCredit ? 'Amount Due' : 'Total'}</span>
               <span style={{ fontSize: 20, fontWeight: 900, color: isUnpaidCredit ? '#B91C1C' : '#0A0A0A' }}>{formatCurrency(total)}</span>
             </div>
-            {schemeAmountUsed > 0 && (
+            {(schemeAmountUsed > 0 || advanceAmountUsed > 0 || exchangeAmount > 0) && (
               <>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-                  <span style={{ fontSize: 12, color: 'var(--accent-dark)' }}>Paid from Scheme{schemeNumber ? ` (${schemeNumber})` : ''}</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-dark)' }}>−{formatCurrency(schemeAmountUsed)}</span>
-                </div>
+                {schemeAmountUsed > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
+                    <span style={{ fontSize: 12, color: 'var(--accent-dark)' }}>Paid from Scheme{schemeNumber ? ` (${schemeNumber})` : ''}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-dark)' }}>−{formatCurrency(schemeAmountUsed)}</span>
+                  </div>
+                )}
+                {advanceAmountUsed > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                    <span style={{ fontSize: 12, color: 'var(--accent-dark)' }}>Advance Adjusted</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-dark)' }}>−{formatCurrency(advanceAmountUsed)}</span>
+                  </div>
+                )}
+                {exchangeAmount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                    <span style={{ fontSize: 12, color: 'var(--accent-dark)' }}>Old Gold Exchange</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-dark)' }}>−{formatCurrency(exchangeAmount)}</span>
+                  </div>
+                )}
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                  <span style={{ fontSize: 13, fontWeight: 900, color: '#0A0A0A' }}>Balance Paid</span>
-                  <span style={{ fontSize: 14, fontWeight: 900, color: '#0A0A0A' }}>{formatCurrency(Math.max(0, total - schemeAmountUsed))}</span>
+                  <span style={{ fontSize: 13, fontWeight: 900, color: '#0A0A0A' }}>Amount Paid</span>
+                  <span style={{ fontSize: 14, fontWeight: 900, color: '#0A0A0A' }}>{formatCurrency(Math.max(0, total - schemeAmountUsed - advanceAmountUsed - exchangeAmount))}</span>
                 </div>
               </>
             )}

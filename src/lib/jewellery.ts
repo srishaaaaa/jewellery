@@ -216,11 +216,88 @@ export interface JewelleryAttributes {
   huid: string
   designNumber: string
   subcategory: string
+  otherWeight?: number
+  hallmarkStatus?: HallmarkStatus | null
+  stoneDetails?: StoneDetails | null
 }
 
-/** Net weight = gross - stone, never below zero. */
-export const calculateNetWeight = (gross: number, stone: number) =>
-  Math.max(0, roundTo(toNumber(gross, 0) - toNumber(stone, 0), 3))
+/** Net metal weight = gross - stone - other (non-metal) weight, never below zero. */
+export const calculateNetWeight = (gross: number, stone: number, other = 0) =>
+  Math.max(0, roundTo(toNumber(gross, 0) - toNumber(stone, 0) - toNumber(other, 0), 3))
+
+// ── Hallmark & stones ─────────────────────────────────────────────────────
+export type HallmarkStatus = 'hallmarked' | 'not_hallmarked' | 'pending'
+export const HALLMARK_LABELS: Record<HallmarkStatus, string> = {
+  hallmarked: 'Hallmarked',
+  not_hallmarked: 'Not hallmarked',
+  pending: 'Hallmarking pending',
+}
+export const normalizeHallmarkStatus = (v: unknown): HallmarkStatus | null =>
+  v === 'hallmarked' || v === 'not_hallmarked' || v === 'pending' ? v : null
+
+/** Optional stone / diamond details of an item. */
+export interface StoneDetails {
+  type: string
+  count: number
+  value: number
+  carat: number
+  clarity: string
+  colour: string
+  cut: string
+  certificate: string
+}
+
+export const EMPTY_STONE_DETAILS: StoneDetails = { type: '', count: 0, value: 0, carat: 0, clarity: '', colour: '', cut: '', certificate: '' }
+
+export const normalizeStoneDetails = (raw: unknown): StoneDetails | null => {
+  if (!raw || typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  const d: StoneDetails = {
+    type: String(r.type || '').trim(),
+    count: Math.max(0, Math.round(toNumber(r.count, 0))),
+    value: Math.max(0, toNumber(r.value, 0)),
+    carat: Math.max(0, toNumber(r.carat, 0)),
+    clarity: String(r.clarity || '').trim(),
+    colour: String(r.colour || '').trim(),
+    cut: String(r.cut || '').trim(),
+    certificate: String(r.certificate || '').trim(),
+  }
+  return d.type || d.count || d.value || d.carat || d.clarity || d.colour || d.cut || d.certificate ? d : null
+}
+
+/** "Diamond × 12, 0.45 ct, VS1, F, Excellent, Cert IGI123". */
+export const describeStones = (d: StoneDetails | null | undefined) => {
+  if (!d) return ''
+  return [
+    d.type ? `${d.type}${d.count ? ` × ${d.count}` : ''}` : d.count ? `${d.count} stones` : '',
+    d.carat ? `${d.carat} ct` : '', d.clarity, d.colour, d.cut, d.certificate ? `Cert ${d.certificate}` : '',
+  ].filter(Boolean).join(', ')
+}
+
+// ── Old gold exchange ─────────────────────────────────────────────────────
+export type OldGoldInput = {
+  netWeight: number
+  /** Melting / wastage loss deducted from the weight, in % */
+  meltingDeductionPercent: number
+  /** Exchange rate per gram for the metal as tested */
+  exchangeRate: number
+  /** Any other deduction in ₹ */
+  otherDeduction: number
+}
+
+/** Value of old metal taken in exchange: (net weight − melting loss) × rate − other deduction. */
+export const calculateOldGoldValue = (input: OldGoldInput) => {
+  const net = Math.max(0, toNumber(input.netWeight, 0))
+  const melting = Math.min(100, Math.max(0, toNumber(input.meltingDeductionPercent, 0)))
+  const effectiveWeight = roundTo(net * (1 - melting / 100), 3)
+  const gross = roundTo(effectiveWeight * Math.max(0, toNumber(input.exchangeRate, 0)), 2)
+  const value = Math.max(0, roundTo(gross - Math.max(0, toNumber(input.otherDeduction, 0)), 2))
+  return { effectiveWeight, grossValue: gross, value }
+}
+
+/** Exchange rate for old gold of a tested purity (%), based on the 24K rate. */
+export const oldGoldRateFromPurity = (rate24k: number, testedPurityPercent: number) =>
+  roundTo(Math.max(0, rate24k) * Math.min(100, Math.max(0, testedPurityPercent)) / 99.9, 2)
 
 export type PriceInput = {
   netWeight: number
@@ -299,6 +376,10 @@ export interface JewellerySnapshot {
   barcode: string | null
   design_number: string | null
   priced_at: string
+  /** Optional extras (newer bills) */
+  other_weight?: number
+  hallmark_status?: HallmarkStatus | null
+  stone_summary?: string | null
 }
 
 export type JewelleryPricingResult =
@@ -317,7 +398,7 @@ export const priceJewelleryItem = (
   now: Date = new Date(),
 ): JewelleryPricingResult => {
   if (!attrs.metalType) return { ok: false, error: 'Item has no metal type.' }
-  const net = attrs.netWeight > 0 ? attrs.netWeight : calculateNetWeight(attrs.grossWeight, attrs.stoneWeight)
+  const net = attrs.netWeight > 0 ? attrs.netWeight : calculateNetWeight(attrs.grossWeight, attrs.stoneWeight, attrs.otherWeight || 0)
 
   let ratePerGram = 0
   let rateSource: JewellerySnapshot['rate_source'] = 'fixed'
@@ -381,6 +462,9 @@ export const priceJewelleryItem = (
       barcode: ids.barcode || null,
       design_number: attrs.designNumber || null,
       priced_at: now.toISOString(),
+      ...(attrs.otherWeight ? { other_weight: roundTo(attrs.otherWeight, 3) } : {}),
+      ...(attrs.hallmarkStatus ? { hallmark_status: attrs.hallmarkStatus } : {}),
+      ...(attrs.stoneDetails ? { stone_summary: describeStones(attrs.stoneDetails) } : {}),
     },
   }
 }
@@ -418,6 +502,9 @@ export const readJewellerySnapshot = (raw: unknown): JewellerySnapshot | null =>
     barcode: text(r.barcode),
     design_number: text(r.design_number),
     priced_at: String(r.priced_at || ''),
+    other_weight: toNumber(r.other_weight, 0) || undefined,
+    hallmark_status: normalizeHallmarkStatus(r.hallmark_status),
+    stone_summary: text(r.stone_summary),
   }
 }
 
@@ -472,7 +559,25 @@ export const BENEFIT_TYPE_LABELS: Record<SchemeBenefitType, string> = {
   both: 'Making + Wastage Discount',
 }
 
+/** A scheme plan set up by the admin; staff enrol customers on these. */
+export interface SchemeType {
+  id: string
+  name: string
+  frequency: SchemeFrequency
+  amount: number
+  installments: number
+  durationMonths: number
+  benefitType: SchemeBenefitType
+  makingBenefitValue: number
+  makingBenefitUnit: BenefitUnit
+  wastageBenefitValue: number
+  wastageBenefitUnit: BenefitUnit
+  active: boolean
+}
+
 export interface SchemeRules {
+  /** Scheme plans offered to customers. A customer's scheme keeps its own copy of the terms. */
+  types: SchemeType[]
   minInstallments: number
   maxInstallments: number
   minMonthlyAmount: number
@@ -493,6 +598,7 @@ export interface SchemeRules {
 }
 
 export const DEFAULT_SCHEME_RULES: SchemeRules = {
+  types: [],
   minInstallments: 1,
   maxInstallments: 24,
   minMonthlyAmount: 500,
@@ -518,7 +624,24 @@ export const normalizeSchemeRules = (raw: unknown): SchemeRules => {
   const d = DEFAULT_SCHEME_RULES
   const int = (v: unknown, fb: number) => Math.max(0, Math.round(toNumber(v, fb)))
   const bool = (v: unknown, fb: boolean) => (typeof v === 'boolean' ? v : fb)
+  const types: SchemeType[] = Array.isArray(r.types)
+    ? (r.types as Array<Record<string, unknown>>).filter((t) => t && typeof t === 'object' && String(t.name || '').trim()).map((t, i) => ({
+        id: String(t.id || `type-${i}`),
+        name: String(t.name).trim(),
+        frequency: normalizeFrequency(t.frequency),
+        amount: Math.max(0, toNumber(t.amount, 0)),
+        installments: Math.max(1, Math.round(toNumber(t.installments, 1))),
+        durationMonths: Math.max(1, Math.round(toNumber(t.durationMonths, 1))),
+        benefitType: benefitTypeOf(t.benefitType, 'making'),
+        makingBenefitValue: Math.max(0, toNumber(t.makingBenefitValue, 0)),
+        makingBenefitUnit: unitOf(t.makingBenefitUnit, 'percent'),
+        wastageBenefitValue: Math.max(0, toNumber(t.wastageBenefitValue, 0)),
+        wastageBenefitUnit: unitOf(t.wastageBenefitUnit, 'percent'),
+        active: t.active !== false,
+      }))
+    : []
   return {
+    types,
     minInstallments: Math.max(1, int(r.minInstallments, d.minInstallments)),
     maxInstallments: Math.max(1, int(r.maxInstallments, d.maxInstallments)),
     minMonthlyAmount: Math.max(0, toNumber(r.minMonthlyAmount, d.minMonthlyAmount)),
@@ -732,6 +855,29 @@ export const calculateSchemeBenefit = (
   return { makingTotal, wastageTotal, makingDiscount, wastageDiscount, total: roundTo(makingDiscount + wastageDiscount, 2) }
 }
 
+/** Status of one installment as shown to staff. */
+export type InstallmentDisplayStatus = 'paid' | 'due' | 'overdue' | 'upcoming' | 'cancelled'
+
+export const INSTALLMENT_STATUS_LABELS: Record<InstallmentDisplayStatus, string> = {
+  paid: 'Paid',
+  due: 'Due',
+  overdue: 'Overdue',
+  upcoming: 'Upcoming',
+  cancelled: 'Cancelled',
+}
+
+export const installmentDisplayStatus = (
+  i: { status: 'pending' | 'paid'; dueDate: string },
+  schemeStatus: SchemeStoredStatus,
+  today: string = localIsoDate(),
+): InstallmentDisplayStatus => {
+  if (i.status === 'paid') return 'paid'
+  if (schemeStatus === 'cancelled') return 'cancelled'
+  if (i.dueDate < today) return 'overdue'
+  if (i.dueDate === today) return 'due'
+  return 'upcoming'
+}
+
 export const describeSchemeBenefit = (
   s: Pick<JewelleryScheme, 'benefitType' | 'makingBenefitValue' | 'makingBenefitUnit' | 'wastageBenefitValue' | 'wastageBenefitUnit'>,
   money: (n: number) => string,
@@ -801,4 +947,21 @@ export const installmentsDueCount = (
     else break
   }
   return due
+}
+
+/** Unpaid installments split into overdue (before today) and due today. */
+export const installmentDueBreakdown = (
+  s: Pick<JewelleryScheme, 'status' | 'startDate' | 'installmentsPaid' | 'totalInstallments'> & { frequency?: SchemeFrequency },
+  today: string = localIsoDate(),
+) => {
+  let overdue = 0
+  let dueToday = 0
+  if (s.status !== 'active') return { overdue, dueToday }
+  for (let k = s.installmentsPaid + 1; k <= s.totalInstallments; k++) {
+    const due = installmentDueDate(s.startDate, k, s.frequency || 'monthly')
+    if (due < today) overdue++
+    else if (due === today) dueToday++
+    else break
+  }
+  return { overdue, dueToday }
 }

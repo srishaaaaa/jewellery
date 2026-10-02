@@ -3,6 +3,7 @@ import { CalendarDays, Gem, PiggyBank, Receipt, Search, ShoppingBag, Wallet } fr
 import { supabase } from '../../lib/supabase'
 import { customerService, type CustomerRecord } from '../../services/customerService'
 import { schemeService } from '../../services/schemeService'
+import { advanceService, oldGoldService, repairService, returnService, REPAIR_STATUS_LABELS, type CustomerAdvance, type OldGoldRecord, type Repair, type SalesReturn } from '../../services/salesDeskService'
 import { formatPhoneDisplay } from '../../lib/phone'
 import { formatCurrency, formatInvoiceNo, normalizeStructuredOrderItem, toNumber } from '../../lib/retail'
 import {
@@ -37,6 +38,10 @@ export default function JewelleryCustomerProfile() {
   const [selected, setSelected] = useState<CustomerRecord | null>(null)
   const [orders, setOrders] = useState<ProfileOrder[]>([])
   const [schemes, setSchemes] = useState<JewelleryScheme[]>([])
+  const [advances, setAdvances] = useState<CustomerAdvance[]>([])
+  const [oldGold, setOldGold] = useState<OldGoldRecord[]>([])
+  const [returns, setReturns] = useState<SalesReturn[]>([])
+  const [repairs, setRepairs] = useState<Repair[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -71,6 +76,17 @@ export default function JewelleryCustomerProfile() {
         items: (Array.isArray(o.items) ? o.items : []).map((item: Record<string, unknown>) => normalizeStructuredOrderItem(item)),
       })))
       setSchemes(schemeList)
+      // Sales Desk records (empty before the database update)
+      const [adv, og, rep, ret] = await Promise.all([
+        advanceService.listByPhone(customer.phone),
+        oldGoldService.listByPhone(customer.phone),
+        repairService.listByPhone(customer.phone),
+        returnService.list().then((all) => all.filter((r) => r.phone === customer.phone)).catch(() => [] as SalesReturn[]),
+      ])
+      setAdvances(adv)
+      setOldGold(og)
+      setRepairs(rep)
+      setReturns(ret)
     } catch (err) {
       setError((err as { message?: string })?.message || 'Unable to load the customer profile')
     } finally {
@@ -112,6 +128,8 @@ export default function JewelleryCustomerProfile() {
     ['Total Scheme Deposits', formatCurrency(profile.deposits), Wallet, 'text-amber-700 bg-amber-50'],
     ['Pending Installments', `${profile.pendingInstallments}${profile.overdueInstallments ? ` (${profile.overdueInstallments} due)` : ''}`, Receipt, 'text-red-700 bg-red-50'],
     ['Last Purchase', fmtDate(profile.lastPurchase), CalendarDays, 'text-slate-700 bg-slate-100'],
+    ['Advance Balance', formatCurrency(advances.filter((a) => a.status === 'active').reduce((sum, a) => sum + a.balance, 0)), Wallet, 'text-emerald-700 bg-emerald-50'],
+    ['Repairs In Progress', repairs.filter((r) => r.status !== 'delivered' && r.status !== 'cancelled').length, Receipt, 'text-amber-700 bg-amber-50'],
   ] as const
 
   return (
@@ -219,6 +237,91 @@ export default function JewelleryCustomerProfile() {
                           ))}
                         </td>
                         <td className="px-3 py-2.5 font-black">{formatCurrency(o.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[#ECE9E2] bg-white shadow-sm">
+              <h4 className="px-4 pt-4 text-sm font-black text-[#273126]">Advances</h4>
+              <div className="overflow-x-auto p-4 pt-3">
+                <table className="w-full text-left text-xs whitespace-nowrap">
+                  <thead className="bg-[#F8F7F4] text-[10px] font-black uppercase tracking-wider text-[#737B72]">
+                    <tr>{['Receipt', 'Date', 'Purpose', 'Amount', 'Balance', 'Status'].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#F0EEE9]">
+                    {advances.length === 0 ? (
+                      <tr><td colSpan={6} className="px-3 py-6 text-center text-[#6B7280]">No advances.</td></tr>
+                    ) : advances.map((a) => (
+                      <tr key={a.id}>
+                        <td className="px-3 py-2.5 font-bold text-[var(--accent-dark)]">{a.receiptNumber}</td>
+                        <td className="px-3 py-2.5">{fmtDate(a.createdAt)}</td>
+                        <td className="px-3 py-2.5">{a.purpose || (a.source === 'exchange' ? 'Exchange credit' : '—')}</td>
+                        <td className="px-3 py-2.5">{formatCurrency(a.amount)}</td>
+                        <td className="px-3 py-2.5 font-black">{formatCurrency(a.balance)}</td>
+                        <td className="px-3 py-2.5">{a.status === 'active' ? 'Available' : a.status === 'used' ? 'Used' : 'Cancelled'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[#ECE9E2] bg-white shadow-sm">
+              <h4 className="px-4 pt-4 text-sm font-black text-[#273126]">Exchanges & Returns</h4>
+              <div className="overflow-x-auto p-4 pt-3">
+                <table className="w-full text-left text-xs whitespace-nowrap">
+                  <thead className="bg-[#F8F7F4] text-[10px] font-black uppercase tracking-wider text-[#737B72]">
+                    <tr>{['No', 'Date', 'Invoice', 'Details', 'Value'].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#F0EEE9]">
+                    {oldGold.length + returns.length === 0 ? (
+                      <tr><td colSpan={5} className="px-3 py-6 text-center text-[#6B7280]">No exchanges or returns.</td></tr>
+                    ) : <>
+                      {oldGold.map((g) => (
+                        <tr key={g.id}>
+                          <td className="px-3 py-2.5 font-bold text-[var(--accent-dark)]">{g.exchangeNumber}</td>
+                          <td className="px-3 py-2.5">{fmtDate(g.createdAt)}</td>
+                          <td className="px-3 py-2.5">{g.invoiceNo ? formatInvoiceNo(g.invoiceNo) : '—'}</td>
+                          <td className="px-3 py-2.5">Old {g.metalType} {g.purity} • Net {formatWeight(g.netWeight)}</td>
+                          <td className="px-3 py-2.5 font-black">{formatCurrency(g.netValue)}</td>
+                        </tr>
+                      ))}
+                      {returns.map((r) => (
+                        <tr key={r.id}>
+                          <td className="px-3 py-2.5 font-bold text-[var(--accent-dark)]">{r.returnNumber}</td>
+                          <td className="px-3 py-2.5">{fmtDate(r.createdAt)}</td>
+                          <td className="px-3 py-2.5">{formatInvoiceNo(r.invoiceNo)}</td>
+                          <td className="px-3 py-2.5">{r.returnType === 'exchange' ? 'Exchange' : 'Return'} • {r.items.map((l) => `${l.name} × ${l.quantity}`).join(', ')} • {r.status}</td>
+                          <td className="px-3 py-2.5 font-black">{formatCurrency(r.refundAmount)}</td>
+                        </tr>
+                      ))}
+                    </>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-[#ECE9E2] bg-white shadow-sm">
+              <h4 className="px-4 pt-4 text-sm font-black text-[#273126]">Repairs</h4>
+              <div className="overflow-x-auto p-4 pt-3">
+                <table className="w-full text-left text-xs whitespace-nowrap">
+                  <thead className="bg-[#F8F7F4] text-[10px] font-black uppercase tracking-wider text-[#737B72]">
+                    <tr>{['Repair', 'Received', 'Item', 'Expected', 'Balance', 'Status'].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#F0EEE9]">
+                    {repairs.length === 0 ? (
+                      <tr><td colSpan={6} className="px-3 py-6 text-center text-[#6B7280]">No repairs.</td></tr>
+                    ) : repairs.map((r) => (
+                      <tr key={r.id}>
+                        <td className="px-3 py-2.5 font-bold text-[var(--accent-dark)]">{r.repairNumber}</td>
+                        <td className="px-3 py-2.5">{fmtDate(r.receivedDate)}</td>
+                        <td className="px-3 py-2.5">{r.itemName}</td>
+                        <td className="px-3 py-2.5">{fmtDate(r.expectedDate)}</td>
+                        <td className="px-3 py-2.5 font-black">{formatCurrency(r.balance)}</td>
+                        <td className="px-3 py-2.5">{REPAIR_STATUS_LABELS[r.status]}</td>
                       </tr>
                     ))}
                   </tbody>

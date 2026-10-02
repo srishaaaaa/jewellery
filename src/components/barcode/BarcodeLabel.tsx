@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react'
 import { renderBarcodeSvg } from '../../lib/barcode'
 import { BRAND_EN } from '../../lib/brand'
 import { formatCurrency } from '../../lib/retail'
+import type { JewelleryTagInfo } from './BarcodePrintModal'
 
 export interface BarcodeLabelProps {
   productName: string
@@ -12,6 +13,7 @@ export interface BarcodeLabelProps {
   storeName?: string
   widthMm?: number
   heightMm?: number
+  jewelleryTag?: JewelleryTagInfo | null
 }
 
 export const BarcodeLabel: React.FC<BarcodeLabelProps> = ({
@@ -23,6 +25,7 @@ export const BarcodeLabel: React.FC<BarcodeLabelProps> = ({
   storeName = BRAND_EN,
   widthMm = 50,
   heightMm = 30,
+  jewelleryTag,
 }) => {
   const svgRef = useRef<SVGSVGElement>(null)
   const isSmall = heightMm <= 25
@@ -82,6 +85,11 @@ export const BarcodeLabel: React.FC<BarcodeLabelProps> = ({
         >
           {fullTitle}
         </div>
+        {jewelleryTag && (
+          <div className="font-black text-black truncate max-w-full" style={{ fontSize: isSmall ? '6px' : isLarge ? '8.5px' : '7px', marginTop: '0.3mm' }}>
+            {[jewelleryTag.purity, `G ${jewelleryTag.grossWeight.toFixed(3)}g`, `N ${jewelleryTag.netWeight.toFixed(3)}g`].filter(Boolean).join(' · ')}
+          </div>
+        )}
       </div>
 
       {/* Barcode Graphic Box */}
@@ -99,21 +107,28 @@ export const BarcodeLabel: React.FC<BarcodeLabelProps> = ({
           paddingTop: isSmall ? '0.4mm' : '0.6mm',
         }}
       >
-        {mrp && mrp > price ? (
+        {jewelleryTag ? (
+          <>
+            <span className="text-gray-700 font-bold truncate" style={{ fontSize: isSmall ? '6px' : isLarge ? '8.5px' : '7px' }}>{jewelleryTag.sku ? `SKU ${jewelleryTag.sku}` : ''}</span>
+            <span className="text-gray-700 font-bold truncate" style={{ fontSize: isSmall ? '6px' : isLarge ? '8.5px' : '7px' }}>{jewelleryTag.huid ? `HUID ${jewelleryTag.huid}` : ''}</span>
+          </>
+        ) : mrp && mrp > price ? (
           <span className="text-gray-500 line-through" style={{ fontSize: isSmall ? '6px' : isLarge ? '8.5px' : '7.5px' }}>
             MRP {formatCurrency(mrp)}
           </span>
         ) : (
           <span className="text-gray-600 font-bold" style={{ fontSize: isSmall ? '6px' : isLarge ? '8.5px' : '7px' }}>
-            {storeName} RETAIL
+            {storeName}
           </span>
         )}
+        {!jewelleryTag && (
         <span
           className="font-black text-black"
           style={{ fontSize: isSmall ? '8.5px' : isLarge ? '12px' : '10px' }}
         >
           {formatCurrency(price)}
         </span>
+        )}
       </div>
     </div>
   )

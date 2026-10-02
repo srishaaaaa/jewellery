@@ -697,6 +697,10 @@ export const InventoryTable: React.FC = () => {
           price={printModalItem.price}
           mrp={printModalItem.offer_price}
           defaultQuantity={Math.max(1, printModalItem.stock)}
+          jewelleryTag={(() => {
+            const j = jewelleryOf(printModalItem)
+            return j ? { purity: metalLabel(j.metalType, j.purity), grossWeight: j.grossWeight || 0, netWeight: j.netWeight || 0, sku: j.sku, huid: j.huid } : null
+          })()}
         />
       )}
 

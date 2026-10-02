@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { auditService, currentUserName } from '../../services/auditService'
 import {
   X,
   SlidersHorizontal,
@@ -167,8 +168,9 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
         new_quantity: effectiveNewStock,
         reason: cfg.reason,
         note: note.trim() || undefined,
-        created_by_name: 'Admin',
+        created_by_name: currentUserName(),
       })
+      void auditService.log({ action: 'stock_adjusted', entityType: 'stock', entityId: item.variant_name ? `${item.name} (${item.variant_name})` : item.name, oldValue: { stock: currentStock }, newValue: { stock: effectiveNewStock, reason: cfg.reason }, note: note.trim() })
 
       play('success')
       onSuccess?.()
