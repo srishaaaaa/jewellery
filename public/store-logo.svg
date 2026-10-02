@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="t">
-  <title id="t">Jewellery Store</title>
-  <rect width="512" height="512" rx="256" fill="#0A0A0A"/>
-  <g fill="none" stroke="#D4AF37" stroke-width="18" stroke-linejoin="round">
-    <path d="M156 196h200l52 52-152 156-152-156z"/>
-    <path d="M104 248h304M196 196l-24 52 84 156 84-156-24-52M256 196v52"/>
-  </g>
-</svg>

@@ -10,7 +10,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
       includeAssets: [
-        'store-logo.svg',
+        'nandi-logo.jpeg',
+        'nandi-logo-192.jpeg',
         'product-placeholder.svg',
         'robots.txt',
       ],
@@ -25,18 +26,9 @@ export default defineConfig({
         start_url: '/',
         scope: '/',
         icons: [
-          {
-            src: '/store-logo.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'any',
-          },
-          {
-            src: '/store-logo.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'maskable',
-          },
+          { src: '/nandi-logo-192.jpeg', sizes: '192x192', type: 'image/jpeg', purpose: 'any' },
+          { src: '/nandi-logo.jpeg', sizes: '512x512', type: 'image/jpeg', purpose: 'any' },
+          { src: '/nandi-logo.jpeg', sizes: '512x512', type: 'image/jpeg', purpose: 'maskable' },
         ],
       },
       workbox: {

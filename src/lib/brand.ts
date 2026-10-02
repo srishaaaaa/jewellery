@@ -2,10 +2,10 @@
 export const BRAND_EN = 'NANDI JEWELLERS'
 export const BRAND_TA = 'NANDI JEWELLERS'
 export const BRAND_SHORT = 'Nandi Jewellers'
-export const BRAND_SUBTITLE = 'Your Family Jewellery Store'
+export const BRAND_SUBTITLE = 'Blessed by God · Trusted by Families'
 /** Prefix for generated barcodes and export file names. */
 export const BRAND_MONOGRAM = 'NJ'
-export const BRAND_LOGO = '/store-logo.svg'
+export const BRAND_LOGO = '/nandi-logo.jpeg'
 /** Public site address for invoice links when VITE_SITE_URL is not set ('' = use the current site). */
 export const BRAND_PRODUCTION_DOMAIN = ''
 
