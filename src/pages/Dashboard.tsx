@@ -894,10 +894,8 @@ export default function Dashboard() {
       alert('Only the admin can delete an invoice. Record a return in Sales Desk instead.')
       return
     }
-    if (!window.confirm(`Are you sure you want to completely delete order ${formatInvoiceNo(invoiceNo)}? This cannot be undone.`)) return
+    if (!window.confirm(`Delete invoice ${formatInvoiceNo(invoiceNo)} completely?\n\nIt is removed from sales, revenue and reports, items go back to stock, and any scheme or advance amount used on it is given back. Its old gold, returns and advance order are removed too.\n\nThis cannot be undone.`)) return
     const before = orders.find(o => o.id === orderId) || searchResults.find(o => o.id === orderId)
-    // Clear FK reference in advance_orders first (if this order was created from an advance order)
-    await supabase.from('advance_orders').update({ completed_order_id: null }).eq('completed_order_id', orderId)
     const { error } = await supabase.from('orders').delete().eq('id', orderId)
     if (error) {
       alert(`Error deleting order: ${error.message}`)

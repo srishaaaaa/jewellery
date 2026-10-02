@@ -415,6 +415,23 @@ export default function Schemes() {
     }
   }
 
+  const deleteScheme = async () => {
+    if (!detail || !isAdmin) return
+    if (!window.confirm(`Delete scheme ${detail.schemeNumber} of ${detail.customerName || detail.phone}? This cannot be undone.`)) return
+    setSaving(true)
+    try {
+      await schemeService.remove(detail.id)
+      void auditService.log({ action: 'scheme_deleted', entityType: 'scheme', entityId: detail.schemeNumber, oldValue: { customer: detail.customerName, phone: detail.phone, plan: detail.schemeName, amount: detail.monthlyAmount } })
+      setSchemes((rows) => rows.filter((row) => row.id !== detail.id))
+      setDetail(null)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Unable to delete the scheme'))
+      setDetail(null)
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const submitCancel = async () => {
     if (!detail) return
     if (!cancelReason.trim()) { setModalError('Enter the reason for cancelling.'); return }
@@ -927,6 +944,13 @@ export default function Schemes() {
                 <p key={idx} className="rounded-xl bg-[#F8F7F4] p-2.5 text-xs">{fmtDate(String(t.at || ''))}: {String(t.from_name || '')} ({String(t.from_phone || '')}) → {String(t.to_name || '')} ({String(t.to_phone || '')}) by {String(t.by || '')}</p>
               ))}
             </div>
+          </div>
+        )}
+
+        {isAdmin && detail.installmentsPaid === 0 && detail.totalPaid === 0 && detail.amountRedeemed === 0 && !detail.benefitUsed && (
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50/50 p-4">
+            <p className="text-xs font-semibold text-red-700">No payments yet — this scheme can be deleted if it was created by mistake.</p>
+            <button onClick={() => void deleteScheme()} disabled={saving} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-black text-white disabled:opacity-50">Delete scheme</button>
           </div>
         )}
 

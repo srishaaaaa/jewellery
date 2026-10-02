@@ -118,12 +118,10 @@ export async function listAdvanceOrders(): Promise<AdvanceOrder[]> {
       if (error) {
         console.error('[listAdvanceOrders] Supabase error:', error.message)
       } else if (Array.isArray(data)) {
+        // The database is the source of truth: orders deleted there (or removed with their bill) must not come back from this device's copy.
         const remote = data.map(row => normalizeOrder(row as Record<string, unknown>))
-        const remoteIds = new Set(remote.map(r => r.id))
-        const localOnly = local.filter(l => !remoteIds.has(l.id))
-        const merged = [...remote, ...localOnly].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-        saveLocalOrders(merged)
-        return merged
+        saveLocalOrders(remote)
+        return remote
       }
     } catch (err) { console.error('[listAdvanceOrders] Exception:', err) }
   }
@@ -132,10 +130,9 @@ export async function listAdvanceOrders(): Promise<AdvanceOrder[]> {
 
 export async function deleteAdvanceOrder(orderId: string): Promise<void> {
   if (isSupabaseConfigured) {
-    try {
-      const { error } = await supabase.from('advance_orders').delete().eq('id', orderId)
-      if (error) console.error('[deleteAdvanceOrder] Supabase error:', error.message)
-    } catch (err) { console.error('[deleteAdvanceOrder] Exception:', err) }
+    // A failed delete must not look deleted on this device (it would come back on the next load).
+    const { error } = await supabase.from('advance_orders').delete().eq('id', orderId)
+    if (error) throw new Error(error.message || 'Unable to delete the advance order')
   }
 
   saveLocalOrders(loadLocalOrders().filter(o => o.id !== orderId))

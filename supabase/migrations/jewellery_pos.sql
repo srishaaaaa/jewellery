@@ -994,3 +994,111 @@ GRANT EXECUTE ON FUNCTION public.reverse_advance_usage(UUID) TO anon, authentica
 GRANT EXECUTE ON FUNCTION public.cancel_customer_advance(UUID, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.approve_sales_return(UUID, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reject_sales_return(UUID, TEXT) TO anon, authenticated;
+
+-- ============================================================================
+-- 18. Deleting a bill removes it everywhere
+--     Whatever the bill used or created is undone, so nothing deleted is left in
+--     balances, stock, records or revenue. (Stock sold on the bill itself is put
+--     back by orders_stock_trigger.)
+-- ============================================================================
+CREATE OR REPLACE FUNCTION public.orders_delete_cleanup()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  r RECORD;
+  v_item JSONB;
+  v_pid BIGINT;
+  v_vid UUID;
+  v_qty NUMERIC;
+  v_before NUMERIC;
+BEGIN
+  -- Tells the advance-order trigger below that this bill is already being deleted.
+  PERFORM set_config('jewellery.deleting_order', OLD.id::TEXT, TRUE);
+
+  -- Scheme balance / benefit used on this bill goes back to the scheme.
+  FOR r IN SELECT * FROM public.scheme_redemptions WHERE invoice_id = OLD.id AND status = 'applied' FOR UPDATE LOOP
+    UPDATE public.jewellery_schemes
+    SET amount_redeemed = GREATEST(0, amount_redeemed - r.amount_used),
+        benefit_used = CASE WHEN r.benefit_applied > 0 THEN FALSE ELSE benefit_used END,
+        status = CASE WHEN status = 'redeemed' THEN public.scheme_paid_status(maturity_date) ELSE status END,
+        updated_at = NOW()
+    WHERE id = r.scheme_id;
+    UPDATE public.scheme_redemptions SET status = 'reversed' WHERE id = r.id;
+  END LOOP;
+
+  -- Customer advance used on this bill becomes available again.
+  FOR r IN SELECT * FROM public.advance_usages WHERE order_id = OLD.id AND status = 'applied' FOR UPDATE LOOP
+    UPDATE public.customer_advances
+    SET amount_used = GREATEST(0, amount_used - r.amount),
+        status = CASE WHEN status = 'used' THEN 'active' ELSE status END,
+        updated_at = NOW()
+    WHERE id = r.advance_id;
+    UPDATE public.advance_usages SET status = 'reversed' WHERE id = r.id;
+  END LOOP;
+
+  -- Old gold taken on this bill.
+  DELETE FROM public.old_gold_exchanges WHERE order_id = OLD.id;
+
+  -- Returns of this bill: undo their restock and exchange credit, then remove them.
+  FOR r IN SELECT * FROM public.sales_returns WHERE order_id = OLD.id FOR UPDATE LOOP
+    IF r.status = 'approved' THEN
+      IF r.credit_advance_id IS NOT NULL THEN
+        IF EXISTS (SELECT 1 FROM public.customer_advances WHERE id = r.credit_advance_id AND amount_used > 0) THEN
+          RAISE EXCEPTION 'The exchange credit from return % was already used on another bill. Delete that bill first.', r.return_number;
+        END IF;
+        DELETE FROM public.advance_usages WHERE advance_id = r.credit_advance_id;
+        DELETE FROM public.customer_advances WHERE id = r.credit_advance_id;
+      END IF;
+      FOR v_item IN SELECT value FROM jsonb_array_elements(r.items) LOOP
+        CONTINUE WHEN LOWER(COALESCE(v_item->>'is_manual', 'false')) = 'true';
+        CONTINUE WHEN COALESCE(v_item->>'product_id', '') !~ '^[0-9]+$';
+        v_pid := (v_item->>'product_id')::BIGINT;
+        v_qty := CASE WHEN COALESCE(v_item->>'quantity', '') ~ '^[0-9]+(\.[0-9]+)?$' THEN (v_item->>'quantity')::NUMERIC ELSE 0 END;
+        CONTINUE WHEN v_qty <= 0;
+        -- Only items the return actually put back in stock.
+        CONTINUE WHEN NOT EXISTS (SELECT 1 FROM public.inventory_movements
+                                  WHERE reference_type = 'return' AND reference_id = r.return_number AND product_id = v_pid);
+        v_vid := NULL;
+        IF COALESCE(v_item->>'variant_id', '') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+          v_vid := (v_item->>'variant_id')::UUID;
+          UPDATE public.product_variants SET stock = stock - v_qty, updated_at = NOW() WHERE id = v_vid;
+        END IF;
+        SELECT stock_quantity INTO v_before FROM public.products WHERE id = v_pid FOR UPDATE;
+        CONTINUE WHEN NOT FOUND;
+        UPDATE public.products SET stock_quantity = COALESCE(v_before, 0) - v_qty, updated_at = NOW() WHERE id = v_pid;
+        INSERT INTO public.inventory_movements (product_id, variant_id, movement_type, quantity_delta, quantity_before, quantity_after, reference_type, reference_id, note, created_by_name)
+        VALUES (v_pid, CASE WHEN EXISTS (SELECT 1 FROM public.product_variants WHERE id = v_vid) THEN v_vid END,
+                'VOID', -v_qty, COALESCE(v_before, 0), COALESCE(v_before, 0) - v_qty,
+                'return', r.return_number, 'Return removed with bill ' || COALESCE(OLD.invoice_no, ''), 'POS');
+      END LOOP;
+    END IF;
+    DELETE FROM public.sales_returns WHERE id = r.id;
+  END LOOP;
+
+  -- The advance order this bill completed (its deposit is part of this bill).
+  DELETE FROM public.advance_orders WHERE completed_order_id = OLD.id;
+
+  RETURN OLD;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS orders_delete_cleanup ON public.orders;
+CREATE TRIGGER orders_delete_cleanup
+  BEFORE DELETE ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.orders_delete_cleanup();
+
+-- Deleting a completed advance order also deletes the bill it produced.
+CREATE OR REPLACE FUNCTION public.advance_orders_delete_cleanup()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF OLD.completed_order_id IS NOT NULL
+     AND COALESCE(current_setting('jewellery.deleting_order', TRUE), '') <> OLD.completed_order_id::TEXT THEN
+    DELETE FROM public.orders WHERE id = OLD.completed_order_id;
+  END IF;
+  RETURN OLD;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS advance_orders_delete_cleanup ON public.advance_orders;
+CREATE TRIGGER advance_orders_delete_cleanup
+  AFTER DELETE ON public.advance_orders
+  FOR EACH ROW EXECUTE FUNCTION public.advance_orders_delete_cleanup();

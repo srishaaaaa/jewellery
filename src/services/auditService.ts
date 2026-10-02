@@ -30,6 +30,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   stock_adjusted: 'Stock adjusted',
   invoice_deleted: 'Invoice deleted',
   record_deleted: 'Sales Desk record deleted',
+  scheme_deleted: 'Scheme deleted',
+  customer_deleted: 'Customer deleted',
   invoice_status_changed: 'Invoice status changed',
   bill_discount: 'Discount given on bill',
   return_created: 'Return / exchange recorded',

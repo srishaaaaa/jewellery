@@ -246,6 +246,34 @@ export const schemeService = {
     return mapSchemeRow((Array.isArray(data) ? data[0] : data) as Record<string, unknown>)
   },
 
+  /**
+   * Permanently deletes a scheme entered by mistake. Only allowed while nothing has been paid
+   * into it and it was never used on a bill (paid installments are permanent payment records).
+   */
+  async remove(schemeId: string): Promise<void> {
+    const { data: row, error: readErr } = await supabase.from('jewellery_schemes')
+      .select('id, scheme_number, installments_paid, total_paid, amount_redeemed, benefit_used').eq('id', schemeId).maybeSingle()
+    if (readErr) throw toError(readErr, 'Unable to check the scheme')
+    if (!row) throw new Error('Scheme not found.')
+    if (Number(row.installments_paid) > 0 || Number(row.total_paid) > 0 || Number(row.amount_redeemed) > 0 || row.benefit_used) {
+      throw new Error(`Scheme ${row.scheme_number} has payments or was used on a bill, so it cannot be deleted. Cancel it instead.`)
+    }
+    const { data: applied, error: redErr } = await supabase.from('scheme_redemptions').select('id').eq('scheme_id', schemeId).eq('status', 'applied').limit(1)
+    if (redErr) throw toError(redErr, 'Unable to check the scheme')
+    if (applied && applied.length) throw new Error(`Scheme ${row.scheme_number} was used on a bill, so it cannot be deleted. Cancel it instead.`)
+    const steps = [
+      supabase.from('scheme_redemptions').delete().eq('scheme_id', schemeId).eq('status', 'reversed'),
+      supabase.from('scheme_installments').delete().eq('scheme_id', schemeId).eq('status', 'pending'),
+    ]
+    for (const step of steps) {
+      const { error } = await step
+      if (error) throw toError(error, 'Unable to delete the scheme')
+    }
+    const { data: gone, error } = await supabase.from('jewellery_schemes').delete().eq('id', schemeId).select('id')
+    if (error) throw toError(error, 'Unable to delete the scheme')
+    if (!gone || gone.length === 0) throw new Error('The scheme was not deleted.')
+  },
+
   async transfer(schemeId: string, phone: string, customerName: string, createdBy: string): Promise<JewelleryScheme> {
     const { data, error } = await supabase.rpc('transfer_jewellery_scheme', {
       p_scheme_id: schemeId,

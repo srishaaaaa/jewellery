@@ -498,7 +498,9 @@ export default function SalesDesk() {
                     <td className="px-4 py-3.5 text-xs">{formatCurrency(x.exchangeRate)}/g</td>
                     <td className="px-4 py-3.5 text-xs">Melting {x.meltingDeductionPercent}%<br />Other {formatCurrency(x.otherDeduction)}</td>
                     <td className="px-4 py-3.5 font-black">{formatCurrency(x.netValue)}</td>
-                    {isAdmin && <td className="px-4 py-3.5">{deleteBtn(() => void deleteRecord('old_gold_exchanges', x.id, x.exchangeNumber, 'old gold record', x.invoiceNo ? `The bill ${formatInvoiceNo(x.invoiceNo)} still shows this old gold as part-payment.` : ''))}</td>}
+                    {isAdmin && <td className="px-4 py-3.5">{x.invoiceNo
+                      ? <span className="text-[10px] font-semibold text-[#8B9389]" title="Part-payment on a bill: delete the bill to remove it">On bill</span>
+                      : deleteBtn(() => void deleteRecord('old_gold_exchanges', x.id, x.exchangeNumber, 'old gold record'))}</td>}
                   </tr>
                 ))}
             </tbody>

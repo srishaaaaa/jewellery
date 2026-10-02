@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, Gem, PiggyBank, Receipt, Search, ShoppingBag, Wallet } from 'lucide-react'
+import { CalendarDays, Gem, PiggyBank, Receipt, Search, ShoppingBag, Trash2, Wallet } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { customerService, type CustomerRecord } from '../../services/customerService'
+import { auditService } from '../../services/auditService'
+import { useAdminAuthStore } from '../../store/store'
 import { schemeService } from '../../services/schemeService'
 import { advanceService, oldGoldService, repairService, returnService, REPAIR_STATUS_LABELS, type CustomerAdvance, type OldGoldRecord, type Repair, type SalesReturn } from '../../services/salesDeskService'
 import { formatPhoneDisplay } from '../../lib/phone'
@@ -44,6 +46,21 @@ export default function JewelleryCustomerProfile() {
   const [repairs, setRepairs] = useState<Repair[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const isAdmin = useAdminAuthStore((state) => state.role) === 'admin'
+
+  // Removes the customer record only: their invoices, schemes and advances stay (they keep the name and phone).
+  const deleteCustomer = async (c: CustomerRecord) => {
+    if (!isAdmin) return
+    if (!window.confirm(`Delete customer ${c.name || c.phone}? Their bills, schemes and advances are kept. This cannot be undone.`)) return
+    try {
+      await customerService.remove(c.id)
+      void auditService.log({ action: 'customer_deleted', entityType: 'customer', entityId: c.phone, oldValue: { name: c.name, phone: c.phone, address: c.address } })
+      setCustomers((rows) => rows.filter((row) => row.id !== c.id))
+      setSelected(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to delete the customer')
+    }
+  }
 
   useEffect(() => { customerService.fetchAll().then(setCustomers).catch(() => undefined) }, [])
 
@@ -164,7 +181,15 @@ export default function JewelleryCustomerProfile() {
           </div>
         ) : <>
           <div className="rounded-2xl border border-[#ECE9E2] bg-white p-4 shadow-sm">
-            <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-600">Jewellery customer</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-600">Jewellery customer</p>
+              {isAdmin && (
+                <button type="button" onClick={() => void deleteCustomer(selected)} title="Delete customer"
+                  className="flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-[11px] font-black text-red-600 hover:bg-red-100 cursor-pointer">
+                  <Trash2 size={13} /> Delete
+                </button>
+              )}
+            </div>
             <h3 className="text-xl font-black text-[#273126] break-words">{selected.name || 'Customer'}</h3>
             <p className="text-sm text-[#6B7280]">{formatPhoneDisplay(selected.phone) || selected.phone}{selected.address ? ` • ${selected.address}` : ''}</p>
             {profile.preferences.length > 0 && (
