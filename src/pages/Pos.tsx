@@ -61,7 +61,7 @@ import { advanceService, oldGoldService, quotationService, type CustomerAdvance,
 import { auditService } from '../services/auditService'
 import { useSettingsStore } from '../store/store'
 import { COUNTER_PAYMENT_METHODS, type CounterPaymentMethod } from '../lib/retail'
-import { calculateNetWeight, calculateOldGoldValue, normalizeMetalType, oldGoldRateFromPurity, rateKey as metalRateKey, STANDARD_PURITY, GOLD_PURITIES } from '../lib/jewellery'
+import { calculateNetWeight, calculateOldGoldValue, normalizeMetalType, suggestOldGoldRate, STANDARD_PURITY, GOLD_PURITIES } from '../lib/jewellery'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type PosItem = Product & {
@@ -521,18 +521,7 @@ export default function Pos(props: PosProps = {}) {
   const staffDiscountLimit = posPermissions?.staffMaxDiscountPercent ?? 5
   const discountOverLimit = isStaff && manualDiscountAmount > 0 && manualDiscountAmount > Math.round(subtotal * staffDiscountLimit) / 100 + 0.009
 
-  // Today's exchange rate for old metal: from the tested purity when given, else the rate for the stated purity.
-  const suggestedOldGoldRate = (() => {
-    const metal = oldGoldForm.metalType
-    const tested = Number(oldGoldForm.testedPurity)
-    if (metal === 'gold') {
-      const base24 = rates[metalRateKey('gold', '24K')]?.ratePerGram || 0
-      if (tested > 0 && base24) return oldGoldRateFromPurity(base24, tested)
-      return rates[metalRateKey('gold', oldGoldForm.purity)]?.ratePerGram || 0
-    }
-    const std = rates[metalRateKey(metal, STANDARD_PURITY)]?.ratePerGram || 0
-    return tested > 0 && std ? Math.round(std * Math.min(100, tested) / 99.9 * 100) / 100 : std
-  })()
+  const suggestedOldGoldRate = suggestOldGoldRate(oldGoldForm.metalType, oldGoldForm.purity, Number(oldGoldForm.testedPurity), rates)
   const oldGoldNet = calculateNetWeight(Number(oldGoldForm.grossWeight) || 0, Number(oldGoldForm.stoneWeight) || 0)
   const oldGoldRate = oldGoldForm.exchangeRate.trim() === '' ? suggestedOldGoldRate : Number(oldGoldForm.exchangeRate) || 0
   const oldGoldPreview = calculateOldGoldValue({
@@ -1263,10 +1252,22 @@ export default function Pos(props: PosProps = {}) {
             customer_gstin: customerGstin.trim().toUpperCase() || null, amount_paid: payable,
           }).eq('id', created.orderId)
           if (extraErr) throw extraErr
-          if (advanceReservation) await advanceService.link(advanceReservation.id, created.orderId, created.invoiceNo)
-          await oldGoldService.recordForOrder(oldGoldEntries, { orderId: created.orderId, invoiceNo: created.invoiceNo, customerName: customer.name.trim() || 'Walk-in Customer', phone: normalizedPhone })
         } catch (extraErr) {
-          console.error('Bill saved, but advance / old gold details were not fully recorded:', extraErr)
+          console.error('Bill saved, but its exchange / advance totals were not recorded:', extraErr)
+        }
+        if (advanceReservation) {
+          await advanceService.link(advanceReservation.id, created.orderId, created.invoiceNo)
+            .catch((linkErr) => console.error('Advance used but not linked to the invoice:', linkErr))
+        }
+      }
+      // Old gold goes to Sales Desk → Old Gold Exchange (tagged "Billing"); a failure here must not go unnoticed.
+      let oldGoldWarning = ''
+      if (oldGoldEntries.length) {
+        try {
+          await oldGoldService.recordForOrder(oldGoldEntries, { orderId: created.orderId, invoiceNo: created.invoiceNo, customerName: customer.name.trim() || 'Walk-in Customer', phone: normalizedPhone })
+        } catch (ogErr) {
+          console.error('Bill saved, but old gold was not recorded:', ogErr)
+          oldGoldWarning = `Bill ${formatInvoiceNo(created.invoiceNo)} saved, but the old gold was NOT recorded in Sales Desk: ${getErrorMessage(ogErr, 'unknown error')}`
         }
       }
       if (manualDiscountAmount > 0) {
@@ -1335,6 +1336,10 @@ export default function Pos(props: PosProps = {}) {
       setCustomerGstin('')
       setMixedParts([{ method: 'cash', amount: '' }, { method: 'qr', amount: '' }])
       void fetchProducts()
+      if (oldGoldWarning) {
+        setError(oldGoldWarning)
+        window.alert(oldGoldWarning)
+      }
     } catch (err: unknown) {
       if (schemeReservation && !orderCreated) {
         await schemeService.reverseRedemption(schemeReservation.redemption.id).catch((reverseErr) =>

@@ -179,6 +179,13 @@ BEGIN
   END IF;
 END $$;
 
+-- Gold accumulated: each installment records the gold rate it was paid at and the grams it
+-- buys; the scheme keeps the running total. The purity is fixed by the first payment.
+ALTER TABLE public.jewellery_schemes ADD COLUMN IF NOT EXISTS gold_purity TEXT NOT NULL DEFAULT '22K';
+ALTER TABLE public.jewellery_schemes ADD COLUMN IF NOT EXISTS total_grams NUMERIC(12,3) NOT NULL DEFAULT 0;
+-- Cancel / resume history: [{ action, at, by, reason }]
+ALTER TABLE public.jewellery_schemes ADD COLUMN IF NOT EXISTS status_history JSONB NOT NULL DEFAULT '[]'::JSONB;
+
 CREATE INDEX IF NOT EXISTS jewellery_schemes_phone_idx ON public.jewellery_schemes(phone);
 CREATE INDEX IF NOT EXISTS jewellery_schemes_status_idx ON public.jewellery_schemes(status);
 CREATE INDEX IF NOT EXISTS jewellery_schemes_next_due_idx ON public.jewellery_schemes(next_due_date) WHERE status = 'active';
@@ -199,6 +206,10 @@ CREATE TABLE IF NOT EXISTS public.scheme_installments (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   CONSTRAINT scheme_installments_unique UNIQUE (scheme_id, installment_number)
 );
+
+ALTER TABLE public.scheme_installments ADD COLUMN IF NOT EXISTS gold_rate NUMERIC(12,2);
+ALTER TABLE public.scheme_installments ADD COLUMN IF NOT EXISTS gold_purity TEXT;
+ALTER TABLE public.scheme_installments ADD COLUMN IF NOT EXISTS gold_grams NUMERIC(12,3);
 
 CREATE INDEX IF NOT EXISTS scheme_installments_scheme_idx ON public.scheme_installments(scheme_id, installment_number);
 CREATE INDEX IF NOT EXISTS scheme_installments_paid_idx ON public.scheme_installments(payment_date DESC) WHERE status = 'paid';
@@ -351,11 +362,19 @@ BEGIN
 END;
 $$;
 
+-- Earlier version without the gold rate parameters.
+DROP FUNCTION IF EXISTS public.record_scheme_installment(UUID, TEXT, TEXT, TEXT);
+
+-- Collects the next pending installment and records the gold it buys:
+-- grams = amount / gold rate. The rate is the one given (the counter can adjust it),
+-- else today's rate for the scheme's purity. The first payment fixes the purity.
 CREATE OR REPLACE FUNCTION public.record_scheme_installment(
   p_scheme_id UUID,
   p_payment_method TEXT,
   p_created_by TEXT DEFAULT 'Admin',
-  p_notes TEXT DEFAULT ''
+  p_notes TEXT DEFAULT '',
+  p_gold_rate NUMERIC DEFAULT NULL,
+  p_gold_purity TEXT DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -365,6 +384,9 @@ DECLARE
   v_receipt TEXT;
   v_next_due DATE;
   v_status TEXT;
+  v_purity TEXT;
+  v_rate NUMERIC;
+  v_grams NUMERIC;
 BEGIN
   SELECT * INTO v_scheme FROM public.jewellery_schemes WHERE id = p_scheme_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Scheme not found.'; END IF;
@@ -379,6 +401,17 @@ BEGIN
   FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'All installments of this scheme are already paid.'; END IF;
 
+  v_purity := CASE
+    WHEN v_scheme.installments_paid = 0 AND UPPER(BTRIM(COALESCE(p_gold_purity, ''))) IN ('24K', '22K', '20K', '18K', '14K')
+      THEN UPPER(BTRIM(p_gold_purity))
+    ELSE COALESCE(NULLIF(v_scheme.gold_purity, ''), '22K')
+  END;
+  v_rate := CASE WHEN COALESCE(p_gold_rate, 0) > 0 THEN ROUND(p_gold_rate, 2) END;
+  IF v_rate IS NULL THEN
+    SELECT rate_per_gram INTO v_rate FROM public.current_metal_rates WHERE metal_type = 'gold' AND purity = v_purity;
+  END IF;
+  v_grams := CASE WHEN v_rate > 0 THEN ROUND(v_inst.amount_due / v_rate, 3) END;
+
   LOOP
     v_receipt := 'SR' || LPAD(nextval('public.scheme_receipt_seq')::TEXT, 7, '0');
     EXIT WHEN NOT EXISTS (SELECT 1 FROM public.scheme_installments WHERE receipt_number = v_receipt);
@@ -391,7 +424,10 @@ BEGIN
       payment_method = COALESCE(NULLIF(BTRIM(p_payment_method), ''), 'cash'),
       receipt_number = v_receipt,
       created_by = COALESCE(p_created_by, 'Admin'),
-      notes = COALESCE(p_notes, '')
+      notes = COALESCE(p_notes, ''),
+      gold_rate = v_rate,
+      gold_purity = CASE WHEN v_rate IS NOT NULL THEN v_purity END,
+      gold_grams = v_grams
   WHERE id = v_inst.id
   RETURNING * INTO v_inst;
 
@@ -403,6 +439,8 @@ BEGIN
   UPDATE public.jewellery_schemes
   SET installments_paid = installments_paid + 1,
       total_paid = total_paid + v_inst.amount_paid,
+      gold_purity = v_purity,
+      total_grams = total_grams + COALESCE(v_grams, 0),
       next_due_date = v_next_due,
       status = v_status,
       updated_at = NOW()
@@ -536,7 +574,62 @@ BEGIN
   UPDATE public.jewellery_schemes
   SET status = 'cancelled', cancelled_at = NOW(),
       cancel_reason = COALESCE(p_reason, '') || CASE WHEN p_created_by IS NOT NULL THEN ' (by ' || p_created_by || ')' ELSE '' END,
-      next_due_date = NULL, updated_at = NOW()
+      next_due_date = NULL, updated_at = NOW(),
+      status_history = status_history || jsonb_build_array(jsonb_build_object(
+        'action', 'cancelled', 'at', NOW(), 'by', COALESCE(p_created_by, 'Admin'), 'reason', COALESCE(p_reason, '')))
+  WHERE id = p_scheme_id
+  RETURNING * INTO v_scheme;
+  RETURN v_scheme;
+END;
+$$;
+
+-- Re-opens a cancelled scheme. Paid installments stay as they are. With p_reschedule the
+-- remaining installments are moved so the next one is due on the resume date (same plan
+-- spacing), and the maturity date moves by the same number of days.
+CREATE OR REPLACE FUNCTION public.resume_jewellery_scheme(p_scheme_id UUID, p_reason TEXT, p_reschedule BOOLEAN DEFAULT TRUE, p_created_by TEXT DEFAULT 'Admin')
+RETURNS public.jewellery_schemes
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_scheme public.jewellery_schemes;
+  v_first_due DATE;
+  v_shift INTEGER := 0;
+  v_next_due DATE;
+  r RECORD;
+  k INTEGER := 0;
+BEGIN
+  SELECT * INTO v_scheme FROM public.jewellery_schemes WHERE id = p_scheme_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Scheme not found.'; END IF;
+  IF v_scheme.status <> 'cancelled' THEN
+    RAISE EXCEPTION 'Scheme % is %, only a cancelled scheme can be resumed.', v_scheme.scheme_number, v_scheme.status;
+  END IF;
+
+  SELECT MIN(due_date) INTO v_first_due FROM public.scheme_installments WHERE scheme_id = p_scheme_id AND status = 'pending';
+  IF p_reschedule AND v_first_due IS NOT NULL AND v_first_due < CURRENT_DATE THEN
+    v_shift := CURRENT_DATE - v_first_due;
+    FOR r IN SELECT id FROM public.scheme_installments WHERE scheme_id = p_scheme_id AND status = 'pending' ORDER BY installment_number FOR UPDATE LOOP
+      UPDATE public.scheme_installments
+      SET due_date = CASE v_scheme.frequency
+        WHEN 'daily' THEN CURRENT_DATE + k
+        WHEN 'weekly' THEN CURRENT_DATE + 7 * k
+        ELSE (CURRENT_DATE + make_interval(months => k))::DATE
+      END
+      WHERE id = r.id;
+      k := k + 1;
+    END LOOP;
+  END IF;
+
+  SELECT MIN(due_date) INTO v_next_due FROM public.scheme_installments WHERE scheme_id = p_scheme_id AND status = 'pending';
+
+  UPDATE public.jewellery_schemes
+  SET maturity_date = maturity_date + v_shift,
+      status = CASE WHEN v_next_due IS NULL THEN public.scheme_paid_status(maturity_date + v_shift) ELSE 'active' END,
+      next_due_date = v_next_due,
+      cancelled_at = NULL,
+      cancel_reason = NULL,
+      updated_at = NOW(),
+      status_history = status_history || jsonb_build_array(jsonb_build_object(
+        'action', 'resumed', 'at', NOW(), 'by', COALESCE(p_created_by, 'Admin'), 'reason', COALESCE(p_reason, ''),
+        'rescheduled_days', v_shift))
   WHERE id = p_scheme_id
   RETURNING * INTO v_scheme;
   RETURN v_scheme;
@@ -590,7 +683,8 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.create_jewellery_scheme(TEXT, TEXT, TEXT, NUMERIC, INTEGER, INTEGER, DATE, DATE, TEXT, NUMERIC, TEXT, NUMERIC, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.record_scheme_installment(UUID, TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.record_scheme_installment(UUID, TEXT, TEXT, TEXT, NUMERIC, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.resume_jewellery_scheme(UUID, TEXT, BOOLEAN, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.redeem_jewellery_scheme(UUID, NUMERIC, NUMERIC, BOOLEAN, BOOLEAN, INTEGER, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.link_scheme_redemption(UUID, UUID, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reverse_scheme_redemption(UUID) TO anon, authenticated;
@@ -837,6 +931,113 @@ CREATE TABLE IF NOT EXISTS public.old_gold_exchanges (
 );
 CREATE INDEX IF NOT EXISTS old_gold_exchanges_order_idx ON public.old_gold_exchanges(order_id);
 CREATE INDEX IF NOT EXISTS old_gold_exchanges_phone_idx ON public.old_gold_exchanges(phone);
+
+-- Where the old gold came from:
+--   billing = taken as part-payment on a bill (linked to that invoice)
+--   counter = bought at the Sales Desk without a bill; the customer is either
+--             paid now (settlement 'paid') or given store credit (settlement 'credit',
+--             an advance they use on a later bill)
+ALTER TABLE public.old_gold_exchanges ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT 'billing';
+ALTER TABLE public.old_gold_exchanges ADD COLUMN IF NOT EXISTS settlement TEXT;
+ALTER TABLE public.old_gold_exchanges ADD COLUMN IF NOT EXISTS payout_method TEXT;
+ALTER TABLE public.old_gold_exchanges ADD COLUMN IF NOT EXISTS advance_id UUID REFERENCES public.customer_advances(id) ON DELETE SET NULL;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'old_gold_exchanges_source_check') THEN
+    ALTER TABLE public.old_gold_exchanges ADD CONSTRAINT old_gold_exchanges_source_check CHECK (source IN ('billing', 'counter'));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'old_gold_exchanges_settlement_check') THEN
+    ALTER TABLE public.old_gold_exchanges ADD CONSTRAINT old_gold_exchanges_settlement_check CHECK (settlement IS NULL OR settlement IN ('paid', 'credit'));
+  END IF;
+END $$;
+
+-- Store credit can also come from old gold bought at the counter.
+ALTER TABLE public.customer_advances DROP CONSTRAINT IF EXISTS customer_advances_source_check;
+ALTER TABLE public.customer_advances ADD CONSTRAINT customer_advances_source_check CHECK (source IN ('payment', 'exchange', 'old_gold'));
+
+-- Records old gold bought at the counter (no bill). The value is recalculated here from
+-- the weights and rate, and a 'credit' settlement creates the customer's advance in the
+-- same transaction.
+CREATE OR REPLACE FUNCTION public.record_counter_old_gold(
+  p_customer_name TEXT,
+  p_phone TEXT,
+  p_description TEXT,
+  p_metal_type TEXT,
+  p_purity TEXT,
+  p_tested_purity NUMERIC,
+  p_gross_weight NUMERIC,
+  p_stone_weight NUMERIC,
+  p_melting_deduction_percent NUMERIC,
+  p_exchange_rate NUMERIC,
+  p_other_deduction NUMERIC,
+  p_settlement TEXT,
+  p_payout_method TEXT DEFAULT 'cash',
+  p_created_by TEXT DEFAULT 'Admin'
+)
+RETURNS JSON
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_phone TEXT := BTRIM(COALESCE(p_phone, ''));
+  v_name TEXT := COALESCE(BTRIM(p_customer_name), '');
+  v_by TEXT := COALESCE(NULLIF(p_created_by, ''), 'Admin');
+  v_net NUMERIC := GREATEST(0, ROUND(COALESCE(p_gross_weight, 0) - COALESCE(p_stone_weight, 0), 3));
+  v_melt NUMERIC := LEAST(100, GREATEST(0, COALESCE(p_melting_deduction_percent, 0)));
+  v_rate NUMERIC := GREATEST(0, COALESCE(p_exchange_rate, 0));
+  v_value NUMERIC;
+  v_og public.old_gold_exchanges;
+  v_adv public.customer_advances;
+BEGIN
+  IF v_phone = '' THEN RAISE EXCEPTION 'Customer phone number is required.'; END IF;
+  IF p_settlement NOT IN ('paid', 'credit') THEN RAISE EXCEPTION 'Choose how the customer is paid for the old gold.'; END IF;
+  IF v_net <= 0 THEN RAISE EXCEPTION 'Enter the old gold weight.'; END IF;
+  IF v_rate <= 0 THEN RAISE EXCEPTION 'Enter the exchange rate.'; END IF;
+  v_value := GREATEST(0, ROUND(ROUND(v_net * (1 - v_melt / 100), 3) * v_rate, 2) - GREATEST(0, COALESCE(p_other_deduction, 0)));
+  IF v_value <= 0 THEN RAISE EXCEPTION 'The old gold value must be more than zero.'; END IF;
+
+  PERFORM public.jewellery_upsert_customer(v_phone, v_name);
+
+  INSERT INTO public.old_gold_exchanges (
+    customer_name, phone, description, metal_type, purity, tested_purity, gross_weight, stone_weight, net_weight,
+    melting_deduction_percent, exchange_rate, other_deduction, net_value, created_by,
+    source, settlement, payout_method
+  ) VALUES (
+    v_name, v_phone, COALESCE(BTRIM(p_description), ''), COALESCE(NULLIF(p_metal_type, ''), 'gold'), COALESCE(p_purity, ''),
+    p_tested_purity, COALESCE(p_gross_weight, 0), COALESCE(p_stone_weight, 0), v_net,
+    v_melt, v_rate, GREATEST(0, COALESCE(p_other_deduction, 0)), v_value, v_by,
+    'counter', p_settlement, CASE WHEN p_settlement = 'paid' THEN COALESCE(NULLIF(p_payout_method, ''), 'cash') END
+  ) RETURNING * INTO v_og;
+
+  IF p_settlement = 'credit' THEN
+    INSERT INTO public.customer_advances (customer_name, phone, amount, payment_method, purpose, source, source_ref, created_by)
+    VALUES (v_name, v_phone, v_value, 'old_gold', 'Old gold credit ' || v_og.exchange_number, 'old_gold', v_og.exchange_number, v_by)
+    RETURNING * INTO v_adv;
+    UPDATE public.old_gold_exchanges SET advance_id = v_adv.id WHERE id = v_og.id RETURNING * INTO v_og;
+  END IF;
+
+  RETURN json_build_object('exchange', row_to_json(v_og), 'advance', CASE WHEN v_adv.id IS NULL THEN NULL ELSE row_to_json(v_adv) END);
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.record_counter_old_gold(TEXT, TEXT, TEXT, TEXT, TEXT, NUMERIC, NUMERIC, NUMERIC, NUMERIC, NUMERIC, NUMERIC, TEXT, TEXT, TEXT) TO anon, authenticated;
+
+-- Deleting a counter purchase also removes the store credit it created, unless that
+-- credit has already been spent on a bill.
+CREATE OR REPLACE FUNCTION public.old_gold_delete_cleanup()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF OLD.advance_id IS NOT NULL THEN
+    IF EXISTS (SELECT 1 FROM public.customer_advances WHERE id = OLD.advance_id AND amount_used > 0) THEN
+      RAISE EXCEPTION 'The credit from old gold % was already used on a bill. Delete that bill first.', OLD.exchange_number;
+    END IF;
+    DELETE FROM public.advance_usages WHERE advance_id = OLD.advance_id;
+    DELETE FROM public.customer_advances WHERE id = OLD.advance_id;
+  END IF;
+  RETURN OLD;
+END;
+$$;
+DROP TRIGGER IF EXISTS old_gold_delete_cleanup ON public.old_gold_exchanges;
+CREATE TRIGGER old_gold_delete_cleanup
+  AFTER DELETE ON public.old_gold_exchanges
+  FOR EACH ROW EXECUTE FUNCTION public.old_gold_delete_cleanup();
 
 -- ============================================================================
 -- 14. Returns & exchanges — linked to the original invoice, which is never changed

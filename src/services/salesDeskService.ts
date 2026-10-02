@@ -24,7 +24,8 @@ export interface CustomerAdvance {
   balance: number
   paymentMethod: string
   purpose: string
-  source: 'payment' | 'exchange'
+  /** payment = money paid in; exchange = credit from a return; old_gold = credit for old gold bought at the counter */
+  source: 'payment' | 'exchange' | 'old_gold'
   sourceRef: string
   status: 'active' | 'used' | 'cancelled'
   notes: string
@@ -38,7 +39,7 @@ const mapAdvance = (r: Record<string, unknown>): CustomerAdvance => {
   return {
     id: str(r.id), receiptNumber: str(r.receipt_number), customerName: str(r.customer_name), phone: str(r.phone),
     amount, amountUsed: used, balance: Math.max(0, Math.round((amount - used) * 100) / 100),
-    paymentMethod: str(r.payment_method), purpose: str(r.purpose), source: r.source === 'exchange' ? 'exchange' : 'payment',
+    paymentMethod: str(r.payment_method), purpose: str(r.purpose), source: r.source === 'exchange' || r.source === 'old_gold' ? r.source : 'payment',
     sourceRef: str(r.source_ref), status: r.status === 'used' || r.status === 'cancelled' ? r.status : 'active',
     notes: str(r.notes), createdBy: str(r.created_by), createdAt: str(r.created_at),
   }
@@ -121,6 +122,12 @@ export interface OldGoldEntry {
 export interface OldGoldRecord extends OldGoldEntry {
   id: string
   exchangeNumber: string
+  /** billing = part-payment on a bill; counter = bought at the Sales Desk without a bill */
+  source: 'billing' | 'counter'
+  /** Counter purchases only: paid to the customer now, or kept as store credit (an advance) */
+  settlement: 'paid' | 'credit' | null
+  payoutMethod: string
+  advanceId: string | null
   orderId: string | null
   invoiceNo: string
   customerName: string
@@ -130,7 +137,11 @@ export interface OldGoldRecord extends OldGoldEntry {
 }
 
 const mapOldGold = (r: Record<string, unknown>): OldGoldRecord => ({
-  id: str(r.id), exchangeNumber: str(r.exchange_number), orderId: r.order_id ? str(r.order_id) : null, invoiceNo: str(r.invoice_no),
+  id: str(r.id), exchangeNumber: str(r.exchange_number),
+  source: r.source === 'counter' || (r.source == null && !r.order_id && !r.invoice_no) ? 'counter' : 'billing',
+  settlement: r.settlement === 'paid' || r.settlement === 'credit' ? r.settlement : null,
+  payoutMethod: str(r.payout_method), advanceId: r.advance_id ? str(r.advance_id) : null,
+  orderId: r.order_id ? str(r.order_id) : null, invoiceNo: str(r.invoice_no),
   customerName: str(r.customer_name), phone: str(r.phone), description: str(r.description), metalType: str(r.metal_type), purity: str(r.purity),
   testedPurity: r.tested_purity == null ? null : toNumber(r.tested_purity, 0), grossWeight: toNumber(r.gross_weight, 0),
   stoneWeight: toNumber(r.stone_weight, 0), netWeight: toNumber(r.net_weight, 0), meltingDeductionPercent: toNumber(r.melting_deduction_percent, 0),
@@ -160,6 +171,20 @@ export const oldGoldService = {
       other_deduction: e.otherDeduction, net_value: e.netValue, created_by: currentUserName(),
     })))
     if (error) throw fail(error, 'Unable to record the old gold exchange')
+  },
+  /** Old gold bought at the counter without a bill: the customer is paid now or gets store credit. */
+  async recordCounter(entry: Omit<OldGoldEntry, 'netWeight' | 'netValue'>, customer: { customerName: string; phone: string },
+    settlement: 'paid' | 'credit', payoutMethod: string): Promise<{ exchange: OldGoldRecord; advance: CustomerAdvance | null }> {
+    const { data, error } = await supabase.rpc('record_counter_old_gold', {
+      p_customer_name: customer.customerName, p_phone: customer.phone, p_description: entry.description,
+      p_metal_type: entry.metalType, p_purity: entry.purity, p_tested_purity: entry.testedPurity,
+      p_gross_weight: entry.grossWeight, p_stone_weight: entry.stoneWeight, p_melting_deduction_percent: entry.meltingDeductionPercent,
+      p_exchange_rate: entry.exchangeRate, p_other_deduction: entry.otherDeduction,
+      p_settlement: settlement, p_payout_method: payoutMethod, p_created_by: currentUserName(),
+    })
+    if (error) throw fail(error, 'Unable to record the old gold purchase')
+    const result = data as { exchange: Record<string, unknown>; advance: Record<string, unknown> | null }
+    return { exchange: mapOldGold(result.exchange), advance: result.advance ? mapAdvance(result.advance) : null }
   },
 }
 

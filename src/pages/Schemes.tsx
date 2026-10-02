@@ -13,11 +13,14 @@ import { auditService } from '../services/auditService'
 import { customerService, type CustomerRecord } from '../services/customerService'
 import { schemeService, type SchemeInstallment, type SchemeRedemption } from '../services/schemeService'
 import { buildSchemeInstallmentWhatsAppMessage } from '../lib/whatsappMessage'
+import { useMetalRateStore } from '../store/metalRateStore'
 import { paymentMethodLabel, printSchemeReceipt, totalsAfterInstallment } from '../lib/schemeReceipt'
 import {
   BENEFIT_TYPE_LABELS,
   FREQUENCY_LABELS,
   FREQUENCY_PERIOD,
+  GOLD_PURITIES,
+  rateKey,
   SCHEME_FREQUENCIES,
   SCHEME_STATUS_LABELS,
   INSTALLMENT_STATUS_LABELS,
@@ -131,6 +134,10 @@ export default function Schemes() {
   const [collectInstallments, setCollectInstallments] = useState<SchemeInstallment[]>([])
   const [collectMethod, setCollectMethod] = useState<PaymentMethod>('cash')
   const [collectNotes, setCollectNotes] = useState('')
+  // Gold the payment buys: the scheme's purity (chosen on the first payment) at today's rate unless overridden.
+  const [collectPurity, setCollectPurity] = useState('22K')
+  const [collectRate, setCollectRate] = useState('')
+  const rates = useMetalRateStore((s) => s.rates)
   const [receipt, setReceipt] = useState<{ scheme: JewelleryScheme; installment: SchemeInstallment } | null>(null)
 
   // Details
@@ -139,6 +146,8 @@ export default function Schemes() {
   const [detailRedemptions, setDetailRedemptions] = useState<SchemeRedemption[]>([])
   const [detailAction, setDetailAction] = useState<'cancel' | 'transfer' | null>(null)
   const [cancelReason, setCancelReason] = useState('')
+  const [resumeReason, setResumeReason] = useState('')
+  const [resumeReschedule, setResumeReschedule] = useState(true)
   const [transferForm, setTransferForm] = useState({ phone: '', name: '' })
 
   // Rules
@@ -338,6 +347,8 @@ export default function Schemes() {
     setCollectScheme(scheme)
     setCollectMethod('cash')
     setCollectNotes('')
+    setCollectPurity(scheme.goldPurity || '22K')
+    setCollectRate('')
     setModalError('')
     setCollectInstallments([])
     try {
@@ -349,14 +360,19 @@ export default function Schemes() {
 
   const nextInstallment = collectInstallments.find((i) => i.status === 'pending') || null
   const previousPayments = collectInstallments.filter((i) => i.status === 'paid')
+  const collectTodayRate = rates[rateKey('gold', collectPurity)]?.ratePerGram || 0
+  const collectGoldRate = collectRate.trim() === '' ? collectTodayRate : Number(collectRate) || 0
+  const collectGrams = nextInstallment && collectGoldRate > 0 ? Math.round((nextInstallment.amountDue / collectGoldRate) * 1000) / 1000 : 0
 
   const submitCollect = async (event: FormEvent) => {
     event.preventDefault()
     if (!collectScheme) return
+    if (collectRate.trim() !== '' && !(Number(collectRate) > 0)) { setModalError('Enter a valid gold rate, or leave it empty to use today\'s rate.'); return }
     setSaving(true)
     setModalError('')
     try {
-      const result = await schemeService.recordInstallment(collectScheme.id, collectMethod, staffName, collectNotes)
+      const result = await schemeService.recordInstallment(collectScheme.id, collectMethod, staffName, collectNotes,
+        { rate: collectGoldRate > 0 ? collectGoldRate : null, purity: collectPurity })
       replaceScheme(result.scheme)
       setCollectScheme(null)
       setReceipt(result)
@@ -368,7 +384,7 @@ export default function Schemes() {
     }
   }
 
-  const whatsappReceipt = (scheme: JewelleryScheme, installment: SchemeInstallment, totals = { totalPaid: scheme.totalPaid, remaining: schemeRemaining(scheme), nextDueDate: scheme.nextDueDate }) => {
+  const whatsappReceipt = (scheme: JewelleryScheme, installment: SchemeInstallment, totals = { totalPaid: scheme.totalPaid, remaining: schemeRemaining(scheme), nextDueDate: scheme.nextDueDate, totalGrams: scheme.totalGrams }) => {
     const message = buildSchemeInstallmentWhatsAppMessage({
       customerName: scheme.customerName,
       schemeNumber: scheme.schemeNumber,
@@ -382,6 +398,10 @@ export default function Schemes() {
       totalPaid: totals.totalPaid,
       remainingAmount: totals.remaining,
       nextDueDate: totals.nextDueDate,
+      goldRate: installment.goldRate,
+      goldPurity: installment.goldPurity,
+      goldGrams: installment.goldGrams,
+      totalGrams: totals.totalGrams,
     })
     window.open(toWhatsAppUrl(scheme.phone, message), '_blank', 'noopener,noreferrer')
   }
@@ -451,6 +471,26 @@ export default function Schemes() {
     }
   }
 
+  const submitResume = async () => {
+    if (!detail) return
+    if (!resumeReason.trim()) { setModalError('Enter the reason for resuming.'); return }
+    setSaving(true)
+    setModalError('')
+    try {
+      const updated = await schemeService.resume(detail.id, resumeReason.trim(), resumeReschedule, staffName)
+      replaceScheme(updated)
+      setDetailInstallments(await schemeService.fetchInstallments(updated.id))
+      const moved = updated.statusHistory[updated.statusHistory.length - 1]?.rescheduledDays || 0
+      void auditService.log({ action: 'scheme_resumed', entityType: 'scheme', entityId: updated.schemeNumber, oldValue: { status: 'cancelled' }, newValue: { status: updated.status, next_due: updated.nextDueDate, rescheduled_days: moved }, note: resumeReason.trim() })
+      setResumeReason('')
+      setNotice(`Scheme ${updated.schemeNumber} resumed.${updated.nextDueDate ? ` Next installment due ${fmtDate(updated.nextDueDate)}.` : ''}${moved ? ` Remaining installments and maturity moved by ${moved} days.` : ''}`)
+    } catch (err) {
+      setModalError(getErrorMessage(err, 'Unable to resume the scheme'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const submitTransfer = async () => {
     if (!detail) return
     const phone = normalizePhone(transferForm.phone)
@@ -496,20 +536,20 @@ export default function Schemes() {
 
   // ── Export ──────────────────────────────────────────────────────────────
   const exportSchemes = () => downloadCsv(`schemes_${today}.csv`, [
-    ['Scheme ID', 'Scheme', 'Plan', 'Customer', 'Phone', 'Start Date', 'Maturity Date', 'Installment (INR)', 'Installments', 'Paid Installments', 'Total Paid (INR)', 'Remaining (INR)', 'Balance Available (INR)', 'Next Due', 'Status', 'Benefit', 'Redemption'],
+    ['Scheme ID', 'Scheme', 'Plan', 'Customer', 'Phone', 'Start Date', 'Maturity Date', 'Installment (INR)', 'Installments', 'Paid Installments', 'Total Paid (INR)', 'Gold Saved (g)', 'Remaining (INR)', 'Balance Available (INR)', 'Next Due', 'Status', 'Benefit', 'Redemption'],
     ...filtered.map((s) => [
       s.schemeNumber, s.schemeName, FREQUENCY_LABELS[s.frequency], s.customerName, csvPhone(s.phone), csvDate(s.startDate), csvDate(s.maturityDate),
-      s.monthlyAmount.toFixed(2), s.totalInstallments, s.installmentsPaid, s.totalPaid.toFixed(2), schemeRemaining(s).toFixed(2),
+      s.monthlyAmount.toFixed(2), s.totalInstallments, s.installmentsPaid, s.totalPaid.toFixed(2), s.totalGrams.toFixed(3), schemeRemaining(s).toFixed(2),
       schemeBalance(s).toFixed(2), csvDate(s.nextDueDate), SCHEME_STATUS_LABELS[deriveSchemeStatus(s, today)],
       describeSchemeBenefit(s, (n) => `Rs.${n}`), redemptionLabel(s),
     ]),
   ])
 
   const exportPayments = () => downloadCsv(`scheme_payments_${today}.csv`, [
-    ['Date', 'Receipt No', 'Scheme ID', 'Customer', 'Phone', 'Installment', 'Amount (INR)', 'Method', 'Received By', 'Notes'],
+    ['Date', 'Receipt No', 'Scheme ID', 'Customer', 'Phone', 'Installment', 'Amount (INR)', 'Gold Rate (INR/g)', 'Purity', 'Gold (g)', 'Method', 'Received By', 'Notes'],
     ...payments.map((p) => {
       const s = schemesById.get(p.schemeId)
-      return [csvDate(p.paymentDate, true), p.receiptNumber, s?.schemeNumber, s?.customerName, csvPhone(s?.phone), p.installmentNumber, p.amountPaid.toFixed(2), paymentMethodLabel(p.paymentMethod), p.createdBy, p.notes]
+      return [csvDate(p.paymentDate, true), p.receiptNumber, s?.schemeNumber, s?.customerName, csvPhone(s?.phone), p.installmentNumber, p.amountPaid.toFixed(2), p.goldRate?.toFixed(2) ?? '', p.goldPurity ?? '', p.goldGrams?.toFixed(3) ?? '', paymentMethodLabel(p.paymentMethod), p.createdBy, p.notes]
     }),
   ])
 
@@ -625,6 +665,7 @@ export default function Schemes() {
                     </td>
                     <td className="px-4 py-3.5 align-middle text-xs">
                       <p className="text-emerald-700">Paid: <b>{formatCurrency(s.totalPaid)}</b></p>
+                      {s.totalGrams > 0 && <p className="text-amber-700">Gold: <b>{s.totalGrams.toFixed(3)} g</b> ({s.goldPurity})</p>}
                       <p className="text-red-600">Remaining: <b>{formatCurrency(schemeRemaining(s))}</b></p>
                     </td>
                     <td className="px-4 py-3.5 align-middle text-xs">
@@ -671,13 +712,13 @@ export default function Schemes() {
         <div className="overflow-x-auto overscroll-x-contain">
           <table className="w-full text-left text-sm whitespace-nowrap">
             <thead className="bg-[#F8F7F4] text-[10px] font-black uppercase tracking-wider text-[#737B72]">
-              <tr>{['Date', 'Receipt No', 'Scheme / Customer', 'Installment', 'Amount', 'Method', 'Received By', 'Notes', 'Receipt'].map((h) => <th key={h} className="px-4 py-3.5 whitespace-nowrap">{h}</th>)}</tr>
+              <tr>{['Date', 'Receipt No', 'Scheme / Customer', 'Installment', 'Amount', 'Gold', 'Method', 'Received By', 'Notes', 'Receipt'].map((h) => <th key={h} className="px-4 py-3.5 whitespace-nowrap">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-[#F0EEE9]">
               {paymentsLoading ? (
-                <tr><td colSpan={9} className="px-4 py-12 text-center text-[#6B7280]">Loading payments...</td></tr>
+                <tr><td colSpan={10} className="px-4 py-12 text-center text-[#6B7280]">Loading payments...</td></tr>
               ) : payments.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-12 text-center text-[#6B7280]">No installment payments in this period.</td></tr>
+                <tr><td colSpan={10} className="px-4 py-12 text-center text-[#6B7280]">No installment payments in this period.</td></tr>
               ) : payments.map((p) => {
                 const s = schemesById.get(p.schemeId)
                 return (
@@ -687,6 +728,7 @@ export default function Schemes() {
                     <td className="px-4 py-3.5"><p className="font-bold text-[#273126]">{s?.schemeNumber || '—'}</p><p className="text-xs text-[#727970]">{s?.customerName || ''} {s?.phone ? `• ${s.phone}` : ''}</p></td>
                     <td className="px-4 py-3.5 text-xs font-bold">{p.installmentNumber}{s ? ` of ${s.totalInstallments}` : ''}</td>
                     <td className="px-4 py-3.5 font-black text-[#273126]">{formatCurrency(p.amountPaid)}</td>
+                    <td className="px-4 py-3.5 text-xs">{p.goldGrams != null && p.goldRate ? <><p className="font-black text-amber-700">{p.goldGrams.toFixed(3)} g</p><p className="text-[#858C83]">@ {formatCurrency(p.goldRate)}/g{p.goldPurity ? ` ${p.goldPurity}` : ''}</p></> : '—'}</td>
                     <td className="px-4 py-3.5 text-xs">{paymentMethodLabel(p.paymentMethod)}</td>
                     <td className="px-4 py-3.5 text-xs text-[#6B7280]">{p.createdBy || '—'}</td>
                     <td className="px-4 py-3.5 text-xs text-[#6B7280] max-w-[200px] truncate" title={p.notes}>{p.notes || '—'}</td>
@@ -823,6 +865,24 @@ export default function Schemes() {
                 <div key={k} className="rounded-xl bg-[#F8F7F4] p-2.5"><p className="text-[9px] font-black uppercase text-[#858C83]">{k}</p><p className="mt-0.5 text-sm font-black text-[#273126] break-words">{v}</p></div>
               ))}
             </div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Gold purity">
+                  {collectScheme.installmentsPaid === 0
+                    ? <select className={inputClass} value={collectPurity} onChange={(e) => setCollectPurity(e.target.value)}>{GOLD_PURITIES.map((pu) => <option key={pu} value={pu}>{pu}</option>)}</select>
+                    : <div className={`${inputClass} bg-gray-50 font-bold`} title="Fixed by the first payment">{collectPurity}</div>}
+                </Field>
+                <Field label="Gold rate (₹/g)">
+                  <input type="number" min="0" step="0.01" className={inputClass} value={collectRate} onChange={(e) => setCollectRate(e.target.value)} placeholder={collectTodayRate ? String(collectTodayRate) : 'Enter rate'} />
+                </Field>
+              </div>
+              <p className="text-xs font-bold text-amber-900">
+                {collectGrams > 0
+                  ? <>{formatCurrency(nextInstallment.amountDue)} buys <span className="font-black">{collectGrams.toFixed(3)} g</span> at {formatCurrency(collectGoldRate)}/g{collectRate.trim() === '' ? " (today's rate)" : ''}</>
+                  : `No ${collectPurity} rate is set for today. Enter the rate to record the grams.`}
+              </p>
+              <p className="text-[11px] font-semibold text-amber-800">Gold saved: {collectScheme.totalGrams.toFixed(3)} g{collectGrams > 0 ? ` → ${(collectScheme.totalGrams + collectGrams).toFixed(3)} g after this payment` : ''}</p>
+            </div>
             <Field label="Payment Method">
               <div className="grid grid-cols-3 gap-1.5">
                 {PAYMENT_METHODS.map((m) => (
@@ -839,7 +899,7 @@ export default function Schemes() {
                 <p className="mb-1.5 text-[11px] font-black uppercase tracking-wide text-[#6B7280]">Previous payments</p>
                 <div className="max-h-32 overflow-y-auto space-y-1">
                   {previousPayments.slice().reverse().map((p) => (
-                    <div key={p.id} className="flex justify-between rounded-lg bg-[#F8F7F4] px-3 py-1.5 text-xs"><span className="font-bold">#{p.installmentNumber} • {fmtDate(p.paymentDate)} • {paymentMethodLabel(p.paymentMethod)}</span><span className="font-black">{formatCurrency(p.amountPaid)}</span></div>
+                    <div key={p.id} className="flex justify-between rounded-lg bg-[#F8F7F4] px-3 py-1.5 text-xs"><span className="font-bold">#{p.installmentNumber} • {fmtDate(p.paymentDate)} • {paymentMethodLabel(p.paymentMethod)}{p.goldGrams ? ` • ${p.goldGrams.toFixed(3)} g` : ''}</span><span className="font-black">{formatCurrency(p.amountPaid)}</span></div>
                   ))}
                 </div>
               </div>
@@ -863,6 +923,7 @@ export default function Schemes() {
         <p className="mt-2 text-sm text-[#6B7280]">
           {receipt.scheme.schemeNumber} · Installment {receipt.installment.installmentNumber} of {receipt.scheme.totalInstallments} · {formatCurrency(receipt.installment.amountPaid)}
         </p>
+        {receipt.installment.goldGrams != null && receipt.installment.goldRate && <p className="mt-1 text-sm font-bold text-amber-700">{receipt.installment.goldGrams.toFixed(3)} g gold at {formatCurrency(receipt.installment.goldRate)}/g · Total saved {receipt.scheme.totalGrams.toFixed(3)} g</p>}
         <p className="mt-1 text-sm text-[#6B7280]">Total paid {formatCurrency(receipt.scheme.totalPaid)} · {receipt.scheme.nextDueDate ? `Next due ${fmtDate(receipt.scheme.nextDueDate)}` : `Scheme ${SCHEME_STATUS_LABELS[deriveSchemeStatus(receipt.scheme, today)].toLowerCase()}`}</p>
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button onClick={() => printSchemeReceipt(receipt.scheme, receipt.installment)} className="rounded-xl border border-emerald-200 py-3 text-sm font-black text-emerald-700"><Printer size={16} className="mr-1 inline" />Print Receipt</button>
@@ -887,6 +948,7 @@ export default function Schemes() {
             ['Plan', FREQUENCY_LABELS[detail.frequency]], ['Installment', installmentLabel(detail)], ['Installments', `${detail.installmentsPaid} of ${detail.totalInstallments} paid`],
             ['Total Paid', formatCurrency(detail.totalPaid)], ['Remaining', formatCurrency(schemeRemaining(detail))], ['Scheme Target', formatCurrency(schemeTarget(detail))],
             ['Benefit', describeSchemeBenefit(detail, formatCurrency)], ['Redemption', redemptionLabel(detail)], ['Balance Available', formatCurrency(schemeBalance(detail))],
+            ['Gold Saved', `${detail.totalGrams.toFixed(3)} g (${detail.goldPurity})`],
           ].map(([k, v]) => <div key={k} className="rounded-xl bg-[#F8F7F4] p-3"><p className="text-[10px] font-black uppercase text-[#858C83]">{k}</p><p className="mt-1 break-words text-sm font-bold">{v}</p></div>)}
         </div>
         {detail.cancelReason && <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm"><b>Cancelled:</b> {detail.cancelReason}</div>}
@@ -896,7 +958,7 @@ export default function Schemes() {
           <h4 className="font-black">Installments</h4>
           <div className="mt-2 overflow-x-auto rounded-xl border border-[#ECE9E2]">
             <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead className="bg-[#F8F7F4] text-[10px] font-black uppercase tracking-wider text-[#737B72]"><tr>{['#', 'Due', 'Amount', 'Status', 'Paid On', 'Method', 'Receipt', ''].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr></thead>
+              <thead className="bg-[#F8F7F4] text-[10px] font-black uppercase tracking-wider text-[#737B72]"><tr>{['#', 'Due', 'Amount', 'Status', 'Paid On', 'Method', 'Gold Rate', 'Gold (g)', 'Receipt', ''].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr></thead>
               <tbody className="divide-y divide-[#F0EEE9]">
                 {detailInstallments.map((i) => (
                   <tr key={i.id}>
@@ -910,6 +972,8 @@ export default function Schemes() {
                     })()}</td>
                     <td className="px-3 py-2">{fmtDate(i.paymentDate)}</td>
                     <td className="px-3 py-2">{i.status === 'paid' ? paymentMethodLabel(i.paymentMethod) : '—'}</td>
+                    <td className="px-3 py-2">{i.goldRate ? `${formatCurrency(i.goldRate)}/g` : '—'}</td>
+                    <td className="px-3 py-2 font-bold text-amber-700">{i.goldGrams != null ? i.goldGrams.toFixed(3) : '—'}</td>
                     <td className="px-3 py-2 font-bold text-emerald-700">{i.receiptNumber || '—'}</td>
                     <td className="px-3 py-2">{i.status === 'paid' && (
                       <div className="flex gap-1">
@@ -944,6 +1008,34 @@ export default function Schemes() {
                 <p key={idx} className="rounded-xl bg-[#F8F7F4] p-2.5 text-xs">{fmtDate(String(t.at || ''))}: {String(t.from_name || '')} ({String(t.from_phone || '')}) → {String(t.to_name || '')} ({String(t.to_phone || '')}) by {String(t.by || '')}</p>
               ))}
             </div>
+          </div>
+        )}
+
+        {detail.statusHistory.length > 0 && (
+          <div className="mt-6">
+            <h4 className="font-black">Cancel / Resume History</h4>
+            <div className="mt-2 space-y-1">
+              {detail.statusHistory.map((h, idx) => (
+                <p key={idx} className={`rounded-xl p-2.5 text-xs ${h.action === 'resumed' ? 'bg-emerald-50' : 'bg-gray-50'}`}>
+                  <b>{h.action === 'resumed' ? 'Resumed' : 'Cancelled'}</b> {fmtDate(h.at)} by {h.by || '—'}{h.reason ? `: ${h.reason}` : ''}{h.rescheduledDays ? ` (installments moved ${h.rescheduledDays} days)` : ''}
+                </p>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {isAdmin && detail.status === 'cancelled' && (
+          <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
+            <h4 className="font-black">Resume Scheme</h4>
+            <p className="mt-1 text-xs text-[#6B7280]">Re-opens the scheme so installments can be collected again. Payments already made stay as they are.</p>
+            <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] items-end">
+              <Field label="Reason for resuming"><input className={inputClass} value={resumeReason} onChange={(e) => setResumeReason(e.target.value)} placeholder="e.g. Customer wants to continue" /></Field>
+              <button disabled={saving} onClick={() => void submitResume()} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">{saving ? 'Resuming…' : 'Resume Scheme'}</button>
+            </div>
+            <label className="mt-3 flex items-start gap-2 text-xs font-semibold text-[#273126]">
+              <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[var(--accent)]" checked={resumeReschedule} onChange={(e) => setResumeReschedule(e.target.checked)} />
+              <span>Restart the remaining installments from today (the next one is due today, same plan spacing). The maturity date moves by the same number of days. Untick to keep the original due dates. Missed ones then show as overdue.</span>
+            </label>
           </div>
         )}
 
