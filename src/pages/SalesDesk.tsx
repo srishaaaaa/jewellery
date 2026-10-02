@@ -117,12 +117,14 @@ export default function SalesDesk() {
   }
 
   // ── Returns & exchanges ──────────────────────────────────────────────────
-  type ReturnOrder = { id: string; invoiceNo: string; customerName: string; phone: string; createdAt: string; items: ReturnType<typeof normalizeStructuredOrderItem>[] }
+  type ReturnOrder = { id: string; invoiceNo: string; customerName: string; phone: string; createdAt: string; total: number; items: ReturnType<typeof normalizeStructuredOrderItem>[] }
   const [returnOpen, setReturnOpen] = useState(false)
   const [returnLookup, setReturnLookup] = useState('')
   const [returnOrders, setReturnOrders] = useState<ReturnOrder[]>([])
   const [returnOrder, setReturnOrder] = useState<ReturnOrder | null>(null)
   const [alreadyReturned, setAlreadyReturned] = useState<Record<number, number>>({})
+  // Refunds already recorded on the chosen invoice (pending or approved); null until checked.
+  const [alreadyRefunded, setAlreadyRefunded] = useState<number | null>(null)
   const [returnQty, setReturnQty] = useState<Record<number, string>>({})
   const [returnAmount, setReturnAmount] = useState('')
   const [returnType, setReturnType] = useState<'refund' | 'exchange'>('refund')
@@ -134,19 +136,20 @@ export default function SalesDesk() {
     setReturnType('refund'); setReturnMethod('cash'); setReturnReason(''); setModalError('')
   }
   const findInvoice = async () => {
-    const raw = returnLookup.trim()
+    // Characters that would break the search filter are dropped.
+    const raw = returnLookup.trim().replace(/[,()%*\\]/g, '')
     if (!raw) return
     setModalError('')
     const digits = raw.replace(/\D/g, '')
     const { data, error: qErr } = await supabase.from('orders')
-      .select('id, invoice_no, customer_name, phone, created_at, items, status')
+      .select('id, invoice_no, customer_name, phone, created_at, items, status, total')
       .or(`invoice_no.ilike.%${raw}%${digits && digits !== raw ? `,invoice_no.ilike.%${digits}%` : ''}${digits.length >= 6 ? `,phone.ilike.%${digits}%` : ''}`)
       .neq('status', 'cancelled')
       .order('created_at', { ascending: false })
       .limit(10)
     if (qErr) { setModalError(qErr.message); return }
     const found = (data || []).map((o) => ({
-      id: String(o.id), invoiceNo: String(o.invoice_no), customerName: String(o.customer_name || ''), phone: String(o.phone || ''), createdAt: String(o.created_at),
+      id: String(o.id), invoiceNo: String(o.invoice_no), customerName: String(o.customer_name || ''), phone: String(o.phone || ''), createdAt: String(o.created_at), total: Number(o.total) || 0,
       items: (Array.isArray(o.items) ? o.items : []).map((it: Record<string, unknown>) => normalizeStructuredOrderItem(it)),
     }))
     setReturnOrders(found)
@@ -156,11 +159,14 @@ export default function SalesDesk() {
   const chooseReturnOrder = async (o: ReturnOrder) => {
     setReturnOrder(o)
     setReturnQty({})
+    setAlreadyReturned({})
+    setAlreadyRefunded(null)
     try {
-      const prev = await returnService.listForOrder(o.id)
+      const prev = (await returnService.listForOrder(o.id)).filter((r) => r.status !== 'rejected')
       const counts: Record<number, number> = {}
-      prev.filter((r) => r.status !== 'rejected').forEach((r) => r.items.forEach((l) => { counts[l.line] = (counts[l.line] || 0) + Number(l.quantity || 0) }))
+      prev.forEach((r) => r.items.forEach((l) => { counts[l.line] = (counts[l.line] || 0) + Number(l.quantity || 0) }))
       setAlreadyReturned(counts)
+      setAlreadyRefunded(prev.reduce((sum, r) => sum + r.refundAmount, 0))
     } catch (err) {
       setModalError(getErrorMessage(err, 'Unable to check earlier returns'))
     }
@@ -183,13 +189,19 @@ export default function SalesDesk() {
   const submitReturn = async (event: FormEvent) => {
     event.preventDefault()
     if (!returnOrder) return
+    if (alreadyRefunded === null) { setModalError('Earlier returns on this invoice could not be checked. Choose the invoice again.'); return }
     if (!returnLines.length) { setModalError('Enter the quantity being returned for at least one item.'); return }
     for (const l of returnLines) {
       const left = l.soldQuantity - (alreadyReturned[l.line] || 0)
       if (l.quantity > left) { setModalError(`${l.name}: only ${left} left to return on this invoice.`); return }
     }
-    const amount = returnAmount.trim() === '' ? defaultReturnAmount : Number(returnAmount)
+    const amount = returnAmount.trim() === ''
+      ? Math.min(defaultReturnAmount, Math.max(0, Math.round((returnOrder.total - alreadyRefunded) * 100) / 100))
+      : Number(returnAmount)
     if (!Number.isFinite(amount) || amount < 0) { setModalError('Enter a valid refund / exchange amount.'); return }
+    // Never refund more than the customer paid on this invoice, less earlier returns.
+    const refundable = Math.max(0, Math.round((returnOrder.total - alreadyRefunded) * 100) / 100)
+    if (amount > refundable + 0.009) { setModalError(`The most that can be refunded on this invoice is ${formatCurrency(refundable)} (bill total ${formatCurrency(returnOrder.total)}${alreadyRefunded > 0 ? `, ${formatCurrency(alreadyRefunded)} already returned` : ''}).`); return }
     if (!returnReason.trim()) { setModalError('Enter the reason for the return.'); return }
     setSaving(true)
     setModalError('')

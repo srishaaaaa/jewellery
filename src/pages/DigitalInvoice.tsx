@@ -82,12 +82,12 @@ export default function DigitalInvoice() {
 
           // Fallback: search orders by invoice_no being NULL or matching partial number
           if (!row) {
-            const numPart = strippedIdentifier || cleanIdentifier || identifier
-            const { data: allOrders } = await supabase
+            const numPart = (strippedIdentifier || cleanIdentifier || identifier).replace(/[,()%*\\]/g, '')
+            const { data: allOrders } = numPart ? await supabase
               .from('orders')
               .select('*')
-              .or(`invoice_no.ilike.%${numPart}%,id.ilike.%${numPart}%`)
-              .limit(1)
+              .ilike('invoice_no', `%${numPart}%`)
+              .limit(1) : { data: null }
             row = Array.isArray(allOrders) && allOrders.length > 0 ? allOrders[0] : null
           }
 
@@ -102,11 +102,16 @@ export default function DigitalInvoice() {
 
           // Check advance_orders table for invoices (advance orders create invoices differently)
           if (!row) {
-            const tryAdvanceTable = async (invNo: string) => supabase
-              .from('advance_orders')
-              .select('*')
-              .or(`invoice_number.ilike.%${invNo}%,completed_order_id.eq.${invNo}`)
-              .maybeSingle()
+            // completed_order_id is a UUID: only compare it when the link carries one.
+            const tryAdvanceTable = async (invNo: string) => {
+              const safe = invNo.replace(/[,()%*\\]/g, '')
+              return supabase
+                .from('advance_orders')
+                .select('*')
+                .or(isUuid(safe) ? `invoice_number.ilike.%${safe}%,completed_order_id.eq.${safe}` : `invoice_number.ilike.%${safe}%`)
+                .limit(1)
+                .maybeSingle()
+            }
 
             let advanceResult = await tryAdvanceTable(identifier)
             if (!advanceResult.data && strippedIdentifier && strippedIdentifier !== identifier) {

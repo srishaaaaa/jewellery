@@ -50,7 +50,7 @@ export default function AnniversaryView() {
       try {
         const data = await customerService.fetchAll()
         setCustomers(data)
-      } catch (err) {
+      } catch {
         console.error('Failed to load customers')
       } finally {
         setLoading(false)
@@ -92,7 +92,7 @@ export default function AnniversaryView() {
       const whatsappUrl = toWhatsAppUrl(customer.phone, message)
       window.open(whatsappUrl, '_blank')
       await customerService.acknowledgeEvent(customer.id, 'anniversary')
-    } catch (err) {
+    } catch {
       console.error('Failed to send offer')
     }
   }

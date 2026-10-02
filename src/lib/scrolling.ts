@@ -12,7 +12,7 @@ export function scrollIntoView(element: HTMLElement, options?: ScrollIntoViewOpt
       inline: 'nearest',
       ...options,
     })
-  } catch (err) {
+  } catch {
     // Fallback for older browsers
     element.scrollIntoView()
   }
@@ -23,7 +23,7 @@ export function scrollIntoView(element: HTMLElement, options?: ScrollIntoViewOpt
  */
 export function enableMomentumScrolling(element: HTMLElement) {
   if (!element) return
-  ;(element.style as any).WebkitOverflowScrolling = 'touch'
+  ;(element.style as CSSStyleDeclaration & { WebkitOverflowScrolling?: string }).WebkitOverflowScrolling = 'touch'
 }
 
 /**
@@ -79,7 +79,6 @@ export function getScrollInfo(element: HTMLElement) {
  * Smooth scroll to top
  */
 export function scrollToTop(element?: HTMLElement, duration = 300) {
-  const target = element || window
   const start = element ? element.scrollTop : window.scrollY
   const startTime = Date.now()
 

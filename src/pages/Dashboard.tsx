@@ -1192,8 +1192,8 @@ export default function Dashboard() {
     e?.preventDefault()
     setSearchLoading(true)
     try {
-      const invInput = search.invoiceNo.trim()
-      const phoneInput = search.phone.trim()
+      const invInput = search.invoiceNo.trim().replace(/[,()%*\\]/g, '')
+      const phoneInput = search.phone.trim().replace(/[,()%*\\]/g, '')
       const custInput = search.customerName.trim()
       const hasQuery = Boolean(invInput || phoneInput || custInput)
 

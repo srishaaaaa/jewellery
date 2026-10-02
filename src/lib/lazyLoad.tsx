@@ -1,6 +1,7 @@
 import React, { Suspense } from 'react'
 
-// Loading fallback component
+// Loading fallback component (internal; this module exports helpers, not components)
+// eslint-disable-next-line react-refresh/only-export-components
 const LoadingFallback = () => (
   <div className="flex items-center justify-center h-96">
     <div className="text-center">
@@ -29,7 +30,7 @@ export function lazyComponent<P extends object>(
 
 // Preload utility for critical components
 export function preloadComponent(
-  loader: () => Promise<{ default: React.ComponentType<any> }>
+  loader: () => Promise<unknown>
 ) {
   loader()
 }

@@ -57,7 +57,7 @@ export default function CustomerEvents() {
   const [customers, setCustomers] = useState<CustomerRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<FilterKey>('all')
+  const [filter] = useState<FilterKey>('all')
   const [datePreset, setDatePreset] = useState<DatePreset>('all')
   const [fromMonth, setFromMonth] = useState<number | null>(null)
   const [fromDay, setFromDay] = useState<number | null>(null)
@@ -89,13 +89,14 @@ export default function CustomerEvents() {
   const applyDatePreset = (preset: DatePreset) => {
     const today = new Date()
     switch (preset) {
-      case 'thisMonth':
+      case 'thisMonth': {
         const month = today.getMonth()
         setFromMonth(month)
         setFromDay(1)
         setToMonth(month)
         setToDay(31)
         break
+      }
       case 'thisYear':
         setFromMonth(0)
         setFromDay(1)

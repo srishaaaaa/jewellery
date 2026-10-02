@@ -191,7 +191,7 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
             <div className="text-[10px] font-bold text-gray-500">Paid Credits</div>
             <div className="text-[14px] sm:text-lg font-black text-green-700 break-words">
               {/* Count from history tab - paid orders */}
-              {filteredHistory.filter((o) => (o as any).credit_status === 'paid').length}
+              {filteredHistory.filter((o) => o.credit_status === 'paid').length}
             </div>
           </div>
         </div>

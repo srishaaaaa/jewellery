@@ -66,7 +66,7 @@ export function useCachedFetch<T>(
 
   const refetch = React.useCallback(async () => {
     const cached = responseCache.get<T>(key)
-    if (cached && !isLoading) {
+    if (cached) {
       setData(cached)
       return
     }
