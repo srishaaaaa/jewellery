@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Search, Trash2, Plus, Receipt, Printer,
   RefreshCw, ShoppingBag, MessageCircle,
-  X, ChevronDown, Power
+  X, ChevronDown, Power, Calculator
 } from 'lucide-react'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { getErrorMessage } from '../lib/errorMessage'
@@ -22,6 +22,7 @@ import { printAdvanceReceipt } from '../lib/advanceReceipt'
 import { printThermalReceipt } from '../lib/thermalPrint'
 import { formatPaymentMode,
   buildStructuredOrderItem,
+  normalizeStructuredOrderItem,
   calculateLineTotal,
   formatCurrency,
   formatQuantityDisplay,
@@ -34,6 +35,7 @@ import { useLangStore } from '../store/langStore'
 import { fetchVariantsByProduct, type ProductVariant } from '../services/variantService'
 import { BarcodeScannerInput, type ScannedItemPayload } from '../components/pos/BarcodeScannerInput'
 import { QuickAddScannedProductModal } from '../components/pos/QuickAddScannedProductModal'
+import { JewelleryCalculatorModal } from '../components/pos/JewelleryCalculatorModal'
 import { AddUnregisteredItemModal } from '../components/pos/AddUnregisteredItemModal'
 import { getOrCreateUnregisteredProduct } from '../services/productService'
 import { customerService } from '../services/customerService'
@@ -57,11 +59,11 @@ import {
   type SchemeRules,
 } from '../lib/jewellery'
 import { schemeService } from '../services/schemeService'
-import { advanceService, oldGoldService, quotationService, type CustomerAdvance, type OldGoldEntry } from '../services/salesDeskService'
+import { advanceService, oldGoldService, quotationService, type CustomerAdvance, type OldGoldEntry, type Quotation } from '../services/salesDeskService'
 import { auditService } from '../services/auditService'
 import { useSettingsStore } from '../store/store'
-import { COUNTER_PAYMENT_METHODS, type CounterPaymentMethod } from '../lib/retail'
-import { calculateNetWeight, calculateOldGoldValue, normalizeMetalType, suggestOldGoldRate, STANDARD_PURITY, GOLD_PURITIES } from '../lib/jewellery'
+import { COUNTER_PAYMENT_METHODS, PAYMENT_REFERENCE_KEY, type CounterPaymentMethod } from '../lib/retail'
+import { calculateNetWeight, calculateOldGoldValue, normalizeMetalType, suggestOldGoldRate, STANDARD_PURITY, GOLD_PURITIES, ITEM_STATUS_LABELS } from '../lib/jewellery'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type PosItem = Product & {
@@ -166,6 +168,16 @@ const makePosItem = (p: Product, qty?: number): PosItem => {
     stockQuantity: isUnregistered ? 999999 : p.stockQuantity,
     ...(jewelleryPricing ? { jewellery: jewelleryPricing.jewellery, jewelleryError: jewelleryPricing.jewelleryError } : {}),
   }
+}
+
+/** Why a jewellery piece cannot go on the bill with this quantity (not available, or not enough stock), else null. */
+const pieceSaleBlock = (p: Product, qty: number): string | null => {
+  if (!p.metalType) return null
+  const status = p.itemStatus || 'available'
+  if (status !== 'available') return `${p.name} is marked ${ITEM_STATUS_LABELS[status]} and cannot be sold. Change its status in Jewellery Stock first.`
+  const stock = Number(p.stockQuantity ?? p.stock) || 0
+  if (stock < qty) return stock <= 0 ? `${p.name} is out of stock (it may already be sold).` : `${p.name}: only ${stock} in stock.`
+  return null
 }
 
 const MANUAL_JEWELLERY_ID = 'manual-jewellery-entry'
@@ -290,6 +302,9 @@ export default function Pos(props: PosProps = {}) {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [activeCategory, setActiveCategory] = useState('All')
   const [items, setItems] = useState<PosItem[]>([])
+  // Latest cart for handlers that outlive a render (the hardware scanner callback is memoised once).
+  const itemsRef = useRef<PosItem[]>([])
+  useEffect(() => { itemsRef.current = items }, [items])
   const [editingOfferId, setEditingOfferId] = useState<string | number | null>(null)
   const [quickAddBarcode, setQuickAddBarcode] = useState('')
   const [scanResetTick, setScanResetTick] = useState(0)
@@ -345,6 +360,8 @@ export default function Pos(props: PosProps = {}) {
   const [mixedParts, setMixedParts] = useState<MixedPart[]>([{ method: 'cash', amount: '' }, { method: 'qr', amount: '' }])
   // Customer GSTIN (business customers), old gold taken in part-payment, customer advance adjusted
   const [customerGstin, setCustomerGstin] = useState('')
+  /** UPI / card / bank / cheque transaction or cheque number */
+  const [paymentRef, setPaymentRef] = useState('')
   const [oldGoldEntries, setOldGoldEntries] = useState<OldGoldEntry[]>([])
   const [oldGoldOpen, setOldGoldOpen] = useState(false)
   const [oldGoldForm, setOldGoldForm] = useState(EMPTY_OLD_GOLD)
@@ -380,6 +397,7 @@ export default function Pos(props: PosProps = {}) {
   const [gstInput, setGstInput] = useState('')
   const [gstType, setGstType] = useState<'percent' | 'flat'>('percent')
   const [catalogOpen, setCatalogOpen] = useState(false)
+  const [calculatorOpen, setCalculatorOpen] = useState(false)
   const [addUnregisteredOpen, setAddUnregisteredOpen] = useState(false)
   const [depositOpen, setDepositOpen] = useState(false)
   const [depositCreated, setDepositCreated] = useState<AdvanceOrder | null>(null)
@@ -612,6 +630,8 @@ export default function Pos(props: PosProps = {}) {
     }
 
     // Standard non-variant product
+    const blocked = pieceSaleBlock(product, (itemsRef.current.find(i => String(i.id) === String(product.id))?.qty || 0) + 1)
+    if (blocked) { setError(blocked); return }
     setItems(cur => {
       const ex = cur.find(i => String(i.id) === String(product.id))
       if (!ex) return [makePosItem(product), ...cur]
@@ -666,6 +686,8 @@ export default function Pos(props: PosProps = {}) {
       ? useProductStore.getState().products.find((p) => String(p.id) === String(scanned.product_id))
       : undefined
     if (catalogueProduct?.metalType) {
+      const blocked = pieceSaleBlock(catalogueProduct, (itemsRef.current.find(i => !i.variantId && String(i.id) === String(catalogueProduct.id))?.qty || 0) + 1)
+      if (blocked) { setError(blocked); return }
       setItems(cur => {
         const ex = cur.find(i => !i.variantId && String(i.id) === String(catalogueProduct.id))
         if (!ex) return [...cur, { ...makePosItem(catalogueProduct, 1), barcode: scanned.barcode || catalogueProduct.barcode }]
@@ -894,7 +916,47 @@ export default function Pos(props: PosProps = {}) {
     setItems(cur => cur.map(i => i.id === id ? recalc(i, val) : i))
   }
 
+  // ── Bill a quotation sent from Sales Desk ──
+  // While it is valid the quoted prices (and their rate snapshot) are kept; once expired,
+  // catalogue items are priced again at today's rate.
+  const [billingQuotation, setBillingQuotation] = useState<{ id: string; number: string } | null>(null)
+  const pendingQuotation = useNavigationStore((s) => s.pendingQuotation)
+  const setPendingQuotation = useNavigationStore((s) => s.setPendingQuotation)
+  useEffect(() => {
+    if (!pendingQuotation) return
+    const q: Quotation = pendingQuotation
+    setPendingQuotation(null)
+    const valid = !q.validUntil || q.validUntil >= toLocalDateStr(new Date())
+    const catalogue = useProductStore.getState().products
+    const loaded = q.items.map((raw, idx): PosItem => {
+      const it = normalizeStructuredOrderItem(raw)
+      const product = it.product_id && it.source !== 'manual' ? catalogue.find((p) => String(p.id) === String(it.product_id)) : undefined
+      if (product && !valid && !it.variant_id) return makePosItem(product, it.quantity)
+      // Quoted line, kept at the quoted price: no metal type, so a rate change does not reprice it.
+      const base = makePosItem({
+        id: it.variant_id || (product ? product.id : `quote-${q.id}-${idx}`), name: it.name, category: product?.category || 'Unregistered', remedy: [],
+        price: it.base_price, offerPrice: null, stock: product ? product.stock : 999999, stockQuantity: product ? product.stockQuantity : 999999,
+        hasVariants: false, unitType: it.unit_type, unitLabel: it.unit, baseQuantity: it.base_quantity, stockUnit: it.unit,
+        allowDecimalQuantity: it.unit_type === 'weight' || it.unit_type === 'volume', predefinedOptions: [], isActive: true, sortOrder: 0,
+        unit: it.unit, rating: 5, description: '', benefits: '',
+        image: it.image_url || '/product-placeholder.svg', imageUrl: it.image_url || '/product-placeholder.svg',
+      }, it.quantity)
+      return {
+        ...base, lineTotal: it.line_total, source: product ? 'catalogue' : 'manual', jewellery: it.jewellery || null, jewelleryError: null,
+        ...(it.variant_id ? { variantId: it.variant_id, variantName: it.variant_name || undefined, parentProductId: it.product_id || undefined } : {}),
+      }
+    })
+    setItems(loaded)
+    setCustomer({ name: q.customerName, phone: q.phone, address: '' })
+    setBillingQuotation({ id: q.id, number: q.quotationNumber })
+    setQuoteSaved(valid
+      ? `Billing ${q.quotationNumber} at the quoted prices.`
+      : `${q.quotationNumber} expired on ${q.validUntil}. Catalogue items are priced at today's rate.`)
+    setError('')
+  }, [pendingQuotation, setPendingQuotation])
+
   const clearAll = () => {
+    setBillingQuotation(null)
     setItems([])
     setCustomer({ name: '', phone: '', address: '' })
     setCustomerBirthday('')
@@ -1158,9 +1220,12 @@ export default function Pos(props: PosProps = {}) {
         advanceReservation = await advanceService.reserve(appliedAdvance.id, advanceAmountUsed)
       }
       const paymentMode = ordermode === 'online' ? 'online' : paymentType
-      const splitPaymentDetails: Record<string, number> = paymentMode === 'split'
+      const splitPaymentDetails: Record<string, number | string> = paymentMode === 'split'
         ? Object.fromEntries(mixedParts.map((part) => [part.method, Math.round((Number(part.amount) || 0) * 100) / 100]))
         : {}
+      if (paymentRef.trim() && paymentMode !== 'cash' && paymentMode !== 'credit' && paymentMode !== 'online') {
+        splitPaymentDetails[PAYMENT_REFERENCE_KEY] = paymentRef.trim()
+      }
       const created = await createOrderWithStock({
         customerName: customer.name.trim() || 'Walk-in Customer',
         phone: normalizedPhone,
@@ -1334,6 +1399,15 @@ export default function Pos(props: PosProps = {}) {
       setAppliedAdvance(null)
       setAdvanceUseAmount('')
       setCustomerGstin('')
+      setPaymentRef('')
+      if (billingQuotation) {
+        const quoteRef = billingQuotation
+        void quotationService.setStatus(quoteRef.id, 'converted')
+          .then(() => auditService.log({ action: 'quotation_converted', entityType: 'quotation', entityId: quoteRef.number, newValue: { invoice: created.invoiceNo } }))
+          .catch((quoteErr) => console.error('Bill saved, but the quotation was not marked as billed:', quoteErr))
+        setBillingQuotation(null)
+        setQuoteSaved('')
+      }
       setMixedParts([{ method: 'cash', amount: '' }, { method: 'qr', amount: '' }])
       void fetchProducts()
       if (oldGoldWarning) {
@@ -1819,6 +1893,15 @@ export default function Pos(props: PosProps = {}) {
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span className="tracking-wide">Add Item</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCalculatorOpen(true)}
+                  className="inline-flex items-center gap-1.5 h-8 px-2.5 sm:px-3 text-[11px] font-bold rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors shrink-0 cursor-pointer"
+                >
+                  <Calculator className="w-3.5 h-3.5 text-gray-500" />
+                  <span>Calculator</span>
                 </button>
               </div>
             </div>
@@ -2667,6 +2750,15 @@ export default function Pos(props: PosProps = {}) {
                   )}
                 </div>
                 )}
+                {paymentType !== 'cash' && paymentType !== 'credit' && (
+                  <input
+                    value={paymentRef}
+                    onChange={e => setPaymentRef(e.target.value)}
+                    placeholder={paymentType === 'cheque' ? 'Cheque number' : 'Reference / Txn no. (optional)'}
+                    aria-label="Payment reference number"
+                    className="mt-2 w-full h-9 px-3 bg-[#FAFAFA] border border-gray-200 rounded-xl text-[12px] font-bold text-[#111111] focus:outline-none focus:border-[var(--accent)]"
+                  />
+                )}
               </div>
               )}
 
@@ -2835,6 +2927,8 @@ export default function Pos(props: PosProps = {}) {
           </div>
         </div></ModalPortal>
       )}
+
+      {calculatorOpen && <JewelleryCalculatorModal onClose={() => setCalculatorOpen(false)} />}
 
       {catalogOpen && (
         <CatalogModal

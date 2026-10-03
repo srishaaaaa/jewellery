@@ -51,6 +51,8 @@ import { auditService } from '../../services/auditService'
 import {
   EMPTY_STONE_DETAILS,
   HALLMARK_LABELS,
+  ITEM_STATUS_LABELS,
+  type ItemStatus,
   normalizeStoneDetails,
   type HallmarkStatus,
   type StoneDetails,
@@ -172,6 +174,9 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
   const [subcategory, setSubcategory] = useState<string>('')
   const [otherWeight, setOtherWeight] = useState<string>('')
   const [hallmarkStatus, setHallmarkStatus] = useState<HallmarkStatus | ''>('')
+  const [itemStatus, setItemStatus] = useState<ItemStatus>('available')
+  /** Status when the form opened: item_status is only sent when it changes, so saving works before the database update. */
+  const [loadedItemStatus, setLoadedItemStatus] = useState<ItemStatus>('available')
   const [stoneDetails, setStoneDetails] = useState<StoneDetails>(EMPTY_STONE_DETAILS)
   const [showStones, setShowStones] = useState(false)
   const [imageUrl, setImageUrl] = useState<string>('')
@@ -306,6 +311,8 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     setSubcategory(p.subcategory || '')
     setOtherWeight(p.otherWeight ? String(p.otherWeight) : '')
     setHallmarkStatus(p.hallmarkStatus || '')
+    setItemStatus(p.itemStatus || 'available')
+    setLoadedItemStatus(p.itemStatus || 'available')
     setStoneDetails(p.stoneDetails || EMPTY_STONE_DETAILS)
     setShowStones(Boolean(p.stoneDetails))
     setImageUrl(p.imageUrl && !p.imageUrl.includes('placeholder') ? p.imageUrl : '')
@@ -482,6 +489,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
       other_weight: roundTo(parseFloat(otherWeight) || 0, 3),
       hallmark_status: hallmarkStatus || null,
       stone_details: cleanStoneDetails,
+      ...(itemStatus !== loadedItemStatus ? { item_status: itemStatus } : {}),
     }
   }
 
@@ -1502,6 +1510,17 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                       <option value="">Not set</option>
                       {(Object.keys(HALLMARK_LABELS) as HallmarkStatus[]).map((h) => <option key={h} value={h}>{HALLMARK_LABELS[h]}</option>)}
                     </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Piece Status</label>
+                    <select
+                      value={itemStatus}
+                      onChange={(e) => setItemStatus(e.target.value as ItemStatus)}
+                      className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A] touch-manipulation appearance-none relative z-20"
+                    >
+                      {(Object.keys(ITEM_STATUS_LABELS) as ItemStatus[]).map((s) => <option key={s} value={s}>{ITEM_STATUS_LABELS[s]}</option>)}
+                    </select>
+                    {itemStatus !== 'available' && <p className="mt-1 text-[10px] font-semibold text-amber-700">This piece cannot be billed until it is Available again.</p>}
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">

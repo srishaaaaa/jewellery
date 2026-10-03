@@ -200,6 +200,18 @@ export const validateRateInput = (metal: string, purity: string, raw: string): R
   return { ok: true, value: roundTo(value, 2) }
 }
 
+// ── Piece status ───────────────────────────────────────────────────────────
+/**
+ * Where a jewellery piece is. Only an available piece can be billed; "sold" is not a status
+ * of its own: a piece with no stock left has been sold.
+ */
+export type ItemStatus = 'available' | 'reserved' | 'under_repair' | 'damaged' | 'lost' | 'in_transit'
+export const ITEM_STATUS_LABELS: Record<ItemStatus, string> = {
+  available: 'Available', reserved: 'Reserved', under_repair: 'Under Repair', damaged: 'Damaged', lost: 'Lost', in_transit: 'In Transit',
+}
+export const normalizeItemStatus = (v: unknown): ItemStatus =>
+  (Object.keys(ITEM_STATUS_LABELS) as ItemStatus[]).includes(v as ItemStatus) ? (v as ItemStatus) : 'available'
+
 // ── Item attributes & price calculation ────────────────────────────────────
 export interface JewelleryAttributes {
   metalType: MetalType | null

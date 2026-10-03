@@ -79,7 +79,9 @@ FROM (VALUES
   ('Coins', '', TRUE, 17),
   ('Other', '', TRUE, 18),
   ('German Silver Products', '', TRUE, 19),
-  ('Photo Frames', '', TRUE, 20)
+  ('Photo Frames', '', TRUE, 20),
+  ('Bars', '', TRUE, 21),
+  ('Custom Jewellery', '', TRUE, 22)
 ) AS v(name_en, name_ta, is_active, sort_order)
 WHERE NOT EXISTS (SELECT 1 FROM public.categories c WHERE LOWER(BTRIM(c.name_en)) = LOWER(v.name_en));
 
@@ -1176,6 +1178,13 @@ CREATE TABLE IF NOT EXISTS public.repairs (
 );
 CREATE INDEX IF NOT EXISTS repairs_phone_idx ON public.repairs(phone);
 
+-- Inspection step, the staff member doing the work, and the bill the item was bought on.
+ALTER TABLE public.repairs ADD COLUMN IF NOT EXISTS assigned_to TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.repairs ADD COLUMN IF NOT EXISTS invoice_no TEXT;
+ALTER TABLE public.repairs DROP CONSTRAINT IF EXISTS repairs_status_check;
+ALTER TABLE public.repairs ADD CONSTRAINT repairs_status_check
+  CHECK (status IN ('received', 'inspection', 'in_repair', 'ready', 'delivered', 'cancelled'));
+
 -- ============================================================================
 -- 17. Access (same portal model) and grants for the new tables / functions
 -- ============================================================================
@@ -1303,3 +1312,358 @@ DROP TRIGGER IF EXISTS advance_orders_delete_cleanup ON public.advance_orders;
 CREATE TRIGGER advance_orders_delete_cleanup
   AFTER DELETE ON public.advance_orders
   FOR EACH ROW EXECUTE FUNCTION public.advance_orders_delete_cleanup();
+
+-- ============================================================================
+-- 19. Cancelling (voiding) a bill — it stays on record, marked cancelled
+--     Stock comes back through orders_stock_trigger (the bill leaves 'completed'),
+--     scheme / advance amounts used on it are released, and an outstanding credit
+--     is cleared. A cancelled bill cannot be reopened.
+-- ============================================================================
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS cancel_reason TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS cancelled_by TEXT;
+
+CREATE OR REPLACE FUNCTION public.cancel_invoice(p_order_id UUID, p_reason TEXT, p_cancelled_by TEXT DEFAULT 'Admin')
+RETURNS public.orders
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_order public.orders;
+  r RECORD;
+BEGIN
+  IF BTRIM(COALESCE(p_reason, '')) = '' THEN RAISE EXCEPTION 'Enter the reason for cancelling the bill.'; END IF;
+  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Bill not found.'; END IF;
+  IF LOWER(COALESCE(v_order.status, '')) = 'cancelled' THEN
+    RAISE EXCEPTION 'Bill % is already cancelled.', v_order.invoice_no;
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.sales_returns WHERE order_id = p_order_id AND status <> 'rejected') THEN
+    RAISE EXCEPTION 'Bill % has returns recorded against it, so it cannot be cancelled.', v_order.invoice_no;
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.advance_orders WHERE completed_order_id = p_order_id) THEN
+    RAISE EXCEPTION 'Bill % completed an advance order, so it cannot be cancelled here.', v_order.invoice_no;
+  END IF;
+
+  FOR r IN SELECT * FROM public.scheme_redemptions WHERE invoice_id = p_order_id AND status = 'applied' FOR UPDATE LOOP
+    UPDATE public.jewellery_schemes
+    SET amount_redeemed = GREATEST(0, amount_redeemed - r.amount_used),
+        benefit_used = CASE WHEN r.benefit_applied > 0 THEN FALSE ELSE benefit_used END,
+        status = CASE WHEN status = 'redeemed' THEN public.scheme_paid_status(maturity_date) ELSE status END,
+        updated_at = NOW()
+    WHERE id = r.scheme_id;
+    UPDATE public.scheme_redemptions SET status = 'reversed' WHERE id = r.id;
+  END LOOP;
+
+  FOR r IN SELECT * FROM public.advance_usages WHERE order_id = p_order_id AND status = 'applied' FOR UPDATE LOOP
+    UPDATE public.customer_advances
+    SET amount_used = GREATEST(0, amount_used - r.amount),
+        status = CASE WHEN status = 'used' THEN 'active' ELSE status END,
+        updated_at = NOW()
+    WHERE id = r.advance_id;
+    UPDATE public.advance_usages SET status = 'reversed' WHERE id = r.id;
+  END LOOP;
+
+  UPDATE public.orders
+  SET status = 'cancelled',
+      cancelled_at = NOW(),
+      cancel_reason = BTRIM(p_reason),
+      cancelled_by = COALESCE(NULLIF(p_cancelled_by, ''), 'Admin'),
+      credit_status = CASE WHEN credit_status = 'outstanding' THEN NULL ELSE credit_status END,
+      updated_at = NOW()
+  WHERE id = p_order_id
+  RETURNING * INTO v_order;
+  RETURN v_order;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.cancel_invoice(UUID, TEXT, TEXT) TO anon, authenticated;
+
+-- A cancelled bill stays cancelled (reopening it would take stock again without the scheme / advance).
+CREATE OR REPLACE FUNCTION public.orders_cancelled_is_final()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF LOWER(COALESCE(OLD.status, '')) = 'cancelled' AND LOWER(COALESCE(NEW.status, '')) <> 'cancelled' THEN
+    RAISE EXCEPTION 'Bill % is cancelled and cannot be reopened.', OLD.invoice_no;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS orders_cancelled_is_final ON public.orders;
+CREATE TRIGGER orders_cancelled_is_final
+  BEFORE UPDATE OF status ON public.orders
+  FOR EACH ROW EXECUTE FUNCTION public.orders_cancelled_is_final();
+
+-- ============================================================================
+-- 20. Piece status — only an available jewellery piece can be sold
+--     A piece with no stock left has been sold, so "sold" is not a status of
+--     its own. Selling a jewellery piece (a product with a metal type) that is
+--     not available, or beyond its stock, is refused by the database, so the
+--     same piece can never be billed twice. Other products keep their old
+--     behaviour. Advance-order bills are not checked: the piece was reserved
+--     (or made) for that order.
+-- ============================================================================
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS item_status TEXT NOT NULL DEFAULT 'available';
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'products_item_status_check') THEN
+    ALTER TABLE public.products ADD CONSTRAINT products_item_status_check
+      CHECK (item_status IN ('available', 'reserved', 'under_repair', 'damaged', 'lost', 'in_transit'));
+  END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION public.apply_order_sale_stock(p_order public.orders)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_item JSONB;
+  v_pid BIGINT;
+  v_vid UUID;
+  v_qty NUMERIC;
+  v_before NUMERIC;
+  v_after NUMERIC;
+  v_name TEXT;
+  v_metal TEXT;
+  v_status TEXT;
+BEGIN
+  IF jsonb_typeof(p_order.items) IS DISTINCT FROM 'array' THEN
+    RETURN;
+  END IF;
+  -- Already holding stock for this bill (e.g. status set to completed twice).
+  IF EXISTS (
+    SELECT 1 FROM public.inventory_movements
+    WHERE reference_type = 'order' AND reference_id = p_order.id::TEXT
+    GROUP BY product_id, variant_id
+    HAVING SUM(quantity_delta) <> 0
+  ) THEN
+    RETURN;
+  END IF;
+
+  FOR v_item IN SELECT value FROM jsonb_array_elements(p_order.items) LOOP
+    CONTINUE WHEN LOWER(COALESCE(v_item->>'is_manual', 'false')) = 'true'
+               OR LOWER(COALESCE(v_item->>'source', '')) = 'manual';
+    CONTINUE WHEN COALESCE(v_item->>'product_id', '') !~ '^[0-9]+$';
+    v_qty := CASE WHEN COALESCE(v_item->>'quantity', '') ~ '^[0-9]+(\.[0-9]+)?$'
+                  THEN (v_item->>'quantity')::NUMERIC ELSE 0 END;
+    CONTINUE WHEN v_qty <= 0;
+    v_pid := (v_item->>'product_id')::BIGINT;
+    CONTINUE WHEN NOT EXISTS (
+      SELECT 1 FROM public.products WHERE id = v_pid AND COALESCE(category, '') <> 'Unregistered'
+    );
+    SELECT name, metal_type, item_status INTO v_name, v_metal, v_status FROM public.products WHERE id = v_pid;
+
+    v_vid := NULL;
+    IF COALESCE(v_item->>'variant_id', '') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+      SELECT id INTO v_vid FROM public.product_variants
+      WHERE id = (v_item->>'variant_id')::UUID AND product_id = v_pid;
+    END IF;
+
+    IF v_vid IS NOT NULL THEN
+      SELECT stock INTO v_before FROM public.product_variants WHERE id = v_vid FOR UPDATE;
+    ELSE
+      SELECT stock_quantity INTO v_before FROM public.products WHERE id = v_pid FOR UPDATE;
+    END IF;
+
+    IF v_metal IS NOT NULL AND COALESCE(p_order.order_type, '') <> 'advance_order' THEN
+      IF COALESCE(v_status, 'available') <> 'available' THEN
+        RAISE EXCEPTION '% is marked % and cannot be sold.', v_name, REPLACE(v_status, '_', ' ');
+      END IF;
+      IF COALESCE(v_before, 0) < v_qty THEN
+        RAISE EXCEPTION '% is out of stock (% left), it may already be sold.', v_name, COALESCE(v_before, 0);
+      END IF;
+    END IF;
+
+    v_after := COALESCE(v_before, 0) - v_qty;
+    IF v_vid IS NOT NULL THEN
+      UPDATE public.product_variants SET stock = v_after, updated_at = NOW() WHERE id = v_vid;
+      -- The parent product's stock is the total of its variants.
+      UPDATE public.products SET stock_quantity = stock_quantity - v_qty, updated_at = NOW() WHERE id = v_pid;
+    ELSE
+      UPDATE public.products SET stock_quantity = v_after, updated_at = NOW() WHERE id = v_pid;
+    END IF;
+
+    INSERT INTO public.inventory_movements (
+      product_id, variant_id, movement_type, quantity_delta, quantity_before, quantity_after,
+      reference_type, reference_id, note, created_by_name
+    ) VALUES (
+      v_pid, v_vid, 'SALE', -v_qty, COALESCE(v_before, 0), v_after,
+      'order', p_order.id::TEXT, 'Bill ' || COALESCE(p_order.invoice_no, ''), 'POS'
+    );
+  END LOOP;
+END;
+$$;
+
+-- ============================================================================
+-- 21. Suppliers and jewellery purchases
+--     A purchase records the supplier's bill line by line (metal, purity,
+--     weights, rate, making / other cost). Lines linked to a catalogue item add
+--     its stock (a RESTOCK movement referencing the purchase) and update its cost price.
+--     Still owed = total - paid; later payments are recorded separately.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS public.suppliers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL DEFAULT '',
+  gstin TEXT NOT NULL DEFAULT '',
+  address TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE SEQUENCE IF NOT EXISTS public.purchase_number_seq START WITH 1;
+CREATE TABLE IF NOT EXISTS public.supplier_purchases (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  purchase_number TEXT NOT NULL UNIQUE DEFAULT ('PUR' || LPAD(nextval('public.purchase_number_seq')::TEXT, 6, '0')),
+  supplier_id UUID NOT NULL REFERENCES public.suppliers(id) ON DELETE RESTRICT,
+  supplier_invoice_no TEXT NOT NULL DEFAULT '',
+  purchase_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  -- [{ product_id, description, metal_type, purity, gross_weight, stone_weight, net_weight,
+  --    rate, making_cost, other_cost, stone_details, quantity, amount }]
+  items JSONB NOT NULL DEFAULT '[]'::JSONB,
+  total_amount NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (total_amount >= 0),
+  amount_paid NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (amount_paid >= 0),
+  notes TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL DEFAULT 'Admin',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT supplier_purchases_paid_check CHECK (amount_paid <= total_amount)
+);
+CREATE INDEX IF NOT EXISTS supplier_purchases_supplier_idx ON public.supplier_purchases(supplier_id, purchase_date DESC);
+
+CREATE TABLE IF NOT EXISTS public.supplier_payments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  supplier_id UUID NOT NULL REFERENCES public.suppliers(id) ON DELETE RESTRICT,
+  purchase_id UUID REFERENCES public.supplier_purchases(id) ON DELETE CASCADE,
+  amount NUMERIC(14,2) NOT NULL CHECK (amount > 0),
+  payment_method TEXT NOT NULL DEFAULT 'cash',
+  reference TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  paid_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_by TEXT NOT NULL DEFAULT 'Admin'
+);
+CREATE INDEX IF NOT EXISTS supplier_payments_purchase_idx ON public.supplier_payments(purchase_id);
+
+CREATE OR REPLACE FUNCTION public.record_supplier_purchase(
+  p_supplier_id UUID,
+  p_supplier_invoice_no TEXT,
+  p_purchase_date DATE,
+  p_items JSONB,
+  p_amount_paid NUMERIC DEFAULT 0,
+  p_payment_method TEXT DEFAULT 'cash',
+  p_reference TEXT DEFAULT '',
+  p_notes TEXT DEFAULT '',
+  p_created_by TEXT DEFAULT 'Admin'
+)
+RETURNS public.supplier_purchases
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_by TEXT := COALESCE(NULLIF(p_created_by, ''), 'Admin');
+  v_item JSONB;
+  v_items JSONB := '[]'::JSONB;
+  v_total NUMERIC := 0;
+  v_qty NUMERIC;
+  v_gross NUMERIC;
+  v_stone NUMERIC;
+  v_net NUMERIC;
+  v_rate NUMERIC;
+  v_making NUMERIC;
+  v_other NUMERIC;
+  v_amount NUMERIC;
+  v_pid BIGINT;
+  v_before NUMERIC;
+  v_paid NUMERIC := ROUND(GREATEST(0, COALESCE(p_amount_paid, 0)), 2);
+  v_purchase public.supplier_purchases;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.suppliers WHERE id = p_supplier_id) THEN RAISE EXCEPTION 'Choose the supplier.'; END IF;
+  IF jsonb_typeof(p_items) IS DISTINCT FROM 'array' OR jsonb_array_length(p_items) = 0 THEN
+    RAISE EXCEPTION 'Add at least one item to the purchase.';
+  END IF;
+
+  FOR v_item IN SELECT value FROM jsonb_array_elements(p_items) LOOP
+    v_qty := COALESCE(NULLIF(v_item->>'quantity', '')::NUMERIC, 1);
+    v_gross := GREATEST(0, COALESCE(NULLIF(v_item->>'gross_weight', '')::NUMERIC, 0));
+    v_stone := GREATEST(0, COALESCE(NULLIF(v_item->>'stone_weight', '')::NUMERIC, 0));
+    v_rate := GREATEST(0, COALESCE(NULLIF(v_item->>'rate', '')::NUMERIC, 0));
+    v_making := GREATEST(0, COALESCE(NULLIF(v_item->>'making_cost', '')::NUMERIC, 0));
+    v_other := GREATEST(0, COALESCE(NULLIF(v_item->>'other_cost', '')::NUMERIC, 0));
+    IF v_qty <= 0 THEN RAISE EXCEPTION 'Quantity must be more than zero.'; END IF;
+    IF v_stone > v_gross AND v_gross > 0 THEN RAISE EXCEPTION 'Stone weight cannot be more than the gross weight.'; END IF;
+    v_net := ROUND(GREATEST(0, v_gross - v_stone), 3);
+    -- Weighed metal: net weight x rate + making + other for the whole line; otherwise the amount given.
+    v_amount := CASE WHEN v_net > 0 AND v_rate > 0
+                     THEN ROUND(v_net * v_rate + v_making + v_other, 2)
+                     ELSE ROUND(GREATEST(0, COALESCE(NULLIF(v_item->>'amount', '')::NUMERIC, 0)), 2) END;
+    IF v_amount <= 0 THEN RAISE EXCEPTION 'Every purchase line needs an amount (or a weight and rate).'; END IF;
+    v_total := v_total + v_amount;
+    v_items := v_items || jsonb_build_array(v_item || jsonb_build_object(
+      'quantity', v_qty, 'gross_weight', v_gross, 'stone_weight', v_stone, 'net_weight', v_net,
+      'rate', v_rate, 'making_cost', v_making, 'other_cost', v_other, 'amount', v_amount));
+  END LOOP;
+
+  IF v_paid > v_total THEN RAISE EXCEPTION 'Amount paid (%) is more than the purchase total (%).', v_paid, v_total; END IF;
+
+  INSERT INTO public.supplier_purchases (supplier_id, supplier_invoice_no, purchase_date, items, total_amount, amount_paid, notes, created_by)
+  VALUES (p_supplier_id, BTRIM(COALESCE(p_supplier_invoice_no, '')), COALESCE(p_purchase_date, CURRENT_DATE), v_items, v_total, v_paid, COALESCE(p_notes, ''), v_by)
+  RETURNING * INTO v_purchase;
+
+  -- Stock in for lines linked to a catalogue item; its cost price becomes this purchase's unit cost.
+  FOR v_item IN SELECT value FROM jsonb_array_elements(v_items) LOOP
+    CONTINUE WHEN COALESCE(v_item->>'product_id', '') !~ '^[0-9]+$';
+    v_pid := (v_item->>'product_id')::BIGINT;
+    v_qty := (v_item->>'quantity')::NUMERIC;
+    v_amount := (v_item->>'amount')::NUMERIC;
+    SELECT stock_quantity INTO v_before FROM public.products WHERE id = v_pid FOR UPDATE;
+    CONTINUE WHEN NOT FOUND;
+    UPDATE public.products
+    SET stock_quantity = COALESCE(v_before, 0) + v_qty, purchase_price = ROUND(v_amount / v_qty, 2), updated_at = NOW()
+    WHERE id = v_pid;
+    INSERT INTO public.inventory_movements (product_id, movement_type, quantity_delta, quantity_before, quantity_after, unit_cost,
+                                           reference_type, reference_id, note, created_by_name)
+    VALUES (v_pid, 'RESTOCK', v_qty, COALESCE(v_before, 0), COALESCE(v_before, 0) + v_qty, ROUND(v_amount / v_qty, 2),
+            'purchase', v_purchase.purchase_number, 'Purchase ' || v_purchase.purchase_number, v_by);
+  END LOOP;
+
+  IF v_paid > 0 THEN
+    INSERT INTO public.supplier_payments (supplier_id, purchase_id, amount, payment_method, reference, created_by)
+    VALUES (p_supplier_id, v_purchase.id, v_paid, COALESCE(NULLIF(p_payment_method, ''), 'cash'), COALESCE(p_reference, ''), v_by);
+  END IF;
+  RETURN v_purchase;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.record_supplier_payment(
+  p_purchase_id UUID, p_amount NUMERIC, p_payment_method TEXT DEFAULT 'cash', p_reference TEXT DEFAULT '',
+  p_notes TEXT DEFAULT '', p_created_by TEXT DEFAULT 'Admin'
+)
+RETURNS public.supplier_purchases
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_purchase public.supplier_purchases;
+  v_amount NUMERIC := ROUND(COALESCE(p_amount, 0), 2);
+BEGIN
+  SELECT * INTO v_purchase FROM public.supplier_purchases WHERE id = p_purchase_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Purchase not found.'; END IF;
+  IF v_amount <= 0 THEN RAISE EXCEPTION 'Enter the amount paid.'; END IF;
+  IF v_amount > v_purchase.total_amount - v_purchase.amount_paid THEN
+    RAISE EXCEPTION 'Only % is still owed on %.', v_purchase.total_amount - v_purchase.amount_paid, v_purchase.purchase_number;
+  END IF;
+  INSERT INTO public.supplier_payments (supplier_id, purchase_id, amount, payment_method, reference, notes, created_by)
+  VALUES (v_purchase.supplier_id, p_purchase_id, v_amount, COALESCE(NULLIF(p_payment_method, ''), 'cash'),
+          COALESCE(p_reference, ''), COALESCE(p_notes, ''), COALESCE(NULLIF(p_created_by, ''), 'Admin'));
+  UPDATE public.supplier_purchases SET amount_paid = amount_paid + v_amount WHERE id = p_purchase_id RETURNING * INTO v_purchase;
+  RETURN v_purchase;
+END;
+$$;
+
+DO $$
+DECLARE t TEXT;
+BEGIN
+  FOREACH t IN ARRAY ARRAY['suppliers', 'supplier_purchases', 'supplier_payments'] LOOP
+    EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', t);
+    EXECUTE format('DROP POLICY IF EXISTS %I ON public.%I', t || '_portal_manage', t);
+    EXECUTE format('CREATE POLICY %I ON public.%I FOR ALL TO anon, authenticated USING (TRUE) WITH CHECK (TRUE)', t || '_portal_manage', t);
+  END LOOP;
+END $$;
+GRANT EXECUTE ON FUNCTION public.record_supplier_purchase(UUID, TEXT, DATE, JSONB, NUMERIC, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.record_supplier_payment(UUID, NUMERIC, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;

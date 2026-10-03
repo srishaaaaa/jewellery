@@ -92,16 +92,31 @@ export const PAYMENT_LABELS: Record<string, string> = {
 export const COUNTER_PAYMENT_METHODS = ['cash', 'qr', 'card', 'bank', 'cheque'] as const
 export type CounterPaymentMethod = typeof COUNTER_PAYMENT_METHODS[number]
 
-/** "split" + { cash: 300, qr: 200 } -> "Split (Cash ₹300 + QR ₹200)"; other modes -> "Cash", "QR", ... */
+/**
+ * Key in a bill's split_details holding the UPI / card / bank / cheque reference number.
+ * Kept there so every invoice view that already passes split_details shows it.
+ */
+export const PAYMENT_REFERENCE_KEY = 'reference'
+
+/** The method → amount entries of a bill's split_details (without the reference number). */
+export const splitPaymentParts = (splitDetails: unknown): Array<[string, number]> =>
+  splitDetails && typeof splitDetails === 'object'
+    ? Object.entries(splitDetails as Record<string, unknown>)
+      .filter(([k, v]) => k !== PAYMENT_REFERENCE_KEY && Number(v) > 0)
+      .map(([k, v]) => [k, Number(v)])
+    : []
+
+/** "split" + { cash: 300, qr: 200 } -> "Split (Cash ₹300 + QR ₹200)"; other modes -> "Cash", "QR", ...; plus " · Ref 1234" when recorded. */
 export const formatPaymentMode = (mode: unknown, splitDetails?: unknown): string => {
   const m = String(mode || '').trim().toLowerCase()
-  if (m === 'split' && splitDetails && typeof splitDetails === 'object') {
-    const parts = Object.entries(splitDetails as Record<string, unknown>)
-      .filter(([, v]) => Number(v) > 0)
-      .map(([k, v]) => `${PAYMENT_LABELS[k] || k} ₹${Number(v).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`)
-    if (parts.length) return `Split (${parts.join(' + ')})`
+  const ref = splitDetails && typeof splitDetails === 'object' ? String((splitDetails as Record<string, unknown>)[PAYMENT_REFERENCE_KEY] || '').trim() : ''
+  const suffix = ref ? ` · Ref ${ref}` : ''
+  if (m === 'split') {
+    const parts = splitPaymentParts(splitDetails)
+      .map(([k, v]) => `${PAYMENT_LABELS[k] || k} ₹${v.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`)
+    if (parts.length) return `Split (${parts.join(' + ')})${suffix}`
   }
-  return PAYMENT_LABELS[m] || String(mode || '')
+  return `${PAYMENT_LABELS[m] || String(mode || '')}${suffix}`
 }
 
 export const formatInvoiceNo = (invNo: unknown): string => {

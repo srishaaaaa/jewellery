@@ -314,9 +314,9 @@ export const quotationService = {
 }
 
 // ── Repairs ────────────────────────────────────────────────────────────────
-export type RepairStatus = 'received' | 'in_repair' | 'ready' | 'delivered' | 'cancelled'
+export type RepairStatus = 'received' | 'inspection' | 'in_repair' | 'ready' | 'delivered' | 'cancelled'
 export const REPAIR_STATUS_LABELS: Record<RepairStatus, string> = {
-  received: 'Received', in_repair: 'In Repair', ready: 'Ready', delivered: 'Delivered', cancelled: 'Cancelled',
+  received: 'Received', inspection: 'Inspection', in_repair: 'In Repair', ready: 'Ready', delivered: 'Delivered', cancelled: 'Cancelled',
 }
 
 export interface Repair {
@@ -336,6 +336,10 @@ export interface Repair {
   status: RepairStatus
   deliveredAt: string | null
   notes: string
+  /** Staff member doing the repair */
+  assignedTo: string
+  /** Bill the item was originally bought on, if known */
+  invoiceNo: string
   createdBy: string
   createdAt: string
 }
@@ -350,7 +354,8 @@ const mapRepair = (r: Record<string, unknown>): Repair => {
     expectedDate: r.expected_date ? str(r.expected_date).slice(0, 10) : null, repairCharge: charge, advancePaid: adv,
     balance: Math.max(0, Math.round((charge - adv) * 100) / 100),
     status: (Object.keys(REPAIR_STATUS_LABELS) as RepairStatus[]).includes(status) ? status : 'received',
-    deliveredAt: r.delivered_at ? str(r.delivered_at) : null, notes: str(r.notes), createdBy: str(r.created_by), createdAt: str(r.created_at),
+    deliveredAt: r.delivered_at ? str(r.delivered_at) : null, notes: str(r.notes), assignedTo: str(r.assigned_to), invoiceNo: str(r.invoice_no),
+    createdBy: str(r.created_by), createdAt: str(r.created_at),
   }
 }
 
@@ -365,17 +370,20 @@ export const repairService = {
     if (error) return []
     return (data || []).map((r) => mapRepair(r as Record<string, unknown>))
   },
-  async create(input: { customerName: string; phone: string; itemName: string; description: string; metalType: string; weight: number; expectedDate: string | null; repairCharge: number; advancePaid: number; notes: string }): Promise<Repair> {
+  async create(input: { customerName: string; phone: string; itemName: string; description: string; metalType: string; weight: number; expectedDate: string | null; repairCharge: number; advancePaid: number; notes: string; assignedTo?: string; invoiceNo?: string }): Promise<Repair> {
     const { data, error } = await supabase.from('repairs').insert({
       customer_name: input.customerName.trim(), phone: input.phone.trim(), item_name: input.itemName.trim(), description: input.description.trim(),
       metal_type: input.metalType, weight: input.weight, expected_date: input.expectedDate, repair_charge: input.repairCharge,
       advance_paid: input.advancePaid, notes: input.notes.trim(), created_by: currentUserName(),
+      // Sent only when filled, so repairs keep saving on a database without these columns yet.
+      ...(input.assignedTo?.trim() ? { assigned_to: input.assignedTo.trim() } : {}),
+      ...(input.invoiceNo?.trim() ? { invoice_no: input.invoiceNo.trim().toUpperCase() } : {}),
     }).select('*').single()
     if (error) throw fail(error, 'Unable to save the repair')
     await supabase.from('customers').upsert({ phone: input.phone.trim(), name: input.customerName.trim(), updated_at: new Date().toISOString() }, { onConflict: 'phone', ignoreDuplicates: true })
     return mapRepair(data as Record<string, unknown>)
   },
-  async update(id: string, patch: { status?: RepairStatus; repairCharge?: number; advancePaid?: number; expectedDate?: string | null }): Promise<Repair> {
+  async update(id: string, patch: { status?: RepairStatus; repairCharge?: number; advancePaid?: number; expectedDate?: string | null; assignedTo?: string }): Promise<Repair> {
     const row: Record<string, unknown> = { updated_at: new Date().toISOString() }
     if (patch.status) {
       row.status = patch.status
@@ -384,6 +392,7 @@ export const repairService = {
     if (patch.repairCharge != null) row.repair_charge = patch.repairCharge
     if (patch.advancePaid != null) row.advance_paid = patch.advancePaid
     if (patch.expectedDate !== undefined) row.expected_date = patch.expectedDate
+    if (patch.assignedTo !== undefined) row.assigned_to = patch.assignedTo.trim()
     const { data, error } = await supabase.from('repairs').update(row).eq('id', id).select('*').single()
     if (error) throw fail(error, 'Unable to update the repair')
     return mapRepair(data as Record<string, unknown>)

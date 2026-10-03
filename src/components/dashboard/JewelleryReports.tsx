@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Download, Gem, Package, PiggyBank, TrendingUp } from 'lucide-react'
-import { PAYMENT_LABELS, formatCurrency, formatInvoiceNo, normalizeStructuredOrderItem } from '../../lib/retail'
+import { PAYMENT_LABELS, splitPaymentParts, formatCurrency, formatInvoiceNo, normalizeStructuredOrderItem } from '../../lib/retail'
 import { useProductStore } from '../../store/store'
 import { useMetalRateStore } from '../../store/metalRateStore'
 import { currentProductPrice } from '../../lib/jewelleryProduct'
@@ -106,7 +106,7 @@ export default function JewelleryReports({ orders, dateFrom, dateTo }: { orders:
       if (exchange > 0) add(payments, 'exchange', 'Old Gold Exchange', exchange)
       const counter = Math.max(0, total - scheme - advance - exchange)
       const mode = String(o.payment_mode || o.payment_method || '').trim().toLowerCase()
-      const split = o.split_details && typeof o.split_details === 'object' ? Object.entries(o.split_details).filter(([, v]) => Number(v) > 0) : []
+      const split = splitPaymentParts(o.split_details)
       if (mode === 'split' && split.length) {
         for (const [k, v] of split) add(payments, paymentGroup(k.toLowerCase()), paymentGroup(k.toLowerCase()), Number(v), 0)
         const first = paymentGroup(split[0][0].toLowerCase())

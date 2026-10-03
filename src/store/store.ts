@@ -14,11 +14,13 @@ import {
 } from '../lib/retail'
 import {
   normalizeHallmarkStatus,
+  normalizeItemStatus,
   normalizeMakingChargeType,
   normalizeMetalType,
   normalizeStoneDetails,
   normalizeWastageType,
   type HallmarkStatus,
+  type ItemStatus,
   type StoneDetails,
   type MakingChargeType,
   type MetalType,
@@ -103,6 +105,8 @@ export interface Product {
   otherWeight?: number
   hallmarkStatus?: HallmarkStatus | null
   stoneDetails?: StoneDetails | null
+  /** Where the piece is (available, reserved, under repair...). Only available pieces can be billed. */
+  itemStatus?: ItemStatus
 }
 
 interface AuthUser {
@@ -352,6 +356,7 @@ const mapDbProduct = (input: unknown, categoriesById: Record<string, string> = {
     otherWeight: toNumber(p.other_weight, 0),
     hallmarkStatus: normalizeHallmarkStatus(p.hallmark_status),
     stoneDetails: normalizeStoneDetails(p.stone_details),
+    itemStatus: normalizeItemStatus(p.item_status),
   }
 }
 

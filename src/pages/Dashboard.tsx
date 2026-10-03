@@ -4,7 +4,7 @@ import {
   Box, AlertCircle, Power, Download, TrendingUp, TrendingDown,
   Package, Search, RefreshCw, ShieldCheck, ShieldOff, Trophy,
   MessageCircle, ChevronDown, Eye, FileText, Printer, X, Layers, Receipt, Settings, Wallet, Gift,
-  Gem, PiggyBank, Briefcase,
+  Gem, PiggyBank, Briefcase, Truck,
 } from 'lucide-react'
 
 // Custom Malaysian Ringgit icon — replaces the generic dollar-sign icon
@@ -51,6 +51,7 @@ import AdvanceOrders from './AdvanceOrders'
 import MetalRates from './MetalRates'
 import Schemes from './Schemes'
 import SalesDesk from './SalesDesk'
+import Purchases from './Purchases'
 import JewelleryReports from '../components/dashboard/JewelleryReports'
 import { auditService } from '../services/auditService'
 import BirthdayDashboard from '../components/dashboard/BirthdayDashboard'
@@ -134,11 +135,14 @@ type DashboardCoupon = {
   usage_count: number
   min_order_value: number
 }
-type TabKey = 'overview' | 'whatsapp' | 'pos_analytics' | 'billing' | 'advance_orders' | 'inventory' | 'expenses' | 'coupons' | 'users' | 'history' | 'settings' | 'outstanding_credits' | 'customer_events' | 'metal_rates' | 'schemes' | 'sales_desk'
+type TabKey = 'overview' | 'whatsapp' | 'pos_analytics' | 'billing' | 'advance_orders' | 'inventory' | 'expenses' | 'coupons' | 'users' | 'history' | 'settings' | 'outstanding_credits' | 'customer_events' | 'metal_rates' | 'schemes' | 'sales_desk' | 'purchases'
 type PosAnalyticsTab = 'revenue' | 'today' | 'products' | 'categories' | 'coupons' | 'jewellery'
 type ProfileUser = { id: string; email: string; name: string; mobile: string; role: string; created_at: string }
 
 const normalizeStatus = (v: unknown) => String(v || '').trim().toLowerCase()
+const statusTone = (v: unknown) => normalizeStatus(v) === 'completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  : normalizeStatus(v) === 'cancelled' ? 'border-gray-200 bg-gray-100 text-gray-500'
+    : 'border-amber-200 bg-amber-50 text-amber-700'
 const normalizeOrderType = (v: unknown) => String(v || '').trim().toLowerCase() || 'pos_sale'
 const formatPhoneWithCountryCode = (phone: string) => {
   const cleaned = String(phone || '').replace(/\D/g, '')
@@ -881,11 +885,34 @@ export default function Dashboard() {
   }
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
+    if (newStatus === 'cancelled') { await cancelOrder(orderId); return }
     const before = orders.find(o => o.id === orderId)
     await supabase.from('orders').update({ status: newStatus }).eq('id', orderId)
     void auditService.log({ action: 'invoice_status_changed', entityType: 'invoice', entityId: before?.invoice_no || orderId, oldValue: { status: before?.status }, newValue: { status: newStatus } })
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o))
     setSearchResults(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o))
+  }
+
+  /**
+   * Voids a bill but keeps it on record (marked cancelled). Stock goes back and any scheme / advance
+   * amount used on it is released by the database; the bill can no longer be reopened.
+   */
+  const cancelOrder = async (orderId: string) => {
+    const before = orders.find(o => o.id === orderId) || searchResults.find(o => o.id === orderId)
+    const invoiceLabel = formatInvoiceNo(before?.invoice_no || '')
+    if (role !== 'admin') { alert('Only the admin can cancel an invoice. Record a return in Sales Desk instead.'); return }
+    const reason = window.prompt(`Cancel invoice ${invoiceLabel}?\n\nIt stays in Order History marked CANCELLED and drops out of sales. Items go back to stock and any scheme or advance amount used on it is given back. A cancelled bill cannot be reopened.\n\nEnter the reason:`)
+    if (!reason || !reason.trim()) return
+    const { error } = await supabase.rpc('cancel_invoice', { p_order_id: orderId, p_reason: reason.trim(), p_cancelled_by: role === 'admin' ? 'Admin' : 'Staff' })
+    if (error) {
+      alert((error as { code?: string }).code === 'PGRST202'
+        ? 'Cancelling invoices needs the database update: run supabase/migrations/jewellery_pos.sql again in the Supabase SQL Editor.'
+        : `Could not cancel the invoice: ${error.message}`)
+      return
+    }
+    void auditService.log({ action: 'invoice_cancelled', entityType: 'invoice', entityId: before?.invoice_no || orderId, oldValue: { status: before?.status, total: before?.total }, newValue: { status: 'cancelled' }, note: reason.trim() })
+    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelled' } : o))
+    setSearchResults(prev => prev.map(o => o.id === orderId ? { ...o, status: 'cancelled' } : o))
   }
 
   const deleteOrder = async (orderId: string, invoiceNo: string) => {
@@ -1377,6 +1404,7 @@ export default function Dashboard() {
     : [
         { id: 'billing',        icon: <ShoppingCart size={18} />, label: 'Billing Panel' },
         { id: 'inventory',      icon: <Layers size={18} />,       label: 'Jewellery Stock & Barcodes' },
+        { id: 'purchases',      icon: <Truck size={18} />,        label: 'Purchases & Suppliers' },
         { id: 'metal_rates',    icon: <Gem size={18} />,          label: 'Metal Rates' },
         { id: 'schemes',        icon: <PiggyBank size={18} />,    label: 'Schema' },
         { id: 'sales_desk',     icon: <Briefcase size={18} />,    label: 'Sales Desk' },
@@ -1882,16 +1910,18 @@ export default function Dashboard() {
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <select
-                            value={normalizeStatus(order.status)}
+                            value={normalizeStatus(order.status)} disabled={normalizeStatus(order.status) === 'cancelled'}
                             onChange={e => void updateOrderStatus(order.id, e.target.value)}
                             className={`text-[11px] font-black px-2 py-1.5 rounded-lg border cursor-pointer outline-none ${
-                              isCompletedStatus(order.status) ? 'bg-green-100 text-green-700 border-green-200'
+                              normalizeStatus(order.status) === 'cancelled' ? 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed'
+                              : isCompletedStatus(order.status) ? 'bg-green-100 text-green-700 border-green-200'
                               : normalizeStatus(order.status) === 'contacted' ? 'bg-orange-100 text-orange-700 border-orange-200'
                               : 'bg-amber-100 text-amber-700 border-amber-200'
                             }`}>
                             <option value="pending">{l('Pending', 'நிலுவை')}</option>
                             <option value="contacted">{l('Contacted', 'தொடர்பு')}</option>
                             <option value="completed">{l('Completed', 'முடிந்தது')}</option>
+<option value="cancelled">{l('Cancelled', 'ரத்து')}</option>
                           </select>
                           <button
                             type="button"
@@ -2028,16 +2058,18 @@ export default function Dashboard() {
                               <td className="px-4 py-3">
                                 <div className="flex items-center gap-2">
                                   <select
-                                    value={normalizeStatus(order.status)}
+                                    value={normalizeStatus(order.status)} disabled={normalizeStatus(order.status) === 'cancelled'}
                                     onChange={e => void updateOrderStatus(order.id, e.target.value)}
                                     className={`text-[11px] font-black px-2 py-1.5 rounded-lg border cursor-pointer outline-none ${
-                                      isCompletedStatus(order.status) ? 'bg-green-100 text-green-700 border-green-200'
+                                      normalizeStatus(order.status) === 'cancelled' ? 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed'
+                              : isCompletedStatus(order.status) ? 'bg-green-100 text-green-700 border-green-200'
                                       : normalizeStatus(order.status) === 'contacted' ? 'bg-orange-100 text-orange-700 border-orange-200'
                                       : 'bg-amber-100 text-amber-700 border-amber-200'
                                     }`}>
                                     <option value="pending">{l('Pending', 'நிலுவை')}</option>
                                     <option value="contacted">{l('Contacted', 'தொடர்பு')}</option>
                                     <option value="completed">{l('Completed', 'முடிந்தது')}</option>
+<option value="cancelled">{l('Cancelled', 'ரத்து')}</option>
                                   </select>
                                   <button onClick={() => void deleteOrder(order.id, order.invoice_no)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Delete Order">
                                     <Trash2 size={14} />
@@ -3004,8 +3036,9 @@ export default function Dashboard() {
 
         {tab === 'customer_events' && <BirthdayDashboard />}
         {tab === 'metal_rates' && <MetalRates />}
+        {tab === 'purchases' && role === 'admin' && <Purchases />}
         {tab === 'schemes' && <Schemes />}
-        {tab === 'sales_desk' && <SalesDesk />}
+        {tab === 'sales_desk' && <SalesDesk onBillQuotation={(q) => { useNavigationStore.getState().setPendingQuotation(q); setTab('billing'); setCurrentTab('billing') }} />}
 
         {/* ── ORDER MANAGEMENT ── */}
         {tab === 'history' && (
@@ -3128,14 +3161,15 @@ export default function Dashboard() {
                         </div>
                         <div className="flex gap-2 w-full sm:flex-1">
                         {role === 'admin' ? (
-                          <select value={normalizeStatus(o.status)} onChange={e => void updateOrderStatus(o.id, e.target.value)}
-                            className={`min-h-[44px] flex-1 cursor-pointer rounded-xl border px-3 py-2 text-[12px] font-black outline-none ${normalizeStatus(o.status) === 'completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                          <select value={normalizeStatus(o.status)} disabled={normalizeStatus(o.status) === 'cancelled'} onChange={e => void updateOrderStatus(o.id, e.target.value)}
+                            className={`min-h-[44px] flex-1 cursor-pointer rounded-xl border px-3 py-2 text-[12px] font-black outline-none ${statusTone(o.status)}`}>
                             <option value="pending">{l('Pending', 'நிலுவை')}</option>
                             <option value="completed">{l('Completed', 'முடிந்தது')}</option>
+<option value="cancelled">{l('Cancelled', 'ரத்து')}</option>
                           </select>
                         ) : (
-                          <span className={`inline-flex items-center justify-center flex-1 min-h-[44px] px-3 py-2 rounded-xl text-[12px] font-black uppercase ${normalizeStatus(o.status) === 'completed' ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-amber-200 bg-amber-50 text-amber-700'}`}>
-                            {normalizeStatus(o.status) === 'completed' ? l('Completed', 'முடிந்தது') : l('Pending', 'நிலுவை')}
+                          <span className={`inline-flex items-center justify-center flex-1 min-h-[44px] px-3 py-2 rounded-xl text-[12px] font-black uppercase ${normalizeStatus(o.status) === 'cancelled' ? 'border border-gray-200 bg-gray-100 text-gray-500' : normalizeStatus(o.status) === 'completed' ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-amber-200 bg-amber-50 text-amber-700'}`}>
+                            {normalizeStatus(o.status) === 'completed' ? l('Completed', 'முடிந்தது') : normalizeStatus(o.status) === 'cancelled' ? l('Cancelled', 'ரத்து') : l('Pending', 'நிலுவை')}
                           </span>
                         )}
                         {role === 'admin' && (
@@ -3204,14 +3238,15 @@ export default function Dashboard() {
                           <td className="px-2 py-3">
                             <div className="flex items-center justify-center gap-1.5">
                               {role === 'admin' ? (
-                                <select value={normalizeStatus(o.status)} onChange={e => void updateOrderStatus(o.id, e.target.value)}
-                                  className={`cursor-pointer rounded-lg border px-1.5 py-1 text-[10px] font-black outline-none ${normalizeStatus(o.status) === 'completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
+                                <select value={normalizeStatus(o.status)} disabled={normalizeStatus(o.status) === 'cancelled'} onChange={e => void updateOrderStatus(o.id, e.target.value)}
+                                  className={`cursor-pointer rounded-lg border px-1.5 py-1 text-[10px] font-black outline-none ${statusTone(o.status)}`}>
                                   <option value="pending">{l('Pending', 'நிலுவை')}</option>
                                   <option value="completed">{l('Completed', 'முடிந்தது')}</option>
+<option value="cancelled">{l('Cancelled', 'ரத்து')}</option>
                                 </select>
                               ) : (
-                                <span className={`inline-flex items-center justify-center rounded-lg border px-2 py-0.5 text-[10px] font-black uppercase ${normalizeStatus(o.status) === 'completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-amber-200 bg-amber-50 text-amber-700'}`}>
-                                  {normalizeStatus(o.status) === 'completed' ? l('Completed', 'முடிந்தது') : l('Pending', 'நிலுவை')}
+                                <span className={`inline-flex items-center justify-center rounded-lg border px-2 py-0.5 text-[10px] font-black uppercase ${statusTone(o.status)}`}>
+                                  {normalizeStatus(o.status) === 'completed' ? l('Completed', 'முடிந்தது') : normalizeStatus(o.status) === 'cancelled' ? l('Cancelled', 'ரத்து') : l('Pending', 'நிலுவை')}
                                 </span>
                               )}
                               {role === 'admin' && (
