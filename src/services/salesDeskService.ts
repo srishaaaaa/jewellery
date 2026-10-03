@@ -242,17 +242,22 @@ export const returnService = {
     if (error) throw fail(error, 'Unable to load returns for this invoice')
     return (data || []).map((r) => mapReturn(r as Record<string, unknown>))
   },
+  /** orderId / invoiceNo are null / '' for a return taken without the original invoice. */
   async create(input: {
-    orderId: string; invoiceNo: string; customerName: string; phone: string; items: ReturnLine[]
+    orderId: string | null; invoiceNo: string; customerName: string; phone: string; items: ReturnLine[]
     returnType: 'refund' | 'exchange'; reason: string; refundAmount: number; refundMethod: string
   }): Promise<SalesReturn> {
     const { data, error } = await supabase.from('sales_returns').insert({
-      order_id: input.orderId, invoice_no: input.invoiceNo, customer_name: input.customerName, phone: input.phone,
+      order_id: input.orderId, invoice_no: input.invoiceNo, customer_name: input.customerName.trim(), phone: input.phone.trim(),
       items: input.items, return_type: input.returnType, reason: input.reason.trim(),
       refund_amount: Math.round(input.refundAmount * 100) / 100, refund_method: input.returnType === 'exchange' ? 'exchange' : input.refundMethod,
       created_by: currentUserName(),
     }).select('*').single()
     if (error) throw fail(error, 'Unable to record the return')
+    // Keep the customer record in sync with the existing customer flow (keyed by phone).
+    if (input.phone.trim()) {
+      await supabase.from('customers').upsert({ phone: input.phone.trim(), name: input.customerName.trim(), updated_at: new Date().toISOString() }, { onConflict: 'phone', ignoreDuplicates: true })
+    }
     return mapReturn(data as Record<string, unknown>)
   },
   async approve(id: string): Promise<SalesReturn> {

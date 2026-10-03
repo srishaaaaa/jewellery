@@ -151,10 +151,16 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
   const [returnType, setReturnType] = useState<'refund' | 'exchange'>('refund')
   const [returnMethod, setReturnMethod] = useState<string>('cash')
   const [returnReason, setReturnReason] = useState('')
+  // Customer on the return (filled from the invoice when one is chosen, editable either way).
+  const [returnCustomer, setReturnCustomer] = useState({ phone: '', name: '' })
+  // Items typed in when there is no invoice to pick them from.
+  const emptyManualLine = { name: '', weight: '', amount: '' }
+  const [manualLines, setManualLines] = useState([emptyManualLine])
 
   const openReturn = () => {
     setReturnOpen(true); setReturnLookup(''); setReturnOrders([]); setReturnOrder(null); setReturnQty({}); setReturnAmount('')
     setReturnType('refund'); setReturnMethod('cash'); setReturnReason(''); setModalError('')
+    setReturnCustomer({ phone: '', name: '' }); setManualLines([emptyManualLine])
   }
   const findInvoice = async () => {
     // Characters that would break the search filter are dropped.
@@ -179,6 +185,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
   }
   const chooseReturnOrder = async (o: ReturnOrder) => {
     setReturnOrder(o)
+    setReturnCustomer((c) => ({ phone: c.phone.trim() || o.phone, name: c.name.trim() || o.customerName }))
     setReturnQty({})
     setAlreadyReturned({})
     setAlreadyRefunded(null)
@@ -193,7 +200,18 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     }
   }
   const returnLines: ReturnLine[] = useMemo(() => {
-    if (!returnOrder) return []
+    if (!returnOrder) {
+      // No invoice: the typed items (not linked to stock).
+      return manualLines.flatMap((l, idx) => {
+        const amount = Math.round((Number(l.amount) || 0) * 100) / 100
+        if (!l.name.trim() || !(amount > 0)) return []
+        const weight = Number(l.weight) || 0
+        return [{
+          line: idx, name: weight > 0 ? `${l.name.trim()} (${formatWeight(weight)})` : l.name.trim(), quantity: 1, soldQuantity: 1,
+          lineTotal: amount, amount, product_id: null, variant_id: null, is_manual: true, jewellery: null,
+        }]
+      })
+    }
     return returnOrder.items.flatMap((it, idx) => {
       const qty = Number(returnQty[idx] || 0)
       if (!(qty > 0)) return []
@@ -204,34 +222,36 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
         is_manual: it.source === 'manual', jewellery: it.jewellery || null,
       }]
     })
-  }, [returnOrder, returnQty])
+  }, [returnOrder, returnQty, manualLines])
   const defaultReturnAmount = returnLines.reduce((s, l) => s + l.amount, 0)
 
   const submitReturn = async (event: FormEvent) => {
     event.preventDefault()
-    if (!returnOrder) return
-    if (alreadyRefunded === null) { setModalError('Earlier returns on this invoice could not be checked. Choose the invoice again.'); return }
-    if (!returnLines.length) { setModalError('Enter the quantity being returned for at least one item.'); return }
-    for (const l of returnLines) {
-      const left = l.soldQuantity - (alreadyReturned[l.line] || 0)
-      if (l.quantity > left) { setModalError(`${l.name}: only ${left} left to return on this invoice.`); return }
+    const phone = normalizePhone(returnCustomer.phone) || (returnOrder && !returnCustomer.phone.trim() ? returnOrder.phone : '')
+    if (!returnOrder && !phone) { setModalError('Enter the customer\'s mobile number.'); return }
+    if (returnCustomer.phone.trim() && !normalizePhone(returnCustomer.phone)) { setModalError('Enter a valid mobile number.'); return }
+    if (returnOrder && alreadyRefunded === null) { setModalError('Earlier returns on this invoice could not be checked. Choose the invoice again.'); return }
+    if (!returnLines.length) { setModalError(returnOrder ? 'Enter the quantity being returned for at least one item.' : 'Enter at least one item with its amount.'); return }
+    if (returnOrder) {
+      for (const l of returnLines) {
+        const left = l.soldQuantity - (alreadyReturned[l.line] || 0)
+        if (l.quantity > left) { setModalError(`${l.name}: only ${left} left to return on this invoice.`); return }
+      }
     }
-    const amount = returnAmount.trim() === ''
-      ? Math.min(defaultReturnAmount, Math.max(0, Math.round((returnOrder.total - alreadyRefunded) * 100) / 100))
-      : Number(returnAmount)
+    // Never refund more than the customer paid on the invoice, less earlier returns (no invoice: no bill to cap against).
+    const refundable = returnOrder ? Math.max(0, Math.round((returnOrder.total - (alreadyRefunded || 0)) * 100) / 100) : Infinity
+    const amount = returnAmount.trim() === '' ? Math.min(defaultReturnAmount, refundable) : Number(returnAmount)
     if (!Number.isFinite(amount) || amount < 0) { setModalError('Enter a valid refund / exchange amount.'); return }
-    // Never refund more than the customer paid on this invoice, less earlier returns.
-    const refundable = Math.max(0, Math.round((returnOrder.total - alreadyRefunded) * 100) / 100)
-    if (amount > refundable + 0.009) { setModalError(`The most that can be refunded on this invoice is ${formatCurrency(refundable)} (bill total ${formatCurrency(returnOrder.total)}${alreadyRefunded > 0 ? `, ${formatCurrency(alreadyRefunded)} already returned` : ''}).`); return }
+    if (returnOrder && amount > refundable + 0.009) { setModalError(`The most that can be refunded on this invoice is ${formatCurrency(refundable)} (bill total ${formatCurrency(returnOrder.total)}${alreadyRefunded ? `, ${formatCurrency(alreadyRefunded)} already returned` : ''}).`); return }
     if (!returnReason.trim()) { setModalError('Enter the reason for the return.'); return }
     setSaving(true)
     setModalError('')
     try {
       let created = await returnService.create({
-        orderId: returnOrder.id, invoiceNo: returnOrder.invoiceNo, customerName: returnOrder.customerName, phone: returnOrder.phone,
+        orderId: returnOrder?.id || null, invoiceNo: returnOrder?.invoiceNo || '', customerName: returnCustomer.name.trim() || returnOrder?.customerName || '', phone,
         items: returnLines, returnType, reason: returnReason, refundAmount: amount, refundMethod: returnMethod,
       })
-      void auditService.log({ action: 'return_created', entityType: 'sales_return', entityId: created.returnNumber, newValue: { invoice: returnOrder.invoiceNo, type: returnType, amount }, note: returnReason })
+      void auditService.log({ action: 'return_created', entityType: 'sales_return', entityId: created.returnNumber, newValue: { invoice: returnOrder?.invoiceNo || 'none', type: returnType, amount }, note: returnReason })
       if (isAdmin) {
         created = await returnService.approve(created.id)
         void auditService.log({ action: 'return_approved', entityType: 'sales_return', entityId: created.returnNumber, newValue: { amount: created.refundAmount, type: created.returnType } })
@@ -258,7 +278,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
   const printReturn = (r: SalesReturn) => printDeskReceipt({
     title: r.returnType === 'exchange' ? 'Exchange Slip' : 'Return Slip', number: r.returnNumber, date: fmtDate(r.createdAt, true),
     customerName: r.customerName, phone: r.phone,
-    rows: [['Original Invoice', formatInvoiceNo(r.invoiceNo)], ...r.items.map((l): [string, string] => {
+    rows: [['Original Invoice', r.invoiceNo ? formatInvoiceNo(r.invoiceNo) : 'Not given'], ...r.items.map((l): [string, string] => {
       const j = readJewellerySnapshot(l.jewellery)
       return [`${l.name} × ${l.quantity}`, `${formatCurrency(l.amount)}${j ? ` (${formatWeight(j.net_weight)} @ ${formatCurrency(j.rate_per_gram)}/g)` : ''}`]
     }), ['Reason', r.reason], ['Status', r.status === 'approved' ? 'Approved' : r.status === 'rejected' ? 'Rejected' : 'Pending approval']],
@@ -433,7 +453,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     if (tab === 'quotations') downloadCsv(`quotations_${d}.csv`, [['No', 'Date', 'Customer', 'Phone', 'Items', 'Total (INR)', 'Valid Until', 'Status'],
       ...quotations.map((x) => [x.quotationNumber, csvDate(x.createdAt), x.customerName, csvPhone(x.phone), x.items.length, x.total.toFixed(2), csvDate(x.validUntil), x.status])])
     if (tab === 'returns') downloadCsv(`returns_${d}.csv`, [['No', 'Date', 'Invoice', 'Customer', 'Type', 'Amount (INR)', 'Reason', 'Status', 'By', 'Approved By'],
-      ...returns.map((x) => [x.returnNumber, csvDate(x.createdAt, true), formatInvoiceNo(x.invoiceNo), x.customerName, x.returnType, x.refundAmount.toFixed(2), x.reason, x.status, x.createdBy, x.approvedBy])])
+      ...returns.map((x) => [x.returnNumber, csvDate(x.createdAt, true), x.invoiceNo ? formatInvoiceNo(x.invoiceNo) : 'No invoice', x.customerName, x.returnType, x.refundAmount.toFixed(2), x.reason, x.status, x.createdBy, x.approvedBy])])
     if (tab === 'old_gold') downloadCsv(`old_gold_${d}.csv`, [['No', 'Date', 'Source', 'Settlement', 'Invoice', 'Customer', 'Metal', 'Purity', 'Tested %', 'Gross (g)', 'Stone (g)', 'Net (g)', 'Melting %', 'Rate / g', 'Deduction', 'Value (INR)'],
       ...visibleOldGold.map((x) => [x.exchangeNumber, csvDate(x.createdAt, true), x.source === 'billing' ? 'Billing exchange' : 'Counter purchase',
         x.source === 'billing' ? 'On bill' : x.settlement === 'credit' ? 'Store credit' : `Paid ${formatPaymentMode(x.payoutMethod)}`, x.invoiceNo ? formatInvoiceNo(x.invoiceNo) : '', x.customerName, x.metalType, x.purity, x.testedPurity ?? '', x.grossWeight, x.stoneWeight, x.netWeight, x.meltingDeductionPercent, x.exchangeRate, x.otherDeduction, x.netValue.toFixed(2)])])
@@ -542,7 +562,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                 : returns.filter((x) => matches(x.returnNumber, x.invoiceNo, x.customerName, x.phone)).map((x) => (
                   <tr key={x.id} className="hover:bg-[var(--accent-a5)] transition-colors">
                     <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.returnNumber}</p><p className="text-[11px] text-[#8B9389]">{fmtDate(x.createdAt, true)} • {x.createdBy}</p></td>
-                    <td className="px-4 py-3.5"><p className="font-bold text-[#273126]">{formatInvoiceNo(x.invoiceNo)}</p><p className="text-xs text-[#727970]">{x.customerName} {x.phone && `• ${x.phone}`}</p></td>
+                    <td className="px-4 py-3.5"><p className="font-bold text-[#273126]">{x.invoiceNo ? formatInvoiceNo(x.invoiceNo) : 'No invoice'}</p><p className="text-xs text-[#727970]">{x.customerName} {x.phone && `• ${x.phone}`}</p></td>
                     <td className="px-4 py-3.5 text-xs">{x.items.map((l, i) => <p key={i}>{l.name} × {l.quantity}</p>)}<p className="text-[#858C83] whitespace-normal max-w-[220px]">{x.reason}</p></td>
                     <td className="px-4 py-3.5 text-xs font-bold">{x.returnType === 'exchange' ? 'Exchange (credit)' : `Refund · ${formatPaymentMode(x.refundMethod)}`}</td>
                     <td className="px-4 py-3.5 font-black">{formatCurrency(x.refundAmount)}</td>
@@ -645,11 +665,16 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     {returnOpen && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
       <form onSubmit={submitReturn} className="flex w-full max-w-2xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
         <div className="shrink-0 flex items-start justify-between border-b border-gray-100 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
-          <div><h3 className="text-xl font-black text-[#273126]">Return / Exchange</h3><p className="text-xs text-[#6B7280]">Linked to the original invoice, which stays unchanged.</p></div>
+          <div><h3 className="text-xl font-black text-[#273126]">Return / Exchange</h3><p className="text-xs text-[#6B7280]">With or without the original invoice. The invoice itself is never changed.</p></div>
           <button type="button" onClick={() => setReturnOpen(false)} className="shrink-0 text-[#858C83] hover:text-black"><X size={20} /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 space-y-4">
           {modalError && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label={returnOrder ? 'Mobile Number' : 'Mobile Number *'}><input className={inputClass} value={returnCustomer.phone} onChange={(e) => setReturnCustomer((c) => ({ ...c, phone: e.target.value }))} placeholder="Customer mobile" /></Field>
+            <Field label="Customer Name"><input className={inputClass} value={returnCustomer.name} onChange={(e) => setReturnCustomer((c) => ({ ...c, name: e.target.value }))} placeholder="Customer name" /></Field>
+          </div>
+          <p className="text-[11px] font-black uppercase tracking-wide text-[#6B7280]">Original invoice <span className="font-semibold normal-case tracking-normal">(optional: find it to pick items and put them back in stock)</span></p>
           <div className="flex gap-2">
             <input className={inputClass} value={returnLookup} onChange={(e) => setReturnLookup(e.target.value)} placeholder="Invoice number or customer phone"
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void findInvoice() } }} />
@@ -662,7 +687,23 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
               </button>
             ))}</div>
           )}
-          {returnOrder && <>
+          {!returnOrder && (
+            <div className="space-y-2">
+              <p className="text-[11px] font-black uppercase tracking-wide text-[#6B7280]">Items returned <span className="font-semibold normal-case tracking-normal">(no invoice: stock is not changed)</span></p>
+              {manualLines.map((l, idx) => (
+                <div key={idx} className="grid grid-cols-[1fr_1fr_28px] sm:grid-cols-[1fr_90px_110px_28px] gap-2 items-center">
+                  <input className={`${inputClass} col-span-3 sm:col-span-1`} value={l.name} onChange={(e) => setManualLines((cur) => cur.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)))} placeholder="Item, e.g. 22K chain" aria-label={`Item ${idx + 1}`} />
+                  <input type="number" min="0" step="0.001" className={inputClass} value={l.weight} onChange={(e) => setManualLines((cur) => cur.map((x, i) => (i === idx ? { ...x, weight: e.target.value } : x)))} placeholder="Wt (g)" aria-label={`Item ${idx + 1} weight`} />
+                  <input type="number" min="0" step="0.01" className={inputClass} value={l.amount} onChange={(e) => setManualLines((cur) => cur.map((x, i) => (i === idx ? { ...x, amount: e.target.value } : x)))} placeholder="₹ Value" aria-label={`Item ${idx + 1} value`} />
+                  <button type="button" disabled={manualLines.length <= 1} onClick={() => setManualLines((cur) => cur.filter((_, i) => i !== idx))} className="w-7 h-7 rounded-lg text-red-500 hover:bg-red-50 disabled:opacity-30 flex items-center justify-center" aria-label={`Remove item ${idx + 1}`}><X size={13} /></button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setManualLines((cur) => [...cur, emptyManualLine])} className="text-xs font-black text-[var(--accent-dark)] hover:underline">+ Add another item</button>
+            </div>
+          )}
+          {returnOrder && <div className="flex justify-end"><button type="button" onClick={() => { setReturnOrder(null); setReturnQty({}); setAlreadyReturned({}); setAlreadyRefunded(null) }} className="text-xs font-black text-[var(--accent-dark)] hover:underline">Return without this invoice</button></div>}
+          {<>
+            {returnOrder && <>
             <div className="rounded-xl bg-[#F8F7F4] p-3 text-sm"><b>{formatInvoiceNo(returnOrder.invoiceNo)}</b> • {returnOrder.customerName} • {formatPhoneDisplay(returnOrder.phone)} • {fmtDate(returnOrder.createdAt)}</div>
             <div className="space-y-2">
               {returnOrder.items.map((it, idx) => {
@@ -679,6 +720,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                 )
               })}
             </div>
+            </>}
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Type">
                 <select className={inputClass} value={returnType} onChange={(e) => setReturnType(e.target.value as 'refund' | 'exchange')}>
@@ -703,7 +745,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
         </div>
         <div className="shrink-0 flex gap-3 border-t border-gray-100 bg-white px-4 py-3 sm:px-6">
           <button type="button" onClick={() => setReturnOpen(false)} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button>
-          <button disabled={saving || !returnOrder} className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Saving…' : isAdmin ? 'Record & Approve' : 'Send for Approval'}</button>
+          <button disabled={saving} className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Saving…' : isAdmin ? 'Record & Approve' : 'Send for Approval'}</button>
         </div>
       </form>
     </div></ModalPortal>}
