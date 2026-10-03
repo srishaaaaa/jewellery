@@ -102,7 +102,8 @@ export default defineConfig({
     esbuildOptions: {
       target: 'esnext',
     },
-    exclude: ['html2canvas', 'jspdf', 'exceljs'],
+    // exceljs ships only a CommonJS/UMD build, so it must be pre-bundled for its default import to work in dev.
+    exclude: ['html2canvas', 'jspdf'],
   },
   server: {
     allowedHosts: true,
