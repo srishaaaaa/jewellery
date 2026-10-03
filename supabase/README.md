@@ -6,8 +6,10 @@ Run these in the Supabase SQL Editor of a new project, in this order:
    customers, advance orders, credits, expenses and coupons.
 2. `migrations/jewellery_pos.sql` — jewellery item fields, the append-only `metal_rates` history
    (current rate = latest row), savings schemes (`jewellery_schemes`, `scheme_installments` — paid
-   rows are locked by a trigger — and `scheme_redemptions`), the scheme functions, and the jewellery
-   categories.
+   rows are locked by a trigger — and `scheme_redemptions`), the scheme functions, the jewellery
+   categories, the Sales Desk tables (advances, old gold, returns, quotations, repairs), invoice
+   cancellation, piece status (a jewellery piece that is sold out or not available cannot be billed),
+   and suppliers / purchases.
 
 Both files are safe to re-run: they only create what is missing and never change or delete existing rows.
 

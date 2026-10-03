@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { Quotation } from '../services/salesDeskService'
 
 export type DashboardTab =
   | 'billing'
@@ -20,6 +21,7 @@ export type DashboardTab =
   | 'metal_rates'
   | 'schemes'
   | 'sales_desk'
+  | 'purchases'
 
 interface NavigationState {
   currentTab: DashboardTab
@@ -28,6 +30,9 @@ interface NavigationState {
   setPendingBarcode: (code: string | null) => void
   externalScannedCode: string | null
   setExternalScannedCode: (code: string | null) => void
+  /** A quotation sent from Sales Desk to be loaded into the billing panel. */
+  pendingQuotation: Quotation | null
+  setPendingQuotation: (quotation: Quotation | null) => void
 }
 
 export const useNavigationStore = create<NavigationState>((set) => ({
@@ -37,4 +42,6 @@ export const useNavigationStore = create<NavigationState>((set) => ({
   setPendingBarcode: (code) => set({ pendingBarcode: code }),
   externalScannedCode: null,
   setExternalScannedCode: (code) => set({ externalScannedCode: code }),
+  pendingQuotation: null,
+  setPendingQuotation: (quotation) => set({ pendingQuotation: quotation }),
 }))

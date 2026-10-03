@@ -81,12 +81,10 @@ export default function CatalogModal({ isOpen, onClose, onAdd }: CatalogModalPro
     const q = search.trim().toLowerCase()
     let src = products.filter(p => p.isActive)
     if (activeCategory !== 'All') src = src.filter(p => p.category === activeCategory)
+    // Name, category, location, HUID, SKU, barcode, design number, subcategory, metal or purity ("22k", "silver").
     if (q) src = src.filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      p.category.toLowerCase().includes(q) ||
-      (p.location || '').toLowerCase().includes(q) ||
-      (p.huid || '').toLowerCase().includes(q) ||
-      (p.sku || '').toLowerCase().includes(q)
+      [p.name, p.category, p.location, p.huid, p.sku, p.barcode, p.designNumber, p.subcategory, p.purity, p.metalType]
+        .some((v) => String(v || '').toLowerCase().includes(q))
     )
     return src
   }, [products, search, activeCategory])
@@ -201,7 +199,7 @@ export default function CatalogModal({ isOpen, onClose, onAdd }: CatalogModalPro
                 <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#374151]" />
                 <input type="text" value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Search by item name, category, HUID or SKU..."
+                  placeholder="Search name, HUID, SKU, barcode, design no. or purity..."
                   className="w-full pl-10 pr-4 py-3 bg-[#FAFAFA] border border-[#E5E7EB]/60 rounded-xl focus:outline-none focus:border-[var(--accent)] text-[13px] font-bold text-[#111111]" />
               </div>
               <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">

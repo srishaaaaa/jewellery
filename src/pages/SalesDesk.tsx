@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
-  CheckCircle2, Download, FileText, Hammer, MessageCircle, Plus, Printer, RefreshCw, RotateCcw, Scale, Search, Trash2, Wallet, X, XCircle,
+  CheckCircle2, Download, FileText, Hammer, MessageCircle, Plus, Printer, Receipt, RefreshCw, RotateCcw, Scale, Search, Trash2, Wallet, X, XCircle,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { getErrorMessage } from '../lib/errorMessage'
@@ -52,7 +52,7 @@ const thead = (cols: string[]) => (
 const emptyRow = (cols: number, text: string) => <tr><td colSpan={cols} className="px-4 py-12 text-center text-[#6B7280]">{text}</td></tr>
 const iconBtn = 'w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer shrink-0'
 
-export default function SalesDesk() {
+export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quotation: Quotation) => void } = {}) {
   const role = useAdminAuthStore((s) => s.role)
   const isAdmin = role === 'admin'
   const [tab, setTab] = useState<DeskTab>('quotations')
@@ -368,11 +368,11 @@ export default function SalesDesk() {
   }
 
   // ── Repairs ──────────────────────────────────────────────────────────────
-  const emptyRepair = { phone: '', name: '', itemName: '', description: '', metalType: 'gold', weight: '', expectedDate: '', charge: '', advance: '', notes: '' }
+  const emptyRepair = { phone: '', name: '', itemName: '', description: '', metalType: 'gold', weight: '', expectedDate: '', charge: '', advance: '', notes: '', assignedTo: '', invoiceNo: '' }
   const [repairOpen, setRepairOpen] = useState(false)
   const [repairForm, setRepairForm] = useState(emptyRepair)
   const [repairEdit, setRepairEdit] = useState<Repair | null>(null)
-  const [repairEditForm, setRepairEditForm] = useState({ charge: '', advance: '', expectedDate: '' })
+  const [repairEditForm, setRepairEditForm] = useState({ charge: '', advance: '', expectedDate: '', assignedTo: '' })
   const submitRepair = async (event: FormEvent) => {
     event.preventDefault()
     const phone = normalizePhone(repairForm.phone)
@@ -387,6 +387,7 @@ export default function SalesDesk() {
       const created = await repairService.create({
         customerName: repairForm.name, phone, itemName: repairForm.itemName, description: repairForm.description, metalType: repairForm.metalType,
         weight: Number(repairForm.weight) || 0, expectedDate: repairForm.expectedDate || null, repairCharge: charge, advancePaid: advance, notes: repairForm.notes,
+        assignedTo: repairForm.assignedTo, invoiceNo: repairForm.invoiceNo,
       })
       setRepairs((rows) => [created, ...rows])
       setRepairOpen(false)
@@ -410,13 +411,14 @@ export default function SalesDesk() {
     if (!repairEdit) return
     const updated = await updateRepair(repairEdit, {
       repairCharge: Math.max(0, Number(repairEditForm.charge) || 0), advancePaid: Math.max(0, Number(repairEditForm.advance) || 0),
-      expectedDate: repairEditForm.expectedDate || null,
+      expectedDate: repairEditForm.expectedDate || null, assignedTo: repairEditForm.assignedTo,
     })
     if (updated) setRepairEdit(null)
   }
   const printRepair = (r: Repair) => printDeskReceipt({
     title: 'Repair Receipt', number: r.repairNumber, date: fmtDate(r.receivedDate), customerName: r.customerName, phone: r.phone,
     rows: [['Item', r.itemName], ...(r.weight ? [['Weight', formatWeight(r.weight)] as [string, string]] : []), ['Work', r.description || '—'],
+      ...(r.invoiceNo ? [['Bought on', formatInvoiceNo(r.invoiceNo)] as [string, string]] : []),
       ['Expected', fmtDate(r.expectedDate)], ['Status', REPAIR_STATUS_LABELS[r.status]]],
     totals: [['Repair Charge', formatCurrency(r.repairCharge)], ['Advance', formatCurrency(r.advancePaid)], ['Balance', formatCurrency(r.balance)]],
     footer: 'Please bring this receipt when collecting your item.',
@@ -437,8 +439,8 @@ export default function SalesDesk() {
         x.source === 'billing' ? 'On bill' : x.settlement === 'credit' ? 'Store credit' : `Paid ${formatPaymentMode(x.payoutMethod)}`, x.invoiceNo ? formatInvoiceNo(x.invoiceNo) : '', x.customerName, x.metalType, x.purity, x.testedPurity ?? '', x.grossWeight, x.stoneWeight, x.netWeight, x.meltingDeductionPercent, x.exchangeRate, x.otherDeduction, x.netValue.toFixed(2)])])
     if (tab === 'advances') downloadCsv(`advances_${d}.csv`, [['Receipt', 'Date', 'Customer', 'Phone', 'Amount', 'Used', 'Balance', 'Method', 'Purpose', 'Status'],
       ...advances.map((x) => [x.receiptNumber, csvDate(x.createdAt), x.customerName, csvPhone(x.phone), x.amount.toFixed(2), x.amountUsed.toFixed(2), x.balance.toFixed(2), formatPaymentMode(x.paymentMethod), x.purpose, x.status])])
-    if (tab === 'repairs') downloadCsv(`repairs_${d}.csv`, [['No', 'Received', 'Customer', 'Phone', 'Item', 'Expected', 'Charge', 'Advance', 'Balance', 'Status'],
-      ...repairs.map((x) => [x.repairNumber, csvDate(x.receivedDate), x.customerName, csvPhone(x.phone), x.itemName, csvDate(x.expectedDate), x.repairCharge.toFixed(2), x.advancePaid.toFixed(2), x.balance.toFixed(2), REPAIR_STATUS_LABELS[x.status]])])
+    if (tab === 'repairs') downloadCsv(`repairs_${d}.csv`, [['No', 'Received', 'Customer', 'Phone', 'Item', 'Original Invoice', 'Assigned To', 'Expected', 'Charge', 'Advance', 'Balance', 'Status'],
+      ...repairs.map((x) => [x.repairNumber, csvDate(x.receivedDate), x.customerName, csvPhone(x.phone), x.itemName, x.invoiceNo ? formatInvoiceNo(x.invoiceNo) : '', x.assignedTo, csvDate(x.expectedDate), x.repairCharge.toFixed(2), x.advancePaid.toFixed(2), x.balance.toFixed(2), REPAIR_STATUS_LABELS[x.status]])])
   }
 
   const statusChip = (text: string, tone: 'green' | 'amber' | 'red' | 'gray' | 'blue') => {
@@ -490,7 +492,7 @@ export default function SalesDesk() {
           <Download size={13} /> Export CSV
         </button>
       </div>
-      {tab === 'quotations' && <p className="mt-2 text-[11px] font-semibold text-[#6B7280]">Create a quotation from the Billing Panel with "Save as Quotation". It uses today's metal rate and is not an invoice.</p>}
+      {tab === 'quotations' && <p className="mt-2 text-[11px] font-semibold text-[#6B7280]">Create a quotation from the Billing Panel with "Save as Quotation". It uses today's metal rate and is not an invoice. Use the bill button to load it into the Billing Panel: quoted prices are kept until it expires.</p>}
       {tab === 'old_gold' && <>
         <div className="mt-3 flex flex-wrap gap-2">
           {([['all', 'All'], ['billing', 'Billing exchange'], ['counter', 'Counter purchase']] as const).map(([key, label]) => (
@@ -523,6 +525,7 @@ export default function SalesDesk() {
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
                       <button className={`${iconBtn} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`} title="Download PDF" onClick={() => quotationPdf(x)}><Download size={15} /></button>
                       {x.phone && <button className={`${iconBtn} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`} title="Send on WhatsApp" onClick={() => quotationWhatsApp(x)}><MessageCircle size={15} /></button>}
+                      {x.status === 'open' && onBillQuotation && <button className={`${iconBtn} bg-[#0A0A0A] text-[var(--accent)] hover:bg-[#1A1A1A]`} title={x.validUntil && x.validUntil < new Date().toISOString().slice(0, 10) ? 'Bill now (expired: priced at today\'s rate)' : 'Bill now at the quoted prices'} onClick={() => onBillQuotation(x)}><Receipt size={15} /></button>}
                       {x.status === 'open' && <button className={`${iconBtn} bg-[var(--accent-a10)] text-[var(--accent-dark)] hover:bg-[var(--accent-a20)]`} title="Mark as billed" onClick={() => void setQuotationStatus(x, 'converted')}><CheckCircle2 size={15} /></button>}
                       {x.status === 'open' && <button className={`${iconBtn} bg-red-50 text-red-600 hover:bg-red-100`} title="Cancel quotation" onClick={() => void setQuotationStatus(x, 'cancelled')}><XCircle size={15} /></button>}
                       {isAdmin && deleteBtn(() => void deleteRecord('quotations', x.id, x.quotationNumber, 'quotation'))}
@@ -610,12 +613,12 @@ export default function SalesDesk() {
           {tab === 'repairs' && <>
             {thead(['Repair', 'Customer', 'Item', 'Expected', 'Charge / Balance', 'Status', 'Actions'])}
             <tbody className="divide-y divide-[#F0EEE9]">
-              {loading ? emptyRow(7, 'Loading…') : repairs.filter((x) => matches(x.repairNumber, x.customerName, x.phone, x.itemName)).length === 0 ? emptyRow(7, 'No repairs yet.')
-                : repairs.filter((x) => matches(x.repairNumber, x.customerName, x.phone, x.itemName)).map((x) => (
+              {loading ? emptyRow(7, 'Loading…') : repairs.filter((x) => matches(x.repairNumber, x.customerName, x.phone, x.itemName, x.invoiceNo, x.assignedTo)).length === 0 ? emptyRow(7, 'No repairs yet.')
+                : repairs.filter((x) => matches(x.repairNumber, x.customerName, x.phone, x.itemName, x.invoiceNo, x.assignedTo)).map((x) => (
                   <tr key={x.id} className="hover:bg-[var(--accent-a5)] transition-colors">
                     <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.repairNumber}</p><p className="text-[11px] text-[#8B9389]">Received {fmtDate(x.receivedDate)}</p></td>
                     <td className="px-4 py-3.5"><p className="font-bold text-[#273126]">{x.customerName || '—'}</p><p className="text-xs text-[#727970]">{x.phone}</p></td>
-                    <td className="px-4 py-3.5 text-xs whitespace-normal max-w-[220px]"><p className="font-bold">{x.itemName}{x.weight ? ` • ${formatWeight(x.weight)}` : ''}</p><p className="text-[#858C83]">{x.description}</p></td>
+                    <td className="px-4 py-3.5 text-xs whitespace-normal max-w-[220px]"><p className="font-bold">{x.itemName}{x.weight ? ` • ${formatWeight(x.weight)}` : ''}</p><p className="text-[#858C83]">{x.description}</p>{(x.assignedTo || x.invoiceNo) && <p className="text-[11px] text-[#858C83]">{x.assignedTo && `With ${x.assignedTo}`}{x.assignedTo && x.invoiceNo && ' • '}{x.invoiceNo && `Bill ${formatInvoiceNo(x.invoiceNo)}`}</p>}</td>
                     <td className={`px-4 py-3.5 text-xs ${x.expectedDate && x.expectedDate < new Date().toISOString().slice(0, 10) && x.status !== 'delivered' ? 'font-black text-red-600' : ''}`}>{fmtDate(x.expectedDate)}</td>
                     <td className="px-4 py-3.5 text-xs"><p>{formatCurrency(x.repairCharge)} • Adv {formatCurrency(x.advancePaid)}</p><p className="font-black">Balance {formatCurrency(x.balance)}</p></td>
                     <td className="px-4 py-3.5">
@@ -625,7 +628,7 @@ export default function SalesDesk() {
                       </select>
                     </td>
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
-                      <button className={`${iconBtn} bg-[var(--accent-a10)] text-[var(--accent-dark)] hover:bg-[var(--accent-a20)]`} title="Update charges" onClick={() => { setRepairEdit(x); setRepairEditForm({ charge: String(x.repairCharge), advance: String(x.advancePaid), expectedDate: x.expectedDate || '' }); setModalError('') }}><Wallet size={15} /></button>
+                      <button className={`${iconBtn} bg-[var(--accent-a10)] text-[var(--accent-dark)] hover:bg-[var(--accent-a20)]`} title="Update charges" onClick={() => { setRepairEdit(x); setRepairEditForm({ charge: String(x.repairCharge), advance: String(x.advancePaid), expectedDate: x.expectedDate || '', assignedTo: x.assignedTo }); setModalError('') }}><Wallet size={15} /></button>
                       <button className={`${iconBtn} bg-amber-50 text-amber-700 hover:bg-amber-100`} title="Print receipt" onClick={() => printRepair(x)}><Printer size={15} /></button>
                       <button className={`${iconBtn} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`} title="Send on WhatsApp" onClick={() => whatsappRepair(x)}><MessageCircle size={15} /></button>
                       {isAdmin && deleteBtn(() => void deleteRecord('repairs', x.id, x.repairNumber, 'repair'))}
@@ -833,6 +836,8 @@ export default function SalesDesk() {
             <Field label="Charge (₹)"><input type="number" min="0" step="0.01" className={inputClass} value={repairForm.charge} onChange={(e) => setRepairForm((f) => ({ ...f, charge: e.target.value }))} /></Field>
             <Field label="Advance (₹)"><input type="number" min="0" step="0.01" className={inputClass} value={repairForm.advance} onChange={(e) => setRepairForm((f) => ({ ...f, advance: e.target.value }))} /></Field>
           </div>
+          <Field label="Assigned To"><input className={inputClass} value={repairForm.assignedTo} onChange={(e) => setRepairForm((f) => ({ ...f, assignedTo: e.target.value }))} placeholder="Staff / goldsmith name" /></Field>
+          <Field label="Original Invoice"><input className={inputClass} value={repairForm.invoiceNo} onChange={(e) => setRepairForm((f) => ({ ...f, invoiceNo: e.target.value }))} placeholder="If bought here, e.g. INV10000025" /></Field>
           <div className="sm:col-span-2"><Field label="Notes"><input className={inputClass} value={repairForm.notes} onChange={(e) => setRepairForm((f) => ({ ...f, notes: e.target.value }))} /></Field></div>
         </div>
         <div className="shrink-0 flex gap-3 border-t border-gray-100 bg-white px-4 py-3 sm:px-6">
@@ -849,6 +854,7 @@ export default function SalesDesk() {
           <Field label="Charge (₹)"><input type="number" min="0" step="0.01" className={inputClass} value={repairEditForm.charge} onChange={(e) => setRepairEditForm((f) => ({ ...f, charge: e.target.value }))} /></Field>
           <Field label="Advance paid (₹)"><input type="number" min="0" step="0.01" className={inputClass} value={repairEditForm.advance} onChange={(e) => setRepairEditForm((f) => ({ ...f, advance: e.target.value }))} /></Field>
           <div className="col-span-2"><Field label="Expected Date"><input type="date" className={inputClass} value={repairEditForm.expectedDate} onChange={(e) => setRepairEditForm((f) => ({ ...f, expectedDate: e.target.value }))} /></Field></div>
+          <div className="col-span-2"><Field label="Assigned To"><input className={inputClass} value={repairEditForm.assignedTo} onChange={(e) => setRepairEditForm((f) => ({ ...f, assignedTo: e.target.value }))} placeholder="Staff / goldsmith name" /></Field></div>
         </div>
         <button className="w-full rounded-xl bg-[var(--accent-dark)] py-3 text-sm font-black text-white">Save</button>
       </form>

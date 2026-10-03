@@ -32,7 +32,7 @@ import { getErrorMessage } from '../../lib/errorMessage'
 import { lowStockLimit } from '../../lib/stockLevels'
 import { useMetalRateStore } from '../../store/metalRateStore'
 import { currentProductPrice } from '../../lib/jewelleryProduct'
-import { formatWeight, isRatedMetal, metalLabel } from '../../lib/jewellery'
+import { formatWeight, isRatedMetal, ITEM_STATUS_LABELS, metalLabel } from '../../lib/jewellery'
 
 type InventoryTab = 'stock' | 'products' | 'categories' | 'analytics'
 
@@ -512,7 +512,9 @@ export const InventoryTable: React.FC = () => {
                             const j = jewelleryOf(item)!
                             return (
                               <div className="mt-0.5 text-[10px] font-bold text-[var(--accent-dark)] leading-snug">
-                                <div>{metalLabel(j.metalType, j.purity)}{j.huid ? ` • HUID ${j.huid}` : ''}{j.sku ? ` • ${j.sku}` : ''}</div>
+                                <div>{metalLabel(j.metalType, j.purity)}{j.huid ? ` • HUID ${j.huid}` : ''}{j.sku ? ` • ${j.sku}` : ''}
+                                  {j.itemStatus && j.itemStatus !== 'available' && <span className="ml-1.5 inline-block rounded-md border border-amber-300 bg-amber-50 px-1.5 py-px text-[9px] font-black uppercase text-amber-800">{ITEM_STATUS_LABELS[j.itemStatus]}</span>}
+                                </div>
                                 <div className="font-semibold text-gray-500">
                                   Gross {formatWeight(j.grossWeight || 0)} • Stone {formatWeight(j.stoneWeight || 0)} • Net {formatWeight(j.netWeight || 0)}
                                 </div>
