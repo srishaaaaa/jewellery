@@ -79,9 +79,9 @@ export const BarcodeSettingsDrawer: React.FC<BarcodeSettingsDrawerProps> = ({
       {createPortal(
         <ModalPortal><div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen h-[100dvh] z-[9999] flex justify-end bg-black/60 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="absolute inset-0" onClick={onClose} />
-          <div className="relative z-10 w-full max-w-sm bg-white h-screen h-[100dvh] shadow-2xl flex flex-col border-l border-gray-200 animate-in slide-in-from-right duration-200">
+          <div className="relative z-10 w-full max-w-sm bg-white h-screen h-[100dvh] shadow-2xl flex flex-col border-l border-black/10 animate-in slide-in-from-right duration-200">
             {/* Header */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 bg-[#0A0A0A] text-white shrink-0">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-black/10 bg-[#0A0A0A] text-white shrink-0">
             <h3 className="text-sm font-black tracking-wide text-white">Barcode Settings</h3>
             <button
               type="button"
@@ -104,7 +104,7 @@ export const BarcodeSettingsDrawer: React.FC<BarcodeSettingsDrawerProps> = ({
                   Select any 1 option
                 </span>
               </div>
-              <div className="space-y-2 bg-[#FBFAF6] p-3 rounded-xl border border-gray-200">
+              <div className="space-y-2 bg-white p-3 rounded-xl border border-black/10">
                 <label className="flex items-center gap-2.5 text-xs font-bold text-gray-700 cursor-pointer">
                   <input
                     type="radio"
@@ -138,7 +138,7 @@ export const BarcodeSettingsDrawer: React.FC<BarcodeSettingsDrawerProps> = ({
                   Select any 1 option
                 </span>
               </div>
-              <div className="space-y-2.5 bg-[#FBFAF6] p-3 rounded-xl border border-gray-200">
+              <div className="space-y-2.5 bg-white p-3 rounded-xl border border-black/10">
                 {allSizes.map((size) => (
                   <label
                     key={size.id}
@@ -165,7 +165,7 @@ export const BarcodeSettingsDrawer: React.FC<BarcodeSettingsDrawerProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowCustomModal(true)}
-                  className="mt-2 flex items-center gap-1.5 text-xs font-black text-blue-600 hover:text-blue-800 hover:underline pt-2 border-t border-gray-200 w-full cursor-pointer"
+                  className="mt-2 flex items-center gap-1.5 text-xs font-black text-blue-600 hover:text-blue-800 hover:underline pt-2 border-t border-black/10 w-full cursor-pointer"
                 >
                   <Plus size={13} />
                   Create Custom Size <Info size={12} className="text-gray-400" />
@@ -180,7 +180,7 @@ export const BarcodeSettingsDrawer: React.FC<BarcodeSettingsDrawerProps> = ({
                   Additional Fields
                 </span>
               </div>
-              <div className="space-y-2.5 bg-[#FBFAF6] p-3 rounded-xl border border-gray-200">
+              <div className="space-y-2.5 bg-white p-3 rounded-xl border border-black/10">
                 <label className="flex items-center gap-2.5 text-xs font-bold text-gray-700 cursor-pointer">
                   <input
                     type="checkbox"
@@ -222,7 +222,7 @@ export const BarcodeSettingsDrawer: React.FC<BarcodeSettingsDrawerProps> = ({
           </div>
 
           {/* Drawer Footer */}
-          <div className="p-4 border-t border-gray-200 bg-white">
+          <div className="p-4 border-t border-black/10 bg-white">
             <button
               type="button"
               onClick={onClose}

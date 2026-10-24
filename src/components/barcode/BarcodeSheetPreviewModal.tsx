@@ -92,9 +92,9 @@ export const BarcodeSheetPreviewModal: React.FC<BarcodeSheetPreviewModalProps> =
   return createPortal(
     <ModalPortal><div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen h-[100dvh] z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-0 sm:p-4 overflow-hidden animate-in fade-in duration-150">
       <div className="absolute inset-0" onClick={onClose} />
-      <div className="relative z-10 bg-white rounded-none sm:rounded-3xl max-w-4xl w-full h-screen h-[100dvh] sm:h-auto sm:max-h-[92vh] border-0 sm:border border-gray-200 shadow-2xl overflow-hidden flex flex-col">
+      <div className="relative z-10 bg-white rounded-none sm:rounded-3xl max-w-4xl w-full h-screen h-[100dvh] sm:h-auto sm:max-h-[92vh] border-0 sm:border border-black/10 shadow-2xl overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 border-b border-gray-200 bg-[#0A0A0A] text-white shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 border-b border-black/10 bg-[#0A0A0A] text-white shrink-0">
           <div>
             <h3 className="text-sm sm:text-base font-black tracking-wide text-white">Print Preview</h3>
             <p className="text-[11px] sm:text-xs text-[#D4AF37] font-semibold">
@@ -177,7 +177,7 @@ export const BarcodeSheetPreviewModal: React.FC<BarcodeSheetPreviewModalProps> =
                 )}
                 {label.line3 && (
                   <span
-                    className="font-black text-[#0A0A0A] truncate max-w-full leading-none"
+                    className="font-black text-[#000000] truncate max-w-full leading-none"
                     style={{ fontSize: `${Math.max(8, Math.round(cardHeightPx * 0.095))}px` }}
                   >
                     {label.line3}
@@ -198,7 +198,7 @@ export const BarcodeSheetPreviewModal: React.FC<BarcodeSheetPreviewModalProps> =
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 border-t border-gray-200 bg-white shrink-0 gap-2 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+        <div className="flex items-center justify-between px-4 py-3 sm:px-6 sm:py-4 border-t border-black/10 bg-white shrink-0 gap-2 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
           <span className="text-[11px] sm:text-xs font-bold text-gray-600 truncate mr-2">
             Total {individualLabels.length} pages ready to print
           </span>

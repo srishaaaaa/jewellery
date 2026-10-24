@@ -166,7 +166,7 @@ export default function CustomerEventAlarmModal({ triggerKey }: { triggerKey?: s
         </div>
 
         <div className="p-5 space-y-3">
-          <p className="text-sm font-bold text-[#374151]">A great chance to send a wish and build customer loyalty.</p>
+          <p className="text-sm font-bold text-[#000000]">A great chance to send a wish and build customer loyalty.</p>
 
           <div className="max-h-56 overflow-y-auto space-y-2">
             {events.map(e => (
@@ -176,8 +176,8 @@ export default function CustomerEventAlarmModal({ triggerKey }: { triggerKey?: s
                     {e.type === 'birthday' ? <Gift size={15} /> : <Heart size={15} />}
                   </div>
                   <div className="min-w-0">
-                    <p className="font-black text-sm text-[#111111] break-words">{e.name}</p>
-                    <p className="text-[11px] text-[#6B7280] truncate">{e.phone}</p>
+                    <p className="font-black text-sm text-[#000000] break-words">{e.name}</p>
+                    <p className="text-[11px] text-[#000000] truncate">{e.phone}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">

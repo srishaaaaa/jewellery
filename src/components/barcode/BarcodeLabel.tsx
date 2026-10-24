@@ -43,7 +43,7 @@ export const BarcodeLabel: React.FC<BarcodeLabelProps> = ({
         width: barcodeBarWidth,
         height: barcodeHeightPx,
         fontSize: barcodeFontSize,
-        font: 'Arial, sans-serif',
+        font: 'Poppins, sans-serif',
         margin: 0,
         textMargin: 1.5,
         displayValue: true,
@@ -65,7 +65,7 @@ export const BarcodeLabel: React.FC<BarcodeLabelProps> = ({
         boxSizing: 'border-box',
         overflow: 'hidden',
         pageBreakInside: 'avoid',
-        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+        fontFamily: "'Poppins', system-ui, sans-serif",
       }}
     >
       {/* Brand & Product Header */}

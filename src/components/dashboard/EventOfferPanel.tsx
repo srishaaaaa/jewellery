@@ -46,13 +46,13 @@ export default function EventOfferPanel({ title, tone, offerSettings }: Props) {
   const preview = renderEventMessage(template, SAMPLE_CUSTOMER_NAME, draft.selectedOffer)
 
   return (
-    <div className={`rounded-2xl border border-[#E5E7EB] ${t.panel} p-4`}>
+    <div className={`rounded-2xl border border-black/10 ${t.panel} p-4`}>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-3">
           <div className={`w-8 h-8 rounded-lg ${t.icon} flex items-center justify-center font-bold text-lg`}>🎁</div>
           <div>
-            <h3 className="font-bold text-[#273126]">{title}</h3>
-            <p className="text-xs text-[#6B7280]">Sent on WhatsApp when you tap "Send Offer".</p>
+            <h3 className="font-bold text-[#000000]">{title}</h3>
+            <p className="text-xs text-[#000000]">Sent on WhatsApp when you tap "Send Offer".</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -74,7 +74,7 @@ export default function EventOfferPanel({ title, tone, offerSettings }: Props) {
       </div>
 
       <div className="mb-4 space-y-2">
-        <label className="block text-xs font-bold text-[#6B7280]">SELECT OFFER</label>
+        <label className="block text-xs font-bold text-[#000000]">SELECT OFFER</label>
         {editingOffer ? (
           <div className="space-y-2">
             <input
@@ -88,7 +88,7 @@ export default function EventOfferPanel({ title, tone, offerSettings }: Props) {
               <button onClick={handleSaveEdit} className={`flex-1 px-3 py-2 rounded-lg ${t.btn} text-white font-bold text-sm`}>
                 Done
               </button>
-              <button onClick={() => setEditingOffer(null)} className="flex-1 px-3 py-2 rounded-lg border border-[#E5E7EB] bg-white text-[#111111] font-bold text-sm hover:bg-gray-50">
+              <button onClick={() => setEditingOffer(null)} className="flex-1 px-3 py-2 rounded-lg border border-black/10 bg-white text-[#000000] font-bold text-sm hover:bg-gray-50">
                 Cancel
               </button>
             </div>
@@ -99,7 +99,7 @@ export default function EventOfferPanel({ title, tone, offerSettings }: Props) {
               <select
                 value={draft.selectedOffer}
                 onChange={(e) => setDraft({ ...draft, selectedOffer: e.target.value })}
-                className={`flex-1 min-w-0 rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm font-bold text-[#111111] focus:outline-none focus:ring-2 ${t.ring}`}
+                className={`flex-1 min-w-0 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-bold text-[#000000] focus:outline-none focus:ring-2 ${t.ring}`}
               >
                 {draft.offers.map((offer) => (
                   <option key={offer} value={offer}>{offer}</option>
@@ -107,7 +107,7 @@ export default function EventOfferPanel({ title, tone, offerSettings }: Props) {
               </select>
               <button
                 onClick={() => { setEditingOffer(draft.selectedOffer); setEditingValue(draft.selectedOffer) }}
-                className="px-3 py-2 rounded-lg border border-[#E5E7EB] bg-white font-bold text-sm hover:bg-gray-50 transition-colors"
+                className="px-3 py-2 rounded-lg border border-black/10 bg-white font-bold text-sm hover:bg-gray-50 transition-colors"
                 title="Edit selected offer"
               >
                 ✏️
@@ -129,20 +129,20 @@ export default function EventOfferPanel({ title, tone, offerSettings }: Props) {
       </div>
 
       <div className="mb-4">
-        <label className="block text-xs font-bold text-[#6B7280] mb-2">CUSTOMIZE MESSAGE</label>
+        <label className="block text-xs font-bold text-[#000000] mb-2">CUSTOMIZE MESSAGE</label>
         <textarea
           value={draft.message}
           onChange={(e) => setDraft({ ...draft, message: e.target.value })}
           placeholder="Leave blank to use default message"
-          className={`w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 ${t.ring}`}
+          className={`w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-semibold focus:outline-none focus:ring-2 ${t.ring}`}
           rows={3}
         />
-        <p className="mt-1 text-[10px] text-[#6B7280]">Use <b>{'{name}'}</b> for the customer's name and <b>{'{offer}'}</b> for the selected offer.</p>
+        <p className="mt-1 text-[10px] text-[#000000]">Use <b>{'{name}'}</b> for the customer's name and <b>{'{offer}'}</b> for the selected offer.</p>
       </div>
 
       <div className="rounded-lg border border-green-200 bg-green-50 p-4">
         <div className="flex items-center justify-between mb-2">
-          <p className="text-xs font-bold text-[#6B7280]">MESSAGE PREVIEW</p>
+          <p className="text-xs font-bold text-[#000000]">MESSAGE PREVIEW</p>
           {!editingMessage && (
             <button
               onClick={() => { setEditingMessage(true); setMessageToEdit(template) }}
@@ -168,13 +168,13 @@ export default function EventOfferPanel({ title, tone, offerSettings }: Props) {
               >
                 Save Message
               </button>
-              <button onClick={() => setEditingMessage(false)} className="flex-1 px-3 py-2 rounded-lg border border-[#E5E7EB] bg-white text-[#111111] font-bold text-sm hover:bg-gray-50">
+              <button onClick={() => setEditingMessage(false)} className="flex-1 px-3 py-2 rounded-lg border border-black/10 bg-white text-[#000000] font-bold text-sm hover:bg-gray-50">
                 Cancel
               </button>
             </div>
           </div>
         ) : (
-          <div className="text-sm text-[#111111] whitespace-pre-wrap leading-relaxed break-words">{preview}</div>
+          <div className="text-sm text-[#000000] whitespace-pre-wrap leading-relaxed break-words">{preview}</div>
         )}
       </div>
     </div>

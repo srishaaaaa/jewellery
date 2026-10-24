@@ -39,7 +39,7 @@ const RMIcon = ({ size = 16, className = '' }: { size?: number; className?: stri
       fontWeight="bold"
       stroke="none"
       fill="currentColor"
-      fontFamily="Arial, sans-serif"
+      fontFamily="Poppins, sans-serif"
     >₹</text>
   </svg>
 )
@@ -196,13 +196,13 @@ function StatCard({
   color: string
 }) {
   return (
-    <div className="rounded-2xl border border-[#E5E7EB]/30 bg-white p-3 sm:p-4 shadow-sm">
+    <div className="rounded-2xl border border-black/10 bg-white p-3 sm:p-4 shadow-sm">
       <div className="mb-2 flex items-start justify-between gap-2">
-        <p className="text-[10px] font-black uppercase tracking-wider text-[#374151]">{label}</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-[#000000]">{label}</p>
         <div className={`flex h-7 w-7 sm:h-8 sm:w-8 items-center justify-center rounded-xl ${bg} ${color}`}>{icon}</div>
       </div>
-      <p className="mb-2 text-[11px] font-semibold text-[#7A846F]">{helper}</p>
-      <p className="break-words text-[16px] sm:text-[22px] font-black leading-tight text-[#111111]">{value}</p>
+      <p className="mb-2 text-[11px] font-semibold text-[#000000]">{helper}</p>
+      <p className="break-words text-[16px] sm:text-[22px] font-black leading-tight text-[#000000]">{value}</p>
     </div>
   )
 }
@@ -645,7 +645,7 @@ export default function BillingAnalytics() {
   if (authLoading || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#F8F9FA]">
-        <span className="h-10 w-10 animate-spin rounded-full border-4 border-[#E5E7EB] border-t-[#111111]" />
+        <span className="h-10 w-10 animate-spin rounded-full border-4 border-black/10 border-t-[#111111]" />
       </div>
     )
   }
@@ -654,8 +654,8 @@ export default function BillingAnalytics() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F8F9FA] p-4">
         <div className="max-w-sm rounded-3xl bg-white p-8 text-center shadow-xl">
-          <h1 className="mb-2 text-2xl font-black text-[#111111]">Unauthorized</h1>
-          <p className="mb-6 text-sm text-[#374151]">Admin access is required to view billing analytics.</p>
+          <h1 className="mb-2 text-2xl font-black text-[#000000]">Unauthorized</h1>
+          <p className="mb-6 text-sm text-[#000000]">Admin access is required to view billing analytics.</p>
           <Link to="/" className="inline-flex items-center gap-2 rounded-xl bg-[#111111] px-5 py-3 text-sm font-bold text-white">
             <LayoutDashboard size={16} />
             Go Home
@@ -674,15 +674,15 @@ export default function BillingAnalytics() {
               <span className="font-serif text-xl font-black text-[var(--accent)]">C</span>
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#5F5F5F]">Admin Billing</p>
-              <h1 className="mt-1 truncate text-2xl font-black text-[#111111]">{l('Billing Analytics', 'பில் பகுப்பாய்வு')}</h1>
-              <p className="mt-1 text-sm text-[#5F5F5F]">Dedicated analytics view for billing, revenue, products, categories, and coupons.</p>
+              <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#000000]">Admin Billing</p>
+              <h1 className="mt-1 truncate text-2xl font-black text-[#000000]">{l('Billing Analytics', 'பில் பகுப்பாய்வு')}</h1>
+              <p className="mt-1 text-xs font-semibold text-[#000000]">Dedicated analytics view for billing, revenue, products, categories, and coupons.</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Link
               to="/dashboard"
-              className="inline-flex items-center gap-2 rounded-xl border border-[#E5E7EB]/60 bg-white px-4 py-2 text-[13px] font-bold text-[#374151] hover:bg-[#F9FAFB]"
+              className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2 text-[13px] font-bold text-[#000000] hover:bg-black/[0.03]"
             >
               <LayoutDashboard size={14} />
               Dashboard
@@ -697,7 +697,7 @@ export default function BillingAnalytics() {
             <button
               type="button"
               onClick={() => void loadData()}
-              className="inline-flex items-center gap-2 rounded-xl border border-[#E5E7EB]/60 bg-white px-4 py-2 text-[13px] font-bold text-[#374151] hover:bg-[#F9FAFB]"
+              className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2 text-[13px] font-bold text-[#000000] hover:bg-black/[0.03]"
             >
               <RefreshCw size={14} />
               Refresh
@@ -705,9 +705,9 @@ export default function BillingAnalytics() {
           </div>
         </div>
 
-        <div className="mb-4 rounded-2xl border border-[#E5E7EB]/30 bg-white p-4 shadow-sm">
+        <div className="mb-4 rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
           <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-[11px] font-black uppercase tracking-wider text-[#374151] mr-1">Period:</span>
+            <span className="text-[11px] font-black uppercase tracking-wider text-[#000000] mr-1">Period:</span>
             {(['all', 'today', 'week', 'month', 'year', 'custom'] as const).map((preset) => (
               <button
                 key={preset}
@@ -716,7 +716,7 @@ export default function BillingAnalytics() {
                 className={`rounded-xl px-3 py-1.5 text-[12px] font-black transition-colors ${
                   analyticsDatePreset === preset
                     ? 'bg-[#111111] text-white'
-                    : 'bg-[#F9FAFB] text-[#374151] hover:bg-[#E5E7EB]/40'
+                    : 'bg-white text-[#000000] hover:bg-[#E5E7EB]/40'
                 }`}
               >
                 {preset === 'all'
@@ -738,14 +738,14 @@ export default function BillingAnalytics() {
                   type="date"
                   value={analyticsDateFrom}
                   onChange={(e) => setAnalyticsDateFrom(e.target.value)}
-                  className="rounded-xl bg-[#F9FAFB] px-3 py-1.5 text-[12px] font-semibold"
+                  className="rounded-xl bg-white px-3 py-1.5 text-[12px] font-semibold"
                 />
-                <span className="text-[12px] font-bold text-[#374151]">→</span>
+                <span className="text-[12px] font-bold text-[#000000]">→</span>
                 <input
                   type="date"
                   value={analyticsDateTo}
                   onChange={(e) => setAnalyticsDateTo(e.target.value)}
-                  className="rounded-xl bg-[#F9FAFB] px-3 py-1.5 text-[12px] font-semibold"
+                  className="rounded-xl bg-white px-3 py-1.5 text-[12px] font-semibold"
                 />
               </>
             )}
@@ -771,17 +771,17 @@ export default function BillingAnalytics() {
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <div className="rounded-2xl border border-[#E5E7EB]/30 bg-white p-5 shadow-sm xl:col-span-2">
+          <div className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm xl:col-span-2">
             <div className="mb-4 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-base font-black text-[#223126]">{l('Billing Search', 'பில் தேடல்')}</h2>
-                <p className="mt-1 text-[11px] text-[#7A846F]">Search bills by invoice, customer, phone, or date range.</p>
+                <h2 className="text-base font-black text-[#000000]">{l('Billing Search', 'பில் தேடல்')}</h2>
+                <p className="mt-1 text-[11px] text-[#000000]">Search bills by invoice, customer, phone, or date range.</p>
               </div>
               <button
                 type="button"
                 onClick={() => exportCSV(filteredBills)}
                 disabled={filteredBills.length === 0}
-                className="inline-flex items-center gap-2 rounded-xl border border-[#E5E7EB]/60 bg-[#F9FAFB] px-3 py-2 text-[12px] font-bold text-[#374151] disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-xl border border-black/10 bg-white px-3 py-2 text-[12px] font-bold text-[#000000] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Download size={13} />
                 Export CSV
@@ -802,7 +802,7 @@ export default function BillingAnalytics() {
                   className={`rounded-xl px-3 py-1.5 text-[12px] font-black transition-colors ${
                     billTypeFilter === v
                       ? 'bg-[#111111] text-white'
-                      : 'bg-[#F9FAFB] text-[#374151] hover:bg-[#E5E7EB]/40'
+                      : 'bg-white text-[#000000] hover:bg-[#E5E7EB]/40'
                   }`}
                 >
                   {label}
@@ -815,39 +815,39 @@ export default function BillingAnalytics() {
                 value={billSearch.invoiceNo}
                 onChange={(e) => setBillSearch((state) => ({ ...state, invoiceNo: e.target.value }))}
                 placeholder={l('Invoice / Bill No', 'பில் எண்')}
-                className="rounded-xl bg-[#F9FAFB] px-3 py-2.5 text-[13px] font-semibold outline-none"
+                className="rounded-xl bg-white px-3 py-2.5 text-[13px] font-semibold outline-none"
               />
               <input
                 value={billSearch.customerName}
                 onChange={(e) => setBillSearch((state) => ({ ...state, customerName: e.target.value }))}
                 placeholder={l('Customer Name', 'வாடிக்கையாளர் பெயர்')}
-                className="rounded-xl bg-[#F9FAFB] px-3 py-2.5 text-[13px] font-semibold outline-none"
+                className="rounded-xl bg-white px-3 py-2.5 text-[13px] font-semibold outline-none"
               />
               <input
                 value={billSearch.phone}
                 onChange={(e) => setBillSearch((state) => ({ ...state, phone: e.target.value }))}
                 placeholder={l('Phone Number', 'தொலைபேசி எண்')}
-                className="rounded-xl bg-[#F9FAFB] px-3 py-2.5 text-[13px] font-semibold outline-none"
+                className="rounded-xl bg-white px-3 py-2.5 text-[13px] font-semibold outline-none"
               />
               <div className="flex items-center gap-2">
-                <Search size={14} className="text-[#7A846F]" />
-                <span className="text-[12px] font-bold text-[#7A846F]">{filteredBills.length} results</span>
+                <Search size={14} className="text-[#000000]" />
+                <span className="text-[12px] font-bold text-[#000000]">{filteredBills.length} results</span>
               </div>
               <input
                 type="date"
                 value={billSearch.dateFrom}
                 onChange={(e) => setBillSearch((state) => ({ ...state, dateFrom: e.target.value }))}
-                className="rounded-xl bg-[#F9FAFB] px-3 py-2.5 text-[13px] font-semibold outline-none"
+                className="rounded-xl bg-white px-3 py-2.5 text-[13px] font-semibold outline-none"
               />
               <input
                 type="date"
                 value={billSearch.dateTo}
                 onChange={(e) => setBillSearch((state) => ({ ...state, dateTo: e.target.value }))}
-                className="rounded-xl bg-[#F9FAFB] px-3 py-2.5 text-[13px] font-semibold outline-none"
+                className="rounded-xl bg-white px-3 py-2.5 text-[13px] font-semibold outline-none"
               />
             </div>
 
-            <div className="mt-4 md:hidden rounded-xl border border-[#E5E7EB]/30 divide-y divide-[#E5E7EB]/20 bg-white overflow-hidden">
+            <div className="mt-4 md:hidden rounded-xl border border-black/10 divide-y divide-black/5 bg-white overflow-hidden">
               {filteredBills.slice(0, 50).map((order) => {
                 const billTypeLabel = normalizeOrderType(order.order_type) === 'manual_sale'
                   ? 'MANUAL'
@@ -858,8 +858,8 @@ export default function BillingAnalytics() {
                   <div key={order.id} className="px-3 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-bold text-[#111111] text-[13px] break-words">{order.customer_name}</p>
-                        <p className="text-[11px] text-[#374151] mt-0.5 break-words">
+                        <p className="font-bold text-[#000000] text-[13px] break-words">{order.customer_name}</p>
+                        <p className="text-[11px] text-[#000000] mt-0.5 break-words">
                           {order.invoice_no || '—'}
                           {' · '}{order.phone}
                           {' · '}{billTypeLabel}
@@ -868,7 +868,7 @@ export default function BillingAnalytics() {
                         </p>
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="font-bold text-[13px] text-[#111111]">{formatCurrency(toNumber(order.total, 0))}</p>
+                        <p className="font-bold text-[13px] text-[#000000]">{formatCurrency(toNumber(order.total, 0))}</p>
                         <span className={`inline-block mt-1 rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${normalizeStatus(order.status) === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                           {normalizeStatus(order.status) || 'pending'}
                         </span>
@@ -878,12 +878,12 @@ export default function BillingAnalytics() {
                 )
               })}
               {filteredBills.length === 0 && (
-                <div className="px-4 py-10 text-center text-[13px] text-[#374151]">No matching bills found.</div>
+                <div className="px-4 py-10 text-center text-[13px] text-[#000000]">No matching bills found.</div>
               )}
             </div>
-            <div className="mt-4 hidden md:block overflow-x-auto rounded-xl border border-[#E5E7EB]/30">
+            <div className="mt-4 hidden md:block overflow-x-auto rounded-xl border border-black/10">
               <table className="min-w-[980px] w-full text-left text-[13px]">
-                <thead className="bg-[#F9FAFB] text-[10px] uppercase tracking-wider text-[#374151]">
+                <thead className="bg-white text-[10px] uppercase tracking-wider text-[#000000]">
                   <tr>
                     <th className="px-3 py-3 font-black">Invoice</th>
                     <th className="px-3 py-3 font-black">Customer</th>
@@ -897,7 +897,7 @@ export default function BillingAnalytics() {
                     <th className="px-3 py-3 font-black">Status</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E5E7EB]/20">
+                <tbody className="divide-y divide-black/5">
                   {filteredBills.slice(0, 50).map((order) => {
                     const billTypeLabel = normalizeOrderType(order.order_type) === 'manual_sale'
                       ? 'MANUAL'
@@ -910,10 +910,10 @@ export default function BillingAnalytics() {
                         ? 'bg-blue-100 text-blue-700'
                         : 'bg-orange-100 text-orange-700'
                     return (
-                      <tr key={order.id} className="hover:bg-[#F9FAFB]/50">
+                      <tr key={order.id} className="hover:bg-black/[0.03]">
                         <td className="whitespace-nowrap px-3 py-3 font-bold text-[#10B981]">{order.invoice_no || '—'}</td>
-                        <td className="max-w-[140px] break-words px-3 py-3 font-semibold text-[#111111]">{order.customer_name}</td>
-                        <td className="whitespace-nowrap px-3 py-3 text-[#374151]">{order.phone}</td>
+                        <td className="max-w-[140px] break-words px-3 py-3 font-semibold text-[#000000]">{order.customer_name}</td>
+                        <td className="whitespace-nowrap px-3 py-3 text-[#000000]">{order.phone}</td>
                         <td className="px-3 py-3">
                           <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${billTypeClass}`}>{billTypeLabel}</span>
                         </td>
@@ -921,7 +921,7 @@ export default function BillingAnalytics() {
                         <td className="px-3 py-3">{order.discount_amount > 0 ? <span className="font-bold text-green-700">-{formatCurrency(order.discount_amount)}</span> : <span className="text-[#9BAB9A]">—</span>}</td>
                         <td className="px-3 py-3">{order.delivery_charge > 0 ? <span className="font-bold">{formatCurrency(order.delivery_charge)}</span> : <span className="text-[#9BAB9A]">—</span>}</td>
                         <td className="whitespace-nowrap px-3 py-3 font-bold">{formatCurrency(toNumber(order.total, 0))}</td>
-                        <td className="whitespace-nowrap px-3 py-3 text-[#374151]">{new Date(order.created_at).toLocaleDateString('en-IN')}</td>
+                        <td className="whitespace-nowrap px-3 py-3 text-[#000000]">{new Date(order.created_at).toLocaleDateString('en-IN')}</td>
                         <td className="px-3 py-3">
                           <span className={`rounded-full px-2 py-0.5 text-[10px] font-black uppercase ${normalizeStatus(order.status) === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                             {normalizeStatus(order.status) || 'pending'}
@@ -932,7 +932,7 @@ export default function BillingAnalytics() {
                   })}
                   {filteredBills.length === 0 && (
                     <tr>
-                      <td colSpan={10} className="px-4 py-10 text-center text-[13px] text-[#374151]">
+                      <td colSpan={10} className="px-4 py-10 text-center text-[13px] text-[#000000]">
                         No matching bills found.
                       </td>
                     </tr>
@@ -943,20 +943,20 @@ export default function BillingAnalytics() {
           </div>
 
           <div className="space-y-4">
-            <div className="rounded-2xl border border-[#E5E7EB]/30 bg-white p-5 shadow-sm">
-              <h2 className="mb-4 text-base font-black text-[#223126]">{l('Top Products', 'சிறந்த பொருட்கள்')}</h2>
+            <div className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
+              <h2 className="mb-4 text-base font-black text-[#000000]">{l('Top Products', 'சிறந்த பொருட்கள்')}</h2>
               {analytics.topProducts.length > 0 ? (
                 <div className="space-y-3">
                   {analytics.topProducts.slice(0, 8).map((product, index) => (
-                    <div key={`${product.name}-${product.variant}-${index}`} className="rounded-xl bg-[#F9FAFB] p-3">
+                    <div key={`${product.name}-${product.variant}-${index}`} className="rounded-xl bg-white p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-black text-[#111111]">{product.name}</p>
-                          <p className="text-[11px] text-[#7A846F]">{product.variant || 'Variant not set'}</p>
+                          <p className="font-black text-[#000000]">{product.name}</p>
+                          <p className="text-[11px] text-[#000000]">{product.variant || 'Variant not set'}</p>
                         </div>
                         <p className="text-right text-[12px] font-black text-emerald-700">{formatCurrency(product.revenue)}</p>
                       </div>
-                      <div className="mt-2 flex items-center justify-between text-[11px] font-bold text-[#374151]">
+                      <div className="mt-2 flex items-center justify-between text-[11px] font-bold text-[#000000]">
                         <span>Qty: {Math.round(product.qty)}</span>
                         <span>Bills: {product.billCount}</span>
                       </div>
@@ -964,20 +964,20 @@ export default function BillingAnalytics() {
                   ))}
                 </div>
               ) : (
-                <p className="py-8 text-center text-[13px] text-[#374151]">No product sales in selected period.</p>
+                <p className="py-8 text-center text-[13px] text-[#000000]">No product sales in selected period.</p>
               )}
             </div>
 
-            <div className="rounded-2xl border border-[#E5E7EB]/30 bg-white p-5 shadow-sm">
-              <h2 className="mb-4 text-base font-black text-[#223126]">{l('Top Categories', 'சிறந்த வகைகள்')}</h2>
+            <div className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
+              <h2 className="mb-4 text-base font-black text-[#000000]">{l('Top Categories', 'சிறந்த வகைகள்')}</h2>
               {analytics.topCategories.length > 0 ? (
                 <div className="space-y-3">
                   {analytics.topCategories.map((category, index) => (
-                    <div key={`${category.name}-${index}`} className="rounded-xl bg-[#F9FAFB] p-3">
+                    <div key={`${category.name}-${index}`} className="rounded-xl bg-white p-3">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="font-black text-[#111111]">{category.name}</p>
-                          <p className="text-[11px] text-[#7A846F]">Qty sold: {Math.round(category.qty)}</p>
+                          <p className="font-black text-[#000000]">{category.name}</p>
+                          <p className="text-[11px] text-[#000000]">Qty sold: {Math.round(category.qty)}</p>
                         </div>
                         <p className="text-[12px] font-black text-emerald-700">{formatCurrency(category.revenue)}</p>
                       </div>
@@ -985,29 +985,29 @@ export default function BillingAnalytics() {
                   ))}
                 </div>
               ) : (
-                <p className="py-8 text-center text-[13px] text-[#374151]">No category data in selected period.</p>
+                <p className="py-8 text-center text-[13px] text-[#000000]">No category data in selected period.</p>
               )}
             </div>
 
-            <div className="rounded-2xl border border-[#E5E7EB]/30 bg-white p-5 shadow-sm">
-              <h2 className="mb-4 text-base font-black text-[#223126]">{l('Coupon Analytics', 'கூப்பன் பகுப்பாய்வு')}</h2>
+            <div className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
+              <h2 className="mb-4 text-base font-black text-[#000000]">{l('Coupon Analytics', 'கூப்பன் பகுப்பாய்வு')}</h2>
               {analytics.topCoupons.length > 0 ? (
                 <div className="space-y-3">
                   {analytics.topCoupons.map((coupon) => (
-                    <div key={coupon.code} className="flex items-center justify-between gap-3 rounded-xl bg-[#F9FAFB] p-3">
+                    <div key={coupon.code} className="flex items-center justify-between gap-3 rounded-xl bg-white p-3">
                       <div>
-                        <p className="font-black text-[#111111]">{coupon.code}</p>
-                        <p className="text-[11px] text-[#7A846F]">Used {coupon.usage} time(s)</p>
+                        <p className="font-black text-[#000000]">{coupon.code}</p>
+                        <p className="text-[11px] text-[#000000]">Used {coupon.usage} time(s)</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-black text-[#111111]">{formatCurrency(coupon.discounts)}</p>
-                        <p className="text-[11px] text-[#7A846F]">Discounts given</p>
+                        <p className="font-black text-[#000000]">{formatCurrency(coupon.discounts)}</p>
+                        <p className="text-[11px] text-[#000000]">Discounts given</p>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="py-8 text-center text-[13px] text-[#374151]">No coupon usage yet.</p>
+                <p className="py-8 text-center text-[13px] text-[#000000]">No coupon usage yet.</p>
               )}
             </div>
           </div>

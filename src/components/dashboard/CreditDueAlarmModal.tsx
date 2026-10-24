@@ -145,7 +145,7 @@ export default function CreditDueAlarmModal({ triggerKey }: { triggerKey?: strin
         </div>
 
         <div className="p-5 space-y-3">
-          <p className="text-sm font-bold text-[#374151]">The audible alarm and visual alert will sound until acknowledged.</p>
+          <p className="text-sm font-bold text-[#000000]">The audible alarm and visual alert will sound until acknowledged.</p>
 
           <div className="max-h-56 overflow-y-auto space-y-2">
             {items.map(o => {
@@ -157,8 +157,8 @@ export default function CreditDueAlarmModal({ triggerKey }: { triggerKey?: strin
                       <Wallet size={15} />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-black text-sm text-[#111111] break-words">{o.customer_name}</p>
-                      <p className="text-[11px] text-[#6B7280] truncate">{formatInvoiceNo(o.invoice_no)} • {formatCurrency(o.total)}</p>
+                      <p className="font-black text-sm text-[#000000] break-words">{o.customer_name}</p>
+                      <p className="text-[11px] text-[#000000] truncate">{formatInvoiceNo(o.invoice_no)} • {formatCurrency(o.total)}</p>
                     </div>
                   </div>
                   <div className="text-right shrink-0 flex flex-col items-end gap-1">

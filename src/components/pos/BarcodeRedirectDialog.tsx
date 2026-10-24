@@ -61,7 +61,7 @@ export const BarcodeRedirectDialog: React.FC<BarcodeRedirectDialogProps> = ({
         </div>
 
         {/* Content */}
-        <div className="p-5 space-y-3 bg-[#FBFAF6]">
+        <div className="p-5 space-y-3 bg-white">
           <div className="flex items-start gap-2.5 p-3 rounded-2xl bg-amber-50 border border-amber-200/80 text-amber-950 text-xs">
             <AlertCircle size={17} className="text-amber-600 shrink-0 mt-0.5" />
             <div className="space-y-1">

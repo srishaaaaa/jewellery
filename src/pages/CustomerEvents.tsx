@@ -232,20 +232,19 @@ export default function CustomerEvents() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-black uppercase tracking-[.18em] text-pink-600">Customer relationships</p>
-          <h2 className="text-2xl font-black text-[#273126]">Birthdays &amp; Anniversaries</h2>
-          <p className="mt-1 text-sm text-[#6B7280]">
+          <h2 className="text-[28px] font-black text-[#000000] tracking-tight">Birthdays &amp; Anniversaries</h2>
+          <p className="mt-1 text-xs font-semibold text-[#000000]">
             Keep track of customer birthdays and anniversaries, and send them a wish when the day comes.
           </p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={openAdd}
-            className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-black text-white hover:opacity-90 cursor-pointer"
+            className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:opacity-90 cursor-pointer"
           >
             <Plus size={16} /> Add Customer
           </button>
-          <button onClick={() => void load()} className="rounded-xl border border-[#ECE9E2] bg-white p-3 text-[#647064] cursor-pointer" title="Refresh">
+          <button onClick={() => void load()} className="rounded-xl border border-black/10 bg-white p-3 text-[#000000] cursor-pointer" title="Refresh">
             <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
@@ -257,11 +256,11 @@ export default function CustomerEvents() {
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map(([label, value, Icon, color]) => (
-          <div key={label} className="rounded-2xl border border-[#ECE9E2] bg-white p-4 shadow-sm">
+          <div key={label} className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-[11px] font-black uppercase tracking-wide text-[#879086]">{label}</p>
-                <p className="mt-2 text-2xl font-black text-[#273126]">{value}</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">{label}</p>
+                <p className="mt-2 text-2xl font-black text-[#000000]">{value}</p>
               </div>
               <div className={`rounded-xl p-3 ${color}`}><Icon size={21} /></div>
             </div>
@@ -269,12 +268,12 @@ export default function CustomerEvents() {
         ))}
       </div>
 
-      <div className="rounded-2xl border border-[#ECE9E2] bg-white p-4 shadow-sm space-y-3">
+      <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm space-y-3">
         <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
           <label className="relative">
             <Search className="absolute left-3 top-3 text-[#9CA3AF]" size={17} />
             <input
-              className="w-full h-11 rounded-xl border border-[#E5E7EB] bg-white pl-10 pr-3 text-sm font-semibold text-[#273126] outline-none focus:border-[var(--accent)]"
+              className="w-full h-11 rounded-xl border border-black/10 bg-white pl-10 pr-3 text-sm font-semibold text-[#000000] outline-none focus:border-[var(--accent)]"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search by name or phone"
@@ -282,8 +281,8 @@ export default function CustomerEvents() {
           </label>
         </div>
 
-        <div className="border-t border-[#E5E7EB] pt-3">
-          <p className="text-xs font-bold text-[#6B7280] mb-2">Filter by Date</p>
+        <div className="border-t border-black/10 pt-3">
+          <p className="text-xs font-bold text-[#000000] mb-2">Filter by Date</p>
           <div className="flex flex-wrap gap-2 mb-3">
             {([
               ['thisMonth', 'This Month'],
@@ -293,7 +292,7 @@ export default function CustomerEvents() {
               <button
                 key={value}
                 onClick={() => applyDatePreset(value)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${datePreset === value ? 'bg-pink-100 text-pink-700' : 'bg-[#F5F3F7] text-[#626B61] hover:bg-[#E5E3ED]'}`}
+                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${datePreset === value ? 'bg-pink-100 text-pink-700' : 'bg-black/[0.03] text-[#000000] hover:bg-[#E5E3ED]'}`}
               >
                 {label}
               </button>
@@ -301,11 +300,11 @@ export default function CustomerEvents() {
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
             <div>
-              <label className="block text-[10px] font-bold text-[#6B7280] mb-1">From Month</label>
+              <label className="block text-[10px] font-bold text-[#000000] mb-1">From Month</label>
               <select
                 value={fromMonth ?? ''}
                 onChange={e => { setFromMonth(e.target.value === '' ? null : parseInt(e.target.value)); setDatePreset('custom') }}
-                className="w-full h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-semibold text-[#273126] outline-none focus:border-[var(--accent)]"
+                className="w-full h-9 rounded-lg border border-black/10 bg-white px-3 text-xs font-semibold text-[#000000] outline-none focus:border-[var(--accent)]"
               >
                 <option value="">All Months</option>
                 {Array.from({ length: 12 }, (_, i) => (
@@ -316,11 +315,11 @@ export default function CustomerEvents() {
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-bold text-[#6B7280] mb-1">To Month</label>
+              <label className="block text-[10px] font-bold text-[#000000] mb-1">To Month</label>
               <select
                 value={toMonth ?? ''}
                 onChange={e => { setToMonth(e.target.value === '' ? null : parseInt(e.target.value)); setDatePreset('custom') }}
-                className="w-full h-9 rounded-lg border border-[#E5E7EB] bg-white px-3 text-xs font-semibold text-[#273126] outline-none focus:border-[var(--accent)]"
+                className="w-full h-9 rounded-lg border border-black/10 bg-white px-3 text-xs font-semibold text-[#000000] outline-none focus:border-[var(--accent)]"
               >
                 <option value="">All Months</option>
                 {Array.from({ length: 12 }, (_, i) => (
@@ -335,26 +334,26 @@ export default function CustomerEvents() {
       </div>
 
       {/* Birthdays Section */}
-      <div className="rounded-2xl border border-[#ECE9E2] bg-white shadow-sm overflow-hidden">
-        <div className="px-4 py-4 sm:px-5 sm:py-5 border-b border-[#E5E7EB] bg-[#FBFAF6] flex items-center gap-3">
+      <div className="rounded-2xl border border-black/10 bg-white shadow-sm overflow-hidden">
+        <div className="px-4 py-4 sm:px-5 sm:py-5 border-b border-black/10 bg-white flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-pink-100 text-pink-600 flex items-center justify-center font-black">
             <Cake size={18} />
           </div>
           <div>
-            <h3 className="font-black text-sm text-[#273126]">Birthdays</h3>
-            <p className="text-[11px] font-semibold text-[#6B7280] mt-0.5">Upcoming customer birthdays</p>
+            <h3 className="font-black text-sm text-[#000000]">Birthdays</h3>
+            <p className="text-[11px] font-semibold text-[#000000] mt-0.5">Upcoming customer birthdays</p>
           </div>
         </div>
         {loading ? (
-          <div className="px-4 py-12 text-center text-[#6B7280]"><RefreshCw size={18} className="animate-spin inline" /></div>
+          <div className="px-4 py-12 text-center text-[#000000]"><RefreshCw size={18} className="animate-spin inline" /></div>
         ) : filtered.filter(c => c.birthday).length === 0 ? (
-          <div className="px-4 py-12 text-center text-sm text-[#6B7280]">
+          <div className="px-4 py-12 text-center text-sm text-[#000000]">
             {tracked.filter(c => c.birthday).length === 0 ? 'No birthdays saved yet.' : 'No birthdays match these filters.'}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead className="bg-[#F8F7F4] border-t border-[#E5E7EB] text-[10px] font-black uppercase tracking-wider text-[#737B72]">
+              <thead className="bg-black/[0.03] border-t border-black/10 text-[10px] font-bold uppercase tracking-widest text-[#000000]">
                 <tr>
                   <th className="px-4 py-3 whitespace-nowrap">#</th>
                   <th className="px-4 py-3 whitespace-nowrap">Name</th>
@@ -363,16 +362,16 @@ export default function CustomerEvents() {
                   <th className="px-4 py-3 whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#F0EEE9]">
+              <tbody className="divide-y divide-black/5">
                 {filtered.filter(c => c.birthday).map((c, idx) => {
                   const isBirthdayToday = isTodayMonthDay(c.birthday)
                   return (
                     <tr key={c.id} className={`transition-colors ${isBirthdayToday ? 'bg-pink-50/60 hover:bg-pink-50' : 'hover:bg-emerald-50/30'}`}>
                       <td className="px-4 py-3.5 text-[#9CA3AF]">{idx + 1}</td>
-                      <td className="px-4 py-3.5 font-bold text-[#273126]">{c.name || '—'}</td>
-                      <td className="px-4 py-3.5 text-[#6B7280]">{formatPhoneDisplay(c.phone)}</td>
+                      <td className="px-4 py-3.5 font-bold text-[#000000]">{c.name || '—'}</td>
+                      <td className="px-4 py-3.5 text-[#000000]">{formatPhoneDisplay(c.phone)}</td>
                       <td className="px-4 py-3.5">
-                        <span className={isBirthdayToday ? 'inline-flex items-center gap-1 rounded-full bg-pink-100 px-2.5 py-1 text-[10px] font-black text-pink-700' : 'text-[#6B7280]'}>
+                        <span className={isBirthdayToday ? 'inline-flex items-center gap-1 rounded-full bg-pink-100 px-2.5 py-1 text-[10px] font-black text-pink-700' : 'text-[#000000]'}>
                           {isBirthdayToday && <Cake size={11} />} {formatMonthDay(c.birthday)}
                         </span>
                       </td>
@@ -390,7 +389,7 @@ export default function CustomerEvents() {
                           <button
                             type="button"
                             onClick={() => openView(c)}
-                            className="flex items-center justify-center w-6 h-6 rounded-lg border border-gray-200 text-gray-500 hover:text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[#FEF9E7] transition-all cursor-pointer"
+                            className="flex items-center justify-center w-6 h-6 rounded-lg border border-black/10 text-gray-500 hover:text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[#FEF9E7] transition-all cursor-pointer"
                             title={`View "${c.name}"`}
                           >
                             <Eye size={12} />
@@ -398,7 +397,7 @@ export default function CustomerEvents() {
                           <button
                             type="button"
                             onClick={() => openEdit(c)}
-                            className="flex items-center justify-center w-6 h-6 rounded-lg border border-gray-200 text-gray-500 hover:text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[#FEF9E7] transition-all cursor-pointer"
+                            className="flex items-center justify-center w-6 h-6 rounded-lg border border-black/10 text-gray-500 hover:text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[#FEF9E7] transition-all cursor-pointer"
                             title={`Edit "${c.name}"`}
                           >
                             <Pencil size={12} />
@@ -424,26 +423,26 @@ export default function CustomerEvents() {
       </div>
 
       {/* Anniversaries Section */}
-      <div className="rounded-2xl border border-[#ECE9E2] bg-white shadow-sm overflow-hidden">
-        <div className="px-4 py-4 sm:px-5 sm:py-5 border-b border-[#E5E7EB] bg-[#FBFAF6] flex items-center gap-3">
+      <div className="rounded-2xl border border-black/10 bg-white shadow-sm overflow-hidden">
+        <div className="px-4 py-4 sm:px-5 sm:py-5 border-b border-black/10 bg-white flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center font-black">
             <Heart size={18} />
           </div>
           <div>
-            <h3 className="font-black text-sm text-[#273126]">Anniversaries</h3>
-            <p className="text-[11px] font-semibold text-[#6B7280] mt-0.5">Upcoming customer anniversaries</p>
+            <h3 className="font-black text-sm text-[#000000]">Anniversaries</h3>
+            <p className="text-[11px] font-semibold text-[#000000] mt-0.5">Upcoming customer anniversaries</p>
           </div>
         </div>
         {loading ? (
-          <div className="px-4 py-12 text-center text-[#6B7280]"><RefreshCw size={18} className="animate-spin inline" /></div>
+          <div className="px-4 py-12 text-center text-[#000000]"><RefreshCw size={18} className="animate-spin inline" /></div>
         ) : filtered.filter(c => c.anniversary).length === 0 ? (
-          <div className="px-4 py-12 text-center text-sm text-[#6B7280]">
+          <div className="px-4 py-12 text-center text-sm text-[#000000]">
             {tracked.filter(c => c.anniversary).length === 0 ? 'No anniversaries saved yet.' : 'No anniversaries match these filters.'}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead className="bg-[#F8F7F4] border-t border-[#E5E7EB] text-[10px] font-black uppercase tracking-wider text-[#737B72]">
+              <thead className="bg-black/[0.03] border-t border-black/10 text-[10px] font-bold uppercase tracking-widest text-[#000000]">
                 <tr>
                   <th className="px-4 py-3 whitespace-nowrap">#</th>
                   <th className="px-4 py-3 whitespace-nowrap">Name</th>
@@ -452,16 +451,16 @@ export default function CustomerEvents() {
                   <th className="px-4 py-3 whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#F0EEE9]">
+              <tbody className="divide-y divide-black/5">
                 {filtered.filter(c => c.anniversary).map((c, idx) => {
                   const isAnniversaryToday = isTodayMonthDay(c.anniversary)
                   return (
                     <tr key={c.id} className={`transition-colors ${isAnniversaryToday ? 'bg-rose-50/60 hover:bg-rose-50' : 'hover:bg-emerald-50/30'}`}>
                       <td className="px-4 py-3.5 text-[#9CA3AF]">{idx + 1}</td>
-                      <td className="px-4 py-3.5 font-bold text-[#273126]">{c.name || '—'}</td>
-                      <td className="px-4 py-3.5 text-[#6B7280]">{formatPhoneDisplay(c.phone)}</td>
+                      <td className="px-4 py-3.5 font-bold text-[#000000]">{c.name || '—'}</td>
+                      <td className="px-4 py-3.5 text-[#000000]">{formatPhoneDisplay(c.phone)}</td>
                       <td className="px-4 py-3.5">
-                        <span className={isAnniversaryToday ? 'inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-[10px] font-black text-rose-700' : 'text-[#6B7280]'}>
+                        <span className={isAnniversaryToday ? 'inline-flex items-center gap-1 rounded-full bg-rose-100 px-2.5 py-1 text-[10px] font-black text-rose-700' : 'text-[#000000]'}>
                           {isAnniversaryToday && <Heart size={11} />} {formatMonthDay(c.anniversary)}
                         </span>
                       </td>
@@ -479,7 +478,7 @@ export default function CustomerEvents() {
                           <button
                             type="button"
                             onClick={() => openView(c)}
-                            className="flex items-center justify-center w-6 h-6 rounded-lg border border-gray-200 text-gray-500 hover:text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[#FEF9E7] transition-all cursor-pointer"
+                            className="flex items-center justify-center w-6 h-6 rounded-lg border border-black/10 text-gray-500 hover:text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[#FEF9E7] transition-all cursor-pointer"
                             title={`View "${c.name}"`}
                           >
                             <Eye size={12} />
@@ -487,7 +486,7 @@ export default function CustomerEvents() {
                           <button
                             type="button"
                             onClick={() => openEdit(c)}
-                            className="flex items-center justify-center w-6 h-6 rounded-lg border border-gray-200 text-gray-500 hover:text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[#FEF9E7] transition-all cursor-pointer"
+                            className="flex items-center justify-center w-6 h-6 rounded-lg border border-black/10 text-gray-500 hover:text-[var(--accent)] hover:border-[var(--accent)] hover:bg-[#FEF9E7] transition-all cursor-pointer"
                             title={`Edit "${c.name}"`}
                           >
                             <Pencil size={12} />
@@ -516,12 +515,12 @@ export default function CustomerEvents() {
       {(modalMode === 'add' || modalMode === 'edit') && (
         <ModalPortal><div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
           <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl overflow-y-auto border border-pink-200 animate-in fade-in zoom-in-95">
-            <div className="px-4 sm:px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-[#FBFAF6] shrink-0">
+            <div className="px-4 sm:px-5 py-3 border-b border-black/10 flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-pink-500/10 flex items-center justify-center text-pink-600">
                   <Gift className="w-4 h-4" />
                 </div>
-                <h3 className="font-bold text-sm text-[#111111]">
+                <h3 className="font-bold text-sm text-[#000000]">
                   {modalMode === 'edit' ? 'Edit Customer' : 'Add Customer'}
                 </h3>
               </div>
@@ -536,7 +535,7 @@ export default function CustomerEvents() {
               )}
 
               <div>
-                <label className="block font-bold text-[#374151] mb-1">Name *</label>
+                <label className="block font-bold text-[#000000] mb-1">Name *</label>
                 <input
                   type="text"
                   required
@@ -544,19 +543,19 @@ export default function CustomerEvents() {
                   value={form.name}
                   onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
                   placeholder="e.g. Priya Sharma"
-                  className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-semibold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white"
+                  className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-semibold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white"
                 />
               </div>
 
               <div>
-                <label className="block font-bold text-[#374151] mb-1">Phone Number *</label>
+                <label className="block font-bold text-[#000000] mb-1">Phone Number *</label>
                 <input
                   type="tel"
                   required
                   value={form.phone}
                   onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                   placeholder="e.g. 9876543210"
-                  className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white"
+                  className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white"
                 />
               </div>
 
@@ -567,7 +566,7 @@ export default function CustomerEvents() {
                     value={form.birthday}
                     onChange={v => setForm(f => ({ ...f, birthday: v }))}
                     placeholder="DD/MM/YYYY"
-                    className="px-3 py-2 bg-[#FBFAF6] text-xs"
+                    className="px-3 py-2 bg-white text-xs"
                   />
                 </div>
                 <div>
@@ -576,19 +575,19 @@ export default function CustomerEvents() {
                     value={form.anniversary}
                     onChange={v => setForm(f => ({ ...f, anniversary: v }))}
                     placeholder="DD/MM/YYYY"
-                    className="px-3 py-2 bg-[#FBFAF6] text-xs"
+                    className="px-3 py-2 bg-white text-xs"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block font-bold text-[#374151] mb-1">Address (Optional)</label>
+                <label className="block font-bold text-[#000000] mb-1">Address (Optional)</label>
                 <input
                   type="text"
                   value={form.address}
                   onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
                   placeholder="e.g. 12 Main Street"
-                  className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-semibold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white"
+                  className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-semibold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white"
                 />
               </div>
 
@@ -623,8 +622,8 @@ export default function CustomerEvents() {
       {modalMode === 'view' && activeCustomer && (
         <ModalPortal><div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
           <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-y-auto border border-pink-200 animate-in fade-in zoom-in-95">
-            <div className="px-4 sm:px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-[#FBFAF6]">
-              <h3 className="font-bold text-sm text-[#111111] flex items-center gap-2">
+            <div className="px-4 sm:px-5 py-3 border-b border-black/10 flex items-center justify-between bg-white">
+              <h3 className="font-bold text-sm text-[#000000] flex items-center gap-2">
                 <Eye className="w-4 h-4 text-pink-600" /> Customer Details
               </h3>
               <button type="button" onClick={closeModal} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 cursor-pointer" aria-label="Close">
@@ -633,27 +632,27 @@ export default function CustomerEvents() {
             </div>
             <div className="p-5 space-y-3 text-xs">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-wide text-[#9CA3AF]">Name</p>
-                <p className="text-sm font-bold text-[#111111]">{activeCustomer.name || '—'}</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#9CA3AF]">Name</p>
+                <p className="text-sm font-bold text-[#000000]">{activeCustomer.name || '—'}</p>
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-wide text-[#9CA3AF]">Phone</p>
-                <p className="text-sm font-bold text-[#111111]">{formatPhoneDisplay(activeCustomer.phone) || activeCustomer.phone}</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#9CA3AF]">Phone</p>
+                <p className="text-sm font-bold text-[#000000]">{formatPhoneDisplay(activeCustomer.phone) || activeCustomer.phone}</p>
               </div>
               {activeCustomer.address && (
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-wide text-[#9CA3AF]">Address</p>
-                  <p className="text-sm font-semibold text-[#111111] break-words">{activeCustomer.address}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#9CA3AF]">Address</p>
+                  <p className="text-sm font-semibold text-[#000000] break-words">{activeCustomer.address}</p>
                 </div>
               )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-wide text-[#9CA3AF]">Birthday</p>
-                  <p className="text-sm font-bold text-[#111111]">{formatMonthDay(activeCustomer.birthday)}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#9CA3AF]">Birthday</p>
+                  <p className="text-sm font-bold text-[#000000]">{formatMonthDay(activeCustomer.birthday)}</p>
                 </div>
                 <div>
-                  <p className="text-[10px] font-black uppercase tracking-wide text-[#9CA3AF]">Anniversary</p>
-                  <p className="text-sm font-bold text-[#111111]">{formatMonthDay(activeCustomer.anniversary)}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#9CA3AF]">Anniversary</p>
+                  <p className="text-sm font-bold text-[#000000]">{formatMonthDay(activeCustomer.anniversary)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 pt-2">

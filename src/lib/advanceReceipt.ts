@@ -179,13 +179,13 @@ export function printAdvanceReceipt(order: AdvanceOrder) {
     return paymentLabel || 'Cash'
   })()
   const html = `<!doctype html><html><head><title>Advance Receipt ${esc(order.deposit_id)}</title>
-<meta charset="utf-8">
+<meta charset="utf-8"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   @page { size: 80mm auto; margin: 0; }
   @media print { @page { size: 80mm auto; margin: 0; } }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
-    font-family: Arial, sans-serif;
+    font-family: 'Poppins', system-ui, sans-serif;
     font-size: 12px;
     font-weight: 600;
     width: 72mm;

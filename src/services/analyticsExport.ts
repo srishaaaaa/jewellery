@@ -209,7 +209,7 @@ export async function exportAnalyticsToPDF({
   container.style.width = '794px' // Standard A4 at 96 DPI
   container.style.backgroundColor = '#FFFFFF'
   container.style.color = '#0A0A0A'
-  container.style.fontFamily = "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
+  container.style.fontFamily = "'Poppins', system-ui, sans-serif"
   container.style.padding = '32px'
   container.style.boxSizing = 'border-box'
 

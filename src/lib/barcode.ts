@@ -252,7 +252,7 @@ export function labelBarcodeHtml(
   // flex: none + min-width so no parent flex/max-width rule can squeeze the bars
   svg.setAttribute('style', `display:block;flex:none;margin:0 auto;width:${widthMm.toFixed(3)}mm;min-width:${widthMm.toFixed(3)}mm;height:${opts.barHeightMm.toFixed(2)}mm;max-width:none;max-height:none;`)
   const text = value.trim().replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string))
-  return `<div style="display:flex;flex-direction:column;align-items:center;flex:none;">${svg.outerHTML}<div style="font-family:Arial,sans-serif;font-size:${opts.fontSizePt ?? 6.5}pt;font-weight:700;letter-spacing:0.4px;line-height:1;margin-top:0.3mm;color:#000;text-align:center;white-space:nowrap;">${text}</div></div>`
+  return `<div style="display:flex;flex-direction:column;align-items:center;flex:none;">${svg.outerHTML}<div style="font-family:Poppins,sans-serif;font-size:${opts.fontSizePt ?? 6.5}pt;font-weight:700;letter-spacing:0.4px;line-height:1;margin-top:0.3mm;color:#000;text-align:center;white-space:nowrap;">${text}</div></div>`
 }
 
 /**

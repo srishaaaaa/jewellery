@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useState, useMemo, useRef, type FormEvent } from 'react'
 import {
   BarChart2, Trash2, Edit2, List, ShoppingCart, LayoutDashboard,
-  Box, AlertCircle, Power, Download, TrendingUp, TrendingDown,
+  Box, AlertCircle, Download, TrendingUp, TrendingDown,
   Package, Search, RefreshCw, ShieldCheck, ShieldOff, Trophy,
   MessageCircle, ChevronDown, Eye, FileText, Printer, X, Layers, Receipt, Settings, Wallet, Gift,
-  Gem, PiggyBank, Briefcase, Truck,
+  Gem, PiggyBank, Briefcase, Truck, LogOut, Menu,
 } from 'lucide-react'
 
 // Custom Malaysian Ringgit icon — replaces the generic dollar-sign icon
@@ -30,7 +30,7 @@ const RMIcon = ({ size = 16, className = '' }: { size?: number; className?: stri
       fontWeight="bold"
       stroke="none"
       fill="currentColor"
-      fontFamily="Arial, sans-serif"
+      fontFamily="Poppins, sans-serif"
     >RM</text>
   </svg>
 )
@@ -145,7 +145,7 @@ type ProfileUser = { id: string; email: string; name: string; mobile: string; ro
 
 const normalizeStatus = (v: unknown) => String(v || '').trim().toLowerCase()
 const statusTone = (v: unknown) => normalizeStatus(v) === 'completed' ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-  : normalizeStatus(v) === 'cancelled' ? 'border-gray-200 bg-gray-100 text-gray-500'
+  : normalizeStatus(v) === 'cancelled' ? 'border-black/10 bg-gray-100 text-gray-500'
     : 'border-amber-200 bg-amber-50 text-amber-700'
 const normalizeOrderType = (v: unknown) => String(v || '').trim().toLowerCase() || 'pos_sale'
 const formatPhoneWithCountryCode = (phone: string) => {
@@ -285,10 +285,12 @@ export default function Dashboard() {
   const [search, setSearch] = useState({ invoiceNo: '', phone: '', customerName: '', dateFrom: '', dateTo: '' })
   const [todayBillsSearch, setTodayBillsSearch] = useState('')
   const [productAnalyticsSearch, setProductAnalyticsSearch] = useState('')
-  const [datePreset, setDatePreset] = useState<'today' | 'week' | 'month' | 'custom' | ''>('')
+  const [datePreset, setDatePreset] = useState<'today' | 'week' | 'month' | 'year' | 'custom' | ''>('')
   const [searchResults, setSearchResults] = useState<DashboardOrder[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    // Phones and tablets start with the menu closed (it slides over the page).
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) return true
     try {
       return window.localStorage.getItem('dashboard-sidebar-collapsed') === '1'
     } catch {
@@ -1218,7 +1220,8 @@ export default function Dashboard() {
     setAnalyticsDateFrom(from); setAnalyticsDateTo(to)
   }
 
-  const applyDatePreset = (preset: 'today' | 'week' | 'month' | 'custom') => {
+  const applyDatePreset = (preset: 'all' | 'today' | 'week' | 'month' | 'year' | 'custom') => {
+    if (preset === 'all') { setDatePreset(''); setSearch(s => ({ ...s, dateFrom: '', dateTo: '' })); return }
     setDatePreset(preset)
     if (preset === 'custom') { setSearch(s => ({ ...s, dateFrom: '', dateTo: '' })); return }
     const { from, to } = getPresetRange(preset)
@@ -1338,6 +1341,14 @@ export default function Dashboard() {
     void runSearchRef.current()
   }, [billTypeFilter, search.dateFrom, search.dateTo])
 
+  // Order ID / name / phone filter as you type (debounced).
+  const typedFiltersReady = useRef(false)
+  useEffect(() => {
+    if (!typedFiltersReady.current) { typedFiltersReady.current = true; return }
+    const t = window.setTimeout(() => { void runSearchRef.current() }, 400)
+    return () => window.clearTimeout(t)
+  }, [search.invoiceNo, search.customerName, search.phone])
+
   useEffect(() => {
     try {
       window.localStorage.setItem('dashboard-sidebar-collapsed', sidebarCollapsed ? '1' : '0')
@@ -1406,157 +1417,137 @@ export default function Dashboard() {
   const navItems: Array<{ id: TabKey; icon: React.ReactNode; label: string; badge?: number }> = role === 'staff'
     ? [
         { id: 'billing',        icon: <ShoppingCart size={18} />, label: 'Billing Panel' },
-        { id: 'inventory',      icon: <Layers size={18} />,       label: 'Jewellery Stock' },
+        { id: 'inventory',      icon: <Layers size={18} />,       label: 'Inventory' },
         { id: 'metal_rates',    icon: <Gem size={18} />,          label: 'Metal Rates' },
         { id: 'schemes',        icon: <PiggyBank size={18} />,    label: 'Schema' },
         { id: 'sales_desk',     icon: <Briefcase size={18} />,    label: 'Sales Desk' },
         { id: 'advance_orders', icon: <FileText size={18} />,     label: 'Advance Orders' },
-        { id: 'customer_events', icon: <Gift size={18} />,        label: 'Customers & Occasions' },
+        { id: 'customer_events', icon: <Gift size={18} />,        label: 'Customers' },
         { id: 'history',        icon: <List size={18} />,         label: 'Order History' },
       ]
     : [
         { id: 'billing',        icon: <ShoppingCart size={18} />, label: 'Billing Panel' },
-        { id: 'inventory',      icon: <Layers size={18} />,       label: 'Jewellery Stock & Barcodes' },
-        { id: 'purchases',      icon: <Truck size={18} />,        label: 'Purchases & Suppliers' },
+        { id: 'inventory',      icon: <Layers size={18} />,       label: 'Inventory' },
+        { id: 'purchases',      icon: <Truck size={18} />,        label: 'Purchases' },
         { id: 'metal_rates',    icon: <Gem size={18} />,          label: 'Metal Rates' },
         { id: 'schemes',        icon: <PiggyBank size={18} />,    label: 'Schema' },
         { id: 'sales_desk',     icon: <Briefcase size={18} />,    label: 'Sales Desk' },
         { id: 'advance_orders', icon: <FileText size={18} />,     label: 'Advance Orders' },
-        { id: 'customer_events', icon: <Gift size={18} />,        label: 'Customers & Occasions' },
-        { id: 'expenses',       icon: <Receipt size={18} />,      label: 'Expenses' },
+        { id: 'customer_events', icon: <Gift size={18} />,        label: 'Customers' },
+        { id: 'expenses',       icon: <Receipt size={18} />,      label: 'Expense Tracker' },
         { id: 'outstanding_credits', icon: <Wallet size={18} />, label: 'Outstanding Credits', badge: outstandingCreditCount },
         { id: 'history',        icon: <List size={18} />,         label: 'Order History' },
         { id: 'pos_analytics',  icon: <BarChart2 size={18} />,    label: 'Analytics Dashboard' },
         { id: 'coupons',        icon: <Box size={18} />,          label: 'Coupons' },
-        { id: 'settings',       icon: <Settings size={18} />,     label: 'Store Settings' },
+        { id: 'settings',       icon: <Settings size={18} />,     label: 'Settings' },
       ]
 
+  const sidebarOpen = !sidebarCollapsed
+  const logout = () => {
+    useAdminAuthStore.getState().logout()
+    navigate('/admin-login', { replace: true })
+  }
+
   return (
-    <div className="admin-shell h-dvh max-h-dvh min-h-dvh bg-bgMain flex flex-col lg:flex-row overflow-hidden">
+    <div className="admin-shell h-dvh max-h-dvh min-h-dvh bg-white flex overflow-hidden">
       <LowStockAlarmModal triggerKey={tab} />
       <CreditDueAlarmModal triggerKey={tab} />
       <CustomerEventAlarmModal triggerKey={tab} />
-      {/* Sidebar */}
+
+      {/* Mobile / tablet sidebar backdrop */}
+      {sidebarOpen && (
+        <div onClick={() => setSidebarCollapsed(true)} className="fixed inset-0 bg-black/40 backdrop-blur-[2px] z-30 lg:hidden print:hidden" />
+      )}
+
+      {/* Collapsible left sidebar */}
       <aside
-        className={[
-          'w-full bg-[#0A0A0A] text-white border-b lg:border-b-0 lg:border-r border-[var(--accent-a20)] flex flex-col shrink-0 h-auto lg:h-full lg:max-h-screen',
-          'transition-[width] duration-300 ease-in-out overflow-hidden',
-          sidebarCollapsed ? 'lg:w-[76px]' : 'lg:w-[240px] xl:w-[250px]',
-        ].join(' ')}
+        className={`fixed lg:sticky top-0 bottom-0 left-0 bg-gradient-to-b from-[var(--accent)] via-[var(--accent-dark)] to-[color-mix(in_srgb,var(--accent)_55%,#000000)] text-white flex flex-col justify-between h-dvh shrink-0 shadow-2xl z-40 transition-all duration-300 ease-in-out print:hidden ${sidebarOpen ? 'w-64 border-r border-white/20 translate-x-0' : 'w-0 min-w-0 border-r-0 -translate-x-64 overflow-hidden'}`}
       >
-        {/* Desktop brand header */}
-        <div className={`hidden lg:flex items-center relative transition-all duration-300 shrink-0 ${sidebarCollapsed ? 'flex-col items-center pt-4 pb-3 px-2 gap-2' : 'px-4 py-3.5 justify-between border-b border-white/5'}`}>
-          <Link to="/pos" title="Go to Billing Panel" className={`flex items-center gap-2.5 min-w-0 transition-all duration-300 ${sidebarCollapsed ? 'justify-center' : 'flex-1'}`}>
-            <div className="flex items-center justify-center shrink-0 w-9 h-9 rounded-full overflow-hidden border border-[var(--accent-a50)] shadow-sm hover:scale-105 transition-transform">
-              <img src={logoUrl} alt={shopName} className="w-full h-full object-cover" />
+        <div className="w-64 flex flex-col justify-between h-full shrink-0 overflow-hidden relative">
+          <div className="flex flex-col min-h-0">
+            {/* Header branding */}
+            <div className="p-6 border-b border-white/20 flex items-center justify-between gap-3 shrink-0">
+              <Link to="/pos" title="Go to Billing Panel" className="flex items-center gap-3 min-w-0">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center shadow-md overflow-hidden shrink-0 border border-white/25 bg-white">
+                  <img src={logoUrl} alt={`${shopName} Logo`} className="w-full h-full object-contain" />
+                </div>
+                <span className="font-black text-sm tracking-tight text-white block leading-tight break-words">{shopName}</span>
+              </Link>
+              <button
+                onClick={() => setSidebarCollapsed(true)}
+                className="w-8 h-8 rounded-lg hover:bg-white/20 flex items-center justify-center text-white font-bold transition-all cursor-pointer shrink-0"
+                title="Close Menu"
+                aria-label="Close menu"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
-            {!sidebarCollapsed && (
-              <div className="flex flex-col min-w-0">
-                <h1 className="text-[12.5px] font-black text-white leading-tight tracking-wide break-words">{shopName}</h1>
-                <span className={`text-[10px] font-black uppercase tracking-widest px-1.5 py-0.2 rounded w-fit ${role === 'admin' ? 'bg-[var(--accent-a20)] text-[var(--accent)] border border-[var(--accent-a40)]' : 'bg-gray-800 text-gray-300 border border-gray-700'}`}>
-                  {role === 'admin' ? 'ADMIN' : 'STAFF'}
-                </span>
+
+            {/* Navigation links */}
+            <nav className="px-4 py-6 space-y-2 overflow-y-auto min-h-0 hide-scrollbar">
+              {navItems.map(item => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    handleTabClick(item.id)
+                    if (window.innerWidth < 1024) setSidebarCollapsed(true)
+                  }}
+                  className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer text-left ${tab === item.id ? 'bg-white text-[#27272A] shadow-md' : 'text-white/90 hover:bg-white/20 hover:text-white'}`}
+                >
+                  <span className="w-5 h-5 shrink-0 flex items-center justify-center">{item.icon}</span>
+                  <span className="flex-1 min-w-0 whitespace-nowrap">{item.label}</span>
+                  {Boolean(item.badge) && (
+                    <span className="ml-auto min-w-[22px] h-[22px] px-1.5 rounded-full text-[10px] font-black flex items-center justify-center bg-[#F59E0B] text-white">
+                      {item.badge}
+                    </span>
+                  )}
+                </button>
+              ))}
+
+              <div className="pt-4 border-t border-white/20 mt-4">
+                <button
+                  onClick={logout}
+                  className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider text-white bg-white/10 hover:bg-white/25 hover:shadow-md border border-white/20 transition-all cursor-pointer"
+                >
+                  <LogOut className="w-5 h-5" />
+                  Log Out
+                </button>
               </div>
-            )}
-          </Link>
-          <button
-            type="button"
-            onClick={() => setSidebarCollapsed((state) => !state)}
-            className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-white/80 hover:bg-white/15 hover:text-white transition-colors shrink-0 cursor-pointer"
-            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            <ChevronDown size={14} className={`transition-transform duration-300 ${sidebarCollapsed ? '-rotate-90' : 'rotate-90'}`} />
-          </button>
-        </div>
-        {/* Mobile mini-header */}
-        <div className="flex lg:hidden items-center justify-between px-3 py-2.5 border-b border-white/10 bg-[#0A0A0A] shrink-0">
-          <Link to="/pos" title="Go to Billing Panel" className="flex items-center gap-2.5 min-w-0">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full overflow-hidden border border-[var(--accent-a50)] shrink-0 shadow-sm hover:scale-105 transition-transform">
-              <img src={logoUrl} alt={shopName} className="w-full h-full object-cover" />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[15px] font-black text-white tracking-wider truncate">{shopName}</span>
-              <span className={`text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${role === 'admin' ? 'bg-[var(--accent-a20)] text-[var(--accent)] border border-[var(--accent-a40)]' : 'bg-gray-800 text-gray-300 border border-gray-700'}`}>
-                {role === 'admin' ? 'ADMIN' : 'STAFF'}
-              </span>
-            </div>
-          </Link>
-          <button
-            onClick={() => {
-              useAdminAuthStore.getState().logout()
-              navigate('/admin-login', { replace: true })
-            }}
-            className="flex items-center gap-1 text-[11px] font-bold text-white/70 hover:text-white px-2.5 py-1 rounded-lg bg-white/10"
-          >
-            <Power size={13} />
-            <span>Logout</span>
-          </button>
-        </div>
-        {/* Nav List - Height safe and scrollable */}
-        <nav
-          className={`flex overflow-x-auto lg:overflow-x-hidden lg:overflow-y-auto lg:flex-col gap-1 lg:gap-1 px-2 py-2 lg:px-2.5 lg:py-2.5 flex-1 min-h-0 transition-all duration-300 hide-scrollbar ${sidebarCollapsed ? 'lg:px-1.5' : 'lg:px-2.5'}`}
-        >
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => handleTabClick(item.id)}
-              title={item.label}
-              className={[
-                'shrink-0 flex flex-col lg:flex-row items-center justify-center lg:justify-start',
-                'gap-1 lg:gap-2.5',
-                'h-[46px] min-w-[56px] lg:min-w-0 lg:w-full lg:h-[38px] xl:h-[40px]',
-                sidebarCollapsed ? 'lg:w-[42px] lg:justify-center mx-auto' : 'lg:px-3',
-                'px-1 py-1 lg:py-0',
-                'rounded-xl font-medium text-[10px] lg:text-[12.5px] xl:text-[13px] transition-all overflow-hidden cursor-pointer',
-                tab === item.id ? 'bg-[var(--accent)] text-[#0A0A0A] font-black shadow-md' : 'text-white/70 hover:bg-white/10 hover:text-[var(--accent)]',
-              ].join(' ')}
-            >
-              <span className="relative shrink-0 flex items-center">
-                {item.icon}
-                {Boolean(item.badge) && (
-                  <span className="absolute -top-1.5 -right-2 lg:hidden flex items-center justify-center min-w-[15px] h-[15px] px-0.5 rounded-full bg-red-600 text-white text-[9px] font-black leading-none">
-                    {item.badge}
-                  </span>
-                )}
-              </span>
-              <span className={`hidden lg:flex items-center gap-1.5 truncate text-left transition-all duration-200 ${sidebarCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'opacity-100 flex-1'}`}>
-                <span className="truncate">{item.label}</span>
-                {Boolean(item.badge) && (
-                  <span className="shrink-0 flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[10px] font-black leading-none">
-                    {item.badge}
-                  </span>
-                )}
-              </span>
-            </button>
-          ))}
-        </nav>
+            </nav>
+          </div>
 
-        {/* Desktop Logout Button anchored at bottom */}
-        <div className={`hidden lg:block shrink-0 border-t border-white/10 p-2 lg:p-2.5 ${sidebarCollapsed ? 'px-1.5' : 'px-2.5'}`}>
-          <button
-            onClick={() => {
-              useAdminAuthStore.getState().logout()
-              navigate('/admin-login', { replace: true })
-            }}
-            className={[
-              'shrink-0 flex items-center justify-center lg:justify-start',
-              'gap-2.5',
-              'w-full h-[38px] xl:h-[40px]',
-              sidebarCollapsed ? 'lg:w-[42px] lg:justify-center mx-auto' : 'lg:px-3',
-              'rounded-xl font-medium text-[12.5px] xl:text-[13px] transition-all text-white/70 hover:bg-rose-500/20 hover:text-rose-400 overflow-hidden cursor-pointer',
-            ].join(' ')}
-          >
-            <span className="shrink-0"><Power size={17} /></span>
-            <span className={`truncate text-left transition-all duration-200 ${sidebarCollapsed ? 'w-0 opacity-0 overflow-hidden' : 'opacity-100 flex-1'}`}>Logout</span>
-          </button>
+          {/* Footer branding */}
+          <div className="p-5 border-t border-white/20 bg-white/10 flex items-center gap-3 shrink-0">
+            <div className="w-8 h-8 rounded-full bg-white/20 border border-white/30 flex items-center justify-center text-white font-black text-xs uppercase">
+              {role === 'admin' ? 'A' : 'S'}
+            </div>
+            <div>
+              <span className="text-xs font-bold text-white block uppercase tracking-wider">{role === 'admin' ? 'Admin Access' : 'Staff Access'}</span>
+              <span className="text-[9px] text-white/80 font-bold tracking-wider block">V2.1.0 • PREMIUM POS</span>
+            </div>
+          </div>
         </div>
-
       </aside>
 
-      {/* Main */}
-      <main className="flex-grow flex flex-col overflow-hidden">
-        <div className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden overflow-y-auto">
+      {/* Main content area */}
+      <main className="flex-1 h-dvh overflow-y-auto overflow-x-hidden min-w-0 px-3 sm:px-8 lg:px-12 pt-3 pb-8 relative flex flex-col">
+        {/* Global top navbar */}
+        <header className="flex-shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center py-4 border-b border-black/10 w-full mb-6 gap-4 print:hidden">
+          <div className="flex items-center gap-4">
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarCollapsed(false)}
+                className="w-9 h-9 bg-white border border-black/10 rounded-lg flex items-center justify-center transition-all shadow-sm cursor-pointer"
+                title="Open Menu"
+                aria-label="Open menu"
+              >
+                <Menu className="w-[18px] h-[18px] text-[var(--accent)]" />
+              </button>
+            )}
+            <h1 className="text-lg font-black text-[#000000] tracking-tight">{shopName}</h1>
+          </div>
+        </header>
+        <div className="flex-1 w-full max-w-[1400px] mx-auto min-w-0">
 
         {/* ΓöÇΓöÇ ANALYTICS TAB ΓöÇΓöÇ */}
 
@@ -1567,16 +1558,16 @@ export default function Dashboard() {
           return (
           <div className="space-y-6 rounded-[28px] bg-[#0A0A0A] p-5 sm:p-6 lg:p-7 shadow-2xl border border-white/10 text-white">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-xl font-black text-[#111111]">{l('Analytics Dashboard', 'பகுப்பாய்வு தட்டு')}</h2>
+              <h2 className="text-xl font-black text-[#000000]">{l('Analytics Dashboard', 'பகுப்பாய்வு தட்டு')}</h2>
               <div className="flex items-center gap-2">
                 <button onClick={() => void loadData()}
-                  className="flex items-center gap-1.5 px-3 py-2 bg-white border border-[#E5E7EB]/40 rounded-xl text-[12px] font-bold text-[#374151] hover:bg-[#F9FAFB]">
+                  className="flex items-center gap-1.5 px-3 py-2 bg-white border border-black/10 rounded-xl text-[12px] font-bold text-[#000000] hover:bg-black/[0.03]">
                   <RefreshCw size={13} /> {l('Refresh', 'புதுப்பி')}
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1.5 sm:gap-2 pb-2 border-b border-[#E5E7EB]/40">
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1.5 sm:gap-2 pb-2 border-b border-black/10">
               {[
                 { id: 'revenue', label: 'Revenue' },
                 { id: 'product', label: 'Product & Category' },
@@ -1585,7 +1576,7 @@ export default function Dashboard() {
                 { id: 'billing', label: 'Billing' },
               ].map(sub => (
                 <button key={sub.id} onClick={() => setAnalyticsTab(sub.id)}
-                  className={`px-3 sm:px-4 py-2 rounded-xl text-[12px] sm:text-[13px] font-bold text-center transition-colors ${analyticsTab === sub.id ? 'bg-[#111111] text-white' : 'bg-white border border-[#E5E7EB]/40 text-[#374151] hover:bg-[#F9FAFB]'}`}>
+                  className={`px-3 sm:px-4 py-2 rounded-xl text-[12px] sm:text-[13px] font-bold text-center transition-colors ${analyticsTab === sub.id ? 'bg-[#111111] text-white' : 'bg-white border border-black/10 text-[#000000] hover:bg-black/[0.03]'}`}>
                   {sub.label}
                 </button>
               ))}
@@ -1615,11 +1606,11 @@ export default function Dashboard() {
               ].map((card, i) => (
                 <div key={i} className={`bg-gradient-to-br ${card.from} rounded-2xl border border-white/40 p-4 sm:p-5 shadow-sm backdrop-blur-sm flex flex-col justify-between`}>
                   <div className="flex items-center justify-between gap-1 mb-2">
-                    <p className="text-[11px] uppercase font-black text-[#374151] tracking-wider leading-tight">{card.label}</p>
+                    <p className="text-[11px] uppercase font-black text-[#000000] tracking-wider leading-tight">{card.label}</p>
                     <div className={`w-8 h-8 rounded-xl bg-gradient-to-br ${card.iconBg} flex items-center justify-center text-white shrink-0 shadow-sm`}>{card.icon}</div>
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <p className={`text-[21px] sm:text-[23px] font-black break-words leading-tight ${card.valueColor || 'text-[#111111]'}`}>{card.value}</p>
+                    <p className={`text-[21px] sm:text-[23px] font-black break-words leading-tight ${card.valueColor || 'text-[#000000]'}`}>{card.value}</p>
                     {card.arrow && (
                       <span className={`text-[11px] font-black px-1.5 py-0.5 rounded-md ${card.arrowColor}`}>
                         {card.arrow}
@@ -1631,27 +1622,27 @@ export default function Dashboard() {
             </div>
 
             {/* Latest POS Bills */}
-            <div className="bg-white rounded-2xl border border-[#E5E7EB]/30 p-5 shadow-sm">
+            <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-base font-black text-[#111111]">{l('Latest POS Bills', 'POS பில்கள்')}</h3>
+                <h3 className="text-base font-black text-[#000000]">{l('Latest POS Bills', 'POS பில்கள்')}</h3>
                 <button onClick={() => setTab('billing')} className="text-[12px] font-bold text-[#10B981] hover:underline">{l('View All →', 'அனைத்தும் →')}</button>
               </div>
               {latestPOS.length > 0 ? (
                 <>
-                <div className="md:hidden rounded-xl border border-[#E5E7EB]/30 divide-y divide-[#E5E7EB]/20 overflow-hidden bg-white">
+                <div className="md:hidden rounded-xl border border-black/10 divide-y divide-black/5 overflow-hidden bg-white">
                   {latestPOS.map(o => {
                     const btLabel = normalizeOrderType(o.order_type) === 'manual_sale' ? 'MANUAL' : normalizeOrderMode(o.order_mode) === 'online' ? 'ONLINE' : 'OFFLINE'
                     return (
                       <div key={o.id} className="px-3 py-2.5">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="font-semibold text-[#111111] text-[12px] break-words">{o.customer_name}</p>
-                            <p className="text-[11px] text-[#7A846F] mt-0.5 break-words">
+                            <p className="font-semibold text-[#000000] text-[12px] break-words">{o.customer_name}</p>
+                            <p className="text-[11px] text-[#000000] mt-0.5 break-words">
                               {formatInvoiceNo(o.invoice_no)}{' · '}{btLabel}{' · '}{new Date(o.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                             </p>
                           </div>
                           <div className="shrink-0 text-right">
-                            <p className="font-black text-[#111111] text-[12px]">{formatCurrency(getOrderTotal(o))}</p>
+                            <p className="font-black text-[#000000] text-[12px]">{formatCurrency(getOrderTotal(o))}</p>
                             <span className={`inline-block mt-1 text-[10px] font-black px-2 py-0.5 rounded-lg ${normalizeStatus(o.status) === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                               {normalizeStatus(o.status)}
                             </span>
@@ -1661,9 +1652,9 @@ export default function Dashboard() {
                     )
                   })}
                 </div>
-                <div className="hidden md:block overflow-x-auto rounded-xl border border-[#E5E7EB]/30">
+                <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
                   <table className="w-full min-w-[480px] text-[12px]">
-                    <thead className="bg-[#F9FAFB] text-[10px] uppercase tracking-wider text-[#374151]">
+                    <thead className="bg-white text-[10px] uppercase tracking-wider text-[#000000]">
                       <tr>
                         <th className="px-3 py-2.5 font-black text-left">{l('Invoice', 'பில்')}</th>
                         <th className="px-3 py-2.5 font-black text-left">{l('Customer', 'வாடிக்கையாளர்')}</th>
@@ -1673,16 +1664,16 @@ export default function Dashboard() {
                         <th className="px-3 py-2.5 font-black text-left">{l('Status', 'நிலை')}</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#E5E7EB]/20">
+                    <tbody className="divide-y divide-black/5">
                       {latestPOS.map(o => {
                         const btLabel = normalizeOrderType(o.order_type) === 'manual_sale' ? 'MANUAL' : normalizeOrderMode(o.order_mode) === 'online' ? 'ONLINE' : 'OFFLINE'
                         const btClass = normalizeOrderType(o.order_type) === 'manual_sale' ? 'bg-purple-100 text-purple-700' : normalizeOrderMode(o.order_mode) === 'online' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
                         return (
-                          <tr key={o.id} className="hover:bg-[#F9FAFB]/50">
+                          <tr key={o.id} className="hover:bg-black/[0.03]">
                             <td className="px-3 py-2.5 font-bold text-[#10B981] text-[11px]">{formatInvoiceNo(o.invoice_no)}</td>
-                            <td className="px-3 py-2.5 font-semibold text-[#111111] max-w-[100px] break-words">{o.customer_name}</td>
-                            <td className="px-3 py-2.5 font-black text-[#111111]">{formatCurrency(getOrderTotal(o))}</td>
-                            <td className="px-3 py-2.5 text-[#7A846F] whitespace-nowrap">{new Date(o.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
+                            <td className="px-3 py-2.5 font-semibold text-[#000000] max-w-[100px] break-words">{o.customer_name}</td>
+                            <td className="px-3 py-2.5 font-black text-[#000000]">{formatCurrency(getOrderTotal(o))}</td>
+                            <td className="px-3 py-2.5 text-[#000000] whitespace-nowrap">{new Date(o.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
                             <td className="px-3 py-2.5"><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${btClass}`}>{btLabel}</span></td>
                             <td className="px-3 py-2.5">
                               <span className={`text-[11px] font-black px-2 py-0.5 rounded-lg ${normalizeStatus(o.status) === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
@@ -1697,7 +1688,7 @@ export default function Dashboard() {
                 </div>
                 </>
               ) : (
-                <p className="text-[13px] text-[#374151] text-center py-4">{l('No bills yet', 'பில்கள் இல்லை')}</p>
+                <p className="text-[13px] text-[#000000] text-center py-4">{l('No bills yet', 'பில்கள் இல்லை')}</p>
               )}
             </div>
             </>
@@ -1705,34 +1696,34 @@ export default function Dashboard() {
 
             {analyticsTab === 'product' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-2xl border border-[#E5E7EB]/30 p-5 shadow-sm">
-                  <h3 className="text-base font-black text-[#111111] mb-4">Top Products by Volume</h3>
+                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                  <h3 className="text-base font-black text-[#000000] mb-4">Top Products by Volume</h3>
                   <div className="space-y-3">
                     {analytics.topProducts.slice(0, 10).map((p, i) => (
-                      <div key={i} className="flex justify-between items-center bg-[#F9FAFB] p-3 rounded-xl">
+                      <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl">
                         <div>
-                          <p className="text-[13px] font-bold text-[#111111]">{p.name}</p>
-                          <p className="text-[11px] text-[#374151]">{p.billCount} bills</p>
+                          <p className="text-[13px] font-bold text-[#000000]">{p.name}</p>
+                          <p className="text-[11px] text-[#000000]">{p.billCount} bills</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-[14px] font-black text-[#111111]">{p.qty}</p>
+                          <p className="text-[14px] font-black text-[#000000]">{p.qty}</p>
                           <p className="text-[11px] font-bold text-[#10B981]">{formatCurrency(p.revenue)}</p>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
-                <div className="bg-white rounded-2xl border border-[#E5E7EB]/30 p-5 shadow-sm">
-                  <h3 className="text-base font-black text-[#111111] mb-4">Top Categories by Revenue</h3>
+                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                  <h3 className="text-base font-black text-[#000000] mb-4">Top Categories by Revenue</h3>
                   <div className="space-y-3">
                     {analytics.topCategories.slice(0, 10).map((c, i) => (
-                      <div key={i} className="flex justify-between items-center bg-[#F9FAFB] p-3 rounded-xl">
+                      <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl">
                         <div>
-                          <p className="text-[13px] font-bold text-[#111111]">{c.name}</p>
+                          <p className="text-[13px] font-bold text-[#000000]">{c.name}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-[14px] font-black text-[#111111]">{formatCurrency(c.revenue)}</p>
-                          <p className="text-[11px] text-[#374151]">{c.qty} sold</p>
+                          <p className="text-[14px] font-black text-[#000000]">{formatCurrency(c.revenue)}</p>
+                          <p className="text-[11px] text-[#000000]">{c.qty} sold</p>
                         </div>
                       </div>
                     ))}
@@ -1743,8 +1734,8 @@ export default function Dashboard() {
 
             {analyticsTab === 'inventory' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-2xl border border-[#E5E7EB]/30 p-5 shadow-sm">
-                  <h3 className="text-base font-black text-[#111111] mb-4">Low Stock Alerts</h3>
+                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                  <h3 className="text-base font-black text-[#000000] mb-4">Low Stock Alerts</h3>
                   <div className="space-y-3">
                     {products.filter(p => p.stock <= lowStockLimit(p.lowStockAlert)).slice(0, 10).map((p, i) => (
                       <div key={i} className="flex justify-between items-center bg-red-50 border border-red-100 p-3 rounded-xl">
@@ -1753,15 +1744,15 @@ export default function Dashboard() {
                       </div>
                     ))}
                     {products.filter(p => p.stock <= lowStockLimit(p.lowStockAlert)).length === 0 && (
-                      <p className="text-[13px] text-[#374151]">No low stock alerts.</p>
+                      <p className="text-[13px] text-[#000000]">No low stock alerts.</p>
                     )}
                   </div>
                 </div>
-                <div className="bg-white rounded-2xl border border-[#E5E7EB]/30 p-5 shadow-sm">
-                  <h3 className="text-base font-black text-[#111111] mb-4">Total Inventory Value</h3>
-                  <div className="bg-[#F9FAFB] p-5 rounded-xl">
-                    <p className="text-[11px] uppercase tracking-wider font-bold text-[#374151] mb-1">Selling Value (MRP)</p>
-                    <p className="text-[18px] sm:text-[24px] font-black text-[#111111] break-words">
+                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                  <h3 className="text-base font-black text-[#000000] mb-4">Total Inventory Value</h3>
+                  <div className="bg-white p-5 rounded-xl">
+                    <p className="text-[11px] uppercase tracking-wider font-bold text-[#000000] mb-1">Selling Value (MRP)</p>
+                    <p className="text-[18px] sm:text-[24px] font-black text-[#000000] break-words">
                       {formatCurrency(products.reduce((acc, p) => acc + (p.stock * p.price), 0))}
                     </p>
                   </div>
@@ -1771,17 +1762,17 @@ export default function Dashboard() {
 
             {analyticsTab === 'customer' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-2xl border border-[#E5E7EB]/30 p-5 shadow-sm">
-                  <h3 className="text-base font-black text-[#111111] mb-4">Customer Insights</h3>
+                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                  <h3 className="text-base font-black text-[#000000] mb-4">Customer Insights</h3>
                   <div className="bg-blue-50 border border-blue-100 p-5 rounded-xl mb-4">
                     <p className="text-[11px] uppercase tracking-wider font-bold text-blue-800 mb-1">Unique Customers</p>
                     <p className="text-[18px] sm:text-[24px] font-black text-blue-900 break-words">
                       {new Set(searchResults.filter(o => o.phone).map(o => o.phone)).size}
                     </p>
                   </div>
-                  <div className="bg-[#F9FAFB] p-5 rounded-xl">
-                    <p className="text-[11px] uppercase tracking-wider font-bold text-[#374151] mb-1">Avg Order Value</p>
-                    <p className="text-[18px] sm:text-[24px] font-black text-[#111111] break-words">
+                  <div className="bg-white p-5 rounded-xl">
+                    <p className="text-[11px] uppercase tracking-wider font-bold text-[#000000] mb-1">Avg Order Value</p>
+                    <p className="text-[18px] sm:text-[24px] font-black text-[#000000] break-words">
                       {formatCurrency(analytics.totalCompletedRevenue / (searchResults.filter(o => isCompletedStatus(o.status)).length || 1))}
                     </p>
                   </div>
@@ -1791,31 +1782,31 @@ export default function Dashboard() {
 
             {analyticsTab === 'billing' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-2xl border border-[#E5E7EB]/30 p-5 shadow-sm">
-                  <h3 className="text-base font-black text-[#111111] mb-4">Billing Metrics</h3>
+                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                  <h3 className="text-base font-black text-[#000000] mb-4">Billing Metrics</h3>
                   <div className="space-y-4">
-                    <div className="bg-[#F9FAFB] p-4 rounded-xl flex justify-between items-center">
-                      <span className="text-[13px] font-bold text-[#374151]">Total Invoices Generated</span>
-                      <span className="text-[16px] font-black text-[#111111]">{searchResults.length}</span>
+                    <div className="bg-white p-4 rounded-xl flex justify-between items-center">
+                      <span className="text-[13px] font-bold text-[#000000]">Total Invoices Generated</span>
+                      <span className="text-[16px] font-black text-[#000000]">{searchResults.length}</span>
                     </div>
-                    <div className="bg-[#F9FAFB] p-4 rounded-xl flex justify-between items-center">
-                      <span className="text-[13px] font-bold text-[#374151]">Discounts Applied</span>
+                    <div className="bg-white p-4 rounded-xl flex justify-between items-center">
+                      <span className="text-[13px] font-bold text-[#000000]">Discounts Applied</span>
                       <span className="text-[16px] font-black text-[#10B981]">
                         {formatCurrency(searchResults.reduce((acc, o) => acc + (toNumber(o.discount_amount, 0)), 0))}
                       </span>
                     </div>
                   </div>
                 </div>
-                <div className="bg-white rounded-2xl border border-[#E5E7EB]/30 p-5 shadow-sm">
-                  <h3 className="text-base font-black text-[#111111] mb-4">Top Coupons</h3>
+                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                  <h3 className="text-base font-black text-[#000000] mb-4">Top Coupons</h3>
                   <div className="space-y-3">
                     {analytics.topCoupons.slice(0, 5).map((c, i) => (
-                      <div key={i} className="flex justify-between items-center bg-[#F9FAFB] p-3 rounded-xl">
-                        <span className="text-[13px] font-bold text-[#111111]">{c.code}</span>
+                      <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl">
+                        <span className="text-[13px] font-bold text-[#000000]">{c.code}</span>
                         <span className="text-[12px] font-bold text-[#10B981]">{c.usage} uses</span>
                       </div>
                     ))}
-                    {analytics.topCoupons.length === 0 && <p className="text-[13px] text-[#374151]">No coupons used yet.</p>}
+                    {analytics.topCoupons.length === 0 && <p className="text-[13px] text-[#000000]">No coupons used yet.</p>}
                   </div>
                 </div>
               </div>
@@ -1830,7 +1821,7 @@ export default function Dashboard() {
             {/* Header */}
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
-                <h2 className="text-xl font-black text-[#111111]">{l('WhatsApp Center', 'வாட்ஸ் அப் மையம்')}</h2>
+                <h2 className="text-xl font-black text-[#000000]">{l('WhatsApp Center', 'வாட்ஸ் அப் மையம்')}</h2>
                 {analytics.waPending > 0 && (
                   <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[12px] font-black animate-pulse">
                     {analytics.waPending} {l('pending', 'நிலுவை')}
@@ -1842,13 +1833,13 @@ export default function Dashboard() {
                 <div className="flex gap-1">
                   {(['all', 'today', 'week', 'month'] as const).map(preset => (
                     <button key={preset} type="button" onClick={() => applyAnalyticsPreset(preset)}
-                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black transition-colors ${analyticsDatePreset === preset ? 'bg-[#111111] text-white' : 'bg-[#F9FAFB] text-[#374151] hover:bg-[#E5E7EB]/40'}`}>
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-black transition-colors ${analyticsDatePreset === preset ? 'bg-[#111111] text-white' : 'bg-white text-[#000000] hover:bg-[#E5E7EB]/40'}`}>
                       {preset === 'all' ? l('All','எல்லாம்') : preset === 'today' ? l('Today','இன்று') : preset === 'week' ? l('Week','வாரம்') : l('Month','மாதம்')}
                     </button>
                   ))}
                 </div>
                 <button onClick={() => void loadData()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E5E7EB]/40 rounded-lg text-[11px] font-bold text-[#374151] hover:bg-[#F9FAFB]">
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-black/10 rounded-lg text-[11px] font-bold text-[#000000] hover:bg-black/[0.03]">
                   <RefreshCw size={12} /> {l('Refresh', 'புதுப்பி')}
                 </button>
               </div>
@@ -1864,7 +1855,7 @@ export default function Dashboard() {
               ].map(({ label, val, bg, color, border }) => (
                 <div key={label} className={`${bg} border ${border} rounded-xl p-2 sm:p-3 text-center`}>
                   <p className={`text-[9px] sm:text-[10px] uppercase font-black ${color} tracking-wider mb-1`}>{label}</p>
-                  <p className="text-[18px] sm:text-[28px] font-black text-[#111111] leading-none break-words">{val}</p>
+                  <p className="text-[18px] sm:text-[28px] font-black text-[#000000] leading-none break-words">{val}</p>
                 </div>
               ))}
             </div>
@@ -1874,10 +1865,10 @@ export default function Dashboard() {
               <div className="flex items-center justify-between px-5 py-4 border-b border-blue-100">
                 <div className="flex items-center gap-2">
                   <MessageCircle size={17} className="text-blue-600" />
-                  <h3 className="text-base font-black text-[#111111]">{l('Customer Requests', 'வாடிக்கையாளர் கோரிக்கைகள்')}</h3>
-                  <span className="text-[10px] font-bold text-[#9BAB9A] bg-[#F9FAFB] px-2 py-0.5 rounded-full">{l('RM0 revenue - status updates only', 'RM0 வருவாய் - நிலை மட்டும்')}</span>
+                  <h3 className="text-base font-black text-[#000000]">{l('Customer Requests', 'வாடிக்கையாளர் கோரிக்கைகள்')}</h3>
+                  <span className="text-[10px] font-bold text-[#9BAB9A] bg-white px-2 py-0.5 rounded-full">{l('RM0 revenue - status updates only', 'RM0 வருவாய் - நிலை மட்டும்')}</span>
                 </div>
-                <span className="text-[12px] text-[#374151] font-bold">{analytics.onlineRequestOrders.length} {l('requests', 'கோரிக்கைகள்')}</span>
+                <span className="text-[12px] text-[#000000] font-bold">{analytics.onlineRequestOrders.length} {l('requests', 'கோரிக்கைகள்')}</span>
               </div>
 
               {analytics.onlineRequestOrders.length > 0 ? (
@@ -1911,14 +1902,14 @@ export default function Dashboard() {
                       <div key={order.id} className={`p-3 space-y-2.5 ${isExpanded ? 'bg-blue-50/30' : ''}`}>
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="font-bold text-[#111111] text-[13px] break-words">{order.customer_name || '-'}</p>
-                            <p className="text-[11px] text-[#7A846F] mt-0.5 break-words">
+                            <p className="font-bold text-[#000000] text-[13px] break-words">{order.customer_name || '-'}</p>
+                            <p className="text-[11px] text-[#000000] mt-0.5 break-words">
                               {[order.phone, order.address, new Date(order.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })].filter(Boolean).join(' · ')}
                             </p>
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="font-black text-[#111111] text-[13px]">{formatCurrency(getOrderTotal(order))}</p>
-                            <p className="text-[10px] text-[#374151] font-bold">{its.length} {l('items', 'பொருட்கள்')}</p>
+                            <p className="font-black text-[#000000] text-[13px]">{formatCurrency(getOrderTotal(order))}</p>
+                            <p className="text-[10px] text-[#000000] font-bold">{its.length} {l('items', 'பொருட்கள்')}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 flex-wrap">
@@ -1926,7 +1917,7 @@ export default function Dashboard() {
                             value={normalizeStatus(order.status)} disabled={normalizeStatus(order.status) === 'cancelled'}
                             onChange={e => void updateOrderStatus(order.id, e.target.value)}
                             className={`text-[11px] font-black px-2 py-1.5 rounded-lg border cursor-pointer outline-none ${
-                              normalizeStatus(order.status) === 'cancelled' ? 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed'
+                              normalizeStatus(order.status) === 'cancelled' ? 'bg-gray-100 text-gray-500 border-black/10 cursor-not-allowed'
                               : isCompletedStatus(order.status) ? 'bg-green-100 text-green-700 border-green-200'
                               : normalizeStatus(order.status) === 'contacted' ? 'bg-orange-100 text-orange-700 border-orange-200'
                               : 'bg-amber-100 text-amber-700 border-amber-200'
@@ -1952,14 +1943,14 @@ export default function Dashboard() {
                         {isExpanded && (
                           <div className="space-y-3 pt-1">
                             {Boolean(order.remarks) && (
-                              <div className="text-[11px] bg-white rounded-xl p-3 border border-blue-100"><span className="font-black text-[#374151]">Remarks: </span><span className="font-bold text-[#111111] break-words">{order.remarks}</span></div>
+                              <div className="text-[11px] bg-white rounded-xl p-3 border border-blue-100"><span className="font-black text-[#000000]">Remarks: </span><span className="font-bold text-[#000000] break-words">{order.remarks}</span></div>
                             )}
                             {Boolean(order.reference_number) && (
-                              <div className="text-[11px] bg-white rounded-xl p-3 border border-blue-100"><span className="font-black text-[#374151]">Ref Number: </span><span className="font-bold text-[#111111] break-words">{order.reference_number}</span></div>
+                              <div className="text-[11px] bg-white rounded-xl p-3 border border-blue-100"><span className="font-black text-[#000000]">Ref Number: </span><span className="font-bold text-[#000000] break-words">{order.reference_number}</span></div>
                             )}
 
                             {its.length > 0 && (
-                              <div className="bg-white rounded-xl border border-blue-100 divide-y divide-[#E5E7EB]/20">
+                              <div className="bg-white rounded-xl border border-blue-100 divide-y divide-black/5">
                                 {its.map((raw, idx) => {
                                   const item = raw as Record<string, unknown>
                                   const fullName  = String(item.name || item.product_name || 'Product')
@@ -1979,23 +1970,23 @@ export default function Dashboard() {
                                   return (
                                     <div key={idx} className="px-3 py-2 flex items-center justify-between gap-2">
                                       <div className="min-w-0">
-                                        <p className="font-bold text-[#111111] text-[12px] break-words">{prodName}</p>
-                                        <p className="text-[10px] text-[#7A846F] mt-0.5">{[variant, sizeLabel, formatCurrency(basePrice)].filter(Boolean).join(' · ')}</p>
+                                        <p className="font-bold text-[#000000] text-[12px] break-words">{prodName}</p>
+                                        <p className="text-[10px] text-[#000000] mt-0.5">{[variant, sizeLabel, formatCurrency(basePrice)].filter(Boolean).join(' · ')}</p>
                                       </div>
-                                      <p className="font-black text-[#111111] text-[12px] shrink-0">{formatCurrency(lineTotal)}</p>
+                                      <p className="font-black text-[#000000] text-[12px] shrink-0">{formatCurrency(lineTotal)}</p>
                                     </div>
                                   )
                                 })}
-                                <div className="px-3 py-2.5 flex items-center justify-between bg-[#F9FAFB]">
-                                  <span className="font-black text-[#374151] text-[11px] uppercase tracking-wider">{l('Grand Total', 'மொத்த தொகை')}</span>
-                                  <span className="font-black text-[16px] text-[#111111]">{formatCurrency(getOrderTotal(order))}</span>
+                                <div className="px-3 py-2.5 flex items-center justify-between bg-white">
+                                  <span className="font-black text-[#000000] text-[11px] uppercase tracking-wider">{l('Grand Total', 'மொத்த தொகை')}</span>
+                                  <span className="font-black text-[16px] text-[#000000]">{formatCurrency(getOrderTotal(order))}</span>
                                 </div>
                               </div>
                             )}
 
                             <div className="bg-white rounded-xl border border-blue-100 p-3">
                               <div className="flex items-center justify-between mb-2">
-                                <span className="text-[11px] font-black text-[#374151] uppercase tracking-wider">{l('WhatsApp Message', 'வாட்ஸ் அப் செய்தி')}</span>
+                                <span className="text-[11px] font-black text-[#000000] uppercase tracking-wider">{l('WhatsApp Message', 'வாட்ஸ் அப் செய்தி')}</span>
                                 <button
                                   type="button"
                                   onClick={() => void navigator.clipboard.writeText(waMsg)}
@@ -2003,7 +1994,7 @@ export default function Dashboard() {
                                   {l('Copy', 'நகல்')}
                                 </button>
                               </div>
-                              <pre className="text-[11px] text-[#111111] bg-[#F9FAFB] rounded-xl p-3 whitespace-pre-wrap font-sans leading-relaxed select-all break-words">{waMsg}</pre>
+                              <pre className="text-[11px] text-[#000000] bg-white rounded-xl p-3 whitespace-pre-wrap font-sans leading-relaxed select-all break-words">{waMsg}</pre>
                             </div>
                           </div>
                         )}
@@ -2014,7 +2005,7 @@ export default function Dashboard() {
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-[12px] min-w-[820px]">
                     <thead className="bg-blue-50 border-b border-blue-100 sticky top-0 z-10">
-                      <tr className="text-left text-[#374151] font-black text-[10px] uppercase tracking-wider">
+                      <tr className="text-left text-[#000000] font-black text-[10px] uppercase tracking-wider">
                         <th className="px-4 py-3">{l('Customer', 'வாடிக்கையாளர்')}</th>
                         <th className="px-4 py-3">{l('Phone', 'தொலைபேசி')}</th>
                         <th className="px-4 py-3">{l('Address', 'முகவரி')}</th>
@@ -2054,17 +2045,17 @@ export default function Dashboard() {
                         return (
                           <React.Fragment key={order.id}>
                             <tr className={`hover:bg-blue-50/40 align-middle ${isExpanded ? 'bg-blue-50/30' : ''}`}>
-                              <td className="px-4 py-3 font-bold text-[#111111] whitespace-nowrap">{order.customer_name || '-'}</td>
-                              <td className="px-4 py-3 text-[#374151] whitespace-nowrap text-[12px]">
-                                <span className="font-semibold text-[#111111]">{formatPhoneWithCountryCode(order.phone).code}</span>
+                              <td className="px-4 py-3 font-bold text-[#000000] whitespace-nowrap">{order.customer_name || '-'}</td>
+                              <td className="px-4 py-3 text-[#000000] whitespace-nowrap text-[12px]">
+                                <span className="font-semibold text-[#000000]">{formatPhoneWithCountryCode(order.phone).code}</span>
                                 <span className="ml-1">{formatPhoneWithCountryCode(order.phone).number}</span>
                               </td>
-                              <td className="px-4 py-3 text-[#7A846F] max-w-[140px] break-words" title={order.address || '-'}>{order.address || '-'}</td>
+                              <td className="px-4 py-3 text-[#000000] max-w-[140px] break-words" title={order.address || '-'}>{order.address || '-'}</td>
                               <td className="px-4 py-3 text-center">
                                 <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 text-blue-700 text-[11px] font-black">{its.length}</span>
                               </td>
-                              <td className="px-4 py-3 font-black text-[#111111]">{formatCurrency(getOrderTotal(order))}</td>
-                              <td className="px-4 py-3 text-[#7A846F] whitespace-nowrap text-[11px]">
+                              <td className="px-4 py-3 font-black text-[#000000]">{formatCurrency(getOrderTotal(order))}</td>
+                              <td className="px-4 py-3 text-[#000000] whitespace-nowrap text-[11px]">
                                 <div>{new Date(order.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
                                 <div className="text-[10px]">{new Date(order.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
                               </td>
@@ -2074,7 +2065,7 @@ export default function Dashboard() {
                                     value={normalizeStatus(order.status)} disabled={normalizeStatus(order.status) === 'cancelled'}
                                     onChange={e => void updateOrderStatus(order.id, e.target.value)}
                                     className={`text-[11px] font-black px-2 py-1.5 rounded-lg border cursor-pointer outline-none ${
-                                      normalizeStatus(order.status) === 'cancelled' ? 'bg-gray-100 text-gray-500 border-gray-200 cursor-not-allowed'
+                                      normalizeStatus(order.status) === 'cancelled' ? 'bg-gray-100 text-gray-500 border-black/10 cursor-not-allowed'
                               : isCompletedStatus(order.status) ? 'bg-green-100 text-green-700 border-green-200'
                                       : normalizeStatus(order.status) === 'contacted' ? 'bg-orange-100 text-orange-700 border-orange-200'
                                       : 'bg-amber-100 text-amber-700 border-amber-200'
@@ -2108,14 +2099,14 @@ export default function Dashboard() {
                                   <div className="space-y-4">
                                     {/* Customer info bar */}
                                     <div className="flex flex-wrap gap-4 text-[12px] bg-white rounded-xl p-3 border border-blue-100">
-                                      <div><span className="font-black text-[#374151]">{l('Name', 'பெயர்')}: </span><span className="font-bold text-[#111111]">{order.customer_name || '-'}</span></div>
-                                      <div><span className="font-black text-[#374151]">{l('Phone', 'தொலைபேசி')}: </span><span className="font-bold text-[#111111]">{order.phone || '-'}</span></div>
-                                      <div className="flex-1"><span className="font-black text-[#374151]">{l('Address', 'முகவரி')}: </span><span className="text-[#111111]">{order.address || '-'}</span></div>
+                                      <div><span className="font-black text-[#000000]">{l('Name', 'பெயர்')}: </span><span className="font-bold text-[#000000]">{order.customer_name || '-'}</span></div>
+                                      <div><span className="font-black text-[#000000]">{l('Phone', 'தொலைபேசி')}: </span><span className="font-bold text-[#000000]">{order.phone || '-'}</span></div>
+                                      <div className="flex-1"><span className="font-black text-[#000000]">{l('Address', 'முகவரி')}: </span><span className="text-[#000000]">{order.address || '-'}</span></div>
                                       {Boolean(order.remarks) && (
-                                        <div className="w-full mt-1 border-t border-blue-50 pt-2"><span className="font-black text-[#374151]">Remarks: </span><span className="font-bold text-[#111111]">{order.remarks}</span></div>
+                                        <div className="w-full mt-1 border-t border-blue-50 pt-2"><span className="font-black text-[#000000]">Remarks: </span><span className="font-bold text-[#000000]">{order.remarks}</span></div>
                                       )}
                                       {Boolean(order.reference_number) && (
-                                        <div className="w-full mt-1 border-t border-blue-50 pt-2"><span className="font-black text-[#374151]">Ref Number: </span><span className="font-bold text-[#111111]">{order.reference_number}</span></div>
+                                        <div className="w-full mt-1 border-t border-blue-50 pt-2"><span className="font-black text-[#000000]">Ref Number: </span><span className="font-bold text-[#000000]">{order.reference_number}</span></div>
                                       )}
                                     </div>
 
@@ -2123,8 +2114,8 @@ export default function Dashboard() {
                                     {its.length > 0 && (
                                       <div className="overflow-x-auto">
                                         <table className="w-full text-[12px] min-w-[540px] bg-white rounded-xl overflow-hidden border border-blue-100">
-                                          <thead className="bg-[#F9FAFB]">
-                                            <tr className="text-left text-[#374151] font-black text-[10px] uppercase tracking-wider">
+                                          <thead className="bg-white">
+                                            <tr className="text-left text-[#000000] font-black text-[10px] uppercase tracking-wider">
                                               <th className="px-4 py-2.5">{l('Product', 'பொருள்')}</th>
                                               <th className="px-4 py-2.5">{l('Variant', 'வகைப்படி')}</th>
                                               <th className="px-4 py-2.5">{l('Size / Weight', 'அளவு / எடை')}</th>
@@ -2133,7 +2124,7 @@ export default function Dashboard() {
                                               <th className="px-4 py-2.5 text-right">{l('Line Total', 'வரி மொத்தம்')}</th>
                                             </tr>
                                           </thead>
-                                          <tbody className="divide-y divide-[#E5E7EB]/20">
+                                          <tbody className="divide-y divide-black/5">
                                             {its.map((raw, idx) => {
                                               const item = raw as Record<string, unknown>
                                               const fullName  = String(item.name || item.product_name || 'Product')
@@ -2153,20 +2144,20 @@ export default function Dashboard() {
                                               const priceLabel = formatCurrency(basePrice)
                                               return (
                                                 <tr key={idx} className="hover:bg-blue-50/20">
-                                                  <td className="px-4 py-2.5 font-bold text-[#111111]">{prodName}</td>
-                                                  <td className="px-4 py-2.5 text-[#374151]">{variant}</td>
-                                                  <td className="px-4 py-2.5 text-[#374151]">{sizeLabel}</td>
+                                                  <td className="px-4 py-2.5 font-bold text-[#000000]">{prodName}</td>
+                                                  <td className="px-4 py-2.5 text-[#000000]">{variant}</td>
+                                                  <td className="px-4 py-2.5 text-[#000000]">{sizeLabel}</td>
                                                   <td className="px-4 py-2.5 text-center font-bold">{qty}</td>
-                                                  <td className="px-4 py-2.5 text-[#374151]">{priceLabel}</td>
-                                                  <td className="px-4 py-2.5 font-black text-[#111111] text-right">{formatCurrency(lineTotal)}</td>
+                                                  <td className="px-4 py-2.5 text-[#000000]">{priceLabel}</td>
+                                                  <td className="px-4 py-2.5 font-black text-[#000000] text-right">{formatCurrency(lineTotal)}</td>
                                                 </tr>
                                               )
                                             })}
                                           </tbody>
-                                          <tfoot className="bg-[#F9FAFB] border-t border-[#E5E7EB]/30">
+                                          <tfoot className="bg-white border-t border-black/10">
                                             <tr>
-                                              <td colSpan={5} className="px-4 py-2.5 text-right font-black text-[#374151] text-[11px] uppercase tracking-wider">{l('Grand Total', 'மொத்த தொகை')}</td>
-                                              <td className="px-4 py-2.5 text-right font-black text-[18px] text-[#111111]">{formatCurrency(getOrderTotal(order))}</td>
+                                              <td colSpan={5} className="px-4 py-2.5 text-right font-black text-[#000000] text-[11px] uppercase tracking-wider">{l('Grand Total', 'மொத்த தொகை')}</td>
+                                              <td className="px-4 py-2.5 text-right font-black text-[18px] text-[#000000]">{formatCurrency(getOrderTotal(order))}</td>
                                             </tr>
                                           </tfoot>
                                         </table>
@@ -2176,7 +2167,7 @@ export default function Dashboard() {
                                     {/* WhatsApp message */}
                                     <div className="bg-white rounded-xl border border-blue-100 p-4">
                                       <div className="flex items-center justify-between mb-2">
-                                        <span className="text-[11px] font-black text-[#374151] uppercase tracking-wider">{l('WhatsApp Message', 'வாட்ஸ் அப் செய்தி')}</span>
+                                        <span className="text-[11px] font-black text-[#000000] uppercase tracking-wider">{l('WhatsApp Message', 'வாட்ஸ் அப் செய்தி')}</span>
                                         <button
                                           type="button"
                                           onClick={() => void navigator.clipboard.writeText(waMsg)}
@@ -2184,7 +2175,7 @@ export default function Dashboard() {
                                           {l('Copy Message', 'நகல் எடு')}
                                         </button>
                                       </div>
-                                      <pre className="text-[12px] text-[#111111] bg-[#F9FAFB] rounded-xl p-3 whitespace-pre-wrap font-sans leading-relaxed select-all">{waMsg}</pre>
+                                      <pre className="text-[12px] text-[#000000] bg-white rounded-xl p-3 whitespace-pre-wrap font-sans leading-relaxed select-all">{waMsg}</pre>
                                     </div>
                                   </div>
                                 </td>
@@ -2200,7 +2191,7 @@ export default function Dashboard() {
               ) : (
                 <div className="px-5 py-12 text-center">
                   <MessageCircle size={40} className="mx-auto text-blue-200 mb-3" />
-                  <p className="text-[14px] font-bold text-[#374151]">{l('No WhatsApp requests in selected period', 'தேர்ந்த காலத்தில் WA கோரிக்கை இல்லை')}</p>
+                  <p className="text-[14px] font-bold text-[#000000]">{l('No WhatsApp requests in selected period', 'தேர்ந்த காலத்தில் WA கோரிக்கை இல்லை')}</p>
                 </div>
               )}
             </div>
@@ -2208,14 +2199,14 @@ export default function Dashboard() {
             {/* ——— ANALYTICS - secondary, compact, bottom ——— */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* Top Requested Products */}
-              <div className="bg-white rounded-2xl border border-[#E5E7EB]/30 p-4 shadow-sm">
-                <h3 className="text-[13px] font-black text-[#111111] mb-3">{l('Top Requested Products', 'அதிக தேவை')}</h3>
+              <div className="bg-white rounded-2xl border border-black/10 p-4 shadow-sm">
+                <h3 className="text-[13px] font-black text-[#000000] mb-3">{l('Top Requested Products', 'அதிக தேவை')}</h3>
                 {analytics.topWAProducts.length > 0 ? (
                   <div className="space-y-1.5">
                     {analytics.topWAProducts.slice(0, 6).map((item, i) => (
                       <div key={item.name} className="flex items-center gap-2">
                         <span className="w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-[9px] font-black flex items-center justify-center shrink-0">{i + 1}</span>
-                        <span className="text-[11px] font-bold text-[#111111] break-words flex-1">{item.name}</span>
+                        <span className="text-[11px] font-bold text-[#000000] break-words flex-1">{item.name}</span>
                         <span className="text-[11px] font-black text-blue-600 shrink-0">{item.count}x</span>
                       </div>
                     ))}
@@ -2226,14 +2217,14 @@ export default function Dashboard() {
               </div>
 
               {/* Top Requested Categories */}
-              <div className="bg-white rounded-2xl border border-[#E5E7EB]/30 p-4 shadow-sm">
-                <h3 className="text-[13px] font-black text-[#111111] mb-3">{l('Top Categories', 'வகைகள்')}</h3>
+              <div className="bg-white rounded-2xl border border-black/10 p-4 shadow-sm">
+                <h3 className="text-[13px] font-black text-[#000000] mb-3">{l('Top Categories', 'வகைகள்')}</h3>
                 {analytics.topWACategories.length > 0 ? (
                   <div className="space-y-1.5">
                     {analytics.topWACategories.slice(0, 6).map((cat, i) => (
                       <div key={cat.name} className="flex items-center gap-2">
                         <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[9px] font-black flex items-center justify-center shrink-0">{i + 1}</span>
-                        <span className="text-[11px] font-bold text-[#111111] break-words flex-1">{cat.name}</span>
+                        <span className="text-[11px] font-bold text-[#000000] break-words flex-1">{cat.name}</span>
                         <span className="text-[11px] font-black text-emerald-600 shrink-0">{cat.count}x</span>
                       </div>
                     ))}
@@ -2244,8 +2235,8 @@ export default function Dashboard() {
               </div>
 
               {/* Status Distribution - compact bar */}
-              <div className="bg-white rounded-2xl border border-[#E5E7EB]/30 p-4 shadow-sm">
-                <h3 className="text-[13px] font-black text-[#111111] mb-3">{l('Status Distribution', 'நிலை விளக்கம்')}</h3>
+              <div className="bg-white rounded-2xl border border-black/10 p-4 shadow-sm">
+                <h3 className="text-[13px] font-black text-[#000000] mb-3">{l('Status Distribution', 'நிலை விளக்கம்')}</h3>
                 <div className="h-[144px] w-full min-w-0 relative">
                   <ResponsiveContainer width="100%" height={144} minWidth={0} minHeight={0}>
                     <BarChart data={analytics.statusDistribution} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
@@ -2271,8 +2262,8 @@ export default function Dashboard() {
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h2 className="text-[24px] font-black text-[#111111] tracking-tight">POS Analytics</h2>
-                <p className="text-[13px] text-[#6B7280]">Real time store & channel intelligence</p>
+                <h2 className="text-[24px] font-black text-[#000000] tracking-tight">POS Analytics</h2>
+                <p className="text-[13px] text-[#000000]">Real time store & channel intelligence</p>
               </div>
 
               {/* Export Actions */}
@@ -2288,7 +2279,7 @@ export default function Dashboard() {
                       dateTo: analyticsDateTo,
                     })
                   }}
-                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[var(--accent-a40)] text-[#0A0A0A] font-bold text-xs hover:bg-[#FBFAF6] shadow-xs transition-all cursor-pointer hover:scale-[1.02]"
+                  className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-white border border-[var(--accent-a40)] text-[#000000] font-bold text-xs hover:bg-black/[0.03] shadow-xs transition-all cursor-pointer hover:scale-[1.02]"
                   title="Export current analytics view to Excel"
                 >
                   <Download size={14} className="text-[var(--accent-dark)]" />
@@ -2327,48 +2318,46 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-4 border-b border-[#E7E7E7] pb-4 md:flex-row md:items-center md:justify-between">
-              {/* Sub-tabs */}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-3 md:flex md:gap-6">
-                {([
-                  { id: 'revenue' as const,    label: 'REVENUE' },
-                  { id: 'today' as const,      label: 'TODAY\'S SALES' },
-                  { id: 'products' as const,   label: 'PRODUCTS' },
-                  { id: 'coupons' as const,    label: 'COUPONS' },
-                  { id: 'jewellery' as const,  label: 'JEWELLERY' },
-                ]).map(({ id, label }) => (
-                  <button key={id} onClick={() => setPosAnalyticsTab(id as PosAnalyticsTab)}
-                    className={`pb-2 md:pb-4 text-left text-[13px] font-bold tracking-wide transition-colors relative ${posAnalyticsTab === id ? 'text-[#0A0A0A]' : 'text-[#6B7280] hover:text-[#111111]'}`}>
-                    {label}
-                    {posAnalyticsTab === id && <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#0A0A0A] rounded-t-md" />}
-                  </button>
-                ))}
-              </div>
-
-              {/* Date filter (hidden for Today's Sales) */}
-              {posAnalyticsTab !== 'today' && (
-                <div className="flex flex-col gap-3 md:items-end">
-                  <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-[#F8F8F8] p-2">
-                    <span className="text-[10px] font-bold uppercase text-[#6B7280] ml-1 mr-1">Period:</span>
-                    {(['all', 'today', 'week', 'month', 'year'] as const).map(preset => (
-                      <button key={preset} type="button" onClick={() => applyAnalyticsPreset(preset)}
-                        className={`px-4 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all ${analyticsDatePreset === preset ? 'bg-[#0A0A0A] text-white shadow-sm' : 'text-[#6B7280] hover:text-[#111111]'}`}>
-                        {preset === 'all' ? 'All Time' : preset === 'today' ? 'Today' : preset === 'week' ? 'This Week' : preset === 'month' ? 'This Month' : 'This Year'}
-                      </button>
-                    ))}
+            {/* Period filter (hidden for Today's Sales), IGMOLS pill bar + date range */}
+            {posAnalyticsTab !== 'today' && (
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center bg-white border border-black/10 rounded-xl p-1 gap-1 max-w-full">
+                  <span className="text-[9px] font-bold text-[#000000] uppercase tracking-wider px-2">Period:</span>
+                  {(['all', 'today', 'week', 'month', 'year'] as const).map(preset => (
+                    <button key={preset} type="button" onClick={() => applyAnalyticsPreset(preset)}
+                      className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer ${analyticsDatePreset === preset ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[#000000] hover:bg-black/5'}`}>
+                      {preset === 'all' ? 'All Time' : preset === 'today' ? 'Today' : preset === 'week' ? 'This Week' : preset === 'month' ? 'This Month' : 'This Year'}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap items-center border rounded-xl px-3 py-1.5 gap-2 shadow-sm bg-white border-black/10 min-w-0">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#000000]">From:</span>
+                    <input type="date" value={analyticsDateFrom} onChange={e => { setAnalyticsDateFrom(e.target.value); setAnalyticsDatePreset('custom'); }} className="text-xs font-bold bg-transparent border-none outline-none focus:ring-0 cursor-pointer text-[#000000] w-[118px]" />
                   </div>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 w-full">
-                    <div className="flex items-center border border-[#E7E7E7] rounded-xl px-3 py-2 bg-white min-w-0">
-                      <span className="text-[10px] uppercase font-bold text-[#6B7280] mr-2">From:</span>
-                      <input type="date" value={analyticsDateFrom} onChange={e => { setAnalyticsDateFrom(e.target.value); setAnalyticsDatePreset('custom'); }} className="w-full min-w-0 text-[12px] font-semibold text-[#111111] bg-transparent outline-none" />
-                    </div>
-                    <div className="flex items-center border border-[#E7E7E7] rounded-xl px-3 py-2 bg-white min-w-0">
-                      <span className="text-[10px] uppercase font-bold text-[#6B7280] mr-2">To:</span>
-                      <input type="date" value={analyticsDateTo} onChange={e => { setAnalyticsDateTo(e.target.value); setAnalyticsDatePreset('custom'); }} className="w-full min-w-0 text-[12px] font-semibold text-[#111111] bg-transparent outline-none" />
-                    </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#000000]">To:</span>
+                    <input type="date" value={analyticsDateTo} onChange={e => { setAnalyticsDateTo(e.target.value); setAnalyticsDatePreset('custom'); }} className="text-xs font-bold bg-transparent border-none outline-none focus:ring-0 cursor-pointer text-[#000000] w-[118px]" />
                   </div>
                 </div>
-              )}
+              </div>
+            )}
+
+            {/* Sub-tabs */}
+            <div className="flex flex-wrap gap-x-7 gap-y-2 border-b border-black/10">
+              {([
+                { id: 'revenue' as const,    label: 'Revenue' },
+                { id: 'today' as const,      label: "Today's Sales" },
+                { id: 'products' as const,   label: 'Products' },
+                { id: 'coupons' as const,    label: 'Coupons' },
+                { id: 'jewellery' as const,  label: 'Jewellery' },
+              ]).map(({ id, label }) => (
+                <button key={id} onClick={() => setPosAnalyticsTab(id as PosAnalyticsTab)}
+                  className={`pb-3 text-sm font-bold uppercase whitespace-nowrap transition-colors relative cursor-pointer ${posAnalyticsTab === id ? 'text-[var(--accent)]' : 'text-[#000000] hover:text-[var(--accent)]'}`}>
+                  {label}
+                  {posAnalyticsTab === id && <div className="absolute -bottom-px left-0 right-0 h-[3px] bg-[var(--accent)] rounded-t-md" />}
+                </button>
+              ))}
             </div>
 
             {/* Revenue sub-tab */}
@@ -2462,11 +2451,11 @@ export default function Dashboard() {
                     <div key={index} className="bg-white rounded-card border border-borderLight p-5 sm:p-5 shadow-soft flex flex-col justify-between hover:shadow-md transition-shadow">
                       <div>
                         <div className="flex items-start justify-between gap-2 mb-3">
-                          <p className="text-[11px] font-bold text-[#111111]">{card.label}</p>
+                          <p className="text-[11px] font-bold text-[#000000]">{card.label}</p>
                           <div className={`w-9 h-9 rounded-xl border border-current/20 ${card.bg} flex items-center justify-center ${card.color} shrink-0 shadow-sm`}>{card.icon}</div>
                         </div>
                         <div className="flex items-center gap-2 mb-2 flex-wrap">
-                          <p className={`text-[22px] sm:text-[24px] font-bold leading-tight ${card.valueColor || 'text-[#111111]'}`}>
+                          <p className={`text-[22px] sm:text-[24px] font-bold leading-tight ${card.valueColor || 'text-[#000000]'}`}>
                             {card.value}
                           </p>
                           {card.arrow && (
@@ -2476,7 +2465,7 @@ export default function Dashboard() {
                           )}
                         </div>
                       </div>
-                      <p className="text-[12px] text-[#6B7280] leading-snug" title={card.helper}>{card.helper}</p>
+                      <p className="text-[12px] text-[#000000] leading-snug" title={card.helper}>{card.helper}</p>
                     </div>
                   ))}
                 </div>
@@ -2484,8 +2473,8 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
                   <div className="xl:col-span-2 bg-white rounded-card border border-borderLight p-6 shadow-soft">
                     <div className="flex items-center justify-between gap-4 mb-4">
-                      <h3 className="text-[16px] font-bold text-[#111111]">Revenue Trend {analytics.chartYear}</h3>
-                      <span className="text-[12px] font-bold text-[#0A0A0A] bg-red-50 px-2.5 py-1 rounded-md">Avg {formatCurrency(analytics.monthlyRevenue || 0)}/mo</span>
+                      <h3 className="text-[16px] font-bold text-[#000000]">Revenue Trend {analytics.chartYear}</h3>
+                      <span className="text-[12px] font-bold text-[#000000] bg-red-50 px-2.5 py-1 rounded-md">Avg {formatCurrency(analytics.monthlyRevenue || 0)}/mo</span>
                     </div>
                     <div className="h-[192px] w-full min-w-0 relative">
                       <ResponsiveContainer width="100%" height={192} minWidth={0} minHeight={0}>
@@ -2501,23 +2490,23 @@ export default function Dashboard() {
                   </div>
                   <div className="space-y-6">
                     <div className="bg-white rounded-card border border-borderLight p-6 shadow-soft">
-                      <h3 className="text-[16px] font-bold text-[#111111] mb-6">Order Source</h3>
+                      <h3 className="text-[16px] font-bold text-[#000000] mb-6">Order Source</h3>
                       <div className="space-y-4">
                         <div>
                           <div className="flex justify-between text-[12px] font-bold mb-2">
-                            <span className="text-[#0A0A0A] uppercase">Offline</span>
-                            <span className="text-[#111111]">{analytics.completedOrders}</span>
+                            <span className="text-[#000000] uppercase">Offline</span>
+                            <span className="text-[#000000]">{analytics.completedOrders}</span>
                           </div>
-                          <div className="w-full bg-[#F3F4F6] rounded-full h-2.5">
+                          <div className="w-full bg-black/[0.03] rounded-full h-2.5">
                             <div className="bg-[#0A0A0A] h-2.5 rounded-full" style={{ width: '100%' }}></div>
                           </div>
                         </div>
                         <div>
                           <div className="flex justify-between text-[12px] font-bold mb-2">
-                            <span className="text-[#6B7280] uppercase">Online</span>
-                            <span className="text-[#111111]">0</span>
+                            <span className="text-[#000000] uppercase">Online</span>
+                            <span className="text-[#000000]">0</span>
                           </div>
-                          <div className="w-full bg-[#F3F4F6] rounded-full h-2.5">
+                          <div className="w-full bg-black/[0.03] rounded-full h-2.5">
                             <div className="bg-[#E5E7EB] h-2.5 rounded-full" style={{ width: '0%' }}></div>
                           </div>
                         </div>
@@ -2525,17 +2514,17 @@ export default function Dashboard() {
                     </div>
 
                     <div className="bg-white rounded-card border border-borderLight p-6 shadow-soft">
-                      <h3 className="text-[16px] font-bold text-[#111111] mb-4">Top Items by Revenue</h3>
+                      <h3 className="text-[16px] font-bold text-[#000000] mb-4">Top Items by Revenue</h3>
                       <div className="space-y-3">
                         {analytics.topProducts.slice(0, 3).map((p, i) => (
                           <div key={i} className="flex items-center justify-between gap-3 text-[13px]">
                             <div className="flex items-center gap-3 min-w-0 flex-1">
-                              <span className="font-bold text-[#6B7280] w-4 shrink-0">{i + 1}</span>
-                              <span className="font-bold text-[#111111] truncate" title={p.name}>{p.name}</span>
+                              <span className="font-bold text-[#000000] w-4 shrink-0">{i + 1}</span>
+                              <span className="font-bold text-[#000000] truncate" title={p.name}>{p.name}</span>
                             </div>
                             <div className="flex items-center gap-4 shrink-0">
-                              <span className="font-bold text-[#0A0A0A]">{formatCurrency(p.revenue)}</span>
-                              <span className="text-[#6B7280] text-[11px] w-8 text-right">{Math.round(p.qty)} pcs</span>
+                              <span className="font-bold text-[#000000]">{formatCurrency(p.revenue)}</span>
+                              <span className="text-[#000000] text-[11px] w-8 text-right">{Math.round(p.qty)} pcs</span>
                             </div>
                           </div>
                         ))}
@@ -2548,14 +2537,14 @@ export default function Dashboard() {
                   <div className="xl:col-span-2 bg-white rounded-card border border-borderLight p-6 shadow-soft">
                     <div className="flex items-center justify-between gap-3 mb-6">
                       <div>
-                        <h3 className="text-[16px] font-bold text-[#111111]">Revenue Trend This Week</h3>
-                        <p className="mt-1 text-[12px] text-[#6B7280]">Monday to Sunday sales view for the current week.</p>
+                        <h3 className="text-[16px] font-bold text-[#000000]">Revenue Trend This Week</h3>
+                        <p className="mt-1 text-[12px] text-[#000000]">Monday to Sunday sales view for the current week.</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="rounded-full bg-[#F9FAFB] px-3 py-1 text-[11px] font-bold text-[var(--accent)]">
+                        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-bold text-[var(--accent)]">
                           Week {(() => { const now = new Date(); const start = new Date(now.getFullYear(), 0, 1); const diff = Math.floor((now.getTime() - start.getTime()) / 86400000); return Math.ceil((diff + start.getDay() + 1) / 7) })()} of {new Date().getFullYear()}
                         </span>
-                        <span className="rounded-full bg-[#F9FAFB] px-3 py-1 text-[11px] font-bold text-[var(--accent)]">
+                        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-bold text-[var(--accent)]">
                           Today: {formatCurrency(analytics.todaySales)}
                         </span>
                       </div>
@@ -2581,13 +2570,13 @@ export default function Dashboard() {
                   </div>
 
                   <div className="bg-white rounded-card border border-borderLight p-6 shadow-soft">
-                    <h3 className="text-[16px] font-bold text-[#111111] mb-4">Top Products This Week</h3>
+                    <h3 className="text-[16px] font-bold text-[#000000] mb-4">Top Products This Week</h3>
                     {analytics.topProducts.length === 0 ? (
-                      <p className="text-[13px] text-[#6B7280]">No completed product sales yet.</p>
+                      <p className="text-[13px] text-[#000000]">No completed product sales yet.</p>
                     ) : (
                       <div className="overflow-x-auto rounded-xl border border-[#F0EEE9]">
                         <table className="w-full text-left text-sm">
-                          <thead className="bg-[#F9FAFB] text-[10px] font-black uppercase tracking-wider text-[#737B72]">
+                          <thead className="bg-white text-[10px] font-bold uppercase tracking-widest text-[#000000]">
                             <tr>
                               <th className="px-3 py-2.5">Product</th>
                               <th className="px-3 py-2.5 text-right">Bills</th>
@@ -2595,12 +2584,12 @@ export default function Dashboard() {
                               <th className="px-3 py-2.5 text-right">Amount</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-[#F0EEE9]">
+                          <tbody className="divide-y divide-black/5">
                             {analytics.topProducts.slice(0, 5).map((p, i) => (
                               <tr key={`${p.name}-${i}`}>
-                                <td className="max-w-[160px] whitespace-normal break-words px-3 py-2.5 text-[13px] font-bold text-[#111111]">{p.name}</td>
-                                <td className="px-3 py-2.5 text-right text-[12px] text-[#6B7280]">{p.billCount}</td>
-                                <td className="px-3 py-2.5 text-right text-[13px] font-black text-[#111111]">{Math.round(p.qty)}</td>
+                                <td className="max-w-[160px] whitespace-normal break-words px-3 py-2.5 text-[13px] font-bold text-[#000000]">{p.name}</td>
+                                <td className="px-3 py-2.5 text-right text-[12px] text-[#000000]">{p.billCount}</td>
+                                <td className="px-3 py-2.5 text-right text-[13px] font-black text-[#000000]">{Math.round(p.qty)}</td>
                                 <td className="px-3 py-2.5 text-right text-[12px] font-bold text-[#10B981]">{formatCurrency(p.revenue)}</td>
                               </tr>
                             ))}
@@ -2627,7 +2616,7 @@ export default function Dashboard() {
                     <div key={i} className="bg-white rounded-2xl border border-gray-200/80 p-4 sm:p-5 shadow-sm hover:shadow-md transition-shadow flex items-center justify-between gap-4">
                       <div className="min-w-0 flex-1">
                         <p className="text-[11px] font-extrabold uppercase tracking-wider text-gray-500 mb-1">{card.label}</p>
-                        <p className="text-[15px] sm:text-[24px] font-black text-[#111111] leading-tight break-words">{card.value}</p>
+                        <p className="text-[15px] sm:text-[24px] font-black text-[#000000] leading-tight break-words">{card.value}</p>
                       </div>
                       <div className={`w-11 h-11 rounded-2xl ${card.bg} border ${card.border} flex items-center justify-center shrink-0 shadow-xs`}>
                         {card.icon}
@@ -2637,28 +2626,28 @@ export default function Dashboard() {
                 </div>
 
                 {/* Top products today */}
-                <div className="bg-white rounded-2xl border border-[#E5E7EB]/30 p-5 shadow-sm">
-                  <h3 className="text-[15px] font-bold text-[#111111] mb-4">Top Products Today</h3>
+                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                  <h3 className="text-[15px] font-bold text-[#000000] mb-4">Top Products Today</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {analytics.todayTopProducts.map((p, i) => (
-                      <div key={i} className="flex items-center justify-between bg-[#F9FAFB] p-3 rounded-xl border border-gray-100">
+                      <div key={i} className="flex items-center justify-between bg-white p-3 rounded-xl border border-black/10">
                         <div className="min-w-0 flex-1">
-                          <p className="text-[13px] font-bold text-[#111111] break-words">{p.name}</p>
-                          <p className="text-[11px] text-[#374151]">{Math.round(p.qty)} sold</p>
+                          <p className="text-[13px] font-bold text-[#000000] break-words">{p.name}</p>
+                          <p className="text-[11px] text-[#000000]">{Math.round(p.qty)} sold</p>
                         </div>
                         <p className="text-[13px] font-black text-[#10B981] ml-2">{formatCurrency(p.revenue)}</p>
                       </div>
                     ))}
                     {analytics.todayTopProducts.length === 0 && (
-                      <p className="col-span-full text-center text-[13px] text-[#374151] py-6">No products sold yet today.</p>
+                      <p className="col-span-full text-center text-[13px] text-[#000000] py-6">No products sold yet today.</p>
                     )}
                   </div>
                 </div>
 
                 {/* Today's latest bills */}
-                <div className="bg-white rounded-2xl border border-[#E5E7EB]/30 p-5 shadow-sm">
+                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-[15px] font-bold text-[#111111]">Today's Bills</h3>
+                    <h3 className="text-[15px] font-bold text-[#000000]">Today's Bills</h3>
                     <span className="text-[11px] font-bold text-[#10B981]">{analytics.todayCompletedOrdersCount} orders</span>
                   </div>
                   <div className="mb-3">
@@ -2667,37 +2656,37 @@ export default function Dashboard() {
                       placeholder="Search by invoice number..."
                       value={todayBillsSearch}
                       onChange={e => setTodayBillsSearch(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB]/60 rounded-xl text-[13px] font-bold text-[#111111] placeholder:text-[#8A9384] focus:outline-none focus:border-[var(--accent)] transition-colors"
+                      className="w-full px-4 py-2.5 bg-white border border-black/10 rounded-xl text-[13px] font-bold text-[#000000] placeholder:text-[#000000] focus:outline-none focus:border-[var(--accent)] transition-colors"
                     />
                   </div>
                   {(() => {
                     const filteredBills = analytics.todayBills.filter(b => !todayBillsSearch || b.invoice_no?.toLowerCase().includes(todayBillsSearch.toLowerCase()))
                     return filteredBills.length > 0 ? (
                     <>
-                    <div className="md:hidden rounded-xl border border-[#E5E7EB]/30 divide-y divide-[#E5E7EB]/20 overflow-hidden bg-white">
+                    <div className="md:hidden rounded-xl border border-black/10 divide-y divide-black/5 overflow-hidden bg-white">
                       {filteredBills.map(o => {
                         const btLabel = normalizeOrderType(o.order_type) === 'manual_sale' ? 'MANUAL' : normalizeOrderMode(o.order_mode) === 'online' ? 'ONLINE' : 'OFFLINE'
                         return (
                           <div key={o.id} className="px-3 py-2.5">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="font-semibold text-[#111111] text-[12px] break-words">{o.customer_name}</p>
-                                <p className="text-[11px] text-[#374151] mt-0.5 break-words">
+                                <p className="font-semibold text-[#000000] text-[12px] break-words">{o.customer_name}</p>
+                                <p className="text-[11px] text-[#000000] mt-0.5 break-words">
                                   {formatInvoiceNo(o.invoice_no)}{' · '}{btLabel}{' · '}{new Date(o.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                                 </p>
                               </div>
-                              <p className="shrink-0 font-black text-[#111111] text-[12px]">{formatCurrency(getOrderTotal(o))}</p>
+                              <p className="shrink-0 font-black text-[#000000] text-[12px]">{formatCurrency(getOrderTotal(o))}</p>
                             </div>
-                            <button onClick={() => void openOrderInvoice(o, 'view')} className="mt-2 inline-flex items-center gap-1 rounded-lg border border-[#E5E7EB]/60 px-2.5 py-1.5 text-[11px] font-black text-[#111111] hover:bg-[#F9FAFB]" title="View Invoice">
+                            <button onClick={() => void openOrderInvoice(o, 'view')} className="mt-2 inline-flex items-center gap-1 rounded-lg border border-black/10 px-2.5 py-1.5 text-[11px] font-black text-[#000000] hover:bg-black/[0.03]" title="View Invoice">
                               <Eye size={13} /> View Invoice
                             </button>
                           </div>
                         )
                       })}
                     </div>
-                    <div className="hidden md:block overflow-x-auto rounded-xl border border-[#E5E7EB]/30">
+                    <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
                       <table className="w-full min-w-[480px] text-[12px]">
-                        <thead className="bg-[#F9FAFB] text-[10px] uppercase tracking-wider text-[#374151]">
+                        <thead className="bg-white text-[10px] uppercase tracking-wider text-[#000000]">
                           <tr>
                             <th className="px-3 py-2.5 font-black text-left">Invoice</th>
                             <th className="px-3 py-2.5 font-black text-left">Customer</th>
@@ -2707,19 +2696,19 @@ export default function Dashboard() {
                             <th className="px-3 py-2.5 font-black text-left">Actions</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-[#E5E7EB]/20">
+                        <tbody className="divide-y divide-black/5">
                           {filteredBills.map(o => {
                             const btLabel = normalizeOrderType(o.order_type) === 'manual_sale' ? 'MANUAL' : normalizeOrderMode(o.order_mode) === 'online' ? 'ONLINE' : 'OFFLINE'
                             const btClass = normalizeOrderType(o.order_type) === 'manual_sale' ? 'bg-purple-100 text-purple-700' : normalizeOrderMode(o.order_mode) === 'online' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
                             return (
-                              <tr key={o.id} className="hover:bg-[#F9FAFB]/50">
+                              <tr key={o.id} className="hover:bg-black/[0.03]">
                                 <td className="px-3 py-2.5 font-bold text-[#10B981] text-[11px]">{formatInvoiceNo(o.invoice_no)}</td>
-                                <td className="px-3 py-2.5 font-semibold text-[#111111] max-w-[100px] break-words">{o.customer_name}</td>
-                                <td className="px-3 py-2.5 font-black text-[#111111]">{formatCurrency(getOrderTotal(o))}</td>
-                                <td className="px-3 py-2.5 text-[#374151] whitespace-nowrap">{new Date(o.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td>
+                                <td className="px-3 py-2.5 font-semibold text-[#000000] max-w-[100px] break-words">{o.customer_name}</td>
+                                <td className="px-3 py-2.5 font-black text-[#000000]">{formatCurrency(getOrderTotal(o))}</td>
+                                <td className="px-3 py-2.5 text-[#000000] whitespace-nowrap">{new Date(o.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td>
                                 <td className="px-3 py-2.5"><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${btClass}`}>{btLabel}</span></td>
                                 <td className="px-3 py-2.5">
-                                  <button onClick={() => void openOrderInvoice(o, 'view')} className="inline-flex items-center gap-1 rounded-lg border border-[#E5E7EB]/60 px-2 py-1.5 text-[11px] font-black text-[#111111] hover:bg-[#F9FAFB]" title="View Invoice">
+                                  <button onClick={() => void openOrderInvoice(o, 'view')} className="inline-flex items-center gap-1 rounded-lg border border-black/10 px-2 py-1.5 text-[11px] font-black text-[#000000] hover:bg-black/[0.03]" title="View Invoice">
                                     <Eye size={13} /> View Invoice
                                   </button>
                                 </td>
@@ -2731,7 +2720,7 @@ export default function Dashboard() {
                     </div>
                     </>
                   ) : (
-                    <p className="text-[13px] text-[#374151] text-center py-4">{todayBillsSearch ? 'No bills match your search.' : 'No bills yet today.'}</p>
+                    <p className="text-[13px] text-[#000000] text-center py-4">{todayBillsSearch ? 'No bills match your search.' : 'No bills yet today.'}</p>
                   )})()}
                 </div>
               </div>
@@ -2762,11 +2751,11 @@ export default function Dashboard() {
                 </div>
 
                 {/* Full product table with Search by Name, SKU, Category */}
-                <div className="bg-white rounded-2xl border border-[#E5E7EB]/30 p-5 shadow-sm">
+                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                     <div>
-                      <h3 className="text-[15px] font-bold text-[#111111]">All Products Analytics</h3>
-                      <p className="text-[12px] text-[#6B7280]">Search by Product Name, SKU, or Category for instant statistics</p>
+                      <h3 className="text-[15px] font-bold text-[#000000]">All Products Analytics</h3>
+                      <p className="text-[12px] text-[#000000]">Search by Product Name, SKU, or Category for instant statistics</p>
                     </div>
                     <span className="text-[11px] font-bold text-[#10B981] bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 self-start sm:self-auto">{analytics.topProducts.length} products</span>
                   </div>
@@ -2776,7 +2765,7 @@ export default function Dashboard() {
                       placeholder="Search by Product Name, SKU, or Category..."
                       value={productAnalyticsSearch}
                       onChange={e => setProductAnalyticsSearch(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB]/60 rounded-xl text-[13px] font-bold text-[#111111] placeholder:text-[#8A9384] focus:outline-none focus:border-[var(--accent)] transition-colors"
+                      className="w-full px-4 py-2.5 bg-white border border-black/10 rounded-xl text-[13px] font-bold text-[#000000] placeholder:text-[#000000] focus:outline-none focus:border-[var(--accent)] transition-colors"
                     />
                   </div>
                   {(() => {
@@ -2787,13 +2776,13 @@ export default function Dashboard() {
                     })
                     return filteredProds.length > 0 ? (
                       <>
-                      <div className="md:hidden rounded-xl border border-[#E5E7EB]/30 divide-y divide-[#E5E7EB]/20 overflow-hidden bg-white">
+                      <div className="md:hidden rounded-xl border border-black/10 divide-y divide-black/5 overflow-hidden bg-white">
                         {filteredProds.slice(0, 50).map((p, i) => (
                           <div key={`${p.name}-${p.variant || i}`} className="px-3 py-2.5">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="text-[13px] font-bold text-[#111111] break-words">#{i + 1} {p.name}</p>
-                                <p className="text-[11px] text-[#374151] mt-0.5 break-words">
+                                <p className="text-[13px] font-bold text-[#000000] break-words">#{i + 1} {p.name}</p>
+                                <p className="text-[11px] text-[#000000] mt-0.5 break-words">
                                   {p.variant || 'No variant'}{' · '}Qty {Math.round(p.qty)}{' · '}{p.billCount} bills{' · '}Avg {formatCurrency(p.billCount > 0 ? p.revenue / p.billCount : 0)}
                                 </p>
                               </div>
@@ -2802,9 +2791,9 @@ export default function Dashboard() {
                           </div>
                         ))}
                       </div>
-                      <div className="hidden md:block overflow-x-auto rounded-xl border border-[#E5E7EB]/30">
+                      <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
                         <table className="w-full min-w-[580px] text-left text-[12px]">
-                          <thead className="bg-[#F9FAFB] text-[10px] uppercase tracking-wider text-[#374151]">
+                          <thead className="bg-white text-[10px] uppercase tracking-wider text-[#000000]">
                             <tr>
                               <th className="px-4 py-2.5 font-black">#</th>
                               <th className="px-4 py-2.5 font-black">Product</th>
@@ -2815,16 +2804,16 @@ export default function Dashboard() {
                               <th className="px-4 py-2.5 font-black">Avg Revenue/Bill</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-[#E5E7EB]/20">
+                          <tbody className="divide-y divide-black/5">
                             {filteredProds.slice(0, 50).map((p, i) => (
-                              <tr key={`${p.name}-${p.variant || i}`} className="hover:bg-[#F9FAFB]/50">
+                              <tr key={`${p.name}-${p.variant || i}`} className="hover:bg-black/[0.03]">
                                 <td className="px-4 py-2 text-[11px] text-[#9BAB9A] font-bold">{i + 1}</td>
-                                <td className="px-4 py-2 font-bold text-[#111111]">{p.name}</td>
-                                <td className="px-4 py-2 text-[#374151]">{p.variant || '-'}</td>
+                                <td className="px-4 py-2 font-bold text-[#000000]">{p.name}</td>
+                                <td className="px-4 py-2 text-[#000000]">{p.variant || '-'}</td>
                                 <td className="px-4 py-2 font-bold">{Math.round(p.qty)}</td>
                                 <td className="px-4 py-2 font-bold text-emerald-700">{formatCurrency(p.revenue)}</td>
-                                <td className="px-4 py-2 text-[#374151]">{p.billCount}</td>
-                                <td className="px-4 py-2 font-bold text-[#111111]">{formatCurrency(p.billCount > 0 ? p.revenue / p.billCount : 0)}</td>
+                                <td className="px-4 py-2 text-[#000000]">{p.billCount}</td>
+                                <td className="px-4 py-2 font-bold text-[#000000]">{formatCurrency(p.billCount > 0 ? p.revenue / p.billCount : 0)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -2832,7 +2821,7 @@ export default function Dashboard() {
                       </div>
                       </>
                     ) : (
-                      <p className="text-center text-[13px] text-[#374151] py-6">{productAnalyticsSearch ? 'No products match your search query.' : 'No product sales in selected period'}</p>
+                      <p className="text-center text-[13px] text-[#000000] py-6">{productAnalyticsSearch ? 'No products match your search query.' : 'No product sales in selected period'}</p>
                     )
                   })()}
                 </div>
@@ -2841,26 +2830,26 @@ export default function Dashboard() {
 
             {/* Categories sub-tab */}
             {posAnalyticsTab === 'categories' && (
-              <div className="bg-white rounded-2xl border border-[#E5E7EB]/30 p-5 shadow-sm">
-                <h3 className="text-base font-black text-[#111111] mb-4">{l('Category Analytics', 'வகை பகுப்பாய்வு')}</h3>
+              <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                <h3 className="text-base font-black text-[#000000] mb-4">{l('Category Analytics', 'வகை பகுப்பாய்வு')}</h3>
                 {analytics.topCategories.length > 0 ? (
                   <>
-                  <div className="md:hidden rounded-xl border border-[#E5E7EB]/30 divide-y divide-[#E5E7EB]/20 overflow-hidden bg-white">
+                  <div className="md:hidden rounded-xl border border-black/10 divide-y divide-black/5 overflow-hidden bg-white">
                     {analytics.topCategories.map((c, i) => (
                       <div key={c.name} className="px-3 py-2.5">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="text-[13px] font-bold text-[#111111] break-words">#{i + 1} {c.name}</p>
-                            <p className="text-[11px] text-[#374151] mt-0.5">Qty Sold {Math.round(c.qty)}</p>
+                            <p className="text-[13px] font-bold text-[#000000] break-words">#{i + 1} {c.name}</p>
+                            <p className="text-[11px] text-[#000000] mt-0.5">Qty Sold {Math.round(c.qty)}</p>
                           </div>
                           <p className="shrink-0 text-[13px] font-black text-emerald-700">{formatCurrency(c.revenue)}</p>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <div className="hidden md:block overflow-x-auto rounded-xl border border-[#E5E7EB]/30">
+                  <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
                     <table className="w-full text-left text-[13px]">
-                      <thead className="bg-[#F9FAFB] text-[10px] uppercase tracking-wider text-[#374151]">
+                      <thead className="bg-white text-[10px] uppercase tracking-wider text-[#000000]">
                         <tr>
                           <th className="px-4 py-2.5 font-black">#</th>
                           <th className="px-4 py-2.5 font-black">{l('Category', 'வகை')}</th>
@@ -2868,13 +2857,13 @@ export default function Dashboard() {
                           <th className="px-4 py-2.5 font-black">{l('Qty Sold', 'விற்ற அளவு')}</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-[#E5E7EB]/20">
+                      <tbody className="divide-y divide-black/5">
                         {analytics.topCategories.map((c, i) => (
-                          <tr key={c.name} className="hover:bg-[#F9FAFB]/50">
+                          <tr key={c.name} className="hover:bg-black/[0.03]">
                             <td className="px-4 py-2 text-[11px] text-[#9BAB9A] font-bold">{i + 1}</td>
-                            <td className="px-4 py-2 font-bold text-[#111111]">{c.name}</td>
+                            <td className="px-4 py-2 font-bold text-[#000000]">{c.name}</td>
                             <td className="px-4 py-2 font-bold text-emerald-700">{formatCurrency(c.revenue)}</td>
-                            <td className="px-4 py-2 text-[#374151]">{Math.round(c.qty)}</td>
+                            <td className="px-4 py-2 text-[#000000]">{Math.round(c.qty)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -2882,7 +2871,7 @@ export default function Dashboard() {
                   </div>
                   </>
                 ) : (
-                  <p className="text-center text-[13px] text-[#374151] py-6">{l('No data in selected period', 'தேர்ந்த காலத்தில் தரவு இல்லை')}</p>
+                  <p className="text-center text-[13px] text-[#000000] py-6">{l('No data in selected period', 'தேர்ந்த காலத்தில் தரவு இல்லை')}</p>
                 )}
               </div>
             )}
@@ -2917,8 +2906,8 @@ export default function Dashboard() {
 
                 {/* Coupon daily trend + Top coupons */}
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                  <div className="xl:col-span-2 bg-white rounded-2xl border border-[#E5E7EB]/30 p-5 shadow-sm">
-                    <h3 className="text-[15px] font-bold text-[#111111] mb-4">Coupon Usage (Last 7 Days)</h3>
+                  <div className="xl:col-span-2 bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                    <h3 className="text-[15px] font-bold text-[#000000] mb-4">Coupon Usage (Last 7 Days)</h3>
                     {analytics.couponDailyTrend.some(d => d.orders > 0) ? (
                       <div className="h-[256px] w-full min-w-0 relative">
                         <ResponsiveContainer width="100%" height={256} minWidth={0} minHeight={0}>
@@ -2938,30 +2927,30 @@ export default function Dashboard() {
                         </ResponsiveContainer>
                       </div>
                     ) : (
-                      <p className="text-center text-[13px] text-[#374151] py-12">No coupon usage in the last 7 days.</p>
+                      <p className="text-center text-[13px] text-[#000000] py-12">No coupon usage in the last 7 days.</p>
                     )}
                   </div>
 
-                  <div className="bg-white rounded-2xl border border-[#E5E7EB]/30 p-5 shadow-sm">
-                    <h3 className="text-[15px] font-bold text-[#111111] mb-4">Top Coupons</h3>
+                  <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                    <h3 className="text-[15px] font-bold text-[#000000] mb-4">Top Coupons</h3>
                     <div className="space-y-3">
                       {analytics.topCoupons.slice(0, 8).map((coupon, i) => (
-                        <div key={coupon.code} className="flex items-center justify-between gap-2 p-3 bg-[#F9FAFB] rounded-xl">
+                        <div key={coupon.code} className="flex items-center justify-between gap-2 p-3 bg-white rounded-xl">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] font-black text-[#9BAB9A]">{i + 1}</span>
-                              <p className="text-[13px] font-bold text-[#111111] break-words">{coupon.code}</p>
+                              <p className="text-[13px] font-bold text-[#000000] break-words">{coupon.code}</p>
                             </div>
-                            <p className="text-[11px] text-[#374151] ml-5">{coupon.usage} order{coupon.usage > 1 ? 's' : ''}</p>
+                            <p className="text-[11px] text-[#000000] ml-5">{coupon.usage} order{coupon.usage > 1 ? 's' : ''}</p>
                           </div>
                           <div className="text-right shrink-0">
                             <p className="text-[13px] font-black text-emerald-700">{formatCurrency(coupon.discounts)}</p>
-                            <p className="text-[10px] text-[#374151]">discounted</p>
+                            <p className="text-[10px] text-[#000000]">discounted</p>
                           </div>
                         </div>
                       ))}
                       {analytics.topCoupons.length === 0 && (
-                        <p className="text-center text-[13px] text-[#374151] py-6">No coupon usage yet</p>
+                        <p className="text-center text-[13px] text-[#000000] py-6">No coupon usage yet</p>
                       )}
                     </div>
                   </div>
@@ -2969,18 +2958,18 @@ export default function Dashboard() {
 
                 {/* Coupon detail table */}
                 {analytics.topCoupons.length > 0 && (
-                  <div className="bg-white rounded-2xl border border-[#E5E7EB]/30 p-5 shadow-sm">
+                  <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-[15px] font-bold text-[#111111]">All Coupons Performance</h3>
+                      <h3 className="text-[15px] font-bold text-[#000000]">All Coupons Performance</h3>
                       <span className="text-[11px] font-bold text-[#10B981]">{analytics.topCoupons.length} coupons</span>
                     </div>
-                    <div className="md:hidden rounded-xl border border-[#E5E7EB]/30 divide-y divide-[#E5E7EB]/20 overflow-hidden bg-white">
+                    <div className="md:hidden rounded-xl border border-black/10 divide-y divide-black/5 overflow-hidden bg-white">
                       {analytics.topCoupons.map((coupon, i) => (
                         <div key={coupon.code} className="px-3 py-2.5">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="text-[13px] font-bold text-[#111111] break-words">#{i + 1} {coupon.code}</p>
-                              <p className="text-[11px] text-[#374151] mt-0.5">
+                              <p className="text-[13px] font-bold text-[#000000] break-words">#{i + 1} {coupon.code}</p>
+                              <p className="text-[11px] text-[#000000] mt-0.5">
                                 {coupon.usage} orders{' · '}Avg discount {coupon.usage > 0 ? formatCurrency(coupon.discounts / coupon.usage) : '-'}
                               </p>
                             </div>
@@ -2989,9 +2978,9 @@ export default function Dashboard() {
                         </div>
                       ))}
                     </div>
-                    <div className="hidden md:block overflow-x-auto rounded-xl border border-[#E5E7EB]/30">
+                    <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
                       <table className="w-full min-w-[400px] text-left text-[12px]">
-                        <thead className="bg-[#F9FAFB] text-[10px] uppercase tracking-wider text-[#374151]">
+                        <thead className="bg-white text-[10px] uppercase tracking-wider text-[#000000]">
                           <tr>
                             <th className="px-4 py-2.5 font-black">#</th>
                             <th className="px-4 py-2.5 font-black">Code</th>
@@ -3000,14 +2989,14 @@ export default function Dashboard() {
                             <th className="px-4 py-2.5 font-black">Avg Discount</th>
                           </tr>
                         </thead>
-                        <tbody className="divide-y divide-[#E5E7EB]/20">
+                        <tbody className="divide-y divide-black/5">
                           {analytics.topCoupons.map((coupon, i) => (
-                            <tr key={coupon.code} className="hover:bg-[#F9FAFB]/50">
+                            <tr key={coupon.code} className="hover:bg-black/[0.03]">
                               <td className="px-4 py-2 text-[11px] text-[#9BAB9A] font-bold">{i + 1}</td>
-                              <td className="px-4 py-2 font-bold text-[#111111]">{coupon.code}</td>
+                              <td className="px-4 py-2 font-bold text-[#000000]">{coupon.code}</td>
                               <td className="px-4 py-2 font-bold">{coupon.usage}</td>
                               <td className="px-4 py-2 font-bold text-emerald-700">{formatCurrency(coupon.discounts)}</td>
-                              <td className="px-4 py-2 text-[#374151]">{coupon.usage > 0 ? formatCurrency(coupon.discounts / coupon.usage) : '-'}</td>
+                              <td className="px-4 py-2 text-[#000000]">{coupon.usage > 0 ? formatCurrency(coupon.discounts / coupon.usage) : '-'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -3055,83 +3044,74 @@ export default function Dashboard() {
 
         {/* ── ORDER MANAGEMENT ── */}
         {tab === 'history' && (
-          <div className="space-y-4 sm:space-y-6 rounded-[20px] sm:rounded-[28px] border border-[#E5E7EB]/60 bg-[#FBFAF6] p-3 sm:p-6 lg:p-7 shadow-sm">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#10B981]">{l('Billing history', 'பில் வரலாறு')}</p>
-                <h2 className="mt-1 text-xl font-black text-[#111111]">{l('Order Management', 'ஆர்டர் மேலாண்மை')} <span className="text-[11px] font-semibold text-[#374151]">({l('POS Bills only', 'POS பில்கள் மட்டுமே')})</span></h2>
+          <div className="flex flex-col w-full pb-4">
+            {/* Header panel */}
+            <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+              <div className="shrink-0">
+                <h2 className="text-[28px] font-black text-[#000000] tracking-tight whitespace-nowrap">{l('Order History', 'ஆர்டர் வரலாறு')}</h2>
+                <p className="text-xs text-[#000000] font-semibold mt-1">{l('Manage and track past invoices', 'பழைய பில்களை நிர்வகிக்கவும்')}</p>
               </div>
-              <div className="flex gap-2">
-                <Link to="/pos" className="inline-flex items-center gap-2 rounded-xl bg-[#111111] px-4 py-2 text-[13px] font-bold text-white shadow-sm hover:bg-[#1f281d]">
-                  <ShoppingCart size={14} /> Open POS
-                </Link>
-              </div>
-            </div>
-            <div className="rounded-2xl border border-[#E5E7EB]/60 bg-white p-3 sm:p-6 shadow-sm">
-              {/* Bill type filter */}
-              <div className="flex flex-wrap gap-2 mb-4">
-                {([
-                  { v: 'all',     l: l('All Bills', 'அனைத்து') },
-                  { v: 'offline', l: l('Offline', 'ஆஃப்லைன்') },
-                  { v: 'online',  l: l('Online', 'ஆன்லைன்') },
-                ] as const).map(({ v, l }) => (
-                  <button key={v} type="button" onClick={() => setBillTypeFilter(v)}
-                    className={`min-h-[44px] px-3 py-1.5 rounded-xl text-[12px] font-black transition-colors ${billTypeFilter === v ? 'bg-[#111111] text-white shadow-sm' : 'bg-[#F9FAFB] text-[#374151] hover:bg-[#E5E7EB]/40'}`}>
-                    {l}
-                  </button>
-                ))}
-              </div>
-              <form onSubmit={runSearch} className="space-y-3 mb-4">
-                <div className="flex flex-wrap gap-2 items-center">
-                  {(['today', 'week', 'month', 'custom'] as const).map(preset => (
-                    <button key={preset} type="button" onClick={() => applyDatePreset(preset)}
-                      className={`min-h-[44px] px-3 py-1.5 rounded-xl text-[12px] font-black transition-colors ${datePreset === preset ? 'bg-[var(--accent)] text-white shadow-sm' : 'bg-[#F9FAFB] text-[#374151] hover:bg-[#E5E7EB]/40'}`}>
-                      {preset === 'today' ? l('Today','இன்று') : preset === 'week' ? l('This Week','இந்த வாரம்') : preset === 'month' ? l('This Month','இந்த மாதம்') : l('Custom Range','தேர்வு')}
+              <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+                <div className="flex flex-wrap items-center bg-white border border-black/10 rounded-xl p-1 gap-1 max-w-full">
+                  <span className="text-[9px] font-bold text-[#000000] uppercase tracking-wider px-2">Period:</span>
+                  {([['', 'All Time'], ['today', 'Today'], ['week', 'This Week'], ['month', 'This Month'], ['year', 'This Year']] as const).map(([p, label]) => (
+                    <button key={label} type="button" onClick={() => applyDatePreset(p || 'all')}
+                      className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${datePreset === p ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[#000000] hover:bg-black/5'}`}>
+                      {label}
                     </button>
                   ))}
-                  {(search.dateFrom || search.dateTo || datePreset) && (
-                    <button type="button" onClick={() => { setDatePreset(''); setSearch(s => ({ ...s, dateFrom: '', dateTo: '' })) }}
-                      className="min-h-[44px] px-3 py-1.5 rounded-xl text-[12px] font-black text-[var(--accent)] hover:bg-[var(--accent-a5)]">{l('Clear Dates', 'தேதி அழி')}</button>
-                  )}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  <input className="min-h-[48px] rounded-xl bg-[#F9FAFB] px-3 py-2.5 text-[16px] md:text-[13px] font-semibold text-[#111111] placeholder:text-[#8A9384] focus:outline-none focus:ring-2 focus:ring-[var(--accent-a15)]" placeholder={l('Invoice / Bill No', 'பில் எண்')}
-                    value={search.invoiceNo} onChange={e => setSearch(s => ({ ...s, invoiceNo: e.target.value }))} />
-                  <input className="min-h-[48px] rounded-xl bg-[#F9FAFB] px-3 py-2.5 text-[16px] md:text-[13px] font-semibold text-[#111111] placeholder:text-[#8A9384] focus:outline-none focus:ring-2 focus:ring-[var(--accent-a15)]" placeholder={l('Customer Name', 'வாடிக்கையாளர் பெயர்')}
-                    value={search.customerName} onChange={e => setSearch(s => ({ ...s, customerName: e.target.value }))} />
-                  <input className="min-h-[48px] rounded-xl bg-[#F9FAFB] px-3 py-2.5 text-[16px] md:text-[13px] font-semibold text-[#111111] placeholder:text-[#8A9384] focus:outline-none focus:ring-2 focus:ring-[var(--accent-a15)]" placeholder={l('Mobile Number', 'மொபைல் எண்')}
-                    value={search.phone} onChange={e => setSearch(s => ({ ...s, phone: e.target.value }))} />
-                  {datePreset === 'custom' ? (
-                    <>
-                      <input type="date" className="min-h-[48px] rounded-xl bg-[#F9FAFB] px-3 py-2.5 text-[16px] md:text-[13px] font-semibold text-[#111111] focus:outline-none focus:ring-2 focus:ring-[var(--accent-a15)]"
-                        value={search.dateFrom} onChange={e => setSearch(s => ({ ...s, dateFrom: e.target.value }))} />
-                      <input type="date" className="min-h-[48px] rounded-xl bg-[#F9FAFB] px-3 py-2.5 text-[16px] md:text-[13px] font-semibold text-[#111111] focus:outline-none focus:ring-2 focus:ring-[var(--accent-a15)]"
-                        value={search.dateTo} onChange={e => setSearch(s => ({ ...s, dateTo: e.target.value }))} />
-                    </>
-                  ) : (
-                    <button type="submit" disabled={searchLoading}
-                      className="sm:col-span-2 min-h-[48px] flex items-center justify-center gap-2 rounded-xl bg-[var(--accent)] py-2.5 text-[13px] font-bold text-white shadow-sm transition-colors hover:bg-[var(--accent-dark)] disabled:opacity-60">
-                      <Search size={14} /> {searchLoading ? l('Searching...','தேடுகிறது...') : l('Search Bills','தேடு')}
-                    </button>
-                  )}
-                  {datePreset === 'custom' && (
-                    <button type="submit" disabled={searchLoading}
-                      className="sm:col-span-2 lg:col-span-4 min-h-[48px] flex items-center justify-center gap-2 rounded-xl bg-[var(--accent)] py-2.5 text-[13px] font-bold text-white shadow-sm transition-colors hover:bg-[var(--accent-dark)] disabled:opacity-60">
-                      <Search size={14} /> {searchLoading ? l('Searching...','தேடுகிறது...') : l('Search Bills','தேடு')}
-                    </button>
-                  )}
+                <div className="flex flex-wrap items-center border rounded-xl px-3 py-1.5 gap-2 shadow-sm bg-white border-black/10 min-w-0">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#000000]">From:</span>
+                    <input type="date" value={search.dateFrom}
+                      onChange={e => { setDatePreset('custom'); setSearch(s => ({ ...s, dateFrom: e.target.value })) }}
+                      className="text-xs font-bold bg-transparent border-none outline-none focus:ring-0 cursor-pointer text-[#000000] w-[118px]" />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#000000]">To:</span>
+                    <input type="date" value={search.dateTo}
+                      onChange={e => { setDatePreset('custom'); setSearch(s => ({ ...s, dateTo: e.target.value })) }}
+                      className="text-xs font-bold bg-transparent border-none outline-none focus:ring-0 cursor-pointer text-[#000000] w-[118px]" />
+                  </div>
                 </div>
-              </form>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[11px] font-semibold text-[#374151]">{filteredSearchResults.length} {l('result(s)', 'முடிவுகள்')}</p>
-                {filteredSearchResults.length > 0 && (
-                  <button onClick={() => exportCSV(filteredSearchResults)}
-                    className="flex items-center gap-1 text-[11px] font-bold text-[var(--accent)] hover:underline">
-                    <Download size={11} /> Export CSV
-                  </button>
-                )}
+                <button type="button" onClick={() => exportCSV(filteredSearchResults)} disabled={filteredSearchResults.length === 0}
+                  className="flex items-center gap-1.5 px-4 py-2 border-2 border-[var(--accent)] bg-transparent text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-sm disabled:opacity-40">
+                  <Download className="w-3.5 h-3.5" /> Export CSV
+                </button>
               </div>
-              <div className="md:hidden rounded-xl border border-[#E5E7EB]/60 divide-y divide-[#E5E7EB]/60 overflow-hidden bg-[#FBFAF6]">
+            </div>
+            <div>
+              {/* Filters */}
+              <form onSubmit={runSearch} className="bg-white border border-black/10 rounded-xl p-5 shadow-sm mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <label className="block">
+                  <span className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Search Order ID</span>
+                  <span className="relative block">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#000000]" />
+                    <input className="w-full bg-white border border-black/10 focus:border-[var(--accent)] rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm pl-9" placeholder="e.g. INV-..." value={search.invoiceNo} onChange={e => setSearch(s => ({ ...s, invoiceNo: e.target.value }))} />
+                  </span>
+                </label>
+                <label className="block">
+                  <span className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Customer Name</span>
+                  <input className="w-full bg-white border border-black/10 focus:border-[var(--accent)] rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm" placeholder="Search name..." value={search.customerName} onChange={e => setSearch(s => ({ ...s, customerName: e.target.value }))} />
+                </label>
+                <label className="block">
+                  <span className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Customer Phone</span>
+                  <input className="w-full bg-white border border-black/10 focus:border-[var(--accent)] rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm" inputMode="tel" placeholder="Search phone..." value={search.phone} onChange={e => setSearch(s => ({ ...s, phone: e.target.value }))} />
+                </label>
+                <label className="block">
+                  <span className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Order Source</span>
+                  <select className="w-full bg-white border border-black/10 focus:border-[var(--accent)] rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm cursor-pointer" value={billTypeFilter} onChange={e => setBillTypeFilter(e.target.value as typeof billTypeFilter)}>
+                    <option value="all">All Sources</option>
+                    <option value="offline">Offline</option>
+                    <option value="online">Online</option>
+                    <option value="manual">Manual</option>
+                  </select>
+                </label>
+                <button type="submit" className="hidden" aria-hidden="true" tabIndex={-1} />
+              </form>
+              {searchLoading && <p className="mb-2 text-[11px] font-semibold text-[#000000]">{l('Searching...', 'தேடுகிறது...')}</p>}
+              <div className="md:hidden rounded-xl border border-black/10 divide-y divide-black/5 overflow-hidden bg-white">
                 {filteredSearchResults.slice(0, 50).map(o => {
                   const billTypeLabel = normalizeOrderType(o.order_type) === 'manual_sale' ? 'MANUAL' : normalizeOrderMode(o.order_mode) === 'online' ? 'ONLINE' : 'OFFLINE'
                   const billTypeClass = normalizeOrderType(o.order_type) === 'manual_sale' ? 'bg-purple-50 text-purple-700' : normalizeOrderMode(o.order_mode) === 'online' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'
@@ -3141,13 +3121,13 @@ export default function Dashboard() {
                     <div key={o.id} className="p-3 sm:p-4 space-y-2.5 bg-white">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-[13px] font-bold text-[#111111] break-words flex items-center gap-1.5 flex-wrap">
+                          <p className="text-[13px] font-bold text-[#000000] break-words flex items-center gap-1.5 flex-wrap">
                             {o.customer_name || '—'}
                             {o.credit_status === 'paid' && (
                               <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-700 border border-amber-200">Credit Bill</span>
                             )}
                           </p>
-                          <p className="text-[11px] text-[#374151] mt-0.5 break-words">
+                          <p className="text-[11px] text-[#000000] mt-0.5 break-words">
                             {formatInvoiceNo(o.invoice_no)}
                             {' · '}{o.phone || '—'}
                             {' · '}{new Date(getOrderHistoryDate(o)).toLocaleDateString('en-IN')}
@@ -3159,13 +3139,13 @@ export default function Dashboard() {
                           </p>
                         </div>
                         <div className="shrink-0 text-right">
-                          <p className="text-[13px] font-black text-[#111111]">{formatCurrency(getOrderTotal(o))}</p>
+                          <p className="text-[13px] font-black text-[#000000]">{formatCurrency(getOrderTotal(o))}</p>
                           <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${billTypeClass}`}>{billTypeLabel}</span>
                         </div>
                       </div>
                       <div className="flex flex-col sm:flex-row gap-2 pt-1">
                         <div className="flex gap-2 w-full sm:flex-1">
-                          <button onClick={() => void openOrderInvoice(o, 'view')} className="inline-flex h-10 sm:min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-[#E5E7EB]/60 px-2 sm:px-3 text-[12px] font-black text-[#111111] transition-colors hover:bg-white" title="View Invoice">
+                          <button onClick={() => void openOrderInvoice(o, 'view')} className="inline-flex h-10 sm:min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl border border-black/10 px-2 sm:px-3 text-[12px] font-black text-[#000000] transition-colors hover:bg-white" title="View Invoice">
                             <Eye size={14} /> View
                           </button>
                           <button onClick={() => handleShareViaWhatsApp(o)} className="inline-flex h-10 sm:min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-xl bg-green-500 px-2 sm:px-3 text-[12px] font-black text-white transition-colors hover:bg-green-600" title="Invoice & Share via WhatsApp">
@@ -3181,12 +3161,12 @@ export default function Dashboard() {
 <option value="cancelled">{l('Cancelled', 'ரத்து')}</option>
                           </select>
                         ) : (
-                          <span className={`inline-flex items-center justify-center flex-1 min-h-[44px] px-3 py-2 rounded-xl text-[12px] font-black uppercase ${normalizeStatus(o.status) === 'cancelled' ? 'border border-gray-200 bg-gray-100 text-gray-500' : normalizeStatus(o.status) === 'completed' ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-amber-200 bg-amber-50 text-amber-700'}`}>
+                          <span className={`inline-flex items-center justify-center flex-1 min-h-[44px] px-3 py-2 rounded-xl text-[12px] font-black uppercase ${normalizeStatus(o.status) === 'cancelled' ? 'border border-black/10 bg-gray-100 text-gray-500' : normalizeStatus(o.status) === 'completed' ? 'border border-emerald-200 bg-emerald-50 text-emerald-700' : 'border border-amber-200 bg-amber-50 text-amber-700'}`}>
                             {normalizeStatus(o.status) === 'completed' ? l('Completed', 'முடிந்தது') : normalizeStatus(o.status) === 'cancelled' ? l('Cancelled', 'ரத்து') : l('Pending', 'நிலுவை')}
                           </span>
                         )}
                         {role === 'admin' && (
-                          <button onClick={() => void deleteOrder(o.id, o.invoice_no)} className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-xl border border-[#E5E7EB]/60 text-[var(--accent)] transition-colors hover:bg-[var(--accent-a5)]" title="Delete Order">
+                          <button onClick={() => void deleteOrder(o.id, o.invoice_no)} className="h-10 w-10 sm:h-11 sm:w-11 shrink-0 rounded-xl border border-black/10 text-[var(--accent)] transition-colors hover:bg-[var(--accent-a5)]" title="Delete Order">
                             <Trash2 size={14} className="mx-auto" />
                           </button>
                         )}
@@ -3196,34 +3176,34 @@ export default function Dashboard() {
                   )
                 })}
                 {filteredSearchResults.length === 0 && (
-                  <div className="rounded-2xl border border-[#E5E7EB]/60 bg-[#FBFAF6] px-4 py-8 text-center text-[#374151]">{l('No matching bills', 'பில்கள் இல்லை')}</div>
+                  <div className="rounded-2xl border border-black/10 bg-white px-4 py-8 text-center text-[#000000]">{l('No matching bills', 'பில்கள் இல்லை')}</div>
                 )}
               </div>
-              <div className="hidden md:block overflow-x-auto rounded-xl border border-[#E5E7EB]/60 bg-[#FBFAF6]">
+              <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10 bg-white">
                 <table className="w-full text-left text-[13px]">
-                  <thead className="bg-[#F9FAFB] text-[10px] uppercase tracking-wider text-[#374151]">
-                    <tr>
-                      {['Invoice No', 'Customer Name', 'Phone', 'Bill Type', 'Coupon', 'Discount', 'Delivery', 'Total', 'Date', 'Status', 'Actions', 'Details'].map(h => (
-                        <th key={h} className="px-2 py-3 font-black text-center">{h}</th>
+                  <thead>
+                    <tr className="bg-white border-b border-black/10 select-none">
+                      {['Order ID', 'Customer Name', 'Mobile Number', 'Source', 'Coupon', 'Discount', 'Delivery', 'Total Due', 'Date & Time', 'Status', 'Actions', 'Details'].map(h => (
+                        <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#E5E7EB]/30 bg-white">
+                  <tbody className="divide-y divide-black/5 bg-white">
                     {filteredSearchResults.slice(0, 50).map(o => {
                       const billTypeLabel = normalizeOrderType(o.order_type) === 'manual_sale' ? 'MANUAL' : normalizeOrderMode(o.order_mode) === 'online' ? 'ONLINE' : 'OFFLINE'
                       const billTypeClass = normalizeOrderType(o.order_type) === 'manual_sale' ? 'bg-purple-50 text-purple-700' : normalizeOrderMode(o.order_mode) === 'online' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'
                       return (
                         <React.Fragment key={o.id}>
-                        <tr key={o.id} className="hover:bg-[#F9FAFB] text-center">
-                          <td className="whitespace-nowrap px-2 py-3 text-[11px] font-bold text-[#111111]">{formatInvoiceNo(o.invoice_no)}</td>
-                          <td className="max-w-[100px] break-words px-2 py-3 text-[11px] font-semibold text-[#111111]">
+                        <tr key={o.id} className="hover:bg-black/[0.03] text-center">
+                          <td className="whitespace-nowrap px-2 py-3 text-[11px] font-bold text-[#000000]">{formatInvoiceNo(o.invoice_no)}</td>
+                          <td className="max-w-[100px] break-words px-2 py-3 text-[11px] font-semibold text-[#000000]">
                             {o.customer_name}
                             {o.credit_status === 'paid' && (
                               <span className="mt-1 block w-fit rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-700 border border-amber-200">Credit Bill</span>
                             )}
                           </td>
-                          <td className="whitespace-nowrap px-2 py-3 text-[11px] text-[#374151]">
-                            <span className="font-semibold text-[#111111]">{formatPhoneWithCountryCode(o.phone).code}</span>
+                          <td className="whitespace-nowrap px-2 py-3 text-[11px] text-[#000000]">
+                            <span className="font-semibold text-[#000000]">{formatPhoneWithCountryCode(o.phone).code}</span>
                             <span className="ml-1">{formatPhoneWithCountryCode(o.phone).number}</span>
                           </td>
                           <td className="px-2 py-3"><span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase ${billTypeClass}`}>{billTypeLabel}</span></td>
@@ -3234,9 +3214,9 @@ export default function Dashboard() {
                             {o.discount_amount > 0 ? <span className="font-bold text-emerald-700">-{formatCurrency(o.discount_amount)}</span> : <span className="text-[#9BAB9A]">—</span>}
                           </td>
                           <td className="px-2 py-3 text-[11px]">
-                            {o.delivery_charge > 0 ? <span className="font-bold text-[#111111]">{formatCurrency(o.delivery_charge)}</span> : <span className="text-[#9BAB9A]">—</span>}
+                            {o.delivery_charge > 0 ? <span className="font-bold text-[#000000]">{formatCurrency(o.delivery_charge)}</span> : <span className="text-[#9BAB9A]">—</span>}
                           </td>
-                          <td className="whitespace-nowrap px-2 py-3 text-[11px] font-bold text-[#111111]">
+                          <td className="whitespace-nowrap px-2 py-3 text-[11px] font-bold text-[#000000]">
                             {formatCurrency(getOrderTotal(o))}
                             {o.credit_status === 'outstanding' && (
                               <span className="mt-1 block rounded-full bg-red-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-red-700">Credit Due</span>
@@ -3247,7 +3227,7 @@ export default function Dashboard() {
                               </span>
                             )}
                           </td>
-                          <td className="whitespace-nowrap px-2 py-3 text-[11px] text-[#374151]">{new Date(o.created_at).toLocaleDateString('en-IN')}</td>
+                          <td className="whitespace-nowrap px-2 py-3 text-[11px] text-[#000000]">{new Date(o.created_at).toLocaleDateString('en-IN')}</td>
                           <td className="px-2 py-3">
                             <div className="flex items-center justify-center gap-1.5">
                               {role === 'admin' ? (
@@ -3271,7 +3251,7 @@ export default function Dashboard() {
                           </td>
                           <td className="px-2 py-3">
                             <div className="flex items-center justify-center gap-1">
-                              <button onClick={() => void openOrderInvoice(o, 'view')} className="rounded-lg p-1 text-[#111111] transition-colors hover:bg-[#F9FAFB]" title="View Invoice">
+                              <button onClick={() => void openOrderInvoice(o, 'view')} className="rounded-lg p-1 text-[#000000] transition-colors hover:bg-black/[0.03]" title="View Invoice">
                                 <Eye size={13} />
                               </button>
                               <button onClick={() => handleShareViaWhatsApp(o)} className="rounded-lg p-1.5 text-green-600 transition-colors hover:bg-green-50" title="Invoice & Share via WhatsApp">
@@ -3285,7 +3265,7 @@ export default function Dashboard() {
                               className={`rounded-lg p-1 transition-colors ${
                                 historyExpandedId === o.id
                                   ? 'bg-[#111111] text-white'
-                                  : 'text-[#374151] hover:bg-[#F9FAFB]'
+                                  : 'text-[#000000] hover:bg-black/[0.03]'
                               }`}
                               title="View Details"
                             >
@@ -3294,24 +3274,24 @@ export default function Dashboard() {
                           </td>
                         </tr>
                         {historyExpandedId === o.id && (
-                          <tr className="bg-[#F9FAFB] border-b border-[#E5E7EB]/40">
+                          <tr className="bg-white border-b border-black/10">
                             <td colSpan={12} className="px-4 py-4">
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-[12px]">
                                 <div>
                                   <p className="text-[10px] font-black uppercase text-[#9BAB9A] tracking-wider mb-1">Reference No</p>
-                                  <p className="font-semibold text-[#111111]">{(o as unknown as Record<string,unknown>).reference_number as string || '—'}</p>
+                                  <p className="font-semibold text-[#000000]">{(o as unknown as Record<string,unknown>).reference_number as string || '—'}</p>
                                 </div>
                                 <div>
                                   <p className="text-[10px] font-black uppercase text-[#9BAB9A] tracking-wider mb-1">Remarks</p>
-                                  <p className="font-semibold text-[#374151] break-words">{(o as unknown as Record<string,unknown>).remarks as string || '—'}</p>
+                                  <p className="font-semibold text-[#000000] break-words">{(o as unknown as Record<string,unknown>).remarks as string || '—'}</p>
                                 </div>
                                 <div>
                                   <p className="text-[10px] font-black uppercase text-[#9BAB9A] tracking-wider mb-1">Customer</p>
-                                  <p className="font-semibold text-[#111111]">{o.customer_name}</p>
+                                  <p className="font-semibold text-[#000000]">{o.customer_name}</p>
                                 </div>
                                 <div>
                                   <p className="text-[10px] font-black uppercase text-[#9BAB9A] tracking-wider mb-1">Address</p>
-                                  <p className="font-semibold text-[#374151] break-words">{o.address || '—'}</p>
+                                  <p className="font-semibold text-[#000000] break-words">{o.address || '—'}</p>
                                 </div>
                               </div>
                             </td>
@@ -3321,7 +3301,7 @@ export default function Dashboard() {
                       )
                     })}
                     {filteredSearchResults.length === 0 && (
-                      <tr><td colSpan={12} className="px-4 py-8 text-center text-[#374151]">{l('No matching bills', 'பில்கள் இல்லை')}</td></tr>
+                      <tr><td colSpan={12} className="px-4 py-8 text-center text-[#000000]">{l('No matching bills', 'பில்கள் இல்லை')}</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -3336,14 +3316,14 @@ export default function Dashboard() {
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1">
-                  <h2 className="text-[22px] lg:text-[24px] leading-none font-black text-[#111111]">{l('Coupon Management', 'கூப்பன் மேலாண்மை')}</h2>
-                  <p className="max-w-2xl text-[12px] lg:text-[12px] font-medium text-[#6C665C]">
+                  <h2 className="text-[22px] lg:text-[24px] leading-none font-black text-[#000000]">{l('Coupon Management', 'கூப்பன் மேலாண்மை')}</h2>
+                  <p className="max-w-2xl text-[12px] lg:text-[12px] font-medium text-[#000000]">
                     {l('Create and manage discount codes. Applies to product subtotal only.', 'பொருட்களின் subtotal-க்கு மட்டும் கூப்பன் தள்ளுபடி பொருந்தும்.')}
                   </p>
                 </div>
                 <button
                   onClick={() => void loadCoupons()}
-                  className="inline-flex items-center gap-2 rounded-full border border-[#E5E7EB] bg-[#FBFAF6] px-3 py-2 text-[11px] font-black text-[var(--accent)] shadow-sm transition-colors hover:bg-[#F7F1E7]"
+                  className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-2 text-[11px] font-black text-[var(--accent)] shadow-sm transition-colors hover:bg-[#F7F1E7]"
                 >
                   <RefreshCw size={12} />
                   Refresh
@@ -3351,17 +3331,17 @@ export default function Dashboard() {
               </div>
 
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <div className="rounded-xl border border-[#E5E7EB] bg-[#FBFAF6] px-3 py-3 shadow-sm">
+                <div className="rounded-xl border border-black/10 bg-white px-3 py-3 shadow-sm">
                   <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--accent)]">Total Coupons</p>
-                  <p className="mt-1 text-[17px] sm:text-[20px] font-black text-[#111111] break-words">{coupons.length}</p>
+                  <p className="mt-1 text-[17px] sm:text-[20px] font-black text-[#000000] break-words">{coupons.length}</p>
                 </div>
-                <div className="rounded-xl border border-[#E5E7EB] bg-[#FBFAF6] px-3 py-3 shadow-sm">
+                <div className="rounded-xl border border-black/10 bg-white px-3 py-3 shadow-sm">
                   <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--accent)]">Active</p>
                   <p className="mt-1 text-[17px] sm:text-[20px] font-black text-[var(--accent)] break-words">{coupons.filter(c => c.is_active).length}</p>
                 </div>
-                <div className="rounded-xl border border-[#E5E7EB] bg-[#FBFAF6] px-3 py-3 shadow-sm">
+                <div className="rounded-xl border border-black/10 bg-white px-3 py-3 shadow-sm">
                   <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--accent)]">Used</p>
-                  <p className="mt-1 text-[17px] sm:text-[20px] font-black text-[#111111] break-words">{coupons.reduce((acc, c) => acc + (c.usage_count || 0), 0)}</p>
+                  <p className="mt-1 text-[17px] sm:text-[20px] font-black text-[#000000] break-words">{coupons.reduce((acc, c) => acc + (c.usage_count || 0), 0)}</p>
                 </div>
               </div>
 
@@ -3371,11 +3351,11 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
-              <form onSubmit={saveCoupon} className="rounded-2xl border border-[#E5E7EB] bg-[#FFFCF6] p-4 shadow-sm space-y-4">
+              <form onSubmit={saveCoupon} className="rounded-2xl border border-black/10 bg-[#FFFCF6] p-4 shadow-sm space-y-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[var(--accent)]">{editingCouponId !== null ? 'Edit mode' : 'New coupon'}</p>
-                    <h3 className="mt-1 text-[17px] font-black text-[#111111]">
+                    <h3 className="mt-1 text-[17px] font-black text-[#000000]">
                       {editingCouponId !== null ? l('Edit Coupon', 'கூப்பனை திருத்து') : l('Create Coupon', 'புதிய கூப்பன்')}
                     </h3>
                   </div>
@@ -3402,10 +3382,10 @@ export default function Dashboard() {
                 )}
 
                 <div className="space-y-1.5">
-                  <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-[#6B7280]">{l('Coupon Code', 'கூப்பன் குறியீடு')} *</label>
+                  <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-[#000000]">{l('Coupon Code', 'கூப்பன் குறியீடு')} *</label>
                   <div className="flex gap-2">
                     <input
-                      className="flex-1 rounded-xl border border-[#A7F3D0] bg-white px-3 py-2.5 text-[12px] font-black uppercase tracking-[0.12em] text-[#111111] outline-none transition-colors focus:border-[var(--accent)]"
+                      className="flex-1 rounded-xl border border-[#A7F3D0] bg-white px-3 py-2.5 text-[12px] font-black uppercase tracking-[0.12em] text-[#000000] outline-none transition-colors focus:border-[var(--accent)]"
                       placeholder="WELCOME10"
                       value={couponForm.code}
                       disabled={editingCouponId !== null}
@@ -3422,29 +3402,29 @@ export default function Dashboard() {
                     )}
                   </div>
                   {editingCouponId !== null && (
-                    <p className="text-[10px] font-medium text-[#6B7280]">{l('Code cannot be changed when editing', 'திருத்தும்போது குறியீட்டை மாற்ற முடியாது')}</p>
+                    <p className="text-[10px] font-medium text-[#000000]">{l('Code cannot be changed when editing', 'திருத்தும்போது குறியீட்டை மாற்ற முடியாது')}</p>
                   )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-[#6B7280]">{l('Discount %', 'தள்ளுபடி %')} *</label>
+                    <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-[#000000]">{l('Discount %', 'தள்ளுபடி %')} *</label>
                     <input
                       type="number"
                       min="1"
                       max="100"
-                      className="w-full rounded-xl border border-[#A7F3D0] bg-white px-3 py-2.5 text-[12px] font-bold text-[#111111] outline-none transition-colors focus:border-[var(--accent)]"
+                      className="w-full rounded-xl border border-[#A7F3D0] bg-white px-3 py-2.5 text-[12px] font-bold text-[#000000] outline-none transition-colors focus:border-[var(--accent)]"
                       placeholder="10"
                       value={couponForm.percentage}
                       onChange={e => setCouponForm(f => ({ ...f, percentage: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-[#6B7280]">{l('Min Order (INR)', 'குறைந்த ஆர்டர் (INR)')}</label>
+                    <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-[#000000]">{l('Min Order (INR)', 'குறைந்த ஆர்டர் (INR)')}</label>
                     <input
                       type="number"
                       min="0"
-                      className="w-full rounded-xl border border-[#A7F3D0] bg-white px-3 py-2.5 text-[12px] font-bold text-[#111111] outline-none transition-colors focus:border-[var(--accent)]"
+                      className="w-full rounded-xl border border-[#A7F3D0] bg-white px-3 py-2.5 text-[12px] font-bold text-[#000000] outline-none transition-colors focus:border-[var(--accent)]"
                       placeholder="0 = no minimum"
                       value={couponForm.min_order_value}
                       onChange={e => setCouponForm(f => ({ ...f, min_order_value: e.target.value }))}
@@ -3454,20 +3434,20 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div className="space-y-1.5">
-                    <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-[#6B7280]">{l('Expiry Date', 'காலாவதி தேதி')}</label>
+                    <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-[#000000]">{l('Expiry Date', 'காலாவதி தேதி')}</label>
                     <input
                       type="date"
-                      className="w-full rounded-xl border border-[#A7F3D0] bg-white px-3 py-2.5 text-[12px] font-bold text-[#111111] outline-none transition-colors focus:border-[var(--accent)]"
+                      className="w-full rounded-xl border border-[#A7F3D0] bg-white px-3 py-2.5 text-[12px] font-bold text-[#000000] outline-none transition-colors focus:border-[var(--accent)]"
                       value={couponForm.expiry_date}
                       onChange={e => setCouponForm(f => ({ ...f, expiry_date: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-[#6B7280]">{l('Usage Limit', 'பயன்பாட்டு வரம்பு')}</label>
+                    <label className="block text-[10px] font-black uppercase tracking-[0.15em] text-[#000000]">{l('Usage Limit', 'பயன்பாட்டு வரம்பு')}</label>
                     <input
                       type="number"
                       min="1"
-                      className="w-full rounded-xl border border-[#A7F3D0] bg-white px-3 py-2.5 text-[12px] font-bold text-[#111111] outline-none transition-colors focus:border-[var(--accent)]"
+                      className="w-full rounded-xl border border-[#A7F3D0] bg-white px-3 py-2.5 text-[12px] font-bold text-[#000000] outline-none transition-colors focus:border-[var(--accent)]"
                       placeholder="Unlimited"
                       value={couponForm.usage_limit}
                       onChange={e => setCouponForm(f => ({ ...f, usage_limit: e.target.value }))}
@@ -3483,12 +3463,12 @@ export default function Dashboard() {
                 </button>
               </form>
 
-              <div className="rounded-2xl border border-[#E5E7EB] bg-[#FFFCF6] p-4 shadow-sm">
+              <div className="rounded-2xl border border-black/10 bg-[#FFFCF6] p-4 shadow-sm">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#6B7280]">{l('Coupon List', 'கூப்பன் பட்டியல்')}</p>
-                    <h3 className="mt-1 text-[17px] font-black text-[#111111]">
-                      {l('All Coupons', 'அனைத்து கூப்பன்கள்')} <span className="text-[#6B7280]">({coupons.length})</span>
+                    <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#000000]">{l('Coupon List', 'கூப்பன் பட்டியல்')}</p>
+                    <h3 className="mt-1 text-[17px] font-black text-[#000000]">
+                      {l('All Coupons', 'அனைத்து கூப்பன்கள்')} <span className="text-[#000000]">({coupons.length})</span>
                     </h3>
                   </div>
                   <span className="rounded-full border border-[#E7CFAA] bg-[#FFF6E7] px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.15em] text-[var(--accent)]">
@@ -3513,7 +3493,7 @@ export default function Dashboard() {
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                           <div className="min-w-0 space-y-1.5">
                             <div className="flex flex-wrap items-center gap-1.5">
-                              <p className="break-words text-[15px] font-black uppercase tracking-[0.14em] text-[#111111]">{coupon.code}</p>
+                              <p className="break-words text-[15px] font-black uppercase tracking-[0.14em] text-[#000000]">{coupon.code}</p>
                               <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] ${coupon.is_active ? 'bg-[#FCE7EA] text-[var(--accent)]' : 'bg-[#F8EDD9] text-[#9A6700]'}`}>
                                 {coupon.is_active ? l('Active', 'செயலில்') : l('Inactive', 'செயலற்ற')}
                               </span>
@@ -3534,7 +3514,7 @@ export default function Dashboard() {
                               {coupon.min_order_value > 0 && ` • min RM${coupon.min_order_value}`}
                             </p>
 
-                            <p className="text-[11px] text-[#6C665C]">
+                            <p className="text-[11px] text-[#000000]">
                               Used {coupon.usage_count}{coupon.usage_limit ? `/${coupon.usage_limit}` : ''} times
                               {coupon.expiry_date ? ` • expires ${new Date(coupon.expiry_date).toLocaleDateString('en-IN')}` : ''}
                             </p>
@@ -3579,18 +3559,18 @@ export default function Dashboard() {
         )}        {tab === 'users' && (
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-[20px] font-black text-[#111111]">{l('User Management', 'பயனர் மேலாண்மை')}</h2>
+              <h2 className="text-[20px] font-black text-[#000000]">{l('User Management', 'பயனர் மேலாண்மை')}</h2>
               <button onClick={() => void loadUsers()}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-[#F3F4F6] rounded-xl text-[13px] font-bold text-[#111111] hover:bg-[#FAFAFA] transition-colors shadow-sm">
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-[#F3F4F6] rounded-xl text-[13px] font-bold text-[#000000] hover:bg-black/[0.03] transition-colors shadow-sm">
                 <RefreshCw size={14} /> Refresh
               </button>
             </div>
 
             {/* Search */}
             <div className="relative max-w-sm">
-              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#6B7280]" />
+              <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#000000]" />
               <input
-                className="w-full pl-11 pr-4 py-3 bg-white border border-[#D1D5DB] rounded-xl text-[13px] font-bold text-[#111111] placeholder-[#6B7280] focus:outline-none focus:border-[var(--accent)] transition-colors shadow-sm"
+                className="w-full pl-11 pr-4 py-3 bg-white border border-[#D1D5DB] rounded-xl text-[13px] font-bold text-[#000000] placeholder-[#6B7280] focus:outline-none focus:border-[var(--accent)] transition-colors shadow-sm"
                 placeholder={l('Search by name or email...', 'பெயர் அல்லது மின்னஞ்சலால் தேடுக...')}
                 value={userSearch}
                 onChange={e => setUserSearch(e.target.value)}
@@ -3605,10 +3585,10 @@ export default function Dashboard() {
 
             <div className="bg-white rounded-2xl border border-borderLight shadow-sm overflow-hidden">
               {usersLoading ? (
-                <div className="p-10 text-center text-[13px] font-bold text-[#6B7280]">{l('Loading users...', 'பயனர்கள் ஏற்றுகிறது...')}</div>
+                <div className="p-10 text-center text-[13px] font-bold text-[#000000]">{l('Loading users...', 'பயனர்கள் ஏற்றுகிறது...')}</div>
               ) : (
                 <>
-                <div className="md:hidden divide-y divide-[#F3F4F6]">
+                <div className="md:hidden divide-y divide-black/5">
                   {allUsers
                     .filter(u => {
                       if (!userSearch.trim()) return true
@@ -3619,15 +3599,15 @@ export default function Dashboard() {
                       <div key={u.id} className="px-4 py-3 space-y-2.5">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="font-bold text-[#111111] text-[13px] break-words">{u.name || '-'}</p>
-                            <p className="text-[11px] text-[#6B7280] mt-0.5 break-words">
+                            <p className="font-bold text-[#000000] text-[13px] break-words">{u.name || '-'}</p>
+                            <p className="text-[11px] text-[#000000] mt-0.5 break-words">
                               {[u.email, u.mobile, u.created_at ? new Date(u.created_at).toLocaleDateString('en-IN') : null].filter(Boolean).join(' · ')}
                             </p>
                           </div>
                           <span className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${
                             u.role === 'admin'
                               ? 'bg-green-100 text-green-700'
-                              : 'bg-[#F3F4F6] text-[#4B5563]'
+                              : 'bg-black/[0.03] text-[#4B5563]'
                           }`}>
                             {u.role === 'admin' ? <ShieldCheck size={12} /> : <ShieldOff size={12} />}
                             {u.role === 'admin' ? l('Admin', 'நிர்வாகி') : l('Customer', 'வாடிக்கையாளர்')}
@@ -3635,7 +3615,7 @@ export default function Dashboard() {
                         </div>
                         <div>
                           {u.id === user?.id ? (
-                            <span className="text-[12px] text-[#6B7280] font-bold uppercase tracking-wider">{l('You', 'நீங்கள்')}</span>
+                            <span className="text-[12px] text-[#000000] font-bold uppercase tracking-wider">{l('You', 'நீங்கள்')}</span>
                           ) : (
                             <button
                               onClick={() => void toggleUserRole(u)}
@@ -3653,13 +3633,13 @@ export default function Dashboard() {
                       </div>
                     ))}
                   {allUsers.length === 0 && !usersLoading && (
-                    <p className="p-10 text-center text-[14px] font-bold text-[#6B7280] bg-[#FAFAFA]">{l('No users found.', 'பயனர் இல்லை.')}</p>
+                    <p className="p-10 text-center text-[14px] font-bold text-[#000000] bg-white">{l('No users found.', 'பயனர் இல்லை.')}</p>
                   )}
                 </div>
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-[14px]">
                     <thead>
-                      <tr className="bg-[#FAFAFA] border-b border-borderLight uppercase tracking-wider text-[11px] text-[#6B7280]">
+                      <tr className="bg-white border-b border-borderLight uppercase tracking-wider text-[11px] text-[#000000]">
                         <th className="text-left px-6 py-4 font-black">{l('Name', 'பெயர்')}</th>
                         <th className="text-left px-6 py-4 font-black">{l('Email', 'மின்னஞ்சல்')}</th>
                         <th className="text-left px-6 py-4 font-black">{l('Mobile', 'மொபைல்')}</th>
@@ -3668,7 +3648,7 @@ export default function Dashboard() {
                         <th className="text-center px-6 py-4 font-black">{l('Action', 'நடவடிக்கை')}</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#F3F4F6]">
+                    <tbody className="divide-y divide-black/5">
                       {allUsers
                         .filter(u => {
                           if (!userSearch.trim()) return true
@@ -3676,18 +3656,18 @@ export default function Dashboard() {
                           return u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
                         })
                         .map(u => (
-                          <tr key={u.id} className="hover:bg-[#FAFAFA] transition-colors">
-                            <td className="px-6 py-4 font-bold text-[#111111]">{u.name || '-'}</td>
-                            <td className="px-6 py-4 text-[#6B7280]">{u.email || '-'}</td>
-                            <td className="px-6 py-4 text-[#6B7280]">{u.mobile || '-'}</td>
-                            <td className="px-6 py-4 text-[#6B7280] text-[12px]">
+                          <tr key={u.id} className="hover:bg-black/[0.03] transition-colors">
+                            <td className="px-6 py-4 font-bold text-[#000000]">{u.name || '-'}</td>
+                            <td className="px-6 py-4 text-[#000000]">{u.email || '-'}</td>
+                            <td className="px-6 py-4 text-[#000000]">{u.mobile || '-'}</td>
+                            <td className="px-6 py-4 text-[#000000] text-[12px]">
                               {u.created_at ? new Date(u.created_at).toLocaleDateString('en-IN') : '-'}
                             </td>
                             <td className="px-6 py-4 text-center">
                               <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${
                                 u.role === 'admin'
                                   ? 'bg-green-100 text-green-700'
-                                  : 'bg-[#F3F4F6] text-[#4B5563]'
+                                  : 'bg-black/[0.03] text-[#4B5563]'
                               }`}>
                                 {u.role === 'admin' ? <ShieldCheck size={12} /> : <ShieldOff size={12} />}
                                 {u.role === 'admin' ? l('Admin', 'நிர்வாகி') : l('Customer', 'வாடிக்கையாளர்')}
@@ -3695,7 +3675,7 @@ export default function Dashboard() {
                             </td>
                             <td className="px-6 py-4 text-center">
                               {u.id === user?.id ? (
-                                <span className="text-[12px] text-[#6B7280] font-bold uppercase tracking-wider">{l('You', 'நீங்கள்')}</span>
+                                <span className="text-[12px] text-[#000000] font-bold uppercase tracking-wider">{l('You', 'நீங்கள்')}</span>
                               ) : (
                                 <button
                                   onClick={() => void toggleUserRole(u)}
@@ -3715,14 +3695,14 @@ export default function Dashboard() {
                     </tbody>
                   </table>
                   {allUsers.length === 0 && !usersLoading && (
-                    <p className="p-10 text-center text-[14px] font-bold text-[#6B7280] bg-[#FAFAFA]">{l('No users found.', 'பயனர் இல்லை.')}</p>
+                    <p className="p-10 text-center text-[14px] font-bold text-[#000000] bg-white">{l('No users found.', 'பயனர் இல்லை.')}</p>
                   )}
                 </div>
                 </>
               )}
             </div>
 
-            <p className="text-[12px] text-[#6B7280] font-bold">
+            <p className="text-[12px] text-[#000000] font-bold">
               - {l('Role changes take effect upon next login.', 'பங்கு மாற்றம் அடுத்த முறை உள்நுழைந்தால் நடைமுறைக்கு வரும்.')}
             </p>
           </div>
@@ -3769,9 +3749,18 @@ export default function Dashboard() {
         )}
         </div>
         {/* Footer */}
-        <div className="shrink-0 border-t border-gray-100 bg-white/80 py-2 text-center text-[12px] font-semibold text-[#7A8A78] tracking-wide print:hidden">
-          Powered by Cenexa Systems © 2026
-        </div>
+        <footer className="mt-auto pt-10 pb-2 border-t border-black/10 flex flex-col md:flex-row justify-between items-center text-[10px] text-[#000000] font-semibold uppercase tracking-wider gap-4 print:hidden">
+          <div>© {new Date().getFullYear()} All Rights Reserved. {shopName}.</div>
+          <div>
+            Powered By{' '}
+            <a href="https://www.cenexasystems.com/" target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline font-bold transition-all">Cenexa Systems</a>{' '}
+            @2026
+          </div>
+          <div className="italic text-[#9a8c86] font-bold tracking-[0.15em] flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 bg-[var(--accent)] rounded-full"></span>
+            {shopName}
+          </div>
+        </footer>
       </main>
 
 
@@ -3789,17 +3778,17 @@ export default function Dashboard() {
               if (event.target === event.currentTarget) setInvoicePreviewOrder(null)
             }}
           >
-            <div className="flex max-h-[95vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-[#F9FAFB] shadow-2xl">
-              <div className="flex shrink-0 items-center justify-between border-b border-[#E5E7EB]/60 bg-white px-4 py-3 sm:px-6">
+            <div className="flex max-h-[95vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+              <div className="flex shrink-0 items-center justify-between border-b border-black/10 bg-white px-4 py-3 sm:px-6">
                 <div>
-                  <h2 className="text-base font-black text-[#111111]">Invoice Preview</h2>
-                  <p className="text-xs font-semibold text-[#6B7280]">{formatInvoiceNo(invoicePreviewOrder.invoice_no || invoicePreviewOrder.id)}</p>
+                  <h2 className="text-base font-black text-[#000000]">Invoice Preview</h2>
+                  <p className="text-xs font-semibold text-[#000000]">{formatInvoiceNo(invoicePreviewOrder.invoice_no || invoicePreviewOrder.id)}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => handlePrintReceipt(invoicePreviewOrder)}
-                    className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-[#E5E7EB]/70 px-3 text-xs font-black text-[#111111] hover:bg-[#F9FAFB]"
+                    className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-black/10 px-3 text-xs font-black text-[#000000] hover:bg-black/[0.03]"
                   >
                     <Printer size={15} /> Print
                   </button>
@@ -3813,7 +3802,7 @@ export default function Dashboard() {
                   <button
                     type="button"
                     onClick={() => setInvoicePreviewOrder(null)}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-[#6B7280] hover:bg-[#F9FAFB] hover:text-[#111111]"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-[#000000] hover:bg-black/[0.03] hover:text-[#000000]"
                     aria-label="Close invoice preview"
                   >
                     <X size={19} />

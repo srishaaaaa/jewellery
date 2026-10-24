@@ -161,9 +161,9 @@ export const ExpensesView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Header & Tab Pills */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-200 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-black/10 pb-5">
         <div>
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-[#0A0A0A] flex items-center gap-2.5">
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-[#000000] flex items-center gap-2.5">
             <Receipt size={24} className="text-[var(--accent)]" />
             Expense Tracker
           </h2>
@@ -212,15 +212,15 @@ export const ExpensesView: React.FC = () => {
             ].map((kpi, idx) => (
               <div
                 key={idx}
-                className={`bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 min-h-[104px] shadow-xs flex flex-col justify-between hover:border-[var(--accent-a50)] transition-all ${idx === 4 ? 'col-span-2 sm:col-span-1' : ''}`}
+                className={`bg-white border border-black/10 rounded-2xl p-4 sm:p-5 min-h-[104px] shadow-xs flex flex-col justify-between hover:border-[var(--accent-a50)] transition-all ${idx === 4 ? 'col-span-2 sm:col-span-1' : ''}`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <span className="text-xs sm:text-[13px] font-semibold text-gray-600">{kpi.label}</span>
-                  <div className="w-7 h-7 rounded-lg bg-[#FBFAF6] border border-[var(--accent-a50)] flex items-center justify-center text-[var(--accent)] shrink-0">
+                  <div className="w-7 h-7 rounded-lg bg-white border border-[var(--accent-a50)] flex items-center justify-center text-[var(--accent)] shrink-0">
                     <TrendingDown size={14} />
                   </div>
                 </div>
-                <div className="mt-3 text-lg sm:text-xl font-black text-[#0A0A0A] tracking-tight">
+                <div className="mt-3 text-lg sm:text-xl font-black text-[#000000] tracking-tight">
                   {formatCurrencyValue(kpi.value)}
                 </div>
               </div>
@@ -228,7 +228,7 @@ export const ExpensesView: React.FC = () => {
           </div>
 
           {/* Filter Bar — one row: search · category · dates · filters · refresh · export · record */}
-          <div className="bg-white border border-gray-200 rounded-3xl p-3.5 sm:p-5 shadow-xs">
+          <div className="bg-white border border-black/10 rounded-3xl p-3.5 sm:p-5 shadow-xs">
             <div className="flex flex-col lg:flex-row lg:items-center gap-2.5">
               {/* Search */}
               <div className="relative flex-1 min-w-0">
@@ -238,7 +238,7 @@ export const ExpensesView: React.FC = () => {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Search description, category, staff, amount..."
-                  className="w-full h-11 pl-10 pr-9 rounded-xl border border-gray-200 bg-[#FAFAFA] text-xs sm:text-sm font-medium text-gray-900 outline-none focus:border-[#0A0A0A] focus:bg-white"
+                  className="w-full h-11 pl-10 pr-9 rounded-xl border border-black/10 bg-white text-xs sm:text-sm font-medium text-gray-900 outline-none focus:border-[#0A0A0A] focus:bg-white"
                 />
                 {searchQuery && (
                   <button type="button" onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer">
@@ -253,7 +253,7 @@ export const ExpensesView: React.FC = () => {
                   <select
                     value={selectedCategoryId}
                     onChange={(e) => setSelectedCategoryId(e.target.value)}
-                    className="w-full sm:w-44 h-11 pl-3.5 pr-9 rounded-xl border border-gray-200 bg-white text-xs sm:text-sm font-bold text-gray-900 outline-none focus:border-[#0A0A0A] cursor-pointer appearance-none"
+                    className="w-full sm:w-44 h-11 pl-3.5 pr-9 rounded-xl border border-black/10 bg-white text-xs sm:text-sm font-bold text-gray-900 outline-none focus:border-[#0A0A0A] cursor-pointer appearance-none"
                   >
                     <option value="all">All Categories</option>
                     {categories.map((cat) => (
@@ -272,7 +272,7 @@ export const ExpensesView: React.FC = () => {
                       if (v === 'custom') setShowFilters(true)
                       else applyDatePreset(v as 'all' | 'today' | 'week' | 'month' | 'year')
                     }}
-                    className="w-full sm:w-44 h-11 pl-3.5 pr-9 rounded-xl border border-gray-200 bg-white text-xs sm:text-sm font-bold text-gray-900 outline-none focus:border-[#0A0A0A] cursor-pointer appearance-none"
+                    className="w-full sm:w-44 h-11 pl-3.5 pr-9 rounded-xl border border-black/10 bg-white text-xs sm:text-sm font-bold text-gray-900 outline-none focus:border-[#0A0A0A] cursor-pointer appearance-none"
                   >
                     <option value="all">All Dates</option>
                     <option value="today">Today</option>
@@ -289,12 +289,12 @@ export const ExpensesView: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => setShowFilters((v) => !v)}
-                    className={`h-11 px-4 rounded-xl border bg-white text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2 cursor-pointer transition-colors ${showFilters || fromDate || toDate ? 'border-[#0A0A0A]' : 'border-gray-200 hover:border-gray-400'}`}
+                    className={`h-11 px-4 rounded-xl border bg-white text-xs sm:text-sm font-bold text-gray-900 flex items-center gap-2 cursor-pointer transition-colors ${showFilters || fromDate || toDate ? 'border-[#0A0A0A]' : 'border-black/10 hover:border-gray-400'}`}
                   >
                     <SlidersHorizontal size={15} /> Filters <ChevronDown size={14} className={`transition-transform ${showFilters ? 'rotate-180' : ''}`} />
                   </button>
                   {showFilters && (
-                    <div className="absolute left-0 top-full mt-2 z-30 w-72 max-w-[calc(100vw-2rem)] rounded-2xl border border-gray-200 bg-white p-4 shadow-xl space-y-3">
+                    <div className="absolute left-0 top-full mt-2 z-30 w-72 max-w-[calc(100vw-2rem)] rounded-2xl border border-black/10 bg-white p-4 shadow-xl space-y-3">
                       <p className="text-[11px] font-black uppercase tracking-wider text-gray-500">Custom date range</p>
                       <label className="block">
                         <span className="block text-[11px] font-bold text-gray-600 mb-1">From</span>
@@ -304,7 +304,7 @@ export const ExpensesView: React.FC = () => {
                             type="date"
                             value={fromDate}
                             onChange={(e) => { setFromDate(e.target.value); setActivePreset('all') }}
-                            className="w-full h-10 pl-9 pr-2.5 rounded-xl border border-gray-300 bg-[#FAFAFA] text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]"
+                            className="w-full h-10 pl-9 pr-2.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]"
                           />
                         </div>
                       </label>
@@ -316,12 +316,12 @@ export const ExpensesView: React.FC = () => {
                             type="date"
                             value={toDate}
                             onChange={(e) => { setToDate(e.target.value); setActivePreset('all') }}
-                            className="w-full h-10 pl-9 pr-2.5 rounded-xl border border-gray-300 bg-[#FAFAFA] text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]"
+                            className="w-full h-10 pl-9 pr-2.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]"
                           />
                         </div>
                       </label>
                       <div className="flex gap-2 pt-1">
-                        <button type="button" onClick={() => { resetAllFilters(); setShowFilters(false) }} className="flex-1 h-9 rounded-xl border border-gray-200 bg-gray-50 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer">
+                        <button type="button" onClick={() => { resetAllFilters(); setShowFilters(false) }} className="flex-1 h-9 rounded-xl border border-black/10 bg-gray-50 text-xs font-bold text-gray-700 hover:bg-gray-100 cursor-pointer">
                           Reset all
                         </button>
                         <button type="button" onClick={() => setShowFilters(false)} className="flex-1 h-9 rounded-xl bg-[#0A0A0A] text-[var(--accent)] text-xs font-bold cursor-pointer">
@@ -337,7 +337,7 @@ export const ExpensesView: React.FC = () => {
                   type="button"
                   onClick={() => void refreshAll()}
                   title="Refresh Expenses"
-                  className="h-11 w-11 rounded-xl border border-gray-200 bg-white flex items-center justify-center text-gray-600 hover:text-black hover:border-gray-400 transition-all cursor-pointer shrink-0"
+                  className="h-11 w-11 rounded-xl border border-black/10 bg-white flex items-center justify-center text-gray-600 hover:text-black hover:border-gray-400 transition-all cursor-pointer shrink-0"
                 >
                   <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
                 </button>
@@ -347,7 +347,7 @@ export const ExpensesView: React.FC = () => {
                   type="button"
                   onClick={() => exportExpensesToCSV(filteredExpenses)}
                   disabled={filteredExpenses.length === 0}
-                  className="h-11 px-4 rounded-xl border border-gray-200 bg-white text-xs sm:text-sm font-bold text-gray-800 hover:bg-gray-50 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-default"
+                  className="h-11 px-4 rounded-xl border border-black/10 bg-white text-xs sm:text-sm font-bold text-gray-800 hover:bg-gray-50 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-default"
                 >
                   <Download size={15} /> Export CSV
                 </button>
@@ -365,8 +365,8 @@ export const ExpensesView: React.FC = () => {
           </div>
 
           {/* Expenses Table */}
-          <div className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-xs">
-            <div className="px-5 sm:px-6 py-5 border-b border-gray-100 bg-[#FAFAFA] flex items-center justify-between">
+          <div className="bg-white border border-black/10 rounded-3xl overflow-hidden shadow-xs">
+            <div className="px-5 sm:px-6 py-5 border-b border-black/10 bg-white flex items-center justify-between">
               <h4 className="text-sm font-bold text-gray-900">
                 Expense Records ({filteredExpenses.length})
               </h4>
@@ -383,7 +383,7 @@ export const ExpensesView: React.FC = () => {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse whitespace-nowrap">
                 <thead>
-                  <tr className="border-b border-gray-200 bg-[#FBFAF6]">
+                  <tr className="border-b border-black/10 bg-white">
                     <th className="px-5 sm:px-6 py-4 text-xs font-bold text-gray-800">
                       Date
                     </th>
@@ -423,14 +423,14 @@ export const ExpensesView: React.FC = () => {
                           {exp.expense_date}
                         </td>
                         <td className="px-5 py-3.5">
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold bg-[#FBFAF6] text-[#0A0A0A] border border-[var(--accent-a40)]">
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white text-[#000000] border border-[var(--accent-a40)]">
                             {exp.category_name}
                           </span>
                         </td>
                         <td className="px-5 py-3.5 text-gray-700 max-w-[280px] break-words">
                           {exp.description || '—'}
                         </td>
-                        <td className="px-5 py-3.5 text-right font-black text-sm text-[#0A0A0A] whitespace-nowrap">
+                        <td className="px-5 py-3.5 text-right font-black text-sm text-[#000000] whitespace-nowrap">
                           {formatCurrencyValue(exp.amount)}
                         </td>
                         <td className="px-5 py-3.5 text-right whitespace-nowrap">

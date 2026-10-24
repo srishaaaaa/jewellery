@@ -194,7 +194,7 @@ export const InventoryAnalyticsView: React.FC = () => {
       {/* Top Controls & Date Filters */}
       <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         {/* Date Range Selector Pills */}
-        <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 p-1 bg-[#FBFAF6] border border-gray-200 rounded-xl">
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 p-1 bg-white border border-black/10 rounded-xl">
           <button
             type="button"
             onClick={() => setRange('all')}
@@ -290,7 +290,7 @@ export const InventoryAnalyticsView: React.FC = () => {
             <PackagePlus size={20} />
           </div>
           <div>
-            <div className="text-[10px] font-black uppercase tracking-wider text-gray-500">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
               Incoming Stock
             </div>
             <div className="text-[15px] sm:text-xl font-black text-emerald-700 break-words">
@@ -305,7 +305,7 @@ export const InventoryAnalyticsView: React.FC = () => {
             <ShoppingCart size={20} />
           </div>
           <div>
-            <div className="text-[10px] font-black uppercase tracking-wider text-gray-500">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
               Units Sold (POS)
             </div>
             <div className="text-[15px] sm:text-xl font-black text-purple-700 break-words">
@@ -320,7 +320,7 @@ export const InventoryAnalyticsView: React.FC = () => {
             <AlertOctagon size={20} />
           </div>
           <div>
-            <div className="text-[10px] font-black uppercase tracking-wider text-gray-500">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
               Lost / Damaged
             </div>
             <div className="text-[15px] sm:text-xl font-black text-red-700 break-words">
@@ -335,7 +335,7 @@ export const InventoryAnalyticsView: React.FC = () => {
             {data.netDelta >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
           </div>
           <div>
-            <div className="text-[10px] font-black uppercase tracking-wider text-gray-500">
+            <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
               Net Stock Delta
             </div>
             <div className={`text-[15px] sm:text-xl font-black break-words ${data.netDelta >= 0 ? 'text-black' : 'text-amber-700'}`}>
@@ -346,9 +346,9 @@ export const InventoryAnalyticsView: React.FC = () => {
       </div>
 
       {/* Movement Ledger Table Section */}
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm flex flex-col">
+      <div className="bg-white border border-black/10 rounded-2xl overflow-hidden shadow-sm flex flex-col">
         {/* Table Filter Bar */}
-        <div className="p-4 border-b border-gray-200 bg-[#FAFAFA] flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+        <div className="p-4 border-b border-black/10 bg-white flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <h4 className="text-xs font-black uppercase tracking-wider text-gray-800">
               Movement Audit Ledger ({filteredMovements.length})
@@ -393,7 +393,7 @@ export const InventoryAnalyticsView: React.FC = () => {
           <>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead className="bg-[#FBFAF6] border-b border-gray-200 text-[10px] font-black uppercase tracking-wider text-gray-600">
+              <thead className="bg-white border-b border-black/10 text-[10px] font-bold uppercase tracking-widest text-gray-600">
                 <tr>
                   <th className="p-3">Date &amp; Time</th>
                   <th className="p-3">Type</th>
@@ -407,7 +407,7 @@ export const InventoryAnalyticsView: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredMovements.map((m) => (
-                  <tr key={m.id} className="hover:bg-[#FBFAF6] transition-colors">
+                  <tr key={m.id} className="hover:bg-black/[0.03] transition-colors">
                     <td className="p-3 font-mono text-[11px] text-gray-500 whitespace-nowrap">
                       {new Date(m.created_at).toLocaleString('en-IN', {
                         day: '2-digit',

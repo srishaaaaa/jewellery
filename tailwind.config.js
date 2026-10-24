@@ -7,7 +7,7 @@ export default {
   theme: {
     extend: {
       colors: {
-        bgMain:    '#FBFAF6', // Warm luxury linen surface
+        bgMain:    '#FFFFFF', // Plain white surface (IGMOLS look)
         cardBg:    '#FFFFFF',
         brand: {
           black:      '#0A0A0A',
@@ -36,12 +36,12 @@ export default {
         borderLight: '#E5E7EB', // Neutral clean border
       },
       fontFamily: {
-        sans:      ['"DM Sans"', '"Outfit"', '"Noto Sans Tamil"', 'system-ui', '-apple-system', 'sans-serif'],
-        dmsans:    ['"DM Sans"', 'sans-serif'],
-        'dm-sans': ['"DM Sans"', 'sans-serif'],
-        outfit:    ['"Outfit"', 'sans-serif'],
-        brand:     ['"Cinzel"', '"DM Sans"', '"Outfit"', '"Noto Sans Tamil"', 'serif'],
-        headline:  ['"DM Sans"', '"Outfit"', '"Noto Sans Tamil"', 'sans-serif'],
+        sans:      ['"Poppins"', 'system-ui', '-apple-system', '"Segoe UI"', 'sans-serif'],
+        dmsans:    ['"Poppins"', 'sans-serif'],
+        'dm-sans': ['"Poppins"', 'sans-serif'],
+        outfit:    ['"Poppins"', 'sans-serif'],
+        brand:     ['"Poppins"', 'sans-serif'],
+        headline:  ['"Poppins"', 'sans-serif'],
       },
       boxShadow: {
         soft:   '0 1px 3px rgba(0,0,0,0.05)',

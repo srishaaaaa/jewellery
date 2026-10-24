@@ -35,7 +35,7 @@ export default function AnniversaryView() {
           type="button"
           onClick={() => applyFilterPreset(key)}
           className={`rounded-lg px-2 py-1 text-[10px] font-bold transition-colors ${
-            filterPreset === key ? 'bg-[var(--accent)] text-[#0A0A0A]' : 'bg-[#F3F4F6] text-[#374151] hover:bg-[#E5E7EB]'
+            filterPreset === key ? 'bg-[var(--accent)] text-[#000000]' : 'bg-black/[0.03] text-[#000000] hover:bg-[#E5E7EB]'
           }`}
         >
           {label}
@@ -142,18 +142,18 @@ export default function AnniversaryView() {
           💍
         </div>
         <div>
-          <h2 className="text-2xl font-black text-[#273126]">Anniversaries</h2>
-          <p className="text-sm text-[#6B7280]">Customer anniversaries & one-tap offer sender</p>
+          <h2 className="text-[28px] font-black text-[#000000] tracking-tight">Anniversaries</h2>
+          <p className="text-sm text-[#000000]">Customer anniversaries & one-tap offer sender</p>
         </div>
       </div>
 
-      <div className="flex gap-2 border-b border-[#E5E7EB]">
+      <div className="flex gap-2 border-b border-black/10">
         <button
           onClick={() => setCurrentPage('calendar')}
           className={`px-4 py-3 font-bold text-sm transition-colors ${
             currentPage === 'calendar'
               ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
-              : 'text-[#6B7280] hover:text-[#111111]'
+              : 'text-[#000000] hover:text-[#000000]'
           }`}
         >
           Calendar
@@ -163,7 +163,7 @@ export default function AnniversaryView() {
           className={`px-4 py-3 font-bold text-sm transition-colors ${
             currentPage === 'customers'
               ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
-              : 'text-[#6B7280] hover:text-[#111111]'
+              : 'text-[#000000] hover:text-[#000000]'
           }`}
         >
           Customers
@@ -175,48 +175,48 @@ export default function AnniversaryView() {
         <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
           {/* Left Sidebar - Calendar & Filter */}
           <div className="space-y-4">
-            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-3">
+            <div className="rounded-2xl border border-black/10 bg-white p-3">
               <div className="flex items-center justify-between gap-2 mb-3">
                 <div className="flex gap-1">
-                  <select value={currentMonth} onChange={(e) => setCurrentMonth(parseInt(e.target.value))} className="rounded-lg border border-[#E5E7EB] bg-white px-2 py-1.5 text-xs font-bold">
+                  <select value={currentMonth} onChange={(e) => setCurrentMonth(parseInt(e.target.value))} className="rounded-lg border border-black/10 bg-white px-2 py-1.5 text-xs font-bold">
                     {Array.from({ length: 12 }, (_, i) => <option key={i} value={i}>{new Date(2024, i, 1).toLocaleDateString('en-IN', { month: 'short' })}</option>)}
                   </select>
-                  <select value={currentYear} onChange={(e) => setCurrentYear(parseInt(e.target.value))} className="rounded-lg border border-[#E5E7EB] bg-white px-2 py-1.5 text-xs font-bold">
+                  <select value={currentYear} onChange={(e) => setCurrentYear(parseInt(e.target.value))} className="rounded-lg border border-black/10 bg-white px-2 py-1.5 text-xs font-bold">
                     {Array.from({ length: new Date().getFullYear() + 30 - 1940 + 1 }, (_, i) => { const year = 1940 + i; return <option key={year} value={year}>{year}</option> })}
                   </select>
                 </div>
                 <div className="flex gap-1">
-                  <button onClick={() => { if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(currentYear - 1) } else { setCurrentMonth(currentMonth - 1) } }} className="rounded border border-[#E5E7EB] bg-white p-1 hover:bg-gray-50"><ChevronLeft size={14} /></button>
-                  <button onClick={() => { const today = new Date(); setCurrentMonth(today.getMonth()); setCurrentYear(today.getFullYear()) }} className="rounded border border-[#E5E7EB] bg-white px-2 py-1 text-[10px] font-bold hover:bg-gray-50">Today</button>
-                  <button onClick={() => { if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear(currentYear + 1) } else { setCurrentMonth(currentMonth + 1) } }} className="rounded border border-[#E5E7EB] bg-white p-1 hover:bg-gray-50"><ChevronRight size={14} /></button>
+                  <button onClick={() => { if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(currentYear - 1) } else { setCurrentMonth(currentMonth - 1) } }} className="rounded border border-black/10 bg-white p-1 hover:bg-gray-50"><ChevronLeft size={14} /></button>
+                  <button onClick={() => { const today = new Date(); setCurrentMonth(today.getMonth()); setCurrentYear(today.getFullYear()) }} className="rounded border border-black/10 bg-white px-2 py-1 text-[10px] font-bold hover:bg-gray-50">Today</button>
+                  <button onClick={() => { if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear(currentYear + 1) } else { setCurrentMonth(currentMonth + 1) } }} className="rounded border border-black/10 bg-white p-1 hover:bg-gray-50"><ChevronRight size={14} /></button>
                 </div>
               </div>
 
-              <div className="mb-2 grid grid-cols-7 gap-0.5 text-center text-[9px] font-bold text-[#6B7280]">
+              <div className="mb-2 grid grid-cols-7 gap-0.5 text-center text-[9px] font-bold text-[#000000]">
                 {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => <div key={i}>{day}</div>)}
               </div>
               <div className="grid grid-cols-7 gap-0.5">
                 {days.map((day, idx) => (
-                  <div key={idx} className={`h-6 flex items-center justify-center rounded text-[10px] font-bold ${day === null ? '' : daysWithAnniversaries.has(day) ? 'relative border border-rose-500 bg-rose-50 text-[#111111]' : 'border border-[#E5E7EB] text-[#6B7280]'}`}>
+                  <div key={idx} className={`h-6 flex items-center justify-center rounded text-[10px] font-bold ${day === null ? '' : daysWithAnniversaries.has(day) ? 'relative border border-rose-500 bg-rose-50 text-[#000000]' : 'border border-black/10 text-[#000000]'}`}>
                     {day}
                     {day && daysWithAnniversaries.has(day) && <div className="absolute bottom-0.5 h-0.5 w-0.5 rounded-full bg-rose-500"></div>}
                   </div>
                 ))}
               </div>
-              <p className="mt-2 text-[9px] text-[#6B7280]">🔴 Dot = anniversary</p>
+              <p className="mt-2 text-[9px] text-[#000000]">🔴 Dot = anniversary</p>
             </div>
 
-            <div className="rounded-2xl border border-[#E5E7EB] bg-white p-3">
-              <h3 className="mb-2 font-bold text-xs text-[#273126]">Filter by date</h3>
+            <div className="rounded-2xl border border-black/10 bg-white p-3">
+              <h3 className="mb-2 font-bold text-xs text-[#000000]">Filter by date</h3>
               {presetButtons}
               <div className="space-y-2">
                 <div>
-                  <label className="block text-[9px] font-bold text-[#6B7280] mb-0.5">FROM</label>
-                  <input type="date" value={filterFromDate} onChange={(e) => { setFilterFromDate(e.target.value); setFilterPreset('') }} className="w-full rounded-lg border border-[#E5E7EB] bg-white px-2 py-1.5 text-[10px] font-semibold" />
+                  <label className="block text-[9px] font-bold text-[#000000] mb-0.5">FROM</label>
+                  <input type="date" value={filterFromDate} onChange={(e) => { setFilterFromDate(e.target.value); setFilterPreset('') }} className="w-full rounded-lg border border-black/10 bg-white px-2 py-1.5 text-[10px] font-semibold" />
                 </div>
                 <div>
-                  <label className="block text-[9px] font-bold text-[#6B7280] mb-0.5">TO</label>
-                  <input type="date" value={filterToDate} onChange={(e) => { setFilterToDate(e.target.value); setFilterPreset('') }} className="w-full rounded-lg border border-[#E5E7EB] bg-white px-2 py-1.5 text-[10px] font-semibold" />
+                  <label className="block text-[9px] font-bold text-[#000000] mb-0.5">TO</label>
+                  <input type="date" value={filterToDate} onChange={(e) => { setFilterToDate(e.target.value); setFilterPreset('') }} className="w-full rounded-lg border border-black/10 bg-white px-2 py-1.5 text-[10px] font-semibold" />
                 </div>
               </div>
             </div>
@@ -231,9 +231,9 @@ export default function AnniversaryView() {
       {/* Customers Page */}
       {currentPage === 'customers' && (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4">
+          <div className="rounded-2xl border border-black/10 bg-white p-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-[#273126] text-sm">Filter by upcoming anniversary</h3>
+              <h3 className="font-bold text-[#000000] text-sm">Filter by upcoming anniversary</h3>
               {filtered.length > 0 && (
                 <button
                   onClick={exportToCSV}
@@ -246,20 +246,20 @@ export default function AnniversaryView() {
             {presetButtons}
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <label className="block text-xs font-bold text-[#6B7280] mb-1">FROM</label>
-                <input type="date" value={filterFromDate} onChange={(e) => { setFilterFromDate(e.target.value); setFilterPreset('') }} className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold" />
+                <label className="block text-xs font-bold text-[#000000] mb-1">FROM</label>
+                <input type="date" value={filterFromDate} onChange={(e) => { setFilterFromDate(e.target.value); setFilterPreset('') }} className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-xs font-semibold" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-[#6B7280] mb-1">TO</label>
-                <input type="date" value={filterToDate} onChange={(e) => { setFilterToDate(e.target.value); setFilterPreset('') }} className="w-full rounded-lg border border-[#E5E7EB] bg-white px-3 py-2 text-xs font-semibold" />
+                <label className="block text-xs font-bold text-[#000000] mb-1">TO</label>
+                <input type="date" value={filterToDate} onChange={(e) => { setFilterToDate(e.target.value); setFilterPreset('') }} className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-xs font-semibold" />
               </div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-[#E5E7EB] bg-white p-4 overflow-hidden">
+          <div className="rounded-2xl border border-black/10 bg-white p-4 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-[#F8F7F4] border-b border-[#E5E7EB]">
+                <thead className="bg-black/[0.03] border-b border-black/10">
                   <tr>
                     <th className="px-4 py-3 font-black">CUSTOMER</th>
                     <th className="px-4 py-3 font-black">MOBILE</th>
@@ -268,18 +268,18 @@ export default function AnniversaryView() {
                     <th className="px-4 py-3 font-black">OFFER</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E5E7EB]">
+                <tbody className="divide-y divide-black/5">
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-4 py-8 text-center text-[#6B7280]">No customers match the selected filters.</td>
+                      <td colSpan={5} className="px-4 py-8 text-center text-[#000000]">No customers match the selected filters.</td>
                     </tr>
                   ) : (
                     filtered.map((customer) => (
                       <tr key={customer.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-bold text-[#111111]">{customer.name}</td>
-                        <td className="px-4 py-3 text-[#6B7280]">{customer.phone}</td>
-                        <td className="px-4 py-3 text-[#6B7280]">{new Date(`${customer.anniversary}T00:00:00`).toLocaleDateString('en-IN')}</td>
-                        <td className="px-4 py-3 font-black text-[#111111]">₹0</td>
+                        <td className="px-4 py-3 font-bold text-[#000000]">{customer.name}</td>
+                        <td className="px-4 py-3 text-[#000000]">{customer.phone}</td>
+                        <td className="px-4 py-3 text-[#000000]">{new Date(`${customer.anniversary}T00:00:00`).toLocaleDateString('en-IN')}</td>
+                        <td className="px-4 py-3 font-black text-[#000000]">₹0</td>
                         <td className="px-4 py-3">
                           <button onClick={() => sendOffer(customer)} className="flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-[10px] font-black text-white cursor-pointer">
                             <MessageCircle size={12} /> SEND OFFER

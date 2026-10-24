@@ -198,7 +198,7 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
       <button
         type="button"
         onClick={() => set((q) => clamp(typeof q === 'number' ? q - 1 : 0))}
-        className="shrink-0 w-11 h-11 rounded-xl bg-white border border-gray-200 text-gray-700 flex items-center justify-center hover:bg-gray-50 transition-colors cursor-pointer"
+        className="shrink-0 w-11 h-11 rounded-xl bg-white border border-black/10 text-gray-700 flex items-center justify-center hover:bg-gray-50 transition-colors cursor-pointer"
       >
         <Minus size={16} />
       </button>
@@ -224,7 +224,7 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
       <button
         type="button"
         onClick={() => set((q) => clamp(typeof q === 'number' ? q + 1 : 1))}
-        className="shrink-0 w-11 h-11 rounded-xl bg-white border border-gray-200 text-gray-700 flex items-center justify-center hover:bg-gray-50 transition-colors cursor-pointer"
+        className="shrink-0 w-11 h-11 rounded-xl bg-white border border-black/10 text-gray-700 flex items-center justify-center hover:bg-gray-50 transition-colors cursor-pointer"
       >
         <Plus size={16} />
       </button>
@@ -233,7 +233,7 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
 
   // Current → New Stock line with the change pill, shown inside the quantity panel
   const preview = (
-    <div className="bg-white border border-gray-200 rounded-xl px-3 py-2.5 flex items-center justify-between gap-2 text-xs">
+    <div className="bg-white border border-black/10 rounded-xl px-3 py-2.5 flex items-center justify-between gap-2 text-xs">
       <div className="flex flex-wrap items-center gap-1.5 min-w-0 font-semibold text-gray-500">
         <span>Current:</span>
         <span className="text-black font-black">{currentStock}</span>
@@ -293,10 +293,10 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
             )}
 
             {/* Product card */}
-            <div className="bg-[#FBFAF6] border border-[var(--accent-a40)] rounded-2xl p-3">
+            <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="text-[10px] font-black uppercase tracking-wider text-[var(--accent-dark)] flex items-center gap-1">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--accent-dark)] flex items-center gap-1">
                     <Package size={12} /> Product
                   </div>
                   <div className="text-sm sm:text-[15px] font-black text-black break-words mt-1 leading-snug">
@@ -324,7 +324,7 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
               {item.barcode && (
                 <div className="mt-2 pt-2 border-t border-[var(--accent-a20)] flex items-center gap-1.5 text-[11px] font-semibold text-gray-600">
                   <span>Barcode:</span>
-                  <strong className="font-mono text-black bg-white px-1.5 rounded border border-gray-200">{item.barcode}</strong>
+                  <strong className="font-mono text-black bg-white px-1.5 rounded border border-black/10">{item.barcode}</strong>
                 </div>
               )}
             </div>
@@ -344,7 +344,7 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
                       type="button"
                       onClick={() => { setMode(key); setQuantity(key === 'DAMAGE' && currentStock <= 0 ? 0 : 1); setError('') }}
                       className={`flex h-[84px] flex-col items-center justify-center gap-1 px-1 rounded-xl border-2 text-center transition-all cursor-pointer ${
-                        active ? m.activeCard : 'bg-white border-gray-200 text-gray-800 hover:bg-gray-50'
+                        active ? m.activeCard : 'bg-white border-black/10 text-gray-800 hover:bg-gray-50'
                       }`}
                     >
                       <span className={`w-7 h-7 rounded-full flex items-center justify-center ${active ? m.activeIcon : 'bg-gray-100 text-gray-400'}`}>
@@ -376,7 +376,7 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
                       type="button"
                       onClick={() => setQuantity(preset)}
                       className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors cursor-pointer ${
-                        quantity === preset ? cfg.presetActive : 'bg-white text-gray-800 border-gray-200 hover:bg-gray-50'
+                        quantity === preset ? cfg.presetActive : 'bg-white text-gray-800 border-black/10 hover:bg-gray-50'
                       }`}
                     >
                       {isDeduct ? '-' : '+'}{preset}
@@ -387,7 +387,7 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
                       type="button"
                       onClick={() => setQuantity(currentStock)}
                       className={`px-2.5 py-1 rounded-full text-[11px] font-bold border transition-colors cursor-pointer ${
-                        quantity === currentStock ? cfg.presetActive : 'bg-white text-gray-800 border-gray-200 hover:bg-gray-50'
+                        quantity === currentStock ? cfg.presetActive : 'bg-white text-gray-800 border-black/10 hover:bg-gray-50'
                       }`}
                     >
                       All ({currentStock})
@@ -419,13 +419,13 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
                 placeholder={cfg.notePlaceholder}
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                className="w-full h-11 px-3.5 rounded-xl border border-gray-200 bg-white text-xs sm:text-sm text-gray-900 outline-none focus:border-[#0A0A0A]"
+                className="w-full h-11 px-3.5 rounded-xl border border-black/10 bg-white text-xs sm:text-sm text-gray-900 outline-none focus:border-[#0A0A0A]"
               />
             </div>
           </div>
 
           {/* Fixed Footer at the bottom */}
-          <div className="shrink-0 px-4 sm:px-5 py-3 bg-white border-t border-gray-100 flex items-stretch gap-2.5">
+          <div className="shrink-0 px-4 sm:px-5 py-3 bg-white border-t border-black/10 flex items-stretch gap-2.5">
             <button
               type="button"
               onClick={onClose}

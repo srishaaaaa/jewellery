@@ -157,7 +157,7 @@ export default function LowStockAlarmModal({ triggerKey }: { triggerKey?: string
         </div>
 
         <div className="p-5 space-y-3">
-          <p className="text-sm font-bold text-[#374151]">The audible alarm and visual alert will sound until acknowledged.</p>
+          <p className="text-sm font-bold text-[#000000]">The audible alarm and visual alert will sound until acknowledged.</p>
 
           <div className="max-h-56 overflow-y-auto space-y-2">
             {items.map(p => {
@@ -169,8 +169,8 @@ export default function LowStockAlarmModal({ triggerKey }: { triggerKey?: string
                       <Package size={15} />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-black text-sm text-[#111111] break-words">{p.name}</p>
-                      <p className="text-[11px] text-[#6B7280] truncate">{p.category || '—'}</p>
+                      <p className="font-black text-sm text-[#000000] break-words">{p.name}</p>
+                      <p className="text-[11px] text-[#000000] truncate">{p.category || '—'}</p>
                     </div>
                   </div>
                   <div className="text-right shrink-0">

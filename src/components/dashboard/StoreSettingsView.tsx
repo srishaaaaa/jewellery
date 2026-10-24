@@ -173,14 +173,14 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
     <div className="space-y-6 max-w-6xl">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-[20px] sm:text-[22px] font-black text-[#111111]">Store Settings</h2>
-          <p className="text-[13px] text-[#6B7280] mt-1">Shop profile used across invoices, receipts and the app header.</p>
+          <h2 className="text-[20px] sm:text-[22px] font-black text-[#000000]">Store Settings</h2>
+          <p className="text-[13px] text-[#000000] mt-1">Shop profile used across invoices, receipts and the app header.</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={handleReset}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-[#E5E7EB] rounded-xl text-[13px] font-bold text-[#111111] hover:bg-[#F9FAFB] transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-black/10 rounded-xl text-[13px] font-bold text-[#000000] hover:bg-black/[0.03] transition-colors shadow-sm"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Reset
           </button>
@@ -200,7 +200,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
       )}
 
       {loading && !settings ? (
-        <div className="p-10 text-center text-[13px] font-bold text-[#6B7280]">Loading settings...</div>
+        <div className="p-10 text-center text-[13px] font-bold text-[#000000]">Loading settings...</div>
       ) : (
         <form id="store-settings-form" onSubmit={handleSave} className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -208,7 +208,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
             <SectionCard icon={Store} title="Shop Profile" subtitle="Logo, owner and shop name">
               <div className="flex items-center gap-4 mb-5">
                 <div className="relative shrink-0">
-                  <div className="w-16 h-16 rounded-2xl overflow-hidden border border-[#E5E7EB]">
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden border border-black/10">
                     <img src={logoSrc} alt={BRAND_EN} className="w-full h-full object-cover" />
                   </div>
                   <input
@@ -224,7 +224,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                     type="button"
                     onClick={() => logoInputRef.current?.click()}
                     disabled={logoUploading || !isSupabaseConfigured}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-[#E5E7EB] rounded-lg text-[11px] font-black text-[#111111] hover:bg-[#F9FAFB] transition-colors disabled:opacity-60"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-black/10 rounded-lg text-[11px] font-black text-[#000000] hover:bg-black/[0.03] transition-colors disabled:opacity-60"
                   >
                     {logoUploading ? <RefreshCw size={12} className="animate-spin" /> : <Camera size={12} />} REPLACE LOGO
                   </button>
@@ -319,7 +319,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                     type="color"
                     value={/^#[0-9A-Fa-f]{6}$/.test(form.accentColor) ? form.accentColor : BRAND_ACCENT}
                     onChange={e => setForm(f => ({ ...f, accentColor: e.target.value }))}
-                    className="w-11 h-11 shrink-0 rounded-xl border border-[#E5E7EB] cursor-pointer bg-white p-1"
+                    className="w-11 h-11 shrink-0 rounded-xl border border-black/10 cursor-pointer bg-white p-1"
                   />
                   <input
                     className={`${inputCls} flex-1 uppercase`}
@@ -330,7 +330,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                 </div>
               </Field>
               <div className="mt-4 rounded-xl p-4 text-white" style={{ backgroundColor: /^#[0-9A-Fa-f]{6}$/.test(form.accentColor) ? form.accentColor : BRAND_ACCENT }}>
-                <p className="text-[10px] font-black uppercase tracking-wider opacity-80">Card Preview</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Card Preview</p>
                 <p className="text-[13px] font-bold mt-0.5">Selected colour + white stays the app theme.</p>
               </div>
               <p className="mt-3 text-[11px] text-[#9CA3AF]">
@@ -349,12 +349,12 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
               >
                 + ADD PRODUCT TO CATALOGUE
               </button>
-              <span className="text-[12px] font-semibold text-[#6B7280]">{catalogueItemCount} items in the catalogue</span>
+              <span className="text-[12px] font-semibold text-[#000000]">{catalogueItemCount} items in the catalogue</span>
             </div>
             {catalogueCategories.length > 0 ? (
               <div className="flex flex-wrap gap-2">
                 {catalogueCategories.map(([name, count]) => (
-                  <span key={name} className="px-3 py-1.5 rounded-full bg-[#F9FAFB] border border-[#E5E7EB] text-[11px] font-bold text-[#374151]">
+                  <span key={name} className="px-3 py-1.5 rounded-full bg-white border border-black/10 text-[11px] font-bold text-[#000000]">
                     {name} · {count}
                   </span>
                 ))}
@@ -378,12 +378,12 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                     onCommit={n => setForm(f => ({ ...f, lowStockThreshold: n }))}
                   />
                 </Field>
-                <p className="text-[11px] text-[#6B7280] mt-1.5">Starting value for new products. Each product can have its own limit in Add / Edit Products, and that one is used for its alerts.</p>
+                <p className="text-[11px] text-[#000000] mt-1.5">Starting value for new products. Each product can have its own limit in Add / Edit Products, and that one is used for its alerts.</p>
                 <button
                   type="button"
                   onClick={() => void applyThresholdToAll()}
                   disabled={applyingThreshold || !isSupabaseConfigured || products.length === 0}
-                  className="mt-2 rounded-lg border border-[#E5E7EB] bg-white px-3 py-1.5 text-[11px] font-bold text-[#111111] hover:bg-[#F9FAFB] disabled:opacity-50 cursor-pointer disabled:cursor-default"
+                  className="mt-2 rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[11px] font-bold text-[#000000] hover:bg-black/[0.03] disabled:opacity-50 cursor-pointer disabled:cursor-default"
                 >
                   {applyingThreshold ? 'Applying…' : `Apply ${form.lowStockThreshold} to all products`}
                 </button>
@@ -398,8 +398,8 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                   className="mt-0.5 w-4 h-4 accent-[var(--accent)]"
                 />
                 <span>
-                  <span className="block text-[13px] font-bold text-[#111111]">Enable GST Billing in POS</span>
-                  <span className="block text-[11px] text-[#6B7280]">When enabled, GST line items are computed on invoices.</span>
+                  <span className="block text-[13px] font-bold text-[#000000]">Enable GST Billing in POS</span>
+                  <span className="block text-[11px] text-[#000000]">When enabled, GST line items are computed on invoices.</span>
                 </span>
               </label>
             </div>
@@ -439,7 +439,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                       onCommit={n => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, staffMaxDiscountPercent: Math.min(100, n) } }))}
                     />
                   </Field>
-                  <p className="text-[11px] text-[#6B7280] mt-1.5">Staff cannot give a manual discount above this. A larger discount needs the admin login. 0 = no manual discounts by staff.</p>
+                  <p className="text-[11px] text-[#000000] mt-1.5">Staff cannot give a manual discount above this. A larger discount needs the admin login. 0 = no manual discounts by staff.</p>
                 </div>
                 <label className="flex items-start gap-2.5 cursor-pointer">
                   <input
@@ -448,8 +448,8 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                     className="mt-0.5 w-4 h-4 accent-[var(--accent)]"
                   />
                   <span>
-                    <span className="block text-[13px] font-bold text-[#111111]">Staff may change scheme terms</span>
-                    <span className="block text-[11px] text-[#6B7280]">Off: staff enrol customers only on the scheme types set up by admin, with their fixed terms.</span>
+                    <span className="block text-[13px] font-bold text-[#000000]">Staff may change scheme terms</span>
+                    <span className="block text-[11px] text-[#000000]">Off: staff enrol customers only on the scheme types set up by admin, with their fixed terms.</span>
                   </span>
                 </label>
                 <div>
@@ -460,7 +460,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                       onCommit={n => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, cashLimit: n > 0 ? n : 199500 } }))}
                     />
                   </Field>
-                  <p className="text-[11px] text-[#6B7280] mt-1.5">Cash above this is refused (Income Tax s.269ST does not allow ₹2,00,000 or more in cash). The rest must be UPI, card, bank or cheque.</p>
+                  <p className="text-[11px] text-[#000000] mt-1.5">Cash above this is refused (Income Tax s.269ST does not allow ₹2,00,000 or more in cash). The rest must be UPI, card, bank or cheque.</p>
                 </div>
                 <label className="flex items-start gap-2.5 cursor-pointer">
                   <input
@@ -469,22 +469,22 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                     className="mt-0.5 w-4 h-4 accent-[var(--accent)]"
                   />
                   <span>
-                    <span className="block text-[13px] font-bold text-[#111111]">Admin may accept cash above the limit</span>
-                    <span className="block text-[11px] text-[#6B7280]">On: the admin login can take more cash after confirming. Staff can never go above the limit.</span>
+                    <span className="block text-[13px] font-bold text-[#000000]">Admin may accept cash above the limit</span>
+                    <span className="block text-[11px] text-[#000000]">On: the admin login can take more cash after confirming. Staff can never go above the limit.</span>
                   </span>
                 </label>
-                <p className="text-[11px] text-[#6B7280]">Staff never change metal rates, Schema rules, invoices, completed payments, stock quantities or settings.</p>
+                <p className="text-[11px] text-[#000000]">Staff never change metal rates, Schema rules, invoices, completed payments, stock quantities or settings.</p>
               </div>
             </SectionCard>
           </div>
 
           {/* Account Security */}
-          <div className="bg-white rounded-2xl border border-[#E5E7EB]/60 p-4 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="bg-white rounded-2xl border border-black/10 p-4 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-2.5">
               <Lock size={16} className="text-[var(--accent)] shrink-0" />
               <div>
                 <p className="text-[13px] font-black uppercase tracking-wider text-[var(--accent)]">Account Security</p>
-                <p className="text-[12px] text-[#6B7280]">Update your {role || 'portal'} login password.</p>
+                <p className="text-[12px] text-[#000000]">Update your {role || 'portal'} login password.</p>
               </div>
             </div>
             <button
@@ -505,9 +505,9 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
             onClick={e => e.stopPropagation()}
             className="w-full max-w-sm bg-white rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto"
           >
-            <div className="flex items-center justify-between p-4 border-b border-[#E5E7EB]">
-              <h3 className="text-[14px] font-black text-[#111111]">Change Password</h3>
-              <button type="button" onClick={() => setPwOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#F9FAFB] text-[#6B7280]">
+            <div className="flex items-center justify-between p-4 border-b border-black/10">
+              <h3 className="text-[14px] font-black text-[#000000]">Change Password</h3>
+              <button type="button" onClick={() => setPwOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/[0.03] text-[#000000]">
                 <X size={16} />
               </button>
             </div>
@@ -539,12 +539,12 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
   )
 }
 
-const inputCls = 'w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB]/60 rounded-xl text-[13px] font-bold text-[#111111] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[var(--accent)] transition-colors'
+const inputCls = 'w-full px-3.5 py-2.5 bg-white border border-black/10 rounded-xl text-[13px] font-bold text-[#000000] placeholder:text-[#9CA3AF] focus:outline-none focus:border-[var(--accent)] transition-colors'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[11px] font-black uppercase tracking-wider text-[#6B7280] mb-1.5">{label}</label>
+      <label className="block text-[11px] font-black uppercase tracking-wider text-[#000000] mb-1.5">{label}</label>
       {children}
     </div>
   )
@@ -552,12 +552,12 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function SectionCard({ icon: Icon, title, subtitle, children }: { icon: typeof Store; title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-2xl border border-[#E5E7EB]/60 p-4 sm:p-6 shadow-sm">
+    <div className="bg-white rounded-2xl border border-black/10 p-4 sm:p-6 shadow-sm">
       <div className="flex items-start gap-2 mb-5">
         <Icon size={16} className="text-[var(--accent)] mt-0.5 shrink-0" />
         <div>
-          <h3 className="text-[13px] font-black text-[#111111]">{title}</h3>
-          {subtitle && <p className="text-[11px] text-[#6B7280] mt-0.5">{subtitle}</p>}
+          <h3 className="text-[13px] font-black text-[#000000]">{title}</h3>
+          {subtitle && <p className="text-[11px] text-[#000000] mt-0.5">{subtitle}</p>}
         </div>
       </div>
       {children}

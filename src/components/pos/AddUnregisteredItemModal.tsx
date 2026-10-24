@@ -201,13 +201,13 @@ export const AddUnregisteredItemModal: React.FC<Props> = ({ isOpen, onClose, onS
     <ModalPortal><div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
       <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-[var(--accent-a20)] animate-in fade-in zoom-in-95">
         {/* Header */}
-        <div className="px-4 sm:px-5 py-3 border-b border-gray-200 flex items-center justify-between bg-[#FBFAF6] shrink-0">
+        <div className="px-4 sm:px-5 py-3 border-b border-black/10 flex items-center justify-between bg-white shrink-0">
           <div className="flex items-center gap-2">
             <div className="w-7 h-7 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-600">
               <PlusCircle className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-[#111111]">
+              <h3 className="font-bold text-sm text-[#000000]">
                 {l('Add Ad-Hoc Item', 'புதிய பொருளைச் சேர்')}
               </h3>
               <p className="text-[10px] text-gray-500 font-semibold">
@@ -235,7 +235,7 @@ export const AddUnregisteredItemModal: React.FC<Props> = ({ isOpen, onClose, onS
           )}
 
           <div>
-            <label className="block font-bold text-[#374151] mb-1">
+            <label className="block font-bold text-[#000000] mb-1">
               {l('Item Name *', 'பொருளின் பெயர் *')}
             </label>
             <input
@@ -245,16 +245,16 @@ export const AddUnregisteredItemModal: React.FC<Props> = ({ isOpen, onClose, onS
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={l('e.g. 22K Gold Chain, Silver Anklet, Repair Charge', 'எ.கா. 22K தங்கச் சங்கிலி, வெள்ளி கொலுசு')}
-              className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-semibold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors"
+              className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-semibold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors"
             />
           </div>
 
           <div>
-            <label className="block font-bold text-[#374151] mb-1">Metal Type</label>
+            <label className="block font-bold text-[#000000] mb-1">Metal Type</label>
             <select
               value={metalType}
               onChange={(e) => setMetalType(e.target.value as MetalType | '')}
-              className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors touch-manipulation appearance-none relative z-20"
+              className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors touch-manipulation appearance-none relative z-20"
             >
               <option value="">Not jewellery (enter price)</option>
               {(['gold', 'silver', 'platinum'] as const).map((m) => <option key={m} value={m}>{METAL_LABELS[m]} (priced from today's rate)</option>)}
@@ -262,80 +262,80 @@ export const AddUnregisteredItemModal: React.FC<Props> = ({ isOpen, onClose, onS
           </div>
 
           {isJewellery && (
-            <div className="space-y-3 p-3 rounded-xl border border-gray-200 bg-white">
+            <div className="space-y-3 p-3 rounded-xl border border-black/10 bg-white">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-[#374151] mb-1">Purity</label>
+                  <label className="block font-bold text-[#000000] mb-1">Purity</label>
                   {metalType === 'gold' ? (
                     <div className="flex gap-2">
-                      <select value={purity} onChange={(e) => setPurity(e.target.value)} className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors touch-manipulation appearance-none relative z-20">
+                      <select value={purity} onChange={(e) => setPurity(e.target.value)} className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors touch-manipulation appearance-none relative z-20">
                         {GOLD_PURITIES.map((pu) => <option key={pu} value={pu}>{pu}</option>)}
                         <option value={CUSTOM_PURITY}>Custom</option>
                       </select>
                       {purity === CUSTOM_PURITY && (
-                        <input type="text" required placeholder="19K / 916" value={customPurity} onChange={(e) => setCustomPurity(e.target.value)} className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors" />
+                        <input type="text" required placeholder="19K / 916" value={customPurity} onChange={(e) => setCustomPurity(e.target.value)} className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors" />
                       )}
                     </div>
                   ) : (
-                    <div className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors text-gray-500">Standard</div>
+                    <div className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors text-gray-500">Standard</div>
                   )}
                 </div>
                 <div>
-                  <label className="block font-bold text-[#374151] mb-1">HUID (Optional)</label>
-                  <input type="text" value={huid} onChange={(e) => setHuid(e.target.value.toUpperCase())} placeholder="e.g. AB12CD" className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors" />
+                  <label className="block font-bold text-[#000000] mb-1">HUID (Optional)</label>
+                  <input type="text" value={huid} onChange={(e) => setHuid(e.target.value.toUpperCase())} placeholder="e.g. AB12CD" className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors" />
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 <div>
-                  <label className="block font-bold text-[#374151] mb-1">Gross Wt (g) *</label>
-                  <input type="number" min="0" step="0.001" inputMode="decimal" required value={grossWeight} onChange={(e) => setGrossWeight(e.target.value)} placeholder="0.000" className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors" />
+                  <label className="block font-bold text-[#000000] mb-1">Gross Wt (g) *</label>
+                  <input type="number" min="0" step="0.001" inputMode="decimal" required value={grossWeight} onChange={(e) => setGrossWeight(e.target.value)} placeholder="0.000" className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors" />
                 </div>
                 <div>
-                  <label className="block font-bold text-[#374151] mb-1">Stone Wt (g)</label>
-                  <input type="number" min="0" step="0.001" inputMode="decimal" value={stoneWeight} onChange={(e) => setStoneWeight(e.target.value)} placeholder="0.000" className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors" />
+                  <label className="block font-bold text-[#000000] mb-1">Stone Wt (g)</label>
+                  <input type="number" min="0" step="0.001" inputMode="decimal" value={stoneWeight} onChange={(e) => setStoneWeight(e.target.value)} placeholder="0.000" className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors" />
                 </div>
                 <div>
-                  <label className="block font-bold text-[#374151] mb-1">Net Wt (g)</label>
-                  <div className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors text-gray-500">{netWeight.toFixed(3)}</div>
+                  <label className="block font-bold text-[#000000] mb-1">Net Wt (g)</label>
+                  <div className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors text-gray-500">{netWeight.toFixed(3)}</div>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block font-bold text-[#374151] mb-1">Making Charge</label>
+                  <label className="block font-bold text-[#000000] mb-1">Making Charge</label>
                   <div className="flex gap-1.5">
-                    <select value={makingChargeType} onChange={(e) => setMakingChargeType(e.target.value as MakingChargeType)} aria-label="Making charge type" className="w-16 shrink-0 px-2 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] touch-manipulation appearance-none relative z-20">
+                    <select value={makingChargeType} onChange={(e) => setMakingChargeType(e.target.value as MakingChargeType)} aria-label="Making charge type" className="w-16 shrink-0 px-2 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] touch-manipulation appearance-none relative z-20">
                       <option value="fixed">₹</option>
                       <option value="per_gram">₹/g</option>
                       <option value="percentage">%</option>
                     </select>
-                    <input type="number" min="0" step="0.01" value={makingCharge} onChange={(e) => setMakingCharge(e.target.value)} placeholder="0" className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors" />
+                    <input type="number" min="0" step="0.01" value={makingCharge} onChange={(e) => setMakingCharge(e.target.value)} placeholder="0" className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors" />
                   </div>
                 </div>
                 <div>
-                  <label className="block font-bold text-[#374151] mb-1">Wastage</label>
+                  <label className="block font-bold text-[#000000] mb-1">Wastage</label>
                   <div className="flex gap-1.5">
-                    <select value={wastageType} onChange={(e) => setWastageType(e.target.value as WastageType)} aria-label="Wastage type" className="w-16 shrink-0 px-2 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] touch-manipulation appearance-none relative z-20">
+                    <select value={wastageType} onChange={(e) => setWastageType(e.target.value as WastageType)} aria-label="Wastage type" className="w-16 shrink-0 px-2 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] touch-manipulation appearance-none relative z-20">
                       <option value="percentage">%</option>
                       <option value="grams">g</option>
                     </select>
-                    <input type="number" min="0" step="0.001" value={wastage} onChange={(e) => setWastage(e.target.value)} placeholder="0" className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors" />
+                    <input type="number" min="0" step="0.001" value={wastage} onChange={(e) => setWastage(e.target.value)} placeholder="0" className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors" />
                   </div>
                 </div>
                 <div>
-                  <label className="block font-bold text-[#374151] mb-1">Stone Charge (₹)</label>
-                  <input type="number" min="0" step="0.01" value={stoneCharge} onChange={(e) => setStoneCharge(e.target.value)} placeholder="0" className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors" />
+                  <label className="block font-bold text-[#000000] mb-1">Stone Charge (₹)</label>
+                  <input type="number" min="0" step="0.01" value={stoneCharge} onChange={(e) => setStoneCharge(e.target.value)} placeholder="0" className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors" />
                 </div>
                 <div>
-                  <label className="block font-bold text-[#374151] mb-1">Other Charge (₹)</label>
-                  <input type="number" min="0" step="0.01" value={otherCharge} onChange={(e) => setOtherCharge(e.target.value)} placeholder="0" className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors" />
+                  <label className="block font-bold text-[#000000] mb-1">Other Charge (₹)</label>
+                  <input type="number" min="0" step="0.01" value={otherCharge} onChange={(e) => setOtherCharge(e.target.value)} placeholder="0" className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors" />
                 </div>
               </div>
               {priced && priced.ok ? (
-                <div className="rounded-xl bg-[#FBFAF6] border border-gray-200 p-2.5 space-y-0.5 text-[11px] font-bold text-[#374151]">
+                <div className="rounded-xl bg-white border border-black/10 p-2.5 space-y-0.5 text-[11px] font-bold text-[#000000]">
                   <div className="flex justify-between"><span>Metal value ({priced.snapshot.net_weight.toFixed(3)} g × {formatCurrency(priced.snapshot.rate_per_gram)}/g)</span><span>{formatCurrency(priced.snapshot.metal_value)}</span></div>
                   <div className="flex justify-between"><span>Making + Wastage</span><span>{formatCurrency(priced.snapshot.making_amount + priced.snapshot.wastage_amount)}</span></div>
                   {priced.snapshot.stone_charge + priced.snapshot.other_charge > 0 && <div className="flex justify-between"><span>Stone + Other</span><span>{formatCurrency(priced.snapshot.stone_charge + priced.snapshot.other_charge)}</span></div>}
-                  <div className="flex justify-between pt-1 border-t border-gray-200 text-[#111111] text-xs font-black"><span>Price per piece</span><span>{formatCurrency(priced.snapshot.unit_price)}</span></div>
+                  <div className="flex justify-between pt-1 border-t border-black/10 text-[#000000] text-xs font-black"><span>Price per piece</span><span>{formatCurrency(priced.snapshot.unit_price)}</span></div>
                 </div>
               ) : netWeight > 0 && priced && !priced.ok ? (
                 <p className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-800">{priced.error}</p>
@@ -345,14 +345,14 @@ export const AddUnregisteredItemModal: React.FC<Props> = ({ isOpen, onClose, onS
 
           {!isJewellery && (
           <div>
-            <label className="block font-bold text-[#374151] mb-1">
+            <label className="block font-bold text-[#000000] mb-1">
               {l('Unit', 'அளவு வகை')}
             </label>
             <div className="flex gap-2">
               <select
                 value={unitChoice}
                 onChange={(e) => setUnitChoice(e.target.value)}
-                className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors touch-manipulation appearance-none relative z-20"
+                className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors touch-manipulation appearance-none relative z-20"
               >
                 {UNIT_GROUPS.map((group) => (
                   <optgroup key={group} label={group}>
@@ -369,7 +369,7 @@ export const AddUnregisteredItemModal: React.FC<Props> = ({ isOpen, onClose, onS
                   placeholder={l('e.g. Sack', 'எ.கா. சாக்கு')}
                   value={customUnitLabel}
                   onChange={(e) => setCustomUnitLabel(e.target.value)}
-                  className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors"
+                  className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors"
                 />
               )}
             </div>
@@ -379,7 +379,7 @@ export const AddUnregisteredItemModal: React.FC<Props> = ({ isOpen, onClose, onS
           <div className="grid grid-cols-2 gap-3">
             {!isJewellery && (
             <div>
-              <label className="block font-bold text-[#374151] mb-1">
+              <label className="block font-bold text-[#000000] mb-1">
                 {l('Price (₹) *', 'விலை (₹) *')}
               </label>
               <input
@@ -390,12 +390,12 @@ export const AddUnregisteredItemModal: React.FC<Props> = ({ isOpen, onClose, onS
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 placeholder="0.00"
-                className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors"
+                className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors"
               />
             </div>
             )}
             <div>
-              <label className="block font-bold text-[#374151] mb-1">
+              <label className="block font-bold text-[#000000] mb-1">
                 {l('Quantity *', 'எண்ணிக்கை *')} {isDecimalUnit ? `(${selectedUnit.suffix})` : ''}
               </label>
               <input
@@ -405,13 +405,13 @@ export const AddUnregisteredItemModal: React.FC<Props> = ({ isOpen, onClose, onS
                 required
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
-                className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors"
+                className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors"
               />
             </div>
           </div>
 
           <div>
-            <label className="block font-bold text-[#374151] mb-1">
+            <label className="block font-bold text-[#000000] mb-1">
               {l('Notes / Size (Optional)', 'குறிப்பு / அளவு (விருப்பமானது)')}
             </label>
             <input
@@ -419,7 +419,7 @@ export const AddUnregisteredItemModal: React.FC<Props> = ({ isOpen, onClose, onS
               value={note}
               onChange={(e) => setNote(e.target.value)}
               placeholder={l('e.g. Ring size 14, customer\'s own stone', 'எ.கா. மோதிர அளவு 14')}
-              className="w-full px-3 py-2 bg-[#FBFAF6] border border-gray-200 rounded-xl text-xs font-semibold text-[#111111] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors"
+              className="w-full px-3 py-2 bg-white border border-black/10 rounded-xl text-xs font-semibold text-[#000000] focus:outline-none focus:border-[#0A0A0A] focus:bg-white transition-colors"
             />
           </div>
 

@@ -75,8 +75,8 @@ export const ExpenseCategoriesView: React.FC<ExpenseCategoriesViewProps> = ({
       {/* 2-Column Grid matching reference UI */}
       <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6 items-start">
         {/* LEFT COLUMN: Add Category Card */}
-        <div className="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-4">
-          <div className="flex items-center gap-2 border-b border-gray-100 pb-3">
+        <div className="bg-white border border-black/10 rounded-3xl p-6 shadow-xs space-y-4">
+          <div className="flex items-center gap-2 border-b border-black/10 pb-3">
             <Tag size={16} className="text-[var(--accent)]" />
             <h4 className="text-xs font-bold text-gray-800">
               Add Category
@@ -94,7 +94,7 @@ export const ExpenseCategoriesView: React.FC<ExpenseCategoriesViewProps> = ({
                 placeholder="e.g. Utility Bills, Packaging"
                 value={newCatName}
                 onChange={(e) => setNewCatName(e.target.value)}
-                className="w-full h-11 px-3 rounded-xl border border-gray-300 bg-[#FAFAFA] text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A] focus:bg-white transition-all"
+                className="w-full h-11 px-3 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A] focus:bg-white transition-all"
               />
             </div>
 
@@ -109,8 +109,8 @@ export const ExpenseCategoriesView: React.FC<ExpenseCategoriesViewProps> = ({
         </div>
 
         {/* RIGHT COLUMN: Categories Table Card */}
-        <div className="bg-white border border-gray-200 rounded-3xl overflow-hidden shadow-xs">
-          <div className="p-5 border-b border-gray-100 bg-[#FAFAFA] flex items-center justify-between">
+        <div className="bg-white border border-black/10 rounded-3xl overflow-hidden shadow-xs">
+          <div className="p-5 border-b border-black/10 bg-white flex items-center justify-between">
             <h4 className="text-xs font-bold text-gray-800">
               Expense Categories ({categories.length})
             </h4>
@@ -143,7 +143,7 @@ export const ExpenseCategoriesView: React.FC<ExpenseCategoriesViewProps> = ({
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-gray-200 bg-[#FBFAF6]">
+                <tr className="border-b border-black/10 bg-white">
                   <th className="px-5 py-3.5 text-[11px] font-bold text-gray-600">
                     Category Name
                   </th>

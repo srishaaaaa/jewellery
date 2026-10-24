@@ -20,8 +20,8 @@ import {
   type RatedMetal,
 } from '../lib/jewellery'
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-[#6B7280]">{label}</span>{children}</label> }
-const inputClass = 'w-full rounded-xl border border-[#E5E7EB] bg-white px-3.5 py-2.5 text-sm text-[#273126] outline-none transition focus:border-[var(--accent-dark)] focus:ring-2 focus:ring-emerald-100'
+function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">{label}</span>{children}</label> }
+const inputClass = 'w-full bg-white border border-black/10 focus:border-[var(--accent)] rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm'
 
 const fmtDateTime = (iso: string) => {
   const d = new Date(iso)
@@ -152,13 +152,13 @@ export default function MetalRates() {
     return (
       <div key={purity} className="flex items-center justify-between gap-3 py-2 border-b border-[#F0EEE9] last:border-b-0">
         <div className="min-w-0">
-          <p className="text-sm font-black text-[#273126]">{purity === STANDARD_PURITY ? METAL_LABELS[metal] : purity}</p>
+          <p className="text-sm font-black text-[#000000]">{purity === STANDARD_PURITY ? METAL_LABELS[metal] : purity}</p>
           <p className={`text-[10px] font-bold ${updatedToday ? 'text-emerald-600' : 'text-amber-700'}`}>
             {current ? (updatedToday ? `Today, ${new Date(current.effectiveFrom).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : `Last updated ${fmtDateTime(current.effectiveFrom)}`) : 'Not set'}
           </p>
         </div>
-        <p className="text-lg sm:text-xl font-black text-[#273126] whitespace-nowrap">
-          {current ? <>{formatCurrency(current.ratePerGram)}<span className="text-xs font-bold text-[#879086]"> / g</span></> : <span className="text-sm text-[#9CA3AF]">—</span>}
+        <p className="text-lg sm:text-xl font-black text-[#000000] whitespace-nowrap">
+          {current ? <>{formatCurrency(current.ratePerGram)}<span className="text-xs font-bold text-[#000000]"> / g</span></> : <span className="text-sm text-[#9CA3AF]">—</span>}
         </p>
       </div>
     )
@@ -167,19 +167,18 @@ export default function MetalRates() {
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-600">Daily rates</p>
-        <h2 className="text-2xl font-black text-[#273126]">Metal Rates</h2>
-        <p className="mt-1 text-sm text-[#6B7280]">New bills use the latest rate automatically. Old invoices always keep the rate they were billed at.</p>
+        <h2 className="text-[28px] font-black text-[#000000] tracking-tight">Metal Rates</h2>
+        <p className="mt-1 text-xs font-semibold text-[#000000]">New bills use the latest rate automatically. Old invoices always keep the rate they were billed at.</p>
       </div>
       <div className="flex gap-2">
         {role === 'admin' ? (
-        <button onClick={openUpdate} className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-black text-white hover:opacity-90 cursor-pointer">
+        <button onClick={openUpdate} className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:opacity-90 cursor-pointer">
           <Gem size={16} /> Update Rates
         </button>
         ) : (
-          <span className="rounded-xl border border-[#ECE9E2] bg-white px-3 py-2.5 text-xs font-bold text-[#6B7280]">View only — rates are updated by the admin</span>
+          <span className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-xs font-bold text-[#000000]">View only — rates are updated by the admin</span>
         )}
-        <button onClick={refresh} className="rounded-xl border bg-white p-3 text-[#647064] cursor-pointer" title="Refresh">
+        <button onClick={refresh} className="rounded-xl border bg-white p-3 text-[#000000] cursor-pointer" title="Refresh">
           <RefreshCw size={18} className={ratesLoading || historyLoading ? 'animate-spin' : ''} />
         </button>
       </div>
@@ -190,23 +189,23 @@ export default function MetalRates() {
 
     {/* Current rates */}
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-      <div className="rounded-2xl border border-[#ECE9E2] bg-white p-4 shadow-sm md:row-span-2">
+      <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm md:row-span-2">
         <div className="flex items-center justify-between mb-1">
-          <p className="text-[11px] font-black uppercase tracking-wide text-[#879086]">Gold</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Gold</p>
           <div className="rounded-xl p-2 text-amber-700 bg-amber-50"><Gem size={18} /></div>
         </div>
         {GOLD_PURITIES.map((purity) => renderRateRow('gold', purity))}
       </div>
-      <div className="rounded-2xl border border-[#ECE9E2] bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between mb-1">
-          <p className="text-[11px] font-black uppercase tracking-wide text-[#879086]">Silver</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Silver</p>
           <div className="rounded-xl p-2 text-slate-600 bg-slate-100"><Gem size={18} /></div>
         </div>
         {renderRateRow('silver', STANDARD_PURITY)}
       </div>
-      <div className="rounded-2xl border border-[#ECE9E2] bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between mb-1">
-          <p className="text-[11px] font-black uppercase tracking-wide text-[#879086]">Platinum</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Platinum</p>
           <div className="rounded-xl p-2 text-sky-700 bg-sky-50"><Gem size={18} /></div>
         </div>
         {renderRateRow('platinum', STANDARD_PURITY)}
@@ -214,9 +213,9 @@ export default function MetalRates() {
     </div>
 
     {/* Rate history */}
-    <div className="rounded-2xl border border-[#ECE9E2] bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-        <h3 className="flex items-center gap-2 text-sm font-black text-[#273126]"><History size={16} className="text-[var(--accent)]" /> Rate History</h3>
+        <h3 className="flex items-center gap-2 text-sm font-black text-[#000000]"><History size={16} className="text-[var(--accent)]" /> Rate History</h3>
         <button onClick={exportHistory} disabled={!history.length} className="flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-200 disabled:opacity-40 cursor-pointer">
           <Download size={13} /> Export CSV
         </button>
@@ -247,32 +246,32 @@ export default function MetalRates() {
       </div>
     </div>
 
-    <div className="rounded-2xl border border-[#ECE9E2] bg-white shadow-sm flex flex-col">
+    <div className="rounded-2xl border border-black/10 bg-white shadow-sm flex flex-col">
       <div className="overflow-x-auto overscroll-x-contain">
         <table className="w-full text-left text-sm whitespace-nowrap">
-          <thead className="bg-[#F8F7F4] text-[10px] font-black uppercase tracking-wider text-[#737B72]">
+          <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
             <tr>
               {['Date & Time', 'Metal', 'Purity', 'Rate / g', 'Change', 'Updated By', 'Note'].map((h) => (
                 <th key={h} className="px-4 py-3.5 whitespace-nowrap">{h}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#F0EEE9]">
+          <tbody className="divide-y divide-black/5">
             {historyLoading ? (
-              <tr><td colSpan={7} className="px-4 py-12 text-center text-[#6B7280]">Loading rate history...</td></tr>
+              <tr><td colSpan={7} className="px-4 py-12 text-center text-[#000000]">Loading rate history...</td></tr>
             ) : historyWithChange.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-12 text-center text-[#6B7280]">No rates recorded yet. Click "Update Rates" to enter today's rates.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-12 text-center text-[#000000]">No rates recorded yet. Click "Update Rates" to enter today's rates.</td></tr>
             ) : historyWithChange.map(({ row, change }) => (
               <tr key={row.id} className="hover:bg-emerald-50/30 transition-colors">
-                <td className="px-4 py-3.5 font-semibold text-[#273126]">{fmtDateTime(row.effectiveFrom)}</td>
-                <td className="px-4 py-3.5 font-bold text-[#273126]">{METAL_LABELS[row.metalType]}</td>
-                <td className="px-4 py-3.5 text-[#6B7280]">{row.purity === STANDARD_PURITY ? 'Standard' : row.purity}</td>
-                <td className="px-4 py-3.5 font-black text-[#273126]">{formatCurrency(row.ratePerGram)}</td>
+                <td className="px-4 py-3.5 font-semibold text-[#000000]">{fmtDateTime(row.effectiveFrom)}</td>
+                <td className="px-4 py-3.5 font-bold text-[#000000]">{METAL_LABELS[row.metalType]}</td>
+                <td className="px-4 py-3.5 text-[#000000]">{row.purity === STANDARD_PURITY ? 'Standard' : row.purity}</td>
+                <td className="px-4 py-3.5 font-black text-[#000000]">{formatCurrency(row.ratePerGram)}</td>
                 <td className={`px-4 py-3.5 text-xs font-black ${change == null || change === 0 ? 'text-[#9CA3AF]' : change > 0 ? 'text-emerald-700' : 'text-red-600'}`}>
                   {change == null ? '—' : `${change > 0 ? '+' : change < 0 ? '−' : ''}${formatCurrency(Math.abs(change))}`}
                 </td>
-                <td className="px-4 py-3.5 text-xs text-[#6B7280]">{row.createdBy || '—'}</td>
-                <td className="px-4 py-3.5 text-xs text-[#6B7280] max-w-[240px] truncate" title={row.note}>{row.note || '—'}</td>
+                <td className="px-4 py-3.5 text-xs text-[#000000]">{row.createdBy || '—'}</td>
+                <td className="px-4 py-3.5 text-xs text-[#000000] max-w-[240px] truncate" title={row.note}>{row.note || '—'}</td>
               </tr>
             ))}
           </tbody>
@@ -282,19 +281,19 @@ export default function MetalRates() {
 
     {updateOpen && <ModalPortal><div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/55 p-3 sm:p-4">
       <form onSubmit={reviewChanges} className="flex w-full max-w-lg max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
-        <div className="shrink-0 flex items-start justify-between border-b border-gray-100 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
+        <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
           <div>
             <p className="text-xs font-black uppercase tracking-wider text-emerald-600">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
-            <h3 className="text-xl font-black text-[#273126]">{confirming ? 'Confirm Rate Update' : "Update Today's Rates"}</h3>
+            <h3 className="text-xl font-black text-[#000000]">{confirming ? 'Confirm Rate Update' : "Update Today's Rates"}</h3>
           </div>
-          <button type="button" onClick={() => setUpdateOpen(false)} className="shrink-0 text-[#858C83] hover:text-black"><X size={20} /></button>
+          <button type="button" onClick={() => setUpdateOpen(false)} className="shrink-0 text-[#000000] hover:text-black"><X size={20} /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
           {error && <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{error}</div>}
           {confirming ? (
             <div className="space-y-2">
               {confirming.map((c) => (
-                <p key={rateKey(c.metal, c.purity)} className="rounded-xl bg-[#F8F7F4] px-3 py-2.5 text-sm font-bold text-[#273126]">
+                <p key={rateKey(c.metal, c.purity)} className="rounded-xl bg-black/[0.03] px-3 py-2.5 text-sm font-bold text-[#000000]">
                   {c.from == null
                     ? `Set ${metalLabel(c.metal, c.purity)} rate to ${formatCurrency(c.to)}/g?`
                     : `Update ${metalLabel(c.metal, c.purity)} rate from ${formatCurrency(c.from)}/g to ${formatCurrency(c.to)}/g?`}
@@ -307,7 +306,7 @@ export default function MetalRates() {
           ) : (
             <div className="space-y-4">
               <div>
-                <p className="mb-2 text-[11px] font-black uppercase tracking-wide text-[#879086]">Gold (₹ per gram)</p>
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Gold (₹ per gram)</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {GOLD_PURITIES.map((purity) => (
                     <Field key={purity} label={purity}>
@@ -336,7 +335,7 @@ export default function MetalRates() {
             </div>
           )}
         </div>
-        <div className="shrink-0 flex gap-3 border-t border-gray-100 bg-white px-4 py-3 sm:px-6">
+        <div className="shrink-0 flex gap-3 border-t border-black/10 bg-white px-4 py-3 sm:px-6">
           {confirming ? (
             <>
               <button type="button" onClick={() => setConfirming(null)} className="flex-1 rounded-xl border py-3 text-sm font-black">Back</button>
@@ -345,7 +344,7 @@ export default function MetalRates() {
           ) : (
             <>
               <button type="button" onClick={() => setUpdateOpen(false)} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button>
-              <button type="submit" className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-sm font-black text-white">Review Changes</button>
+              <button type="submit" className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-xs font-black uppercase tracking-wider text-white">Review Changes</button>
             </>
           )}
         </div>

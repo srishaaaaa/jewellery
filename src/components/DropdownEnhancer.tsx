@@ -98,11 +98,11 @@ export function DropdownEnhancer() {
       ref={listRef}
       role="listbox"
       style={{ position: 'fixed', left: pos.left, top: pos.top, width: pos.width, maxHeight: pos.maxHeight, zIndex: 100000 }}
-      className="overflow-y-auto overscroll-contain rounded-xl border border-gray-200 bg-white py-1 shadow-2xl"
+      className="overflow-y-auto overscroll-contain rounded-xl border border-black/10 bg-white py-1 shadow-2xl"
     >
       {entries.map((entry, i) =>
         entry.kind === 'group' ? (
-          <div key={`g${i}`} className="px-3.5 pt-2 pb-1 text-[10px] font-black uppercase tracking-wider text-gray-500">{entry.label}</div>
+          <div key={`g${i}`} className="px-3.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">{entry.label}</div>
         ) : (
           <button
             key={`o${i}`}

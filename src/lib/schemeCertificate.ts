@@ -52,31 +52,31 @@ export function printDepositCertificate(opts: {
     ['Benefit on Redemption', describeSchemeBenefit(scheme, formatCurrency) || '—'],
   ]
 
-  const html = `<!doctype html><html><head><meta charset="utf-8"><title>Deposit Certificate ${esc(scheme.schemeNumber)}</title>
+  const html = `<!doctype html><html><head><meta charset="utf-8"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"><title>Deposit Certificate ${esc(scheme.schemeNumber)}</title>
 <style>
   @page { size: A4; margin: 14mm; }
   * { box-sizing: border-box; }
-  body { font-family: Georgia, 'Times New Roman', serif; font-variant-numeric: lining-nums; color: #1f2937; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: 'Poppins', system-ui, sans-serif; font-variant-numeric: lining-nums; color: #1f2937; margin: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .head { display: flex; align-items: center; gap: 14px; border-bottom: 3px double #a16207; padding-bottom: 10px; }
   .head img { height: 64px; }
   .shop { font-size: 24px; font-weight: bold; letter-spacing: 1px; color: #713f12; }
-  .shopline { font-size: 11px; color: #4b5563; font-family: Arial, sans-serif; }
+  .shopline { font-size: 11px; color: #4b5563; font-family: 'Poppins', system-ui, sans-serif; }
   .blank { height: 42mm; }
   h1 { text-align: center; font-size: 20px; letter-spacing: 3px; margin: 22px 0 4px; color: #713f12; }
-  .sub { text-align: center; font-size: 12px; color: #6b7280; font-family: Arial, sans-serif; margin-bottom: 16px; }
+  .sub { text-align: center; font-size: 12px; color: #6b7280; font-family: 'Poppins', system-ui, sans-serif; margin-bottom: 16px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   td { padding: 7px 10px; border-bottom: 1px solid #e5e7eb; }
-  td:first-child { width: 38%; color: #6b7280; font-family: Arial, sans-serif; font-size: 12px; }
+  td:first-child { width: 38%; color: #6b7280; font-family: 'Poppins', system-ui, sans-serif; font-size: 12px; }
   td:last-child { font-weight: bold; }
-  .note { font-size: 11px; color: #4b5563; margin-top: 12px; font-family: Arial, sans-serif; line-height: 1.5; }
-  .sign { display: flex; justify-content: space-between; margin-top: 46px; font-size: 12px; font-family: Arial, sans-serif; }
+  .note { font-size: 11px; color: #4b5563; margin-top: 12px; font-family: 'Poppins', system-ui, sans-serif; line-height: 1.5; }
+  .sign { display: flex; justify-content: space-between; margin-top: 46px; font-size: 12px; font-family: 'Poppins', system-ui, sans-serif; }
   .sign div { border-top: 1px solid #9ca3af; padding-top: 4px; width: 42%; text-align: center; }
-  .cut { margin: 26px 0 18px; border-top: 1px dashed #9ca3af; text-align: center; font-size: 10px; color: #9ca3af; font-family: Arial, sans-serif; }
+  .cut { margin: 26px 0 18px; border-top: 1px dashed #9ca3af; text-align: center; font-size: 10px; color: #9ca3af; font-family: 'Poppins', system-ui, sans-serif; }
   .voucher { border: 2px solid #a16207; border-radius: 14px; padding: 16px 20px; background: #fffbeb; display: flex; justify-content: space-between; gap: 16px; align-items: center; }
-  .vtitle { font-size: 12px; letter-spacing: 3px; color: #a16207; font-family: Arial, sans-serif; font-weight: bold; }
+  .vtitle { font-size: 12px; letter-spacing: 3px; color: #a16207; font-family: 'Poppins', system-ui, sans-serif; font-weight: bold; }
   .vvalue { font-size: 34px; font-weight: bold; color: #713f12; }
   .vcode { font-family: 'Courier New', monospace; font-size: 18px; font-weight: bold; border: 1px dashed #a16207; padding: 6px 12px; border-radius: 8px; background: #fff; display: inline-block; }
-  .vsmall { font-size: 11px; color: #4b5563; font-family: Arial, sans-serif; line-height: 1.5; }
+  .vsmall { font-size: 11px; color: #4b5563; font-family: 'Poppins', system-ui, sans-serif; line-height: 1.5; }
 </style></head><body>
 ${letterhead ? `<div class="head">
   ${logo ? `<img src="${logo.base64}" alt="">` : ''}

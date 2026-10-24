@@ -94,7 +94,7 @@ export const StockHistoryDrawer: React.FC<StockHistoryDrawerProps> = ({
         </div>
 
         {/* Item Summary Bar */}
-        <div className="bg-[#FBFAF6] border-b border-[var(--accent-a40)] p-4 sticky top-16 z-10">
+        <div className="bg-white border-b border-[var(--accent-a40)] p-4 sticky top-16 z-10">
           <div className="text-[11px] font-black uppercase tracking-wider text-[var(--accent-dark)] mb-1">
             📦 Target SKU
           </div>
@@ -114,7 +114,7 @@ export const StockHistoryDrawer: React.FC<StockHistoryDrawerProps> = ({
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {loading ? (
             <div className="py-12 text-center text-gray-500 text-sm flex flex-col items-center gap-2">
-              <RefreshCw size={20} className="animate-spin text-[#0A0A0A]" />
+              <RefreshCw size={20} className="animate-spin text-[#000000]" />
               Loading audit movements...
             </div>
           ) : error ? (
@@ -139,11 +139,11 @@ export const StockHistoryDrawer: React.FC<StockHistoryDrawerProps> = ({
               return (
                 <div
                   key={m.id}
-                  className="bg-[#FBFAF6] border border-gray-200 hover:border-[var(--accent-a40)] rounded-2xl p-3.5 space-y-2 transition-all shadow-xs"
+                  className="bg-white border border-black/10 hover:border-[var(--accent-a40)] rounded-2xl p-3.5 space-y-2 transition-all shadow-xs"
                 >
                   <div className="flex items-center justify-between">
                     <span
-                      className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded border ${getBadgeStyle(
+                      className={`text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border ${getBadgeStyle(
                         m.movement_type
                       )}`}
                     >
@@ -181,7 +181,7 @@ export const StockHistoryDrawer: React.FC<StockHistoryDrawerProps> = ({
                   </div>
 
                   {(m.reference_id || m.note || m.created_by_name) && (
-                    <div className="text-[11px] text-gray-600 bg-white p-2 rounded-xl border border-gray-100 space-y-0.5">
+                    <div className="text-[11px] text-gray-600 bg-white p-2 rounded-xl border border-black/10 space-y-0.5">
                       {m.reference_id && (
                         <div>
                           <span className="text-gray-400">Ref:</span> #{m.reference_id}

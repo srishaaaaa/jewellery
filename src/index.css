@@ -26,19 +26,17 @@
     --accent-a50: rgba(202, 138, 4, 0.5);
   }
 
+  /* One font everywhere, as in IGMOLS: Poppins, browser-default 16px base size. */
   *, *::before, *::after {
     box-sizing: border-box;
-    font-family: 'DM Sans', 'Outfit', 'Noto Sans Tamil', system-ui, -apple-system, sans-serif;
-    font-optical-sizing: auto;
-    font-style: normal;
+    font-family: 'Poppins', system-ui, -apple-system, "Segoe UI", sans-serif;
   }
 
   html {
     margin: 0;
     padding: 0;
     height: 100%;
-    background-color: #0A0A0A;
-    scroll-behavior: smooth;
+    background-color: #FFFFFF;
     -webkit-text-size-adjust: 100%;
     touch-action: manipulation;
     width: 100%;
@@ -47,67 +45,25 @@
     -webkit-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
-    font-family: 'DM Sans', 'Outfit', 'Noto Sans Tamil', system-ui, -apple-system, sans-serif;
-    font-optical-sizing: auto;
-    font-style: normal;
-  }
-
-  /* Fluid Typography for Desktops/Laptops (>= 1024px) */
-  @media (min-width: 1024px) {
-    html {
-      font-size: clamp(13px, 0.35vw + 10.5px, 16px);
-    }
-  }
-
-  /* Tablet & Standard Mobile Baseline (361px - 1023px) */
-  @media (min-width: 361px) and (max-width: 1023px) {
-    html {
-      font-size: 13.5px;
-    }
-  }
-
-  /* Ultra-compact Mobile Screen Optimization (<= 360px down to 320px) */
-  @media (max-width: 360px) {
-    html {
-      font-size: 12px;
-    }
-    .admin-shell {
-      font-size: 12px;
-    }
   }
 
   body {
     margin: 0;
     padding: 0;
     height: 100%;
-    background-color: #FBFAF6;
-    background-image:
-      radial-gradient(circle at top left, rgba(202, 138, 4, 0.06), transparent 34%),
-      radial-gradient(circle at top right, rgba(10, 10, 10, 0.04), transparent 28%);
-    color: #111111;
-    font-family: 'DM Sans', 'Outfit', 'Noto Sans Tamil', system-ui, -apple-system, sans-serif;
-    font-optical-sizing: auto;
-    font-style: normal;
+    background-color: #FFFFFF;
+    color: #000000;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     width: 100%;
     max-width: 100vw;
     overscroll-behavior-x: contain;
     overscroll-behavior-y: contain;
-    text-rendering: optimizeLegibility;
     position: relative;
   }
 
   button, a, input, textarea, select, option, optgroup, label {
-    font-family: 'DM Sans', 'Outfit', 'Noto Sans Tamil', system-ui, -apple-system, sans-serif;
-    font-optical-sizing: auto;
-    font-style: normal;
     -webkit-tap-highlight-color: transparent;
-  }
-
-  table, thead, tbody, tr, th, td {
-    font-family: 'DM Sans', 'Outfit', 'Noto Sans Tamil', system-ui, -apple-system, sans-serif !important;
-    font-optical-sizing: auto;
-    font-style: normal;
   }
 
   img {
@@ -115,55 +71,16 @@
     display: block;
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'DM Sans', 'Outfit', 'Noto Sans Tamil', system-ui, sans-serif;
-    font-optical-sizing: auto;
-    font-style: normal;
-    letter-spacing: -0.01em;
-  }
-
-  .brand-font, .font-brand {
-    font-family: 'Cinzel', 'DM Sans', 'Outfit', 'Noto Sans Tamil', serif;
-  }
-
-  .font-headline {
-    font-family: 'DM Sans', 'Outfit', 'Noto Sans Tamil', system-ui, sans-serif;
-    font-optical-sizing: auto;
-    font-style: normal;
-  }
-
-  .font-sans {
-    font-family: 'DM Sans', 'Outfit', 'Noto Sans Tamil', system-ui, -apple-system, sans-serif !important;
-    font-optical-sizing: auto;
-    font-style: normal;
-  }
-
-  .dm-sans, .dmsans, .font-dm-sans, .font-dmsans {
-    font-family: 'DM Sans', sans-serif !important;
-    font-optical-sizing: auto;
-    font-style: normal;
-  }
-
-  .outfit, .font-outfit {
-    font-family: 'Outfit', sans-serif !important;
-    font-optical-sizing: auto;
-    font-style: normal;
-  }
-
   .font-mono {
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace !important;
   }
 
-  .ta-text {
-    font-family: 'Noto Sans Tamil', system-ui, sans-serif;
-    line-height: 1.75;
-    letter-spacing: 0;
-  }
-  [lang="ta"], :lang(ta) {
-    font-family: 'Noto Sans Tamil', system-ui, sans-serif;
-    line-height: 1.75;
-    letter-spacing: 0;
-  }
+  /* Accent scrollbar and text selection, as in IGMOLS */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--accent-dark); }
+  ::selection { background: var(--accent); color: #FFFFFF; }
 
   /* Modal & Popup Anti-Overflow Shield */
   .modal-overlay {

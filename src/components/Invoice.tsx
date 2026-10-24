@@ -164,7 +164,7 @@ export const Invoice: React.FC<InvoiceProps> = ({
       id="invoice-print-root"
       className="w-full max-w-[794px] mx-auto bg-white text-[#111111] box-border flex flex-col p-6 sm:p-[45px] print:p-0 print:max-w-full border border-[var(--accent-a20)] shadow-xl rounded-3xl h-auto"
       style={{
-        fontFamily: "'Inter', 'Segoe UI', sans-serif",
+        fontFamily: "'Poppins', system-ui, sans-serif",
       }}
     >
       {/* ── HEADER ────────────────────────────────────────────────── */}

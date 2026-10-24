@@ -8,8 +8,8 @@ import {
   type MakingChargeType, type RatedMetal, type WastageType,
 } from '../../lib/jewellery'
 
-const inputClass = 'w-full h-9 rounded-xl border border-gray-200 bg-white px-3 text-[13px] font-bold text-[#111111] outline-none focus:border-[var(--accent)]'
-const label = 'mb-1 block text-[10px] font-black uppercase tracking-wide text-[#6B7280]'
+const inputClass = 'w-full bg-white border border-black/10 focus:border-[var(--accent)] rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm'
+const label = 'mb-1 block text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]'
 const num = (v: string) => Math.max(0, Number(v) || 0)
 
 /**
@@ -53,10 +53,10 @@ export function JewelleryCalculatorModal({ onClose }: { onClose: () => void }) {
     <ModalPortal>
       <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/55 p-3 sm:p-4">
         <div className="flex w-full max-w-2xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
-          <div className="shrink-0 flex items-start justify-between border-b border-gray-100 px-4 pt-4 pb-3 sm:px-6">
+          <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[.16em] text-[var(--accent-dark)]">Estimate only · nothing is saved</p>
-              <h3 className="flex items-center gap-2 text-lg sm:text-xl font-black text-[#111111]"><Calculator size={18} /> Jewellery Calculator</h3>
+              <h3 className="flex items-center gap-2 text-lg sm:text-xl font-black text-[#000000]"><Calculator size={18} /> Jewellery Calculator</h3>
             </div>
             <button type="button" onClick={onClose} className="rounded-lg p-1 text-gray-500 hover:bg-gray-100 shrink-0" aria-label="Close"><X size={20} /></button>
           </div>
@@ -93,12 +93,12 @@ export function JewelleryCalculatorModal({ onClose }: { onClose: () => void }) {
               <label><span className={label}>Discount ₹</span><input type="number" min="0" step="0.01" className={inputClass} value={f.discount} onChange={(e) => set({ discount: e.target.value })} /></label>
               <label><span className={label}>GST %</span><input type="number" min="0" step="0.01" className={inputClass} value={f.gst} onChange={(e) => set({ gst: e.target.value })} /></label>
             </div>
-            <div className="rounded-2xl bg-[var(--accent-a10)] p-3 text-[12px] font-bold text-[#374151] space-y-1 self-start">
-              <div className="flex justify-between text-[11px] text-[#6B7280]"><span>Gross − Stone − Other</span><span>{net.toFixed(3)} g net</span></div>
+            <div className="rounded-2xl bg-[var(--accent-a10)] p-3 text-[12px] font-bold text-[#000000] space-y-1 self-start">
+              <div className="flex justify-between text-[11px] text-[#000000]"><span>Gross − Stone − Other</span><span>{net.toFixed(3)} g net</span></div>
               {weightError && <p className="text-[11px] text-red-600">Stone + other weight is more than the gross weight.</p>}
               {!rate && <p className="text-[11px] text-red-600">No rate is set for today. Enter one.</p>}
               {rows.map(([k, v]) => <div key={k} className={`flex justify-between gap-2 ${k === 'Subtotal' ? 'border-t border-[var(--accent-a30)] pt-1' : ''}`}><span>{k}</span><span className="whitespace-nowrap">{v}</span></div>)}
-              <div className="flex justify-between border-t border-[var(--accent-a30)] pt-1 text-[15px] font-black text-[#111111]"><span>Estimated total</span><span>{formatCurrency(final)}</span></div>
+              <div className="flex justify-between border-t border-[var(--accent-a30)] pt-1 text-[15px] font-black text-[#000000]"><span>Estimated total</span><span>{formatCurrency(final)}</span></div>
             </div>
           </div>
         </div>

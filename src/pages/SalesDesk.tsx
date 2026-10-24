@@ -19,8 +19,8 @@ import { deleteDeskRecord, type DeskTable,
   type CustomerAdvance, type OldGoldRecord, type Quotation, type Repair, type RepairStatus, type ReturnLine, type SalesReturn,
 } from '../services/salesDeskService'
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-[#6B7280]">{label}</span>{children}</label> }
-const inputClass = 'w-full rounded-xl border border-[#E5E7EB] bg-white px-3.5 py-2.5 text-sm text-[#273126] outline-none transition focus:border-[var(--accent-dark)] focus:ring-2 focus:ring-[var(--accent-a10)]'
+function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">{label}</span>{children}</label> }
+const inputClass = 'w-full bg-white border border-black/10 focus:border-[var(--accent)] rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm'
 
 type DeskTab = 'quotations' | 'returns' | 'old_gold' | 'advances' | 'repairs'
 const TABS: Array<{ key: DeskTab; label: string; icon: typeof FileText }> = [
@@ -45,11 +45,11 @@ const sendWhatsApp = (phone: string, text: string) => window.open(toWhatsAppUrl(
 
 const TH = 'px-4 py-3.5 whitespace-nowrap'
 const thead = (cols: string[]) => (
-  <thead className="bg-[#F8F7F4] text-[10px] font-black uppercase tracking-wider text-[#737B72]">
+  <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
     <tr>{cols.map((h) => <th key={h} className={TH}>{h}</th>)}</tr>
   </thead>
 )
-const emptyRow = (cols: number, text: string) => <tr><td colSpan={cols} className="px-4 py-12 text-center text-[#6B7280]">{text}</td></tr>
+const emptyRow = (cols: number, text: string) => <tr><td colSpan={cols} className="px-4 py-12 text-center text-[#000000]">{text}</td></tr>
 const iconBtn = 'w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer shrink-0'
 
 export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quotation: Quotation) => void } = {}) {
@@ -469,7 +469,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
   }
 
   const statusChip = (text: string, tone: 'green' | 'amber' | 'red' | 'gray' | 'blue') => {
-    const cls = { green: 'bg-emerald-50 text-emerald-700 border-emerald-200', amber: 'bg-amber-50 text-amber-800 border-amber-200', red: 'bg-red-50 text-red-700 border-red-200', gray: 'bg-gray-100 text-gray-600 border-gray-200', blue: 'bg-blue-50 text-blue-700 border-blue-200' }[tone]
+    const cls = { green: 'bg-emerald-50 text-emerald-700 border-emerald-200', amber: 'bg-amber-50 text-amber-800 border-amber-200', red: 'bg-red-50 text-red-700 border-red-200', gray: 'bg-gray-100 text-gray-600 border-black/10', blue: 'bg-blue-50 text-blue-700 border-blue-200' }[tone]
     return <span className={`inline-block rounded-xl border px-2.5 py-1 text-xs font-black ${cls}`}>{text}</span>
   }
 
@@ -482,26 +482,25 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <p className="text-xs font-black uppercase tracking-[.18em] text-[var(--accent-dark)]">Counter services</p>
-        <h2 className="text-2xl font-black text-[#273126]">Sales Desk</h2>
-        <p className="mt-1 text-sm text-[#6B7280]">Quotations, returns and exchanges, old gold, customer advances and repairs. Original invoices are never changed.</p>
+        <h2 className="text-[28px] font-black text-[#000000] tracking-tight">Sales Desk</h2>
+        <p className="mt-1 text-xs font-semibold text-[#000000]">Quotations, returns and exchanges, old gold, customer advances and repairs. Original invoices are never changed.</p>
       </div>
       <div className="flex gap-2">
         {newButton && (
-          <button onClick={newButton.onClick} className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-black text-white hover:opacity-90 cursor-pointer">
+          <button onClick={newButton.onClick} className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:opacity-90 cursor-pointer">
             <Plus size={16} /> {newButton.label}
           </button>
         )}
-        <button onClick={() => void load()} className="rounded-xl border bg-white p-3 text-[#647064] cursor-pointer" title="Refresh">
+        <button onClick={() => void load()} className="rounded-xl border bg-white p-3 text-[#000000] cursor-pointer" title="Refresh">
           <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
         </button>
       </div>
     </div>
 
-    <div className="flex gap-2 border-b border-[#E5E7EB] overflow-x-auto hide-scrollbar">
+    <div className="flex gap-2 border-b border-black/10 overflow-x-auto hide-scrollbar">
       {TABS.map(({ key, label, icon: Icon }) => (
         <button key={key} onClick={() => setTab(key)}
-          className={`flex items-center gap-1.5 px-4 py-3 font-bold text-sm whitespace-nowrap transition-colors ${tab === key ? 'text-[var(--accent-dark)] border-b-2 border-[var(--accent-dark)]' : 'text-[#6B7280] hover:text-[#111111]'}`}>
+          className={`flex items-center gap-1.5 px-4 py-3 font-bold text-sm whitespace-nowrap transition-colors ${tab === key ? 'text-[var(--accent-dark)] border-b-2 border-[var(--accent-dark)]' : 'text-[#000000] hover:text-[#000000]'}`}>
           <Icon size={15} /> {label}
         </button>
       ))}
@@ -510,40 +509,40 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
     {notice && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</div>}
 
-    <div className="rounded-2xl border border-[#ECE9E2] bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
       <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
         <label className="relative"><Search className="absolute left-3 top-3 text-[#9CA3AF]" size={17} /><input className={`${inputClass} pl-10`} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search number, customer, phone or invoice" /></label>
         <button onClick={exportCsv} className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-200 cursor-pointer">
           <Download size={13} /> Export CSV
         </button>
       </div>
-      {tab === 'quotations' && <p className="mt-2 text-[11px] font-semibold text-[#6B7280]">Create a quotation from the Billing Panel with "Save as Quotation". It uses today's metal rate and is not an invoice. Use the bill button to load it into the Billing Panel: quoted prices are kept until it expires.</p>}
+      {tab === 'quotations' && <p className="mt-2 text-[11px] font-semibold text-[#000000]">Create a quotation from the Billing Panel with "Save as Quotation". It uses today's metal rate and is not an invoice. Use the bill button to load it into the Billing Panel: quoted prices are kept until it expires.</p>}
       {tab === 'old_gold' && <>
         <div className="mt-3 flex flex-wrap gap-2">
           {([['all', 'All'], ['billing', 'Billing exchange'], ['counter', 'Counter purchase']] as const).map(([key, label]) => (
             <button key={key} onClick={() => setOgFilter(key)}
-              className={`rounded-xl px-3 py-1.5 text-xs font-black transition-colors cursor-pointer ${ogFilter === key ? 'bg-[var(--accent-dark)] text-white' : 'bg-[#F3F2EE] text-[#6B7280] hover:text-[#111111]'}`}>
+              className={`rounded-xl px-3 py-1.5 text-xs font-black transition-colors cursor-pointer ${ogFilter === key ? 'bg-[var(--accent-dark)] text-white' : 'bg-black/[0.03] text-[#000000] hover:text-[#000000]'}`}>
               {label} <span className="opacity-70">({ogSourceCounts[key]})</span>
             </button>
           ))}
         </div>
-        <p className="mt-2 text-[11px] font-semibold text-[#6B7280]"><b>Billing exchange</b>: old gold taken as part-payment in the Billing Panel, linked to that invoice. <b>Counter purchase</b>: old gold bought here without a bill, paid to the customer or kept as store credit.</p>
+        <p className="mt-2 text-[11px] font-semibold text-[#000000]"><b>Billing exchange</b>: old gold taken as part-payment in the Billing Panel, linked to that invoice. <b>Counter purchase</b>: old gold bought here without a bill, paid to the customer or kept as store credit.</p>
       </>}
-      {tab === 'returns' && !isAdmin && <p className="mt-2 text-[11px] font-semibold text-[#6B7280]">Returns recorded by staff wait for admin approval before stock and refunds are updated.</p>}
+      {tab === 'returns' && !isAdmin && <p className="mt-2 text-[11px] font-semibold text-[#000000]">Returns recorded by staff wait for admin approval before stock and refunds are updated.</p>}
     </div>
 
-    <div className="rounded-2xl border border-[#ECE9E2] bg-white shadow-sm flex flex-col">
+    <div className="rounded-2xl border border-black/10 bg-white shadow-sm flex flex-col">
       <div className="overflow-x-auto overscroll-x-contain">
         <table className="w-full text-left text-sm whitespace-nowrap">
           {tab === 'quotations' && <>
             {thead(['Quotation', 'Customer', 'Items', 'Total', 'Valid Until', 'Status', 'Actions'])}
-            <tbody className="divide-y divide-[#F0EEE9]">
+            <tbody className="divide-y divide-black/5">
               {loading ? emptyRow(7, 'Loading…') : quotations.filter((x) => matches(x.quotationNumber, x.customerName, x.phone)).length === 0 ? emptyRow(7, 'No quotations yet.')
                 : quotations.filter((x) => matches(x.quotationNumber, x.customerName, x.phone)).map((x) => (
                   <tr key={x.id} className="hover:bg-[var(--accent-a5)] transition-colors">
-                    <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.quotationNumber}</p><p className="text-[11px] text-[#8B9389]">{fmtDate(x.createdAt, true)} • {x.createdBy}</p></td>
-                    <td className="px-4 py-3.5"><p className="font-bold text-[#273126]">{x.customerName || '—'}</p><p className="text-xs text-[#727970]">{x.phone}</p></td>
-                    <td className="px-4 py-3.5 text-xs">{x.items.slice(0, 2).map((raw, i) => <p key={i}>{normalizeStructuredOrderItem(raw).name}</p>)}{x.items.length > 2 && <p className="text-[#858C83]">+{x.items.length - 2} more</p>}</td>
+                    <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.quotationNumber}</p><p className="text-[11px] text-[#000000]">{fmtDate(x.createdAt, true)} • {x.createdBy}</p></td>
+                    <td className="px-4 py-3.5"><p className="font-bold text-[#000000]">{x.customerName || '—'}</p><p className="text-xs text-[#000000]">{x.phone}</p></td>
+                    <td className="px-4 py-3.5 text-xs">{x.items.slice(0, 2).map((raw, i) => <p key={i}>{normalizeStructuredOrderItem(raw).name}</p>)}{x.items.length > 2 && <p className="text-[#000000]">+{x.items.length - 2} more</p>}</td>
                     <td className="px-4 py-3.5 font-black">{formatCurrency(x.total)}</td>
                     <td className="px-4 py-3.5 text-xs">{fmtDate(x.validUntil)}</td>
                     <td className="px-4 py-3.5">{statusChip(x.status === 'open' ? 'Open' : x.status === 'converted' ? 'Billed' : 'Cancelled', x.status === 'open' ? 'blue' : x.status === 'converted' ? 'green' : 'gray')}</td>
@@ -562,16 +561,16 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
 
           {tab === 'returns' && <>
             {thead(['Return', 'Invoice / Customer', 'Items', 'Type', 'Amount', 'Status', 'Actions'])}
-            <tbody className="divide-y divide-[#F0EEE9]">
+            <tbody className="divide-y divide-black/5">
               {loading ? emptyRow(7, 'Loading…') : returns.filter((x) => matches(x.returnNumber, x.invoiceNo, x.customerName, x.phone)).length === 0 ? emptyRow(7, 'No returns or exchanges yet.')
                 : returns.filter((x) => matches(x.returnNumber, x.invoiceNo, x.customerName, x.phone)).map((x) => (
                   <tr key={x.id} className="hover:bg-[var(--accent-a5)] transition-colors">
-                    <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.returnNumber}</p><p className="text-[11px] text-[#8B9389]">{fmtDate(x.createdAt, true)} • {x.createdBy}</p></td>
-                    <td className="px-4 py-3.5"><p className="font-bold text-[#273126]">{x.invoiceNo ? formatInvoiceNo(x.invoiceNo) : 'No invoice'}</p><p className="text-xs text-[#727970]">{x.customerName} {x.phone && `• ${x.phone}`}</p></td>
-                    <td className="px-4 py-3.5 text-xs">{x.items.map((l, i) => <p key={i}>{l.name} × {l.quantity}</p>)}<p className="text-[#858C83] whitespace-normal max-w-[220px]">{x.reason}</p></td>
+                    <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.returnNumber}</p><p className="text-[11px] text-[#000000]">{fmtDate(x.createdAt, true)} • {x.createdBy}</p></td>
+                    <td className="px-4 py-3.5"><p className="font-bold text-[#000000]">{x.invoiceNo ? formatInvoiceNo(x.invoiceNo) : 'No invoice'}</p><p className="text-xs text-[#000000]">{x.customerName} {x.phone && `• ${x.phone}`}</p></td>
+                    <td className="px-4 py-3.5 text-xs">{x.items.map((l, i) => <p key={i}>{l.name} × {l.quantity}</p>)}<p className="text-[#000000] whitespace-normal max-w-[220px]">{x.reason}</p></td>
                     <td className="px-4 py-3.5 text-xs font-bold">{x.returnType === 'exchange' ? 'Exchange (credit)' : `Refund · ${formatPaymentMode(x.refundMethod)}`}</td>
                     <td className="px-4 py-3.5 font-black">{formatCurrency(x.refundAmount)}</td>
-                    <td className="px-4 py-3.5">{statusChip(x.status === 'approved' ? 'Approved' : x.status === 'rejected' ? 'Rejected' : 'Pending approval', x.status === 'approved' ? 'green' : x.status === 'rejected' ? 'gray' : 'amber')}{x.approvedBy && <p className="mt-1 text-[10px] text-[#858C83]">by {x.approvedBy}</p>}</td>
+                    <td className="px-4 py-3.5">{statusChip(x.status === 'approved' ? 'Approved' : x.status === 'rejected' ? 'Rejected' : 'Pending approval', x.status === 'approved' ? 'green' : x.status === 'rejected' ? 'gray' : 'amber')}{x.approvedBy && <p className="mt-1 text-[10px] text-[#000000]">by {x.approvedBy}</p>}</td>
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
                       <button className={`${iconBtn} bg-amber-50 text-amber-700 hover:bg-amber-100`} title="Print slip" onClick={() => printReturn(x)}><Printer size={15} /></button>
                       {isAdmin && x.status === 'pending' && <>
@@ -587,16 +586,16 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
 
           {tab === 'old_gold' && <>
             {thead(['Exchange', 'Source', 'Customer', 'Metal', 'Weight', 'Rate', 'Deductions', 'Value', 'Actions'])}
-            <tbody className="divide-y divide-[#F0EEE9]">
+            <tbody className="divide-y divide-black/5">
               {loading ? emptyRow(9, 'Loading…') : visibleOldGold.length === 0 ? emptyRow(9, ogFilter === 'counter' ? 'No counter purchases yet.' : ogFilter === 'billing' ? 'No old gold taken on bills yet.' : 'No old gold taken yet.')
                 : visibleOldGold.map((x) => (
                   <tr key={x.id} className="hover:bg-[var(--accent-a5)] transition-colors">
-                    <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.exchangeNumber}</p><p className="text-[11px] text-[#8B9389]">{fmtDate(x.createdAt, true)} • {x.createdBy}</p></td>
+                    <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.exchangeNumber}</p><p className="text-[11px] text-[#000000]">{fmtDate(x.createdAt, true)} • {x.createdBy}</p></td>
                     <td className="px-4 py-3.5">{x.source === 'billing'
-                      ? <>{statusChip('Billing exchange', 'blue')}<p className="mt-1 text-[11px] font-bold text-[#273126]">{x.invoiceNo ? formatInvoiceNo(x.invoiceNo) : '—'}</p></>
-                      : <>{statusChip('Counter purchase', 'amber')}<p className="mt-1 text-[11px] font-bold text-[#273126]">{x.settlement === 'credit' ? 'Store credit' : x.settlement === 'paid' ? `Paid · ${formatPaymentMode(x.payoutMethod)}` : '—'}</p></>}</td>
-                    <td className="px-4 py-3.5"><p className="font-bold text-[#273126]">{x.customerName || '—'}</p><p className="text-xs text-[#727970]">{x.phone}</p></td>
-                    <td className="px-4 py-3.5 text-xs"><p className="font-bold">{metalLabel(normalizeMetalType(x.metalType), x.purity)}</p>{x.testedPurity != null && <p className="text-[#858C83]">Tested {x.testedPurity}%</p>}{x.description && <p className="text-[#858C83]">{x.description}</p>}</td>
+                      ? <>{statusChip('Billing exchange', 'blue')}<p className="mt-1 text-[11px] font-bold text-[#000000]">{x.invoiceNo ? formatInvoiceNo(x.invoiceNo) : '—'}</p></>
+                      : <>{statusChip('Counter purchase', 'amber')}<p className="mt-1 text-[11px] font-bold text-[#000000]">{x.settlement === 'credit' ? 'Store credit' : x.settlement === 'paid' ? `Paid · ${formatPaymentMode(x.payoutMethod)}` : '—'}</p></>}</td>
+                    <td className="px-4 py-3.5"><p className="font-bold text-[#000000]">{x.customerName || '—'}</p><p className="text-xs text-[#000000]">{x.phone}</p></td>
+                    <td className="px-4 py-3.5 text-xs"><p className="font-bold">{metalLabel(normalizeMetalType(x.metalType), x.purity)}</p>{x.testedPurity != null && <p className="text-[#000000]">Tested {x.testedPurity}%</p>}{x.description && <p className="text-[#000000]">{x.description}</p>}</td>
                     <td className="px-4 py-3.5 text-xs">Gross {formatWeight(x.grossWeight)}<br />Stone {formatWeight(x.stoneWeight)}<br /><b>Net {formatWeight(x.netWeight)}</b></td>
                     <td className="px-4 py-3.5 text-xs">{formatCurrency(x.exchangeRate)}/g</td>
                     <td className="px-4 py-3.5 text-xs">Melting {x.meltingDeductionPercent}%<br />Other {formatCurrency(x.otherDeduction)}</td>
@@ -604,7 +603,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
                       <button className={`${iconBtn} bg-amber-50 text-amber-700 hover:bg-amber-100`} title="Print slip" onClick={() => printOldGold(x)}><Printer size={15} /></button>
                       {isAdmin && (x.source === 'billing'
-                        ? <span className="text-[10px] font-semibold text-[#8B9389]" title="Part-payment on a bill: delete the bill to remove it">On bill</span>
+                        ? <span className="text-[10px] font-semibold text-[#000000]" title="Part-payment on a bill: delete the bill to remove it">On bill</span>
                         : deleteBtn(() => void deleteRecord('old_gold_exchanges', x.id, x.exchangeNumber, 'old gold purchase', x.settlement === 'credit' ? 'Its store credit is removed too (not allowed once the credit is used on a bill).' : '')))}
                     </div></td>
                   </tr>
@@ -614,14 +613,14 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
 
           {tab === 'advances' && <>
             {thead(['Receipt', 'Customer', 'Purpose', 'Amount', 'Used / Balance', 'Status', 'Actions'])}
-            <tbody className="divide-y divide-[#F0EEE9]">
+            <tbody className="divide-y divide-black/5">
               {loading ? emptyRow(7, 'Loading…') : advances.filter((x) => matches(x.receiptNumber, x.customerName, x.phone, x.purpose)).length === 0 ? emptyRow(7, 'No advances yet.')
                 : advances.filter((x) => matches(x.receiptNumber, x.customerName, x.phone, x.purpose)).map((x) => (
                   <tr key={x.id} className="hover:bg-[var(--accent-a5)] transition-colors">
-                    <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.receiptNumber}</p><p className="text-[11px] text-[#8B9389]">{fmtDate(x.createdAt, true)} • {x.createdBy}</p></td>
-                    <td className="px-4 py-3.5"><p className="font-bold text-[#273126]">{x.customerName || '—'}</p><p className="text-xs text-[#727970]">{x.phone}</p></td>
-                    <td className="px-4 py-3.5 text-xs whitespace-normal max-w-[220px]">{x.purpose || '—'}{x.source === 'exchange' && <p className="text-[#858C83]">From return {x.sourceRef}</p>}{x.source === 'old_gold' && <p className="text-[#858C83]">From old gold {x.sourceRef}</p>}{x.source === 'gift_voucher' && <p className="text-[#858C83]">Gift voucher for deposit {x.sourceRef}</p>}</td>
-                    <td className="px-4 py-3.5 font-black">{formatCurrency(x.amount)}<p className="text-[11px] font-semibold text-[#858C83]">{formatPaymentMode(x.paymentMethod)}</p></td>
+                    <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.receiptNumber}</p><p className="text-[11px] text-[#000000]">{fmtDate(x.createdAt, true)} • {x.createdBy}</p></td>
+                    <td className="px-4 py-3.5"><p className="font-bold text-[#000000]">{x.customerName || '—'}</p><p className="text-xs text-[#000000]">{x.phone}</p></td>
+                    <td className="px-4 py-3.5 text-xs whitespace-normal max-w-[220px]">{x.purpose || '—'}{x.source === 'exchange' && <p className="text-[#000000]">From return {x.sourceRef}</p>}{x.source === 'old_gold' && <p className="text-[#000000]">From old gold {x.sourceRef}</p>}{x.source === 'gift_voucher' && <p className="text-[#000000]">Gift voucher for deposit {x.sourceRef}</p>}</td>
+                    <td className="px-4 py-3.5 font-black">{formatCurrency(x.amount)}<p className="text-[11px] font-semibold text-[#000000]">{formatPaymentMode(x.paymentMethod)}</p></td>
                     <td className="px-4 py-3.5 text-xs"><p>Used {formatCurrency(x.amountUsed)}</p><p className="font-black text-emerald-700">Balance {formatCurrency(x.balance)}</p></td>
                     <td className="px-4 py-3.5">{statusChip(x.status === 'active' ? 'Available' : x.status === 'used' ? 'Fully used' : 'Cancelled', x.status === 'active' ? 'green' : 'gray')}</td>
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
@@ -637,18 +636,18 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
 
           {tab === 'repairs' && <>
             {thead(['Repair', 'Customer', 'Item', 'Expected', 'Charge / Balance', 'Status', 'Actions'])}
-            <tbody className="divide-y divide-[#F0EEE9]">
+            <tbody className="divide-y divide-black/5">
               {loading ? emptyRow(7, 'Loading…') : repairs.filter((x) => matches(x.repairNumber, x.customerName, x.phone, x.itemName, x.invoiceNo, x.assignedTo)).length === 0 ? emptyRow(7, 'No repairs yet.')
                 : repairs.filter((x) => matches(x.repairNumber, x.customerName, x.phone, x.itemName, x.invoiceNo, x.assignedTo)).map((x) => (
                   <tr key={x.id} className="hover:bg-[var(--accent-a5)] transition-colors">
-                    <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.repairNumber}</p><p className="text-[11px] text-[#8B9389]">Received {fmtDate(x.receivedDate)}</p></td>
-                    <td className="px-4 py-3.5"><p className="font-bold text-[#273126]">{x.customerName || '—'}</p><p className="text-xs text-[#727970]">{x.phone}</p></td>
-                    <td className="px-4 py-3.5 text-xs whitespace-normal max-w-[220px]"><p className="font-bold">{x.itemName}{x.weight ? ` • ${formatWeight(x.weight)}` : ''}</p><p className="text-[#858C83]">{x.description}</p>{(x.assignedTo || x.invoiceNo) && <p className="text-[11px] text-[#858C83]">{x.assignedTo && `With ${x.assignedTo}`}{x.assignedTo && x.invoiceNo && ' • '}{x.invoiceNo && `Bill ${formatInvoiceNo(x.invoiceNo)}`}</p>}</td>
+                    <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.repairNumber}</p><p className="text-[11px] text-[#000000]">Received {fmtDate(x.receivedDate)}</p></td>
+                    <td className="px-4 py-3.5"><p className="font-bold text-[#000000]">{x.customerName || '—'}</p><p className="text-xs text-[#000000]">{x.phone}</p></td>
+                    <td className="px-4 py-3.5 text-xs whitespace-normal max-w-[220px]"><p className="font-bold">{x.itemName}{x.weight ? ` • ${formatWeight(x.weight)}` : ''}</p><p className="text-[#000000]">{x.description}</p>{(x.assignedTo || x.invoiceNo) && <p className="text-[11px] text-[#000000]">{x.assignedTo && `With ${x.assignedTo}`}{x.assignedTo && x.invoiceNo && ' • '}{x.invoiceNo && `Bill ${formatInvoiceNo(x.invoiceNo)}`}</p>}</td>
                     <td className={`px-4 py-3.5 text-xs ${x.expectedDate && x.expectedDate < new Date().toISOString().slice(0, 10) && x.status !== 'delivered' ? 'font-black text-red-600' : ''}`}>{fmtDate(x.expectedDate)}</td>
                     <td className="px-4 py-3.5 text-xs"><p>{formatCurrency(x.repairCharge)} • Adv {formatCurrency(x.advancePaid)}</p><p className="font-black">Balance {formatCurrency(x.balance)}</p></td>
                     <td className="px-4 py-3.5">
                       <select value={x.status} onChange={(e) => void updateRepair(x, { status: e.target.value as RepairStatus })}
-                        className="rounded-xl border border-[#E5E7EB] bg-white px-2.5 py-1.5 text-xs font-black outline-none cursor-pointer">
+                        className="rounded-xl border border-black/10 bg-white px-2.5 py-1.5 text-xs font-black outline-none cursor-pointer">
                         {(Object.keys(REPAIR_STATUS_LABELS) as RepairStatus[]).map((k) => <option key={k} value={k}>{REPAIR_STATUS_LABELS[k]}</option>)}
                       </select>
                     </td>
@@ -669,9 +668,9 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     {/* ── New return / exchange ── */}
     {returnOpen && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
       <form onSubmit={submitReturn} className="flex w-full max-w-2xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
-        <div className="shrink-0 flex items-start justify-between border-b border-gray-100 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
-          <div><h3 className="text-xl font-black text-[#273126]">Return / Exchange</h3><p className="text-xs text-[#6B7280]">With or without the original invoice. The invoice itself is never changed.</p></div>
-          <button type="button" onClick={() => setReturnOpen(false)} className="shrink-0 text-[#858C83] hover:text-black"><X size={20} /></button>
+        <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
+          <div><h3 className="text-xl font-black text-[#000000]">Return / Exchange</h3><p className="text-xs text-[#000000]">With or without the original invoice. The invoice itself is never changed.</p></div>
+          <button type="button" onClick={() => setReturnOpen(false)} className="shrink-0 text-[#000000] hover:text-black"><X size={20} /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 space-y-4">
           {modalError && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
@@ -679,7 +678,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
             <Field label={returnOrder ? 'Mobile Number' : 'Mobile Number *'}><input className={inputClass} value={returnCustomer.phone} onChange={(e) => setReturnCustomer((c) => ({ ...c, phone: e.target.value }))} placeholder="Customer mobile" /></Field>
             <Field label="Customer Name"><input className={inputClass} value={returnCustomer.name} onChange={(e) => setReturnCustomer((c) => ({ ...c, name: e.target.value }))} placeholder="Customer name" /></Field>
           </div>
-          <p className="text-[11px] font-black uppercase tracking-wide text-[#6B7280]">Original invoice <span className="font-semibold normal-case tracking-normal">(optional: find it to pick items and put them back in stock)</span></p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Original invoice <span className="font-semibold normal-case tracking-normal">(optional: find it to pick items and put them back in stock)</span></p>
           <div className="flex gap-2">
             <input className={inputClass} value={returnLookup} onChange={(e) => setReturnLookup(e.target.value)} placeholder="Invoice number or customer phone"
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void findInvoice() } }} />
@@ -687,14 +686,14 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
           </div>
           {returnOrders.length > 1 && !returnOrder && (
             <div className="space-y-1.5">{returnOrders.map((o) => (
-              <button type="button" key={o.id} onClick={() => void chooseReturnOrder(o)} className="w-full flex justify-between rounded-xl border border-gray-200 px-3 py-2 text-left text-sm hover:border-[var(--accent)]">
-                <span className="font-bold">{formatInvoiceNo(o.invoiceNo)} • {o.customerName}</span><span className="text-xs text-[#6B7280]">{fmtDate(o.createdAt)}</span>
+              <button type="button" key={o.id} onClick={() => void chooseReturnOrder(o)} className="w-full flex justify-between rounded-xl border border-black/10 px-3 py-2 text-left text-sm hover:border-[var(--accent)]">
+                <span className="font-bold">{formatInvoiceNo(o.invoiceNo)} • {o.customerName}</span><span className="text-xs text-[#000000]">{fmtDate(o.createdAt)}</span>
               </button>
             ))}</div>
           )}
           {!returnOrder && (
             <div className="space-y-2">
-              <p className="text-[11px] font-black uppercase tracking-wide text-[#6B7280]">Items returned <span className="font-semibold normal-case tracking-normal">(no invoice: stock is not changed)</span></p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Items returned <span className="font-semibold normal-case tracking-normal">(no invoice: stock is not changed)</span></p>
               {manualLines.map((l, idx) => (
                 <div key={idx} className="grid grid-cols-[1fr_1fr_28px] sm:grid-cols-[1fr_90px_110px_28px] gap-2 items-center">
                   <input className={`${inputClass} col-span-3 sm:col-span-1`} value={l.name} onChange={(e) => setManualLines((cur) => cur.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)))} placeholder="Item, e.g. 22K chain" aria-label={`Item ${idx + 1}`} />
@@ -709,17 +708,17 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
           {returnOrder && <div className="flex justify-end"><button type="button" onClick={() => { setReturnOrder(null); setReturnQty({}); setAlreadyReturned({}); setAlreadyRefunded(null) }} className="text-xs font-black text-[var(--accent-dark)] hover:underline">Return without this invoice</button></div>}
           {<>
             {returnOrder && <>
-            <div className="rounded-xl bg-[#F8F7F4] p-3 text-sm"><b>{formatInvoiceNo(returnOrder.invoiceNo)}</b> • {returnOrder.customerName} • {formatPhoneDisplay(returnOrder.phone)} • {fmtDate(returnOrder.createdAt)}</div>
+            <div className="rounded-xl bg-black/[0.03] p-3 text-sm"><b>{formatInvoiceNo(returnOrder.invoiceNo)}</b> • {returnOrder.customerName} • {formatPhoneDisplay(returnOrder.phone)} • {fmtDate(returnOrder.createdAt)}</div>
             <div className="space-y-2">
               {returnOrder.items.map((it, idx) => {
                 const left = it.quantity - (alreadyReturned[idx] || 0)
                 return (
-                  <div key={idx} className="flex items-center justify-between gap-3 rounded-xl border border-gray-200 p-2.5">
+                  <div key={idx} className="flex items-center justify-between gap-3 rounded-xl border border-black/10 p-2.5">
                     <div className="min-w-0 text-sm">
                       <p className="font-bold break-words">{it.name}</p>
-                      <p className="text-[11px] text-[#6B7280]">Sold {it.quantity} • {formatCurrency(it.line_total)}{it.jewellery ? ` • ${metalLabel(it.jewellery.metal_type, it.jewellery.purity)} ${formatWeight(it.jewellery.net_weight)} @ ${formatCurrency(it.jewellery.rate_per_gram)}/g` : ''}{alreadyReturned[idx] ? ` • ${alreadyReturned[idx]} already returned` : ''}</p>
+                      <p className="text-[11px] text-[#000000]">Sold {it.quantity} • {formatCurrency(it.line_total)}{it.jewellery ? ` • ${metalLabel(it.jewellery.metal_type, it.jewellery.purity)} ${formatWeight(it.jewellery.net_weight)} @ ${formatCurrency(it.jewellery.rate_per_gram)}/g` : ''}{alreadyReturned[idx] ? ` • ${alreadyReturned[idx]} already returned` : ''}</p>
                     </div>
-                    <input type="number" min="0" max={left} step="1" disabled={left <= 0} className="w-20 rounded-xl border border-[#E5E7EB] px-2 py-2 text-sm text-right" placeholder="0"
+                    <input type="number" min="0" max={left} step="1" disabled={left <= 0} className="w-20 rounded-xl border border-black/10 px-2 py-2 text-sm text-right" placeholder="0"
                       value={returnQty[idx] || ''} onChange={(e) => setReturnQty((m) => ({ ...m, [idx]: e.target.value }))} aria-label={`Quantity of ${it.name} to return`} />
                   </div>
                 )
@@ -748,9 +747,9 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
             {!isAdmin && <p className="rounded-xl bg-amber-50 p-3 text-[11px] font-semibold text-amber-800">This will be sent for admin approval before stock and the refund / credit are updated.</p>}
           </>}
         </div>
-        <div className="shrink-0 flex gap-3 border-t border-gray-100 bg-white px-4 py-3 sm:px-6">
+        <div className="shrink-0 flex gap-3 border-t border-black/10 bg-white px-4 py-3 sm:px-6">
           <button type="button" onClick={() => setReturnOpen(false)} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button>
-          <button disabled={saving} className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Saving…' : isAdmin ? 'Record & Approve' : 'Send for Approval'}</button>
+          <button disabled={saving} className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50">{saving ? 'Saving…' : isAdmin ? 'Record & Approve' : 'Send for Approval'}</button>
         </div>
       </form>
     </div></ModalPortal>}
@@ -758,9 +757,9 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     {/* ── New counter old gold purchase ── */}
     {ogOpen && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
       <form onSubmit={submitOldGold} className="flex w-full max-w-2xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
-        <div className="shrink-0 flex items-start justify-between border-b border-gray-100 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
-          <div><p className="text-[11px] font-black uppercase tracking-[.16em] text-[var(--accent-dark)]">Counter purchase · no bill</p><h3 className="text-xl font-black text-[#273126]">Buy Old Gold</h3><p className="text-xs text-[#6B7280]">Old gold given as part-payment on a bill is added in the Billing Panel instead.</p></div>
-          <button type="button" onClick={() => setOgOpen(false)} className="shrink-0 text-[#858C83] hover:text-black"><X size={20} /></button>
+        <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
+          <div><p className="text-[11px] font-black uppercase tracking-[.16em] text-[var(--accent-dark)]">Counter purchase · no bill</p><h3 className="text-xl font-black text-[#000000]">Buy Old Gold</h3><p className="text-xs text-[#000000]">Old gold given as part-payment on a bill is added in the Billing Panel instead.</p></div>
+          <button type="button" onClick={() => setOgOpen(false)} className="shrink-0 text-[#000000] hover:text-black"><X size={20} /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 grid gap-4 sm:grid-cols-2">
           {modalError && <div className="sm:col-span-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
@@ -790,16 +789,16 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
             <Field label="Rate (₹/g)"><input type="number" min="0" step="0.01" className={inputClass} value={ogForm.exchangeRate} onChange={(e) => setOgForm((f) => ({ ...f, exchangeRate: e.target.value }))} placeholder={ogSuggestedRate ? String(ogSuggestedRate) : 'Rate'} /></Field>
             <Field label="Other ded. (₹)"><input type="number" min="0" step="0.01" className={inputClass} value={ogForm.otherDeduction} onChange={(e) => setOgForm((f) => ({ ...f, otherDeduction: e.target.value }))} placeholder="0" /></Field>
           </div>
-          <div className="sm:col-span-2 rounded-2xl bg-[var(--accent-a10)] p-3 text-[12px] font-bold text-[#374151] space-y-0.5">
+          <div className="sm:col-span-2 rounded-2xl bg-[var(--accent-a10)] p-3 text-[12px] font-bold text-[#000000] space-y-0.5">
             <div className="flex justify-between"><span>Weight after melting loss</span><span>{ogPreview.effectiveWeight.toFixed(3)} g</span></div>
             <div className="flex justify-between"><span>@ {formatCurrency(ogRate)}/g{ogForm.exchangeRate.trim() === '' && ogSuggestedRate ? " (today's rate)" : ''}</span><span>{formatCurrency(ogPreview.grossValue)}</span></div>
-            <div className="flex justify-between text-[14px] font-black text-[#111111] pt-1 border-t border-[var(--accent-a30)]"><span>Value to customer</span><span>{formatCurrency(ogPreview.value)}</span></div>
+            <div className="flex justify-between text-[14px] font-black text-[#000000] pt-1 border-t border-[var(--accent-a30)]"><span>Value to customer</span><span>{formatCurrency(ogPreview.value)}</span></div>
           </div>
           <div className="sm:col-span-2 grid gap-2 sm:grid-cols-2">
             {([['paid', 'Pay the customer now', 'Cash / UPI / bank paid out today'], ['credit', 'Keep as store credit', 'Becomes an advance used on a later bill']] as const).map(([key, title, sub]) => (
               <button type="button" key={key} onClick={() => setOgForm((f) => ({ ...f, settlement: key }))}
-                className={`rounded-xl border-2 p-3 text-left transition-colors ${ogForm.settlement === key ? 'border-[var(--accent-dark)] bg-[var(--accent-a5)]' : 'border-[#E5E7EB]'}`}>
-                <p className="text-sm font-black text-[#273126]">{title}</p><p className="text-[11px] text-[#6B7280]">{sub}</p>
+                className={`rounded-xl border-2 p-3 text-left transition-colors ${ogForm.settlement === key ? 'border-[var(--accent-dark)] bg-[var(--accent-a5)]' : 'border-black/10'}`}>
+                <p className="text-sm font-black text-[#000000]">{title}</p><p className="text-[11px] text-[#000000]">{sub}</p>
               </button>
             ))}
           </div>
@@ -809,9 +808,9 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
             </select>
           </Field>}
         </div>
-        <div className="shrink-0 flex gap-3 border-t border-gray-100 bg-white px-4 py-3 sm:px-6">
+        <div className="shrink-0 flex gap-3 border-t border-black/10 bg-white px-4 py-3 sm:px-6">
           <button type="button" onClick={() => setOgOpen(false)} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button>
-          <button disabled={saving} className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save & Print Slip'}</button>
+          <button disabled={saving} className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save & Print Slip'}</button>
         </div>
       </form>
     </div></ModalPortal>}
@@ -819,9 +818,9 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     {/* ── New advance ── */}
     {advanceOpen && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
       <form onSubmit={submitAdvance} className="flex w-full max-w-lg max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
-        <div className="shrink-0 flex items-start justify-between border-b border-gray-100 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
-          <div><h3 className="text-xl font-black text-[#273126]">New Advance</h3><p className="text-xs text-[#6B7280]">Customer money held for a later purchase. Adjusted in billing.</p></div>
-          <button type="button" onClick={() => setAdvanceOpen(false)} className="shrink-0 text-[#858C83] hover:text-black"><X size={20} /></button>
+        <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
+          <div><h3 className="text-xl font-black text-[#000000]">New Advance</h3><p className="text-xs text-[#000000]">Customer money held for a later purchase. Adjusted in billing.</p></div>
+          <button type="button" onClick={() => setAdvanceOpen(false)} className="shrink-0 text-[#000000] hover:text-black"><X size={20} /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 grid gap-4 sm:grid-cols-2">
           {modalError && <div className="sm:col-span-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
@@ -836,9 +835,9 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
           <div className="sm:col-span-2"><Field label="Purpose"><input className={inputClass} value={advanceForm.purpose} onChange={(e) => setAdvanceForm((f) => ({ ...f, purpose: e.target.value }))} placeholder="e.g. Wedding necklace, gold booking" /></Field></div>
           <div className="sm:col-span-2"><Field label="Notes"><input className={inputClass} value={advanceForm.notes} onChange={(e) => setAdvanceForm((f) => ({ ...f, notes: e.target.value }))} /></Field></div>
         </div>
-        <div className="shrink-0 flex gap-3 border-t border-gray-100 bg-white px-4 py-3 sm:px-6">
+        <div className="shrink-0 flex gap-3 border-t border-black/10 bg-white px-4 py-3 sm:px-6">
           <button type="button" onClick={() => setAdvanceOpen(false)} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button>
-          <button disabled={saving} className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save Advance'}</button>
+          <button disabled={saving} className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save Advance'}</button>
         </div>
       </form>
     </div></ModalPortal>}
@@ -847,8 +846,8 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
       <div className="w-full max-w-md rounded-3xl bg-white p-6 text-center shadow-2xl">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl">✓</div>
         <p className="mt-4 text-[11px] font-black uppercase tracking-[.16em] text-emerald-600">Advance received</p>
-        <h3 className="mt-1 text-2xl font-black text-[#111111]">{advanceCreated.receiptNumber}</h3>
-        <p className="mt-2 text-sm text-[#6B7280]">{formatCurrency(advanceCreated.amount)} from {advanceCreated.customerName || advanceCreated.phone}</p>
+        <h3 className="mt-1 text-2xl font-black text-[#000000]">{advanceCreated.receiptNumber}</h3>
+        <p className="mt-2 text-sm text-[#000000]">{formatCurrency(advanceCreated.amount)} from {advanceCreated.customerName || advanceCreated.phone}</p>
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button onClick={() => printAdvance(advanceCreated)} className="rounded-xl border border-emerald-200 py-3 text-sm font-black text-emerald-700"><Printer size={16} className="mr-1 inline" />Print Receipt</button>
           <button onClick={() => whatsappAdvance(advanceCreated)} className="rounded-xl bg-[#25D366] py-3 text-sm font-black text-white"><MessageCircle size={16} className="mr-1 inline -mt-0.5" />WhatsApp</button>
@@ -860,9 +859,9 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     {/* ── New repair ── */}
     {repairOpen && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
       <form onSubmit={submitRepair} className="flex w-full max-w-2xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
-        <div className="shrink-0 flex items-start justify-between border-b border-gray-100 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
-          <div><h3 className="text-xl font-black text-[#273126]">New Repair</h3><p className="text-xs text-[#6B7280]">A repair receipt prints when you save.</p></div>
-          <button type="button" onClick={() => setRepairOpen(false)} className="shrink-0 text-[#858C83] hover:text-black"><X size={20} /></button>
+        <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
+          <div><h3 className="text-xl font-black text-[#000000]">New Repair</h3><p className="text-xs text-[#000000]">A repair receipt prints when you save.</p></div>
+          <button type="button" onClick={() => setRepairOpen(false)} className="shrink-0 text-[#000000] hover:text-black"><X size={20} /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 grid gap-4 sm:grid-cols-2">
           {modalError && <div className="sm:col-span-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
@@ -887,23 +886,23 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
           <Field label="Original Invoice"><input className={inputClass} value={repairForm.invoiceNo} onChange={(e) => setRepairForm((f) => ({ ...f, invoiceNo: e.target.value }))} placeholder="If bought here, e.g. INV10000025" /></Field>
           <div className="sm:col-span-2"><Field label="Notes"><input className={inputClass} value={repairForm.notes} onChange={(e) => setRepairForm((f) => ({ ...f, notes: e.target.value }))} /></Field></div>
         </div>
-        <div className="shrink-0 flex gap-3 border-t border-gray-100 bg-white px-4 py-3 sm:px-6">
+        <div className="shrink-0 flex gap-3 border-t border-black/10 bg-white px-4 py-3 sm:px-6">
           <button type="button" onClick={() => setRepairOpen(false)} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button>
-          <button disabled={saving} className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save & Print Receipt'}</button>
+          <button disabled={saving} className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save & Print Receipt'}</button>
         </div>
       </form>
     </div></ModalPortal>}
 
     {repairEdit && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
       <form onSubmit={submitRepairEdit} className="w-full max-w-md rounded-2xl sm:rounded-3xl bg-white p-5 shadow-2xl space-y-4">
-        <div className="flex items-start justify-between"><div><p className="text-xs font-black text-[var(--accent-dark)]">{repairEdit.repairNumber}</p><h3 className="text-xl font-black text-[#273126]">Update Repair</h3></div><button type="button" onClick={() => setRepairEdit(null)}><X size={20} /></button></div>
+        <div className="flex items-start justify-between"><div><p className="text-xs font-black text-[var(--accent-dark)]">{repairEdit.repairNumber}</p><h3 className="text-xl font-black text-[#000000]">Update Repair</h3></div><button type="button" onClick={() => setRepairEdit(null)}><X size={20} /></button></div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Charge (₹)"><input type="number" min="0" step="0.01" className={inputClass} value={repairEditForm.charge} onChange={(e) => setRepairEditForm((f) => ({ ...f, charge: e.target.value }))} /></Field>
           <Field label="Advance paid (₹)"><input type="number" min="0" step="0.01" className={inputClass} value={repairEditForm.advance} onChange={(e) => setRepairEditForm((f) => ({ ...f, advance: e.target.value }))} /></Field>
           <div className="col-span-2"><Field label="Expected Date"><input type="date" className={inputClass} value={repairEditForm.expectedDate} onChange={(e) => setRepairEditForm((f) => ({ ...f, expectedDate: e.target.value }))} /></Field></div>
           <div className="col-span-2"><Field label="Assigned To"><input className={inputClass} value={repairEditForm.assignedTo} onChange={(e) => setRepairEditForm((f) => ({ ...f, assignedTo: e.target.value }))} placeholder="Staff / goldsmith name" /></Field></div>
         </div>
-        <button className="w-full rounded-xl bg-[var(--accent-dark)] py-3 text-sm font-black text-white">Save</button>
+        <button className="w-full rounded-xl bg-[var(--accent-dark)] py-3 text-xs font-black uppercase tracking-wider text-white">Save</button>
       </form>
     </div></ModalPortal>}
   </div>

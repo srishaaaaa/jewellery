@@ -49,11 +49,11 @@ export function UnitSelect({ value, onChange, className = '' }: {
         <div
           ref={listRef}
           role="listbox"
-          className="absolute left-0 right-0 top-full mt-1 z-40 max-h-72 overflow-y-auto overscroll-contain rounded-xl border border-gray-200 bg-white py-1 shadow-xl"
+          className="absolute left-0 right-0 top-full mt-1 z-40 max-h-72 overflow-y-auto overscroll-contain rounded-xl border border-black/10 bg-white py-1 shadow-xl"
         >
           {UNIT_GROUPS.map((group) => (
             <div key={group}>
-              <div className="px-3.5 pt-2 pb-1 text-[10px] font-black uppercase tracking-wider text-gray-500">{group}</div>
+              <div className="px-3.5 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-gray-500">{group}</div>
               {UNIT_OPTIONS.filter((o) => o.group === group).map((o) => {
                 const isSel = o.value === value
                 return (

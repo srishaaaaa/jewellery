@@ -1049,7 +1049,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
   return (
     <div className="h-[calc(100dvh-210px)] min-h-[480px] flex flex-col gap-3 lg:gap-5 overflow-hidden">
       {/* Mobile-only: switch between browsing the catalog and the add/edit form */}
-      <div className="lg:hidden flex items-center gap-2 rounded-2xl border border-gray-200 bg-white p-1.5 shrink-0">
+      <div className="lg:hidden flex items-center gap-2 rounded-2xl border border-black/10 bg-white p-1.5 shrink-0">
         <button
           type="button"
           onClick={() => setMobileView('catalog')}
@@ -1072,8 +1072,8 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
 
       <div className="flex-1 flex flex-col lg:flex-row gap-5 min-h-0 overflow-hidden">
       {/* LEFT COLUMN: Products Browser List */}
-      <div className={`${mobileView === 'form' ? 'hidden lg:flex' : 'flex'} w-full lg:w-80 xl:w-96 flex-col bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm shrink-0 h-full min-h-0`}>
-        <div className="px-4 py-3.5 border-b border-gray-200 bg-[#FAFAFA] shrink-0">
+      <div className={`${mobileView === 'form' ? 'hidden lg:flex' : 'flex'} w-full lg:w-80 xl:w-96 flex-col bg-white border border-black/10 rounded-2xl overflow-hidden shadow-sm shrink-0 h-full min-h-0`}>
+        <div className="px-4 py-3.5 border-b border-black/10 bg-white shrink-0">
           <h4 className="flex items-center gap-2 text-sm font-black text-gray-900">
             <Package size={16} className="text-[var(--accent)]" />
             Jewellery Catalog ({products.length})
@@ -1081,7 +1081,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
           <p className="text-[11px] text-gray-500 mt-0.5">Select any item to view or edit its details</p>
         </div>
 
-        <div className="p-3 border-b border-gray-100 bg-white shrink-0">
+        <div className="p-3 border-b border-black/10 bg-white shrink-0">
           <div className="relative">
             <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -1089,7 +1089,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
               placeholder="Search items, HUID, barcode..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full h-10 pl-9 pr-3 rounded-xl border border-gray-200 bg-white text-xs sm:text-sm font-semibold text-gray-900 outline-none focus:border-[#0A0A0A]"
+              className="w-full h-10 pl-9 pr-3 rounded-xl border border-black/10 bg-white text-xs sm:text-sm font-semibold text-gray-900 outline-none focus:border-[#0A0A0A]"
             />
           </div>
         </div>
@@ -1112,7 +1112,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                     key={p.id}
                     onClick={() => startEditProduct(p)}
                     className={`flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-colors border-l-4 ${
-                      isSelected ? 'bg-[#FFF9E6] border-[var(--accent)]' : 'border-transparent hover:bg-[#FBFAF6]'
+                      isSelected ? 'bg-[#FFF9E6] border-[var(--accent)]' : 'border-transparent hover:bg-black/[0.03]'
                     }`}
                   >
                     <div className="min-w-0 flex-1">
@@ -1139,7 +1139,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                           e.stopPropagation()
                           void startEditProduct(p)
                         }}
-                        className="w-8 h-8 rounded-lg border border-gray-200 bg-white text-gray-600 flex items-center justify-center hover:text-[var(--accent)] hover:border-[var(--accent)] transition-all cursor-pointer"
+                        className="w-8 h-8 rounded-lg border border-black/10 bg-white text-gray-600 flex items-center justify-center hover:text-[var(--accent)] hover:border-[var(--accent)] transition-all cursor-pointer"
                         title={`Edit "${p.name}"`}
                       >
                         <Pencil size={14} />
@@ -1165,9 +1165,9 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
       </div>
 
       {/* RIGHT COLUMN: Product Authoring Form Workspace */}
-      <div className={`${mobileView === 'catalog' ? 'hidden lg:flex' : 'flex'} flex-1 flex-col bg-[#FBFAF6] border border-gray-200 rounded-2xl shadow-sm overflow-hidden h-full min-h-0`}>
+      <div className={`${mobileView === 'catalog' ? 'hidden lg:flex' : 'flex'} flex-1 flex-col bg-white border border-black/10 rounded-2xl shadow-sm overflow-hidden h-full min-h-0`}>
         {/* Pinned Form Header */}
-        <div className="px-3.5 py-3 sm:px-6 sm:py-4 bg-white border-b border-gray-200 flex items-center justify-between gap-2 shrink-0 flex-wrap">
+        <div className="px-3.5 py-3 sm:px-6 sm:py-4 bg-white border-b border-black/10 flex items-center justify-between gap-2 shrink-0 flex-wrap">
           <div className="flex items-center gap-2 min-w-0">
             <button
               type="button"
@@ -1271,8 +1271,8 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
 
             {/* Jewellery Details — weights, charges and hallmark; price is calculated from the day's metal rate */}
             {isJewellery && (
-              <div className="p-3.5 bg-white border border-gray-200 rounded-xl space-y-3">
-                <label className="block text-[11px] font-black uppercase tracking-wide text-gray-700 flex items-center gap-1.5">
+              <div className="p-3.5 bg-white border border-black/10 rounded-xl space-y-3">
+                <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-gray-700 flex items-center gap-1.5">
                   <Gem size={13} className="text-[var(--accent)]" /> 2. Jewellery Details
                 </label>
 
@@ -1551,7 +1551,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                 </div>
 
                 {/* Stone / diamond details — only shown when the item has stones */}
-                <div className="rounded-xl border border-gray-200 bg-[#FBFAF6] p-3">
+                <div className="rounded-xl border border-black/10 bg-white p-3">
                   <label className="flex items-center gap-2 text-[11px] font-black text-gray-700 cursor-pointer">
                     <input type="checkbox" checked={showStones} onChange={(e) => setShowStones(e.target.checked)} className="w-4 h-4 accent-[var(--accent)]" />
                     Stone / diamond details
@@ -1574,9 +1574,9 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                 {/* Live price preview with today's rate */}
                 {isRatePriced ? (
                   jewelleryPreview?.ok ? (
-                    <div className="rounded-xl border border-gray-200 bg-[#FBFAF6] p-3 text-[11px] font-bold text-gray-700 space-y-1">
+                    <div className="rounded-xl border border-black/10 bg-white p-3 text-[11px] font-bold text-gray-700 space-y-1">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-black uppercase tracking-wide text-gray-600">Today's Calculated Price</span>
+                        <span className="font-bold uppercase tracking-[0.15em] text-gray-600">Today's Calculated Price</span>
                         <span className="text-base font-black text-gray-900">{formatCurrency(jewelleryPreview.snapshot.unit_price)}</span>
                       </div>
                       <div className="flex justify-between gap-2">
@@ -1607,8 +1607,8 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
             <>
               {/* Step 2: Unit of Measure */}
                 {!isJewellery && (
-                <div className="p-3.5 bg-white border border-gray-200 rounded-xl space-y-2.5">
-                  <label className="block text-[11px] font-black uppercase tracking-wide text-gray-700 flex items-center gap-1.5">
+                <div className="p-3.5 bg-white border border-black/10 rounded-xl space-y-2.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-gray-700 flex items-center gap-1.5">
                     <Ruler size={13} className="text-[var(--accent)]" /> 2. What unit is it sold in?
                   </label>
                   <div className="flex flex-col sm:flex-row gap-2.5">
@@ -1672,8 +1672,8 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
 
                 {/* Step 3: Single price vs multiple pack sizes (jewellery pieces always have a single calculated price) */}
                 {!isJewellery && (
-                <div className="p-3.5 bg-white border border-gray-200 rounded-xl space-y-2.5">
-                  <label className="block text-[11px] font-black uppercase tracking-wide text-gray-700 flex items-center gap-1.5">
+                <div className="p-3.5 bg-white border border-black/10 rounded-xl space-y-2.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-gray-700 flex items-center gap-1.5">
                     <Tag size={13} className="text-[var(--accent)]" /> 3. How is it priced?
                   </label>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -1681,7 +1681,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                       type="button"
                       onClick={() => setHasVariants(false)}
                       className={`text-left p-3 rounded-xl border-2 transition-all cursor-pointer ${
-                        !hasVariants ? 'border-[#0A0A0A] bg-[#FFF9E6]' : 'border-gray-200 bg-white hover:border-gray-300'
+                        !hasVariants ? 'border-[#0A0A0A] bg-[#FFF9E6]' : 'border-black/10 bg-white hover:border-gray-300'
                       }`}
                     >
                       <span className="block text-xs font-black text-gray-900">Single Price</span>
@@ -1697,7 +1697,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                         if (variantRows.length === 0) handleAddVariantRow()
                       }}
                       className={`text-left p-3 rounded-xl border-2 transition-all cursor-pointer ${
-                        hasVariants ? 'border-[#0A0A0A] bg-[#FFF9E6]' : 'border-gray-200 bg-white hover:border-gray-300'
+                        hasVariants ? 'border-[#0A0A0A] bg-[#FFF9E6]' : 'border-black/10 bg-white hover:border-gray-300'
                       }`}
                     >
                       <span className="block text-xs font-black text-gray-900">Multiple Pack Sizes</span>
@@ -1711,7 +1711,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
 
                 {/* Sold loose by weight/volume — only makes sense for a single-price kg/gm/L/ml product */}
                 {!hasVariants && (selectedUnitInfo.unitType === 'weight' || selectedUnitInfo.unitType === 'volume') && (
-                  <div className="p-3.5 bg-white border border-gray-200 rounded-xl">
+                  <div className="p-3.5 bg-white border border-black/10 rounded-xl">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <span className="block text-xs font-black text-gray-900">Sold Loose By Weight</span>
@@ -1734,14 +1734,14 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
 
                 {/* Single Price & Received Stock */}
                 {!hasVariants && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-white border border-gray-200 rounded-xl items-start">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 bg-white border border-black/10 rounded-xl items-start">
                     {isRatePriced ? (
                       <div>
                         <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">
                           Jewellery Price (₹)
                         </label>
                         <div
-                          className="w-full h-10 px-3.5 rounded-xl border border-gray-200 bg-[#FAFAFA] text-xs font-black text-gray-900 flex items-center"
+                          className="w-full h-10 px-3.5 rounded-xl border border-black/10 bg-white text-xs font-black text-gray-900 flex items-center"
                           title="Calculated from today's metal rate"
                         >
                           {jewelleryPreview?.ok ? formatCurrency(jewelleryPreview.snapshot.unit_price) : '—'}
@@ -1801,7 +1801,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
 
                 {/* Pack Size Repeater */}
                 {hasVariants && (
-                  <div className="border border-gray-200 rounded-xl p-3.5 bg-white space-y-3">
+                  <div className="border border-black/10 rounded-xl p-3.5 bg-white space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-black text-gray-700">
                         Pack Sizes ({variantRows.length})
@@ -1819,7 +1819,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                       {variantRows.map((v) => (
                         <div
                           key={v.id}
-                          className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 p-3 rounded-xl bg-[#FBFAF6] border border-gray-200 items-center"
+                          className="grid grid-cols-1 sm:grid-cols-12 gap-2.5 p-3 rounded-xl bg-white border border-black/10 items-center"
                         >
                           <div className="sm:col-span-3">
                             <label className="block text-[10px] font-bold text-gray-600 mb-0.5">
@@ -1917,7 +1917,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                 <div className="pt-1 space-y-4">
                   <div className="flex items-center gap-2 px-0.5">
                     <SlidersHorizontal size={13} className="text-[var(--accent)]" />
-                    <span className="text-[11px] font-black uppercase tracking-wide text-gray-600">Additional Details (Optional)</span>
+                    <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-600">Additional Details (Optional)</span>
                   </div>
 
                   <div className="space-y-4">
@@ -1930,7 +1930,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                         <select
                           value={categoryId}
                           onChange={(e) => setCategoryId(e.target.value ? Number(e.target.value) : '')}
-                          className="w-full h-10 px-3.5 rounded-xl border border-gray-200 bg-[#FAFAFA] text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A] touch-manipulation appearance-none relative z-20"
+                          className="w-full h-10 px-3.5 rounded-xl border border-black/10 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A] touch-manipulation appearance-none relative z-20"
                         >
                           <option value="">-- Select Category --</option>
                           {categories.map((c) => (
@@ -1955,7 +1955,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                           autoCorrect="off"
                           autoComplete="off"
                           spellCheck={false}
-                          className="w-full h-10 px-3.5 rounded-xl border border-gray-200 bg-[#FAFAFA] text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A] disabled:bg-gray-100 disabled:text-gray-400"
+                          className="w-full h-10 px-3.5 rounded-xl border border-black/10 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A] disabled:bg-gray-100 disabled:text-gray-400"
                           title="Enter the product barcode (EAN/UPC code printed on the package). Used for quick scanning in billing."
                         />
                         <p className="text-[10px] text-gray-500 font-medium mt-1">
@@ -1974,7 +1974,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                           placeholder="e.g. Rack 3, Row 2"
                           value={location}
                           onChange={(e) => setLocation(e.target.value)}
-                          className="w-full h-10 px-3.5 rounded-xl border border-gray-200 bg-[#FAFAFA] text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]"
+                          className="w-full h-10 px-3.5 rounded-xl border border-black/10 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]"
                         />
                       </div>
 
@@ -1983,8 +1983,8 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                           Item Photo <span className="text-gray-400 font-normal ml-1">(Optional)</span>
                         </label>
                         <div className="flex items-center gap-2">
-                          {imageUrl && <img src={imageUrl} alt="" className="h-10 w-10 shrink-0 rounded-lg border border-gray-200 object-cover" />}
-                          <label className="flex-1 h-10 px-3.5 rounded-xl border border-gray-200 bg-[#FAFAFA] text-xs font-bold text-gray-700 flex items-center gap-2 cursor-pointer hover:border-[#0A0A0A]">
+                          {imageUrl && <img src={imageUrl} alt="" className="h-10 w-10 shrink-0 rounded-lg border border-black/10 object-cover" />}
+                          <label className="flex-1 h-10 px-3.5 rounded-xl border border-black/10 bg-white text-xs font-bold text-gray-700 flex items-center gap-2 cursor-pointer hover:border-[#0A0A0A]">
                             <ImagePlus size={14} className="text-[var(--accent)]" />
                             {imageUploading ? 'Uploading…' : imageUrl ? 'Change photo' : 'Upload photo'}
                             <input type="file" accept="image/*" className="sr-only" disabled={imageUploading} onChange={(e) => void handleImageFile(e.target.files?.[0])} />
@@ -2003,7 +2003,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                         placeholder="Product material, care instructions, or rack location notes..."
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        className="w-full h-10 px-3.5 py-2.5 leading-5 rounded-xl border border-gray-200 bg-[#FAFAFA] text-xs font-medium text-gray-900 outline-none focus:border-[#0A0A0A] resize-none"
+                        className="w-full h-10 px-3.5 py-2.5 leading-5 rounded-xl border border-black/10 bg-white text-xs font-medium text-gray-900 outline-none focus:border-[#0A0A0A] resize-none"
                       />
                       </div>
                       )}
@@ -2018,7 +2018,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                           placeholder="5"
                           value={lowStockAlert}
                           onChange={(e) => setLowStockAlert(e.target.value)}
-                          className="w-full h-10 px-3.5 rounded-xl border border-gray-200 bg-[#FAFAFA] text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]"
+                          className="w-full h-10 px-3.5 rounded-xl border border-black/10 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]"
                         />
                       </div>
 
@@ -2035,13 +2035,13 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                         placeholder="Product material, care instructions, or rack location notes..."
                         value={description}
                         onChange={(e) => setDescription(e.target.value)}
-                        className="w-full p-3.5 rounded-xl border border-gray-200 bg-[#FAFAFA] text-xs font-medium text-gray-900 outline-none focus:border-[#0A0A0A] resize-none"
+                        className="w-full p-3.5 rounded-xl border border-black/10 bg-white text-xs font-medium text-gray-900 outline-none focus:border-[#0A0A0A] resize-none"
                       />
                     </div>
                     )}
 
                     {/* Special Offer / Free Gift */}
-                    <div className="border border-gray-200 rounded-2xl p-4 bg-white space-y-3">
+                    <div className="border border-black/10 rounded-2xl p-4 bg-white space-y-3">
                       <div className="flex items-center justify-between">
                         <div>
                           <span className="text-xs font-black text-black flex items-center gap-1.5">
@@ -2064,7 +2064,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                       {hasSpecialOffer && (
                         <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-3">
                           <div>
-                            <label className="block text-[10px] font-black uppercase tracking-wide text-gray-500 mb-1">Offer / Gift Note</label>
+                            <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500 mb-1">Offer / Gift Note</label>
                             <input
                               type="text"
                               placeholder="e.g. Buy 1 Get 1 Free, or Free sample gift with purchase"
@@ -2074,7 +2074,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                             />
                           </div>
                           <div>
-                            <label className="block text-[10px] font-black uppercase tracking-wide text-gray-500 mb-1">Gift Cost (₹)</label>
+                            <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500 mb-1">Gift Cost (₹)</label>
                             <input
                               type="number"
                               min="0"
@@ -2094,7 +2094,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
           </div>
 
           {/* Pinned Bottom Actions */}
-          <div className="shrink-0 px-4 py-3 sm:px-6 sm:py-3.5 border-t border-gray-200 bg-white flex items-center justify-end gap-3">
+          <div className="shrink-0 px-4 py-3 sm:px-6 sm:py-3.5 border-t border-black/10 bg-white flex items-center justify-end gap-3">
             <button
               type="button"
               onClick={resetForm}

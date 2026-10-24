@@ -109,13 +109,13 @@ export const QuickAddScannedProductModal: React.FC<QuickAddScannedProductModalPr
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4 bg-[#FBFAF6]">
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4 bg-white">
           <p className="text-[12px] text-gray-600 font-bold">
             This barcode isn't in your catalog yet. Fill this in once and it'll be added to your inventory and this bill immediately.
           </p>
 
           <div>
-            <label className="block text-[11px] font-black uppercase tracking-wide text-gray-600 mb-1">Product Name *</label>
+            <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-gray-600 mb-1">Product Name *</label>
             <input
               autoFocus
               type="text"
@@ -128,7 +128,7 @@ export const QuickAddScannedProductModal: React.FC<QuickAddScannedProductModalPr
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-[11px] font-black uppercase tracking-wide text-gray-600 mb-1">Selling Price (₹) *</label>
+              <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-gray-600 mb-1">Selling Price (₹) *</label>
               <input
                 type="number"
                 min="0"
@@ -140,7 +140,7 @@ export const QuickAddScannedProductModal: React.FC<QuickAddScannedProductModalPr
               />
             </div>
             <div>
-              <label className="block text-[11px] font-black uppercase tracking-wide text-gray-600 mb-1">Opening Stock</label>
+              <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-gray-600 mb-1">Opening Stock</label>
               <input
                 type="number"
                 min="0"
@@ -152,7 +152,7 @@ export const QuickAddScannedProductModal: React.FC<QuickAddScannedProductModalPr
           </div>
 
           <div>
-            <label className="block text-[11px] font-black uppercase tracking-wide text-gray-600 mb-1">Category</label>
+            <label className="block text-[10px] font-bold uppercase tracking-[0.15em] text-gray-600 mb-1">Category</label>
             {categories.length > 0 ? (
               <select
                 value={category}

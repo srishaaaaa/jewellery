@@ -124,7 +124,7 @@ export const DateInputDDMMYYYY: React.FC<DateInputDDMMYYYYProps> = ({
 
   return (
     <div className="w-full">
-      {label && <label className="block font-bold text-[#374151] mb-1 text-sm">{label}</label>}
+      {label && <label className="block font-bold text-[#000000] mb-1 text-sm">{label}</label>}
       <div className="relative">
         <input
           type="text"
@@ -134,8 +134,8 @@ export const DateInputDDMMYYYY: React.FC<DateInputDDMMYYYYProps> = ({
           placeholder={placeholder}
           required={required}
           disabled={disabled}
-          className={`w-full px-3 py-2 bg-white border rounded-xl focus:outline-none focus:border-[var(--accent)] text-[13px] font-bold text-[#111111] placeholder:text-gray-400 pr-10 ${
-            hasError ? 'border-red-500 focus:border-red-500' : 'border-gray-200'
+          className={`w-full px-3 py-2 bg-white border rounded-xl focus:outline-none focus:border-[var(--accent)] text-[13px] font-bold text-[#000000] placeholder:text-gray-400 pr-10 ${
+            hasError ? 'border-red-500 focus:border-red-500' : 'border-black/10'
           } ${className}`}
         />
         <input

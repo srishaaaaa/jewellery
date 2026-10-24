@@ -151,7 +151,7 @@ export const CategoryManagerView: React.FC = () => {
               placeholder="Search categories..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-gray-300 bg-[#FBFAF6] text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A] focus:bg-white"
+              className="w-full pl-9 pr-3 py-2 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A] focus:bg-white"
             />
           </div>
           <button
@@ -189,8 +189,8 @@ export const CategoryManagerView: React.FC = () => {
       {/* Main 2-Column Grid: Left (Add/Edit Form) | Right (Category List) */}
       <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6 items-start">
         {/* Form Card */}
-        <div className="bg-[#FBFAF6] border border-gray-200 rounded-2xl p-5 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-gray-200 pb-3">
+        <div className="bg-white border border-black/10 rounded-2xl p-5 shadow-sm space-y-4">
+          <div className="flex items-center justify-between border-b border-black/10 pb-3">
             <h4 className="text-xs font-black uppercase tracking-wider text-black flex items-center gap-1.5">
               <Tag size={14} className="text-[var(--accent)]" />
               {editingId ? 'Edit Category' : 'Add New Category'}
@@ -276,8 +276,8 @@ export const CategoryManagerView: React.FC = () => {
         </div>
 
         {/* Categories List Table */}
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm flex flex-col">
-          <div className="p-4 border-b border-gray-200 bg-[#FAFAFA] flex items-center justify-between">
+        <div className="bg-white border border-black/10 rounded-2xl overflow-hidden shadow-sm flex flex-col">
+          <div className="p-4 border-b border-black/10 bg-white flex items-center justify-between">
             <h4 className="text-xs font-black uppercase tracking-wider text-gray-800">
               All Categories ({filtered.length})
             </h4>
@@ -305,7 +305,7 @@ export const CategoryManagerView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => startEdit(cat)}
-                        className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:text-black hover:bg-gray-100 transition-colors cursor-pointer"
+                        className="p-2 rounded-lg border border-black/10 text-gray-600 hover:text-black hover:bg-gray-100 transition-colors cursor-pointer"
                         title="Edit"
                       >
                         <Edit2 size={14} />
@@ -313,7 +313,7 @@ export const CategoryManagerView: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleDelete(cat)}
-                        className="p-2 rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                        className="p-2 rounded-lg border border-black/10 text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                         title="Delete"
                       >
                         <Trash2 size={14} />
@@ -325,7 +325,7 @@ export const CategoryManagerView: React.FC = () => {
             </div>
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full min-w-[560px] text-left text-xs">
-                <thead className="bg-[#FBFAF6] border-b border-gray-200 text-[10px] font-black uppercase tracking-wider text-gray-600">
+                <thead className="bg-white border-b border-black/10 text-[10px] font-bold uppercase tracking-widest text-gray-600">
                   <tr>
                     <th className="p-3 w-16 text-center">Order</th>
                     <th className="p-3">Category Name</th>
@@ -337,7 +337,7 @@ export const CategoryManagerView: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filtered.map((cat) => (
-                    <tr key={cat.id} className="hover:bg-[#FBFAF6] transition-colors">
+                    <tr key={cat.id} className="hover:bg-black/[0.03] transition-colors">
                       <td className="p-3 text-center font-mono font-bold text-gray-400">
                         {cat.sort_order ?? 0}
                       </td>
@@ -354,7 +354,7 @@ export const CategoryManagerView: React.FC = () => {
                       </td>
                       <td className="p-3 text-center">
                         <span
-                          className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest ${
                             cat.is_active !== false
                               ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                               : 'bg-gray-100 text-gray-600'
@@ -368,7 +368,7 @@ export const CategoryManagerView: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => startEdit(cat)}
-                            className="p-1.5 rounded-lg border border-gray-200 text-gray-600 hover:text-black hover:bg-gray-100 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg border border-black/10 text-gray-600 hover:text-black hover:bg-gray-100 transition-colors cursor-pointer"
                             title="Edit"
                           >
                             <Edit2 size={13} />
@@ -376,7 +376,7 @@ export const CategoryManagerView: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleDelete(cat)}
-                            className="p-1.5 rounded-lg border border-gray-200 text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg border border-black/10 text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
                             title="Delete"
                           >
                             <Trash2 size={13} />

@@ -81,13 +81,13 @@ export const QuickPriceModal: React.FC<Props> = ({ isOpen, item, onClose, onSucc
     <ModalPortal><div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
       <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl border border-[var(--accent-a20)] animate-in fade-in zoom-in-95">
         {/* Header */}
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between bg-[#FBFAF6]">
+        <div className="px-5 py-4 border-b border-black/10 flex items-center justify-between bg-white">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-700">
               <Tag className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="font-bold text-sm text-[#111111]">Quick Edit Price</h3>
+              <h3 className="font-bold text-sm text-[#000000]">Quick Edit Price</h3>
               <p className="text-[11px] text-gray-500 font-medium">
                 Barcode is linked — changing price updates live POS instantly
               </p>
@@ -104,7 +104,7 @@ export const QuickPriceModal: React.FC<Props> = ({ isOpen, item, onClose, onSucc
 
         {/* Item Summary Box */}
         <div className="px-5 pt-4">
-          <div className="p-3 bg-[#FBFAF6] border border-gray-200 rounded-xl space-y-1.5 text-xs">
+          <div className="p-3 bg-white border border-black/10 rounded-xl space-y-1.5 text-xs">
             <div className="flex items-center justify-between">
               <span className="font-bold text-gray-900 text-sm">{item.name}</span>
               <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">
@@ -133,7 +133,7 @@ export const QuickPriceModal: React.FC<Props> = ({ isOpen, item, onClose, onSucc
           )}
 
           <div>
-            <label className="block font-bold text-[#374151] mb-1.5">
+            <label className="block font-bold text-[#000000] mb-1.5">
               Selling Price (₹) *
             </label>
             <div className="relative">
@@ -149,7 +149,7 @@ export const QuickPriceModal: React.FC<Props> = ({ isOpen, item, onClose, onSucc
                 value={sellingPrice}
                 onChange={(e) => setSellingPrice(e.target.value)}
                 placeholder="0.00"
-                className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-black text-gray-900 focus:outline-none focus:border-[#0A0A0A] transition-colors"
+                className="w-full pl-9 pr-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm font-black text-gray-900 focus:outline-none focus:border-[#0A0A0A] transition-colors"
               />
             </div>
             <p className="text-[10px] text-gray-400 font-medium mt-1">
@@ -158,7 +158,7 @@ export const QuickPriceModal: React.FC<Props> = ({ isOpen, item, onClose, onSucc
           </div>
 
           <div>
-            <label className="block font-bold text-[#374151] mb-1.5">
+            <label className="block font-bold text-[#000000] mb-1.5">
               Purchase / Cost Price (₹) <span className="text-gray-400 font-normal">(Optional)</span>
             </label>
             <div className="relative">
@@ -172,7 +172,7 @@ export const QuickPriceModal: React.FC<Props> = ({ isOpen, item, onClose, onSucc
                 value={costPrice}
                 onChange={(e) => setCostPrice(e.target.value)}
                 placeholder="0.00"
-                className="w-full pl-9 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-900 focus:outline-none focus:border-[#0A0A0A] transition-colors"
+                className="w-full pl-9 pr-4 py-2.5 bg-white border border-black/10 rounded-xl text-sm font-semibold text-gray-900 focus:outline-none focus:border-[#0A0A0A] transition-colors"
               />
             </div>
           </div>

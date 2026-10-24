@@ -487,7 +487,7 @@ export const CreateBarcodeModal: React.FC<CreateBarcodeModalProps> = ({
               margin: 0 !important;
               padding: 0 !important;
               background: #fff !important;
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+              font-family: 'Poppins', system-ui, sans-serif;
               -webkit-print-color-adjust: exact;
               print-color-adjust: exact;
             }
@@ -647,9 +647,9 @@ export const CreateBarcodeModal: React.FC<CreateBarcodeModalProps> = ({
     <>
       <ModalPortal><div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-screen h-screen h-[100dvh] z-[9999] flex items-center justify-center bg-black/75 backdrop-blur-sm p-0 sm:p-4 overflow-hidden animate-in fade-in duration-150">
         <div className="absolute inset-0" onClick={onClose} />
-        <div className="relative z-10 bg-white w-full max-w-6xl h-screen h-[100dvh] sm:h-auto sm:max-h-[94vh] rounded-none sm:rounded-3xl border-0 sm:border border-gray-200 shadow-2xl overflow-hidden flex flex-col">
+        <div className="relative z-10 bg-white w-full max-w-6xl h-screen h-[100dvh] sm:h-auto sm:max-h-[94vh] rounded-none sm:rounded-3xl border-0 sm:border border-black/10 shadow-2xl overflow-hidden flex flex-col">
           {/* TOP BAR matching Screenshot 195106 */}
-          <div className="flex items-center justify-between px-4 py-3.5 sm:px-6 sm:py-4 border-b border-gray-200 bg-[#0A0A0A] text-white shrink-0">
+          <div className="flex items-center justify-between px-4 py-3.5 sm:px-6 sm:py-4 border-b border-black/10 bg-[#0A0A0A] text-white shrink-0">
             <div className="flex items-center gap-2">
               <h2 className="text-base font-black tracking-wide text-white flex items-center gap-1.5">
                 Barcode Generator
@@ -672,7 +672,7 @@ export const CreateBarcodeModal: React.FC<CreateBarcodeModalProps> = ({
                 type="button"
                 onClick={() => setShowSettingsDrawer(true)}
                 title="Barcode Settings"
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-[#D4AF37] hover:text-[#0A0A0A] flex items-center justify-center text-white transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-[#D4AF37] hover:text-[#000000] flex items-center justify-center text-white transition-colors cursor-pointer"
               >
                 <Settings size={16} />
               </button>
@@ -711,7 +711,7 @@ export const CreateBarcodeModal: React.FC<CreateBarcodeModalProps> = ({
           {/* MAIN WORKSPACE BODY (Scrollable) */}
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
             {/* TOP CARD: 2-COLUMN INTAKE FORM */}
-            <div className="bg-[#FBFAF6] border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+            <div className="bg-white border border-black/10 rounded-2xl p-4 sm:p-5 shadow-sm">
               <div className="grid grid-cols-1 lg:grid-cols-[1fr_310px] gap-6 items-start">
                 {/* LEFT SECTION: Form Inputs */}
                 <div className="space-y-4">
@@ -784,7 +784,7 @@ export const CreateBarcodeModal: React.FC<CreateBarcodeModalProps> = ({
                                   <div
                                     key={p.id}
                                     onClick={() => selectProductItem(p)}
-                                    className="p-2.5 hover:bg-[#FBFAF6] cursor-pointer flex items-center justify-between text-xs transition-colors"
+                                    className="p-2.5 hover:bg-black/[0.03] cursor-pointer flex items-center justify-between text-xs transition-colors"
                                   >
                                     <div className="min-w-0 pr-2">
                                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -905,7 +905,7 @@ export const CreateBarcodeModal: React.FC<CreateBarcodeModalProps> = ({
                               })
                             }
                           }}
-                          className="px-2.5 py-1 rounded-md bg-[#0A0A0A] text-[#D4AF37] border border-[#D4AF37] text-[10px] font-black uppercase tracking-wider hover:bg-[#1A1A1A] transition-all flex items-center gap-1 cursor-pointer shadow-xs"
+                          className="px-2.5 py-1 rounded-md bg-[#0A0A0A] text-[#D4AF37] border border-[#D4AF37] text-[10px] font-bold uppercase tracking-widest hover:bg-[#1A1A1A] transition-all flex items-center gap-1 cursor-pointer shadow-xs"
                         >
                           <Plus size={11} /> Add Unassigned Variants ({variants.filter(v => !v.barcode?.trim()).length})
                         </button>
@@ -1134,8 +1134,8 @@ export const CreateBarcodeModal: React.FC<CreateBarcodeModalProps> = ({
             </div>
 
             {/* BOTTOM SECTION: QUEUE TABLE (`Item Details`) matching Screenshot 195637 */}
-            <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm flex flex-col">
-              <div className="p-4 border-b border-gray-200 bg-[#FAFAFA] flex items-center justify-between">
+            <div className="bg-white border border-black/10 rounded-2xl overflow-hidden shadow-sm flex flex-col">
+              <div className="p-4 border-b border-black/10 bg-white flex items-center justify-between">
                 <h3 className="text-xs font-black uppercase tracking-wider text-gray-800">
                   Item Details ({queue.length})
                 </h3>
@@ -1144,7 +1144,7 @@ export const CreateBarcodeModal: React.FC<CreateBarcodeModalProps> = ({
               {queue.length === 0 ? (
                 /* Empty queue state matching Screenshot 195106 */
                 <div className="p-12 text-center flex flex-col items-center justify-center text-gray-400">
-                  <div className="w-16 h-16 rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center mb-3">
+                  <div className="w-16 h-16 rounded-2xl bg-gray-100 border border-black/10 flex items-center justify-center mb-3">
                     <Sparkles size={28} className="text-gray-400" />
                   </div>
                   <p className="text-xs font-bold text-gray-600">
@@ -1158,7 +1158,7 @@ export const CreateBarcodeModal: React.FC<CreateBarcodeModalProps> = ({
                 /* Queue Table with inline editable cells */
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-[#FBFAF6] border-b border-gray-200 text-[10px] font-black uppercase tracking-wider text-gray-600">
+                    <thead className="bg-white border-b border-black/10 text-[10px] font-bold uppercase tracking-widest text-gray-600">
                       <tr>
                         <th className="p-3 w-10 text-center">
                           <input
@@ -1180,7 +1180,7 @@ export const CreateBarcodeModal: React.FC<CreateBarcodeModalProps> = ({
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {queue.map((item) => (
-                        <tr key={item.id} className="hover:bg-[#FBFAF6] transition-colors">
+                        <tr key={item.id} className="hover:bg-black/[0.03] transition-colors">
                           <td className="p-3 text-center">
                             <input
                               type="checkbox"
@@ -1297,7 +1297,7 @@ export const CreateBarcodeModal: React.FC<CreateBarcodeModalProps> = ({
           </div>
 
           {/* MODAL FOOTER matching Screenshot 195637 */}
-          <div className="px-3 py-2.5 sm:px-6 sm:py-4 border-t border-gray-200 bg-white flex items-center justify-between shrink-0 gap-2 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
+          <div className="px-3 py-2.5 sm:px-6 sm:py-4 border-t border-black/10 bg-white flex items-center justify-between shrink-0 gap-2 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
             <button
               type="button"
               onClick={onClose}
@@ -1312,7 +1312,7 @@ export const CreateBarcodeModal: React.FC<CreateBarcodeModalProps> = ({
                   type="checkbox"
                   checked={updateStock}
                   onChange={(e) => setUpdateStock(e.target.checked)}
-                  className="w-3.5 h-3.5 rounded border-gray-300 text-[#0A0A0A] focus:ring-[#0A0A0A] cursor-pointer"
+                  className="w-3.5 h-3.5 rounded border-gray-300 text-[#000000] focus:ring-[#0A0A0A] cursor-pointer"
                 />
                 <span className="text-[11px] font-bold text-gray-700 select-none hidden sm:inline">
                   Update Stock
@@ -1326,7 +1326,7 @@ export const CreateBarcodeModal: React.FC<CreateBarcodeModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowSheetPreviewModal(true)}
-                  className="px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl border-2 border-[#0A0A0A] bg-white text-[#0A0A0A] text-[11px] sm:text-xs font-black uppercase tracking-wider hover:bg-gray-100 transition-all cursor-pointer shrink-0"
+                  className="px-3 py-2 sm:px-5 sm:py-2.5 rounded-xl border-2 border-[#0A0A0A] bg-white text-[#000000] text-[11px] sm:text-xs font-black uppercase tracking-wider hover:bg-gray-100 transition-all cursor-pointer shrink-0"
                 >
                   Preview
                 </button>

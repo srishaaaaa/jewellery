@@ -108,13 +108,14 @@ export function printThermalReceipt(data: ThermalReceiptData) {
     <html>
       <head>
         <title>Receipt - ${formatInvoiceNo(data.invoiceNo)}</title>
+        <meta charset="utf-8"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
         <style>
           @page {
             margin: 0;
             size: 80mm auto;
           }
           body {
-            font-family: 'Courier New', Courier, monospace, sans-serif;
+            font-family: 'Poppins', system-ui, sans-serif;
             font-size: 12px;
             font-weight: 600;
             color: #000;

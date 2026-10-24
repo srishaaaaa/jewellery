@@ -50,16 +50,16 @@ import {
   type SchemeStatus,
 } from '../lib/jewellery'
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-1.5 block text-[11px] font-black uppercase tracking-wide text-[#6B7280]">{label}</span>{children}</label> }
-const inputClass = 'w-full rounded-xl border border-[#E5E7EB] bg-white px-3.5 py-2.5 text-sm text-[#273126] outline-none transition focus:border-[var(--accent-dark)] focus:ring-2 focus:ring-emerald-100'
+function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="block"><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">{label}</span>{children}</label> }
+const inputClass = 'w-full bg-white border border-black/10 focus:border-[var(--accent)] rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm'
 
 const STATUS_STYLES: Record<SchemeStatus, string> = {
   active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   payment_due: 'bg-red-50 text-red-700 border-red-200',
   completed: 'bg-blue-50 text-blue-700 border-blue-200',
   matured: 'bg-amber-50 text-amber-800 border-amber-200',
-  redeemed: 'bg-gray-100 text-gray-700 border-gray-200',
-  cancelled: 'bg-gray-50 text-gray-400 border-gray-200',
+  redeemed: 'bg-gray-100 text-gray-700 border-black/10',
+  cancelled: 'bg-gray-50 text-gray-400 border-black/10',
 }
 
 const fmtDate = (iso: string | null | undefined) => {
@@ -653,20 +653,19 @@ export default function Schemes() {
   return <div className="space-y-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-600">Jewellery savings scheme</p>
-        <h2 className="text-2xl font-black text-[#273126]">Schema</h2>
-        <p className="mt-1 text-sm text-[#6B7280]">Daily, weekly or monthly savings and one-time deposits that customers redeem against a jewellery purchase with a making / wastage benefit.</p>
+        <h2 className="text-[28px] font-black text-[#000000] tracking-tight">Schema</h2>
+        <p className="mt-1 text-xs font-semibold text-[#000000]">Daily, weekly or monthly savings and one-time deposits that customers redeem against a jewellery purchase with a making / wastage benefit.</p>
       </div>
       <div className="flex gap-2">
-        <button onClick={openCreate} className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-black text-white hover:opacity-90 cursor-pointer">
+        <button onClick={openCreate} className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:opacity-90 cursor-pointer">
           <Plus size={16} /> New Scheme
         </button>
         {isAdmin && (
-          <button onClick={() => { setRulesForm(rules); setModalError(''); setRulesOpen(true) }} className="rounded-xl border bg-white p-3 text-[#647064] cursor-pointer" title="Scheme Rules">
+          <button onClick={() => { setRulesForm(rules); setModalError(''); setRulesOpen(true) }} className="rounded-xl border bg-white p-3 text-[#000000] cursor-pointer" title="Scheme Rules">
             <Settings size={18} />
           </button>
         )}
-        <button onClick={() => { void load(); if (view === 'payments') void loadPayments() }} className="rounded-xl border bg-white p-3 text-[#647064] cursor-pointer" title="Refresh">
+        <button onClick={() => { void load(); if (view === 'payments') void loadPayments() }} className="rounded-xl border bg-white p-3 text-[#000000] cursor-pointer" title="Refresh">
           <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
         </button>
       </div>
@@ -677,11 +676,11 @@ export default function Schemes() {
 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {cards.map(([label, value, Icon, color]) => (
-        <div key={label} className="rounded-2xl border border-[#ECE9E2] bg-white p-4 shadow-sm">
+        <div key={label} className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-black uppercase tracking-wide text-[#879086]">{label}</p>
-              <p className="mt-2 text-[17px] sm:text-2xl font-black text-[#273126] break-words">{value}</p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">{label}</p>
+              <p className="mt-2 text-[17px] sm:text-2xl font-black text-[#000000] break-words">{value}</p>
             </div>
             <div className={`rounded-xl p-3 ${color}`}><Icon size={21} /></div>
           </div>
@@ -689,22 +688,22 @@ export default function Schemes() {
       ))}
     </div>
 
-    <div className="flex gap-2 border-b border-[#E5E7EB]">
+    <div className="flex gap-2 border-b border-black/10">
       {([['schemes', 'Schemes'], ['payments', 'Payment History']] as const).map(([key, label]) => (
         <button key={key} onClick={() => setView(key)}
-          className={`px-4 py-3 font-bold text-sm transition-colors ${view === key ? 'text-[var(--accent-dark)] border-b-2 border-[var(--accent-dark)]' : 'text-[#6B7280] hover:text-[#111111]'}`}>
+          className={`px-4 py-3 font-bold text-sm transition-colors ${view === key ? 'text-[var(--accent-dark)] border-b-2 border-[var(--accent-dark)]' : 'text-[#000000] hover:text-[#000000]'}`}>
           {label}
         </button>
       ))}
     </div>
 
     {view === 'schemes' ? <>
-      <div className="rounded-2xl border border-[#ECE9E2] bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
         <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
           <label className="relative"><Search className="absolute left-3 top-3 text-[#9CA3AF]" size={17} /><input className={`${inputClass} pl-10`} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search scheme ID, customer, phone or scheme name" /></label>
           <div className="flex flex-wrap gap-2">
             {(['all', 'active', 'payment_due', 'completed', 'matured', 'redeemed', 'cancelled'] as const).map((value) => (
-              <button key={value} onClick={() => setStatusFilter(value)} className={`rounded-lg px-3 py-2 text-xs font-black ${statusFilter === value ? 'bg-[var(--accent-dark)] text-white' : 'bg-[#F5F3F7] text-[#626B61]'}`}>
+              <button key={value} onClick={() => setStatusFilter(value)} className={`rounded-lg px-3 py-2 text-xs font-black ${statusFilter === value ? 'bg-[var(--accent-dark)] text-white' : 'bg-black/[0.03] text-[#000000]'}`}>
                 {value === 'all' ? 'All' : SCHEME_STATUS_LABELS[value]}
               </button>
             ))}
@@ -715,21 +714,21 @@ export default function Schemes() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-[#ECE9E2] bg-white shadow-sm flex flex-col">
+      <div className="rounded-2xl border border-black/10 bg-white shadow-sm flex flex-col">
         <div className="overflow-x-auto overscroll-x-contain">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-[#F8F7F4] text-[10px] font-black uppercase tracking-wider text-[#737B72]">
+            <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
               <tr>
                 {['Scheme ID / Start', 'Customer', 'Installment / Paid', 'Paid / Remaining', 'Next Due / Maturity', 'Benefit', 'Status', 'Actions'].map((h) => (
                   <th key={h} className="px-4 py-3.5 whitespace-nowrap">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#F0EEE9]">
+            <tbody className="divide-y divide-black/5">
               {loading ? (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-[#6B7280]">Loading schemes...</td></tr>
+                <tr><td colSpan={8} className="px-4 py-12 text-center text-[#000000]">Loading schemes...</td></tr>
               ) : filtered.length === 0 ? (
-                <tr><td colSpan={8} className="px-4 py-12 text-center text-[#6B7280]">{schemes.length ? 'No schemes match these filters.' : 'No schemes yet. Click "New Scheme" to enrol a customer.'}</td></tr>
+                <tr><td colSpan={8} className="px-4 py-12 text-center text-[#000000]">{schemes.length ? 'No schemes match these filters.' : 'No schemes yet. Click "New Scheme" to enrol a customer.'}</td></tr>
               ) : filtered.map((s) => {
                 const status = deriveSchemeStatus(s, today)
                 const canCollect = s.status === 'active'
@@ -737,15 +736,15 @@ export default function Schemes() {
                   <tr key={s.id} className="hover:bg-emerald-50/30 transition-colors">
                     <td className="px-4 py-3.5 align-middle">
                       <p className="font-black text-emerald-700">{s.schemeNumber}</p>
-                      <p className="text-[11px] text-[#8B9389]">{FREQUENCY_LABELS[s.frequency]} • {fmtDate(s.startDate)}</p>
+                      <p className="text-[11px] text-[#000000]">{FREQUENCY_LABELS[s.frequency]} • {fmtDate(s.startDate)}</p>
                     </td>
                     <td className="px-4 py-3.5 align-middle">
-                      <p className="font-bold text-[#273126]">{s.customerName || '—'}</p>
-                      <p className="text-xs text-[#727970]">{s.phone}</p>
+                      <p className="font-bold text-[#000000]">{s.customerName || '—'}</p>
+                      <p className="text-xs text-[#000000]">{s.phone}</p>
                     </td>
                     <td className="px-4 py-3.5 align-middle text-xs">
-                      <p className="font-bold text-[#273126]">{installmentLabel(s)}</p>
-                      <p className="text-[#858C83]">{s.installmentsPaid} of {s.totalInstallments} paid</p>
+                      <p className="font-bold text-[#000000]">{installmentLabel(s)}</p>
+                      <p className="text-[#000000]">{s.installmentsPaid} of {s.totalInstallments} paid</p>
                     </td>
                     <td className="px-4 py-3.5 align-middle text-xs">
                       <p className="text-emerald-700">Paid: <b>{formatCurrency(s.totalPaid)}</b></p>
@@ -754,11 +753,11 @@ export default function Schemes() {
                     </td>
                     <td className="px-4 py-3.5 align-middle text-xs">
                       <div className="flex items-center gap-1.5 font-semibold text-gray-700"><CalendarDays size={14} className="text-gray-400 shrink-0" /><span>{s.nextDueDate ? fmtDate(s.nextDueDate) : '—'}</span></div>
-                      <p className="text-[#858C83] mt-0.5">Matures {fmtDate(s.maturityDate)}</p>
+                      <p className="text-[#000000] mt-0.5">Matures {fmtDate(s.maturityDate)}</p>
                     </td>
                     <td className="px-4 py-3.5 align-middle text-xs">
-                      <p className="font-bold text-[#273126]">{describeSchemeBenefit(s, formatCurrency)}</p>
-                      <p className="text-[#858C83]">{redemptionLabel(s)}</p>
+                      <p className="font-bold text-[#000000]">{describeSchemeBenefit(s, formatCurrency)}</p>
+                      <p className="text-[#000000]">{redemptionLabel(s)}</p>
                     </td>
                     <td className="px-4 py-3.5 align-middle">
                       <span className={`inline-block rounded-xl border px-2.5 py-1.5 text-xs font-black ${STATUS_STYLES[status]}`}>{SCHEME_STATUS_LABELS[status]}</span>
@@ -770,7 +769,7 @@ export default function Schemes() {
                             Collect
                           </button>
                         )}
-                        <button type="button" onClick={() => void openDetail(s)} className="w-8 h-8 rounded-lg bg-[#F4F2F6] hover:bg-emerald-100 text-emerald-700 flex items-center justify-center transition-colors cursor-pointer shrink-0" title="View Details">
+                        <button type="button" onClick={() => void openDetail(s)} className="w-8 h-8 rounded-lg bg-black/[0.03] hover:bg-emerald-100 text-emerald-700 flex items-center justify-center transition-colors cursor-pointer shrink-0" title="View Details">
                           <Eye size={15} />
                         </button>
                       </div>
@@ -783,7 +782,7 @@ export default function Schemes() {
         </div>
       </div>
     </> : <>
-      <div className="rounded-2xl border border-[#ECE9E2] bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
         <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
           <input type="date" className={inputClass} value={paymentsFrom} onChange={(e) => setPaymentsFrom(e.target.value)} aria-label="From date" />
           <input type="date" className={inputClass} value={paymentsTo} onChange={(e) => setPaymentsTo(e.target.value)} aria-label="To date" />
@@ -792,30 +791,30 @@ export default function Schemes() {
           </button>
         </div>
       </div>
-      <div className="rounded-2xl border border-[#ECE9E2] bg-white shadow-sm flex flex-col">
+      <div className="rounded-2xl border border-black/10 bg-white shadow-sm flex flex-col">
         <div className="overflow-x-auto overscroll-x-contain">
           <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-[#F8F7F4] text-[10px] font-black uppercase tracking-wider text-[#737B72]">
+            <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
               <tr>{['Date', 'Receipt No', 'Scheme / Customer', 'Installment', 'Amount', 'Gold', 'Method', 'Received By', 'Notes', 'Receipt'].map((h) => <th key={h} className="px-4 py-3.5 whitespace-nowrap">{h}</th>)}</tr>
             </thead>
-            <tbody className="divide-y divide-[#F0EEE9]">
+            <tbody className="divide-y divide-black/5">
               {paymentsLoading ? (
-                <tr><td colSpan={10} className="px-4 py-12 text-center text-[#6B7280]">Loading payments...</td></tr>
+                <tr><td colSpan={10} className="px-4 py-12 text-center text-[#000000]">Loading payments...</td></tr>
               ) : payments.length === 0 ? (
-                <tr><td colSpan={10} className="px-4 py-12 text-center text-[#6B7280]">No installment payments in this period.</td></tr>
+                <tr><td colSpan={10} className="px-4 py-12 text-center text-[#000000]">No installment payments in this period.</td></tr>
               ) : payments.map((p) => {
                 const s = schemesById.get(p.schemeId)
                 return (
                   <tr key={p.id} className="hover:bg-emerald-50/30 transition-colors">
-                    <td className="px-4 py-3.5 text-xs font-semibold text-[#273126]">{p.paymentDate ? new Date(p.paymentDate).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
+                    <td className="px-4 py-3.5 text-xs font-semibold text-[#000000]">{p.paymentDate ? new Date(p.paymentDate).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
                     <td className="px-4 py-3.5 font-black text-emerald-700">{p.receiptNumber}</td>
-                    <td className="px-4 py-3.5"><p className="font-bold text-[#273126]">{s?.schemeNumber || '—'}</p><p className="text-xs text-[#727970]">{s?.customerName || ''} {s?.phone ? `• ${s.phone}` : ''}</p></td>
+                    <td className="px-4 py-3.5"><p className="font-bold text-[#000000]">{s?.schemeNumber || '—'}</p><p className="text-xs text-[#000000]">{s?.customerName || ''} {s?.phone ? `• ${s.phone}` : ''}</p></td>
                     <td className="px-4 py-3.5 text-xs font-bold">{p.installmentNumber}{s ? ` of ${s.totalInstallments}` : ''}</td>
-                    <td className="px-4 py-3.5 font-black text-[#273126]">{formatCurrency(p.amountPaid)}</td>
-                    <td className="px-4 py-3.5 text-xs">{p.goldGrams != null && p.goldRate ? <><p className="font-black text-amber-700">{p.goldGrams.toFixed(3)} g</p><p className="text-[#858C83]">@ {formatCurrency(p.goldRate)}/g{p.goldPurity ? ` ${p.goldPurity}` : ''}</p></> : '—'}</td>
+                    <td className="px-4 py-3.5 font-black text-[#000000]">{formatCurrency(p.amountPaid)}</td>
+                    <td className="px-4 py-3.5 text-xs">{p.goldGrams != null && p.goldRate ? <><p className="font-black text-amber-700">{p.goldGrams.toFixed(3)} g</p><p className="text-[#000000]">@ {formatCurrency(p.goldRate)}/g{p.goldPurity ? ` ${p.goldPurity}` : ''}</p></> : '—'}</td>
                     <td className="px-4 py-3.5 text-xs">{paymentMethodLabel(p.paymentMethod)}</td>
-                    <td className="px-4 py-3.5 text-xs text-[#6B7280]">{p.createdBy || '—'}</td>
-                    <td className="px-4 py-3.5 text-xs text-[#6B7280] max-w-[200px] truncate" title={p.notes}>{p.notes || '—'}</td>
+                    <td className="px-4 py-3.5 text-xs text-[#000000]">{p.createdBy || '—'}</td>
+                    <td className="px-4 py-3.5 text-xs text-[#000000] max-w-[200px] truncate" title={p.notes}>{p.notes || '—'}</td>
                     <td className="px-4 py-3.5">
                       {s && <div className="flex items-center gap-1.5">
                         <button type="button" onClick={() => void reprintFromHistory(p, 'print')} className="w-8 h-8 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 flex items-center justify-center cursor-pointer" title="Print Receipt"><Printer size={15} /></button>
@@ -834,13 +833,13 @@ export default function Schemes() {
     {/* ── Create scheme ── */}
     {createOpen && form && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
       <form onSubmit={submitCreate} className="flex w-full max-w-3xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
-        <div className="shrink-0 flex items-start justify-between border-b border-gray-100 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
-          <div><h3 className="text-xl font-black text-[#273126]">Create Scheme</h3><p className="text-xs text-[#6B7280]">Installment rows are created automatically — collect each payment from the scheme list.</p></div>
-          <button type="button" onClick={() => setCreateOpen(false)} className="shrink-0 text-[#858C83] hover:text-black"><X size={20} /></button>
+        <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
+          <div><h3 className="text-xl font-black text-[#000000]">Create Scheme</h3><p className="text-xs text-[#000000]">Installment rows are created automatically — collect each payment from the scheme list.</p></div>
+          <button type="button" onClick={() => setCreateOpen(false)} className="shrink-0 text-[#000000] hover:text-black"><X size={20} /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
           {modalError && <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
-          <p className="mb-2 text-[11px] font-black uppercase tracking-wide text-[#879086]">Customer</p>
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Customer</p>
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="Mobile Number *">
               <input required className={inputClass} list="scheme-customers" value={form.phone} onChange={(e) => updateForm({ phone: e.target.value })} onBlur={() => void lookupCustomer()} placeholder="Existing or new customer" />
@@ -848,7 +847,7 @@ export default function Schemes() {
             </Field>
             <Field label="Customer Name"><input className={inputClass} value={form.customerName} onChange={(e) => updateForm({ customerName: e.target.value })} placeholder="Filled in for existing customers" /></Field>
           </div>
-          <p className="mt-5 mb-2 text-[11px] font-black uppercase tracking-wide text-[#879086]">Scheme Details</p>
+          <p className="mt-5 mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Scheme Details</p>
           {(activeTypes.length > 0 || termsLocked) && (
             <div className="mb-4">
               <Field label="Scheme Type *">
@@ -857,7 +856,7 @@ export default function Schemes() {
                   {!termsLocked && <option value="">Custom terms</option>}
                 </select>
               </Field>
-              {termsLocked && <p className="mt-1 text-[11px] font-semibold text-[#6B7280]">The terms come from the scheme type and cannot be changed here.</p>}
+              {termsLocked && <p className="mt-1 text-[11px] font-semibold text-[#000000]">The terms come from the scheme type and cannot be changed here.</p>}
             </div>
           )}
           <fieldset disabled={termsLocked} className="contents">
@@ -868,7 +867,7 @@ export default function Schemes() {
               </select>
             </Field>
             <Field label="Scheme Name *"><input required className={inputClass} value={form.schemeName} onChange={(e) => updateForm({ schemeName: e.target.value })} /></Field>
-            <Field label="Scheme Number"><div className="rounded-xl bg-[#F8F7F4] px-3.5 py-2.5 text-sm font-bold text-[#858C83]">Auto (SCH…)</div></Field>
+            <Field label="Scheme Number"><div className="rounded-xl bg-black/[0.03] px-3.5 py-2.5 text-sm font-bold text-[#000000]">Auto (SCH…)</div></Field>
             <Field label={form.frequency === 'one_time' ? 'Deposit Amount (₹) *' : `${form.frequency === 'daily' ? 'Daily' : form.frequency === 'weekly' ? 'Weekly' : 'Monthly'} Installment (₹) *`}>
               <input required type="number" min="1" step="0.01" className={inputClass} value={form.monthlyAmount} onChange={(e) => updateForm({ monthlyAmount: e.target.value })} placeholder={form.frequency === 'monthly' ? `Min ${rules.minMonthlyAmount}` : '0'} />
             </Field>
@@ -889,7 +888,7 @@ export default function Schemes() {
             <Field label="Maturity Date *"><input required type="date" className={inputClass} value={form.maturityDate} onChange={(e) => updateForm({ maturityDate: e.target.value, maturityTouched: true })} /></Field>
             <Field label={form.frequency === 'one_time' ? 'Deposit' : 'Total to be saved'}><div className="rounded-xl bg-emerald-50 px-3.5 py-2.5 text-sm font-black text-emerald-800">{formatCurrency(createTarget)}</div></Field>
           </div>
-          <p className="mt-5 mb-2 text-[11px] font-black uppercase tracking-wide text-[#879086]">Benefit on redemption</p>
+          <p className="mt-5 mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Benefit on redemption</p>
           <fieldset disabled={termsLocked} className="contents">
           <div className="grid gap-4 md:grid-cols-3">
             <Field label="Benefit Type">
@@ -900,7 +899,7 @@ export default function Schemes() {
             {form.benefitType !== 'wastage' && (
               <Field label="Making Charge Discount">
                 <div className="flex gap-2">
-                  <select className="rounded-xl border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm font-black text-[#273126] outline-none" value={form.makingBenefitUnit} onChange={(e) => updateForm({ makingBenefitUnit: e.target.value as BenefitUnit })}><option value="percent">%</option><option value="fixed">₹</option></select>
+                  <select className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-black text-[#000000] outline-none" value={form.makingBenefitUnit} onChange={(e) => updateForm({ makingBenefitUnit: e.target.value as BenefitUnit })}><option value="percent">%</option><option value="fixed">₹</option></select>
                   <input type="number" min="0" step="0.01" className={`${inputClass} flex-1`} value={form.makingBenefitValue} onChange={(e) => updateForm({ makingBenefitValue: e.target.value })} />
                 </div>
               </Field>
@@ -908,7 +907,7 @@ export default function Schemes() {
             {form.benefitType !== 'making' && (
               <Field label="Wastage Discount">
                 <div className="flex gap-2">
-                  <select className="rounded-xl border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm font-black text-[#273126] outline-none" value={form.wastageBenefitUnit} onChange={(e) => updateForm({ wastageBenefitUnit: e.target.value as BenefitUnit })}><option value="percent">%</option><option value="fixed">₹</option></select>
+                  <select className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-black text-[#000000] outline-none" value={form.wastageBenefitUnit} onChange={(e) => updateForm({ wastageBenefitUnit: e.target.value as BenefitUnit })}><option value="percent">%</option><option value="fixed">₹</option></select>
                   <input type="number" min="0" step="0.01" className={`${inputClass} flex-1`} value={form.wastageBenefitValue} onChange={(e) => updateForm({ wastageBenefitValue: e.target.value })} />
                 </div>
               </Field>
@@ -920,9 +919,9 @@ export default function Schemes() {
             The benefit only reduces making charges / wastage when the scheme is redeemed on a jewellery bill — never the metal value. These terms are saved with the customer's scheme; later changes to scheme types do not affect it.
           </p>
         </div>
-        <div className="shrink-0 flex gap-3 border-t border-gray-100 bg-white px-4 py-3 sm:px-6">
+        <div className="shrink-0 flex gap-3 border-t border-black/10 bg-white px-4 py-3 sm:px-6">
           <button type="button" onClick={() => setCreateOpen(false)} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button>
-          <button disabled={saving} className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Creating…' : 'Create Scheme'}</button>
+          <button disabled={saving} className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50">{saving ? 'Creating…' : 'Create Scheme'}</button>
         </div>
       </form>
     </div></ModalPortal>}
@@ -930,14 +929,14 @@ export default function Schemes() {
     {/* ── Collect installment ── */}
     {collectScheme && <ModalPortal><div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/55 p-3 sm:p-4">
       <form onSubmit={submitCollect} className="flex w-full max-w-md max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
-        <div className="shrink-0 flex items-start justify-between border-b border-gray-100 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
-          <div><p className="text-xs font-black uppercase tracking-wider text-emerald-600">{collectScheme.schemeNumber} • {collectScheme.customerName || collectScheme.phone}</p><h3 className="text-xl font-black text-[#273126]">Collect Installment</h3></div>
-          <button type="button" onClick={() => setCollectScheme(null)} className="shrink-0 text-[#858C83] hover:text-black"><X size={20} /></button>
+        <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
+          <div><p className="text-xs font-black uppercase tracking-wider text-emerald-600">{collectScheme.schemeNumber} • {collectScheme.customerName || collectScheme.phone}</p><h3 className="text-xl font-black text-[#000000]">Collect Installment</h3></div>
+          <button type="button" onClick={() => setCollectScheme(null)} className="shrink-0 text-[#000000] hover:text-black"><X size={20} /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 space-y-4">
           {modalError && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
           {!nextInstallment ? (
-            <p className="text-sm text-[#6B7280]">{collectInstallments.length ? 'All installments are paid.' : 'Loading installments…'}</p>
+            <p className="text-sm text-[#000000]">{collectInstallments.length ? 'All installments are paid.' : 'Loading installments…'}</p>
           ) : <>
             <div className="rounded-2xl bg-emerald-50 py-4 text-center">
               <p className="text-[11px] font-black uppercase tracking-widest text-emerald-600">Installment {nextInstallment.installmentNumber} of {collectScheme.totalInstallments}</p>
@@ -946,7 +945,7 @@ export default function Schemes() {
             </div>
             <div className="grid grid-cols-3 gap-2 text-center">
               {[['Previous Payments', String(previousPayments.length)], ['Total Paid', formatCurrency(collectScheme.totalPaid)], ['Remaining', `${collectScheme.totalInstallments - collectScheme.installmentsPaid} inst.`]].map(([k, v]) => (
-                <div key={k} className="rounded-xl bg-[#F8F7F4] p-2.5"><p className="text-[9px] font-black uppercase text-[#858C83]">{k}</p><p className="mt-0.5 text-sm font-black text-[#273126] break-words">{v}</p></div>
+                <div key={k} className="rounded-xl bg-black/[0.03] p-2.5"><p className="text-[9px] font-black uppercase text-[#000000]">{k}</p><p className="mt-0.5 text-sm font-black text-[#000000] break-words">{v}</p></div>
               ))}
             </div>
             <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
@@ -971,7 +970,7 @@ export default function Schemes() {
               <div className="grid grid-cols-3 gap-1.5">
                 {PAYMENT_METHODS.map((m) => (
                   <button key={m} type="button" onClick={() => setCollectMethod(m)}
-                    className={`py-2 rounded-xl text-[11px] font-black uppercase tracking-wide border-2 transition-colors ${collectMethod === m ? 'bg-[#0A0A0A] text-[var(--accent)] border-[#0A0A0A]' : 'bg-white text-[#374151] border-gray-200 hover:border-gray-300'}`}>
+                    className={`py-2 rounded-xl text-[10px] font-bold uppercase tracking-[0.15em] border-2 transition-colors ${collectMethod === m ? 'bg-[#0A0A0A] text-[var(--accent)] border-[#0A0A0A]' : 'bg-white text-[#000000] border-black/10 hover:border-gray-300'}`}>
                     {paymentMethodLabel(m)}
                   </button>
                 ))}
@@ -980,17 +979,17 @@ export default function Schemes() {
             <Field label="Notes"><input className={inputClass} value={collectNotes} onChange={(e) => setCollectNotes(e.target.value)} placeholder="Optional (e.g. UPI ref no.)" /></Field>
             {previousPayments.length > 0 && (
               <div>
-                <p className="mb-1.5 text-[11px] font-black uppercase tracking-wide text-[#6B7280]">Previous payments</p>
+                <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Previous payments</p>
                 <div className="max-h-32 overflow-y-auto space-y-1">
                   {previousPayments.slice().reverse().map((p) => (
-                    <div key={p.id} className="flex justify-between rounded-lg bg-[#F8F7F4] px-3 py-1.5 text-xs"><span className="font-bold">#{p.installmentNumber} • {fmtDate(p.paymentDate)} • {paymentMethodLabel(p.paymentMethod)}{p.goldGrams ? ` • ${p.goldGrams.toFixed(3)} g` : ''}</span><span className="font-black">{formatCurrency(p.amountPaid)}</span></div>
+                    <div key={p.id} className="flex justify-between rounded-lg bg-black/[0.03] px-3 py-1.5 text-xs"><span className="font-bold">#{p.installmentNumber} • {fmtDate(p.paymentDate)} • {paymentMethodLabel(p.paymentMethod)}{p.goldGrams ? ` • ${p.goldGrams.toFixed(3)} g` : ''}</span><span className="font-black">{formatCurrency(p.amountPaid)}</span></div>
                   ))}
                 </div>
               </div>
             )}
           </>}
         </div>
-        <div className="shrink-0 border-t border-gray-100 bg-white px-4 py-3 sm:px-6">
+        <div className="shrink-0 border-t border-black/10 bg-white px-4 py-3 sm:px-6">
           <button disabled={saving || !nextInstallment} className="w-full rounded-xl bg-emerald-600 py-3 sm:py-3.5 font-black text-white shadow-lg shadow-emerald-600/30 transition-transform active:scale-95 disabled:opacity-50">
             {saving ? 'Processing...' : nextInstallment ? `Receive ${formatCurrency(nextInstallment.amountDue)}` : 'Nothing due'}
           </button>
@@ -1003,12 +1002,12 @@ export default function Schemes() {
       <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 text-center shadow-2xl">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl">✓</div>
         <p className="mt-4 text-[11px] font-black uppercase tracking-[.16em] text-emerald-600">Installment received</p>
-        <h3 className="mt-1 text-2xl font-black text-[#111111]">{receipt.installment.receiptNumber}</h3>
-        <p className="mt-2 text-sm text-[#6B7280]">
+        <h3 className="mt-1 text-2xl font-black text-[#000000]">{receipt.installment.receiptNumber}</h3>
+        <p className="mt-2 text-sm text-[#000000]">
           {receipt.scheme.schemeNumber} · Installment {receipt.installment.installmentNumber} of {receipt.scheme.totalInstallments} · {formatCurrency(receipt.installment.amountPaid)}
         </p>
         {receipt.installment.goldGrams != null && receipt.installment.goldRate && <p className="mt-1 text-sm font-bold text-amber-700">{receipt.installment.goldGrams.toFixed(3)} g gold at {formatCurrency(receipt.installment.goldRate)}/g · Total saved {receipt.scheme.totalGrams.toFixed(3)} g</p>}
-        <p className="mt-1 text-sm text-[#6B7280]">Total paid {formatCurrency(receipt.scheme.totalPaid)} · {receipt.scheme.nextDueDate ? `Next due ${fmtDate(receipt.scheme.nextDueDate)}` : `Scheme ${SCHEME_STATUS_LABELS[deriveSchemeStatus(receipt.scheme, today)].toLowerCase()}`}</p>
+        <p className="mt-1 text-xs font-semibold text-[#000000]">Total paid {formatCurrency(receipt.scheme.totalPaid)} · {receipt.scheme.nextDueDate ? `Next due ${fmtDate(receipt.scheme.nextDueDate)}` : `Scheme ${SCHEME_STATUS_LABELS[deriveSchemeStatus(receipt.scheme, today)].toLowerCase()}`}</p>
         <div className="mt-5 grid grid-cols-2 gap-2">
           <button onClick={() => printSchemeReceipt(receipt.scheme, receipt.installment)} className="rounded-xl border border-emerald-200 py-3 text-sm font-black text-emerald-700"><Printer size={16} className="mr-1 inline" />Print Receipt</button>
           <button onClick={() => whatsappReceipt(receipt.scheme, receipt.installment)} className="rounded-xl bg-[#25D366] py-3 text-sm font-black text-white"><MessageCircle size={16} className="mr-1 inline -mt-0.5" />WhatsApp</button>
@@ -1040,23 +1039,23 @@ export default function Schemes() {
             ['Gold Saved', `${detail.totalGrams.toFixed(3)} g (${detail.goldPurity})${detail.gramsRedeemed > 0 ? ` • ${schemeGramsLeft(detail).toFixed(3)} g left` : ''}`],
             ['Redeem By', gramRedemptionAllowed(detail, rules, today).allowed ? 'Value or grams (admin)' : `Value only${detail.totalGrams > 0 ? ` (${gramRedemptionAllowed(detail, rules, today).reason.replace(/^Value only:? ?/, '').replace(/\.$/, '') || 'no grams'})` : ''}`],
             ['Gift', detail.giftGiven ? `Given${detail.giftGivenAt ? ` ${fmtDate(detail.giftGivenAt)}` : ''}` : 'Not given'],
-          ].map(([k, v]) => <div key={k} className="rounded-xl bg-[#F8F7F4] p-3"><p className="text-[10px] font-black uppercase text-[#858C83]">{k}</p><p className="mt-1 break-words text-sm font-bold">{v}</p></div>)}
+          ].map(([k, v]) => <div key={k} className="rounded-xl bg-black/[0.03] p-3"><p className="text-[10px] font-black uppercase text-[#000000]">{k}</p><p className="mt-1 break-words text-sm font-bold">{v}</p></div>)}
         </div>
-        {detail.cancelReason && <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm"><b>Cancelled:</b> {detail.cancelReason}</div>}
+        {detail.cancelReason && <div className="mt-3 rounded-xl border border-black/10 bg-gray-50 p-3 text-sm"><b>Cancelled:</b> {detail.cancelReason}</div>}
         {detail.closedEarlyAt && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm"><b>Closed early</b> on {fmtDate(detail.closedEarlyAt)}.{detail.benefitForfeited ? ' Benefit does not apply.' : ''} {gramRedemptionAllowed(detail, rules, today).allowed ? 'Can be redeemed by value or grams.' : 'Redeemed by value.'}</div>}
 
         {/* Gift handed to the customer */}
-        <div className="mt-3 rounded-xl border border-[#ECE9E2] p-3">
-          <p className="text-[10px] font-black uppercase text-[#858C83]">Scheme Gift</p>
+        <div className="mt-3 rounded-xl border border-black/10 p-3">
+          <p className="text-[10px] font-black uppercase text-[#000000]">Scheme Gift</p>
           {detail.giftGiven ? (
             <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-sm">
-              <span><b>🎁 {detail.giftDetails || 'Gift given'}</b> <span className="text-xs text-[#6B7280]">• {fmtDate(detail.giftGivenAt)}{detail.giftGivenBy ? ` by ${detail.giftGivenBy}` : ''}</span></span>
+              <span><b>🎁 {detail.giftDetails || 'Gift given'}</b> <span className="text-xs text-[#000000]">• {fmtDate(detail.giftGivenAt)}{detail.giftGivenBy ? ` by ${detail.giftGivenBy}` : ''}</span></span>
               {isAdmin && <button disabled={saving} onClick={() => void saveGift(false)} className="text-xs font-black text-red-600 hover:underline">Undo</button>}
             </div>
           ) : (
             <div className="mt-1.5 grid gap-2 sm:grid-cols-[1fr_auto]">
               <input className={inputClass} value={giftDetails} onChange={(e) => setGiftDetails(e.target.value)} placeholder="Gift given, e.g. Silver coin 5 g, wall clock" />
-              <button disabled={saving} onClick={() => void saveGift(true)} className="rounded-xl bg-[var(--accent-dark)] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">Mark Gift Received</button>
+              <button disabled={saving} onClick={() => void saveGift(true)} className="rounded-xl bg-[var(--accent-dark)] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50">Mark Gift Received</button>
             </div>
           )}
         </div>
@@ -1064,24 +1063,24 @@ export default function Schemes() {
         {detail.frequency === 'one_time' && detail.totalPaid > 0 && (
           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-black text-[#273126]">Deposit Certificate & Gift Voucher</p>
+              <p className="text-sm font-black text-[#000000]">Deposit Certificate & Gift Voucher</p>
               {detailVoucher ? <span className="text-xs font-bold text-amber-800">Voucher {detailVoucher.code} • {formatCurrency(detailVoucher.amount)}{detailVoucher.status === 'used' ? ' • used' : detailVoucher.amountUsed > 0 ? ` • ${formatCurrency(detailVoucher.amount - detailVoucher.amountUsed)} left` : ''}</span>
-                : <span className="text-xs font-semibold text-[#6B7280]">{rules.oneTimeVoucherPercent > 0 ? `${rules.oneTimeVoucherPercent}% voucher is created when printing` : 'Gift voucher is off (Scheme Rules)'}</span>}
+                : <span className="text-xs font-semibold text-[#000000]">{rules.oneTimeVoucherPercent > 0 ? `${rules.oneTimeVoucherPercent}% voucher is created when printing` : 'Gift voucher is off (Scheme Rules)'}</span>}
             </div>
             <div className="flex flex-wrap gap-2">
               <button onClick={() => void printCertificate(detail, true)} className="rounded-lg bg-[#0A0A0A] px-3 py-2 text-xs font-black text-[var(--accent)]"><Printer size={13} className="inline -mt-0.5 mr-1" />Print on Letterhead</button>
-              <button onClick={() => void printCertificate(detail, false)} className="rounded-lg border border-[#0A0A0A] px-3 py-2 text-xs font-black text-[#0A0A0A]">Print on Pre-printed Letterhead Paper</button>
+              <button onClick={() => void printCertificate(detail, false)} className="rounded-lg border border-[#0A0A0A] px-3 py-2 text-xs font-black text-[#000000]">Print on Pre-printed Letterhead Paper</button>
             </div>
           </div>
         )}
-        {detail.notes && <div className="mt-3 rounded-xl border p-3"><p className="text-[10px] font-black uppercase text-[#858C83]">Notes</p><p className="text-sm">{detail.notes}</p></div>}
+        {detail.notes && <div className="mt-3 rounded-xl border p-3"><p className="text-[10px] font-black uppercase text-[#000000]">Notes</p><p className="text-sm">{detail.notes}</p></div>}
 
         <div className="mt-6">
           <h4 className="font-black">Installments</h4>
-          <div className="mt-2 overflow-x-auto rounded-xl border border-[#ECE9E2]">
+          <div className="mt-2 overflow-x-auto rounded-xl border border-black/10">
             <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead className="bg-[#F8F7F4] text-[10px] font-black uppercase tracking-wider text-[#737B72]"><tr>{['#', 'Due', 'Amount', 'Status', 'Paid On', 'Method', 'Gold Rate', 'Gold (g)', 'Receipt', ''].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr></thead>
-              <tbody className="divide-y divide-[#F0EEE9]">
+              <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]"><tr>{['#', 'Due', 'Amount', 'Status', 'Paid On', 'Method', 'Gold Rate', 'Gold (g)', 'Receipt', ''].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr></thead>
+              <tbody className="divide-y divide-black/5">
                 {detailInstallments.map((i) => (
                   <tr key={i.id}>
                     <td className="px-3 py-2 font-bold">{i.installmentNumber}</td>
@@ -1113,7 +1112,7 @@ export default function Schemes() {
         <div className="mt-6">
           <h4 className="font-black">Redemptions</h4>
           <div className="mt-2 space-y-2">
-            {detailRedemptions.length === 0 ? <p className="text-sm text-[#6B7280]">Not redeemed yet.</p> : detailRedemptions.map((r) => (
+            {detailRedemptions.length === 0 ? <p className="text-sm text-[#000000]">Not redeemed yet.</p> : detailRedemptions.map((r) => (
               <div key={r.id} className={`flex flex-wrap justify-between gap-2 rounded-xl p-3 text-sm ${r.status === 'reversed' ? 'bg-gray-50 text-gray-400 line-through' : 'bg-emerald-50'}`}>
                 <span className="font-bold">{fmtDate(r.redeemedAt)} • {r.invoiceNo || 'No invoice'}{r.mode === 'grams' && r.gramsUsed ? ` • ${r.gramsUsed.toFixed(3)} g @ ${formatCurrency(r.goldRate || 0)}/g` : ''}{r.benefitApplied > 0 ? ` • Benefit ${formatCurrency(r.benefitApplied)}` : ''}</span>
                 <span className="font-black">{formatCurrency(r.amountUsed)} used • {formatCurrency(r.balanceAfter)} left</span>
@@ -1127,7 +1126,7 @@ export default function Schemes() {
             <h4 className="font-black">Transfers</h4>
             <div className="mt-2 space-y-1">
               {detail.transferHistory.map((t, idx) => (
-                <p key={idx} className="rounded-xl bg-[#F8F7F4] p-2.5 text-xs">{fmtDate(String(t.at || ''))}: {String(t.from_name || '')} ({String(t.from_phone || '')}) → {String(t.to_name || '')} ({String(t.to_phone || '')}) by {String(t.by || '')}</p>
+                <p key={idx} className="rounded-xl bg-black/[0.03] p-2.5 text-xs">{fmtDate(String(t.at || ''))}: {String(t.from_name || '')} ({String(t.from_phone || '')}) → {String(t.to_name || '')} ({String(t.to_phone || '')}) by {String(t.by || '')}</p>
               ))}
             </div>
           </div>
@@ -1149,12 +1148,12 @@ export default function Schemes() {
         {isAdmin && detail.status === 'cancelled' && (
           <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
             <h4 className="font-black">Resume Scheme</h4>
-            <p className="mt-1 text-xs text-[#6B7280]">Re-opens the scheme so installments can be collected again. Payments already made stay as they are.</p>
+            <p className="mt-1 text-xs text-[#000000]">Re-opens the scheme so installments can be collected again. Payments already made stay as they are.</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] items-end">
               <Field label="Reason for resuming"><input className={inputClass} value={resumeReason} onChange={(e) => setResumeReason(e.target.value)} placeholder="e.g. Customer wants to continue" /></Field>
               <button disabled={saving} onClick={() => void submitResume()} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">{saving ? 'Resuming…' : 'Resume Scheme'}</button>
             </div>
-            <label className="mt-3 flex items-start gap-2 text-xs font-semibold text-[#273126]">
+            <label className="mt-3 flex items-start gap-2 text-xs font-semibold text-[#000000]">
               <input type="checkbox" className="mt-0.5 h-4 w-4 accent-[var(--accent)]" checked={resumeReschedule} onChange={(e) => setResumeReschedule(e.target.checked)} />
               <span>Restart the remaining installments from today (the next one is due today, same plan spacing). The maturity date moves by the same number of days. Untick to keep the original due dates. Missed ones then show as overdue.</span>
             </label>
@@ -1169,8 +1168,8 @@ export default function Schemes() {
         )}
 
         {isAdmin && detail.status !== 'cancelled' && detail.status !== 'redeemed' && (
-          <div className="mt-6 rounded-2xl border border-[#ECE9E2] p-4 space-y-2">
-            <h4 className="font-black">Redemption Terms <span className="text-xs font-semibold text-[#6B7280]">(admin)</span></h4>
+          <div className="mt-6 rounded-2xl border border-black/10 p-4 space-y-2">
+            <h4 className="font-black">Redemption Terms <span className="text-xs font-semibold text-[#000000]">(admin)</span></h4>
             <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
               <Field label="Redeem by grams">
                 <select className={inputClass} value={termsForm.allowGrams} onChange={(e) => setTermsForm((f) => ({ ...f, allowGrams: e.target.value }))}>
@@ -1182,13 +1181,13 @@ export default function Schemes() {
                   <option value="yes">Applies</option><option value="no">Does not apply</option>
                 </select>
               </Field>
-              <button disabled={saving} onClick={() => void submitTerms()} className="rounded-xl bg-[var(--accent-dark)] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">Save</button>
+              <button disabled={saving} onClick={() => void submitTerms()} className="rounded-xl bg-[var(--accent-dark)] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50">Save</button>
             </div>
           </div>
         )}
 
         {isAdmin && detail.status !== 'cancelled' && detail.status !== 'redeemed' && (rules.allowCancellation || rules.allowTransfer || detail.status === 'active') && (
-          <div className="mt-6 rounded-2xl border border-[#ECE9E2] p-4">
+          <div className="mt-6 rounded-2xl border border-black/10 p-4">
             <h4 className="font-black">Admin Actions</h4>
             <div className="mt-2 flex flex-wrap gap-2">
               {rules.allowTransfer && <button onClick={() => { setDetailAction('transfer'); setTransferForm({ phone: '', name: '' }); setModalError('') }} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-black text-emerald-700">Transfer to another customer</button>}
@@ -1229,7 +1228,7 @@ export default function Schemes() {
                 <Field label="New customer mobile"><input className={inputClass} list="scheme-customers-transfer" value={transferForm.phone} onChange={(e) => setTransferForm((f) => ({ ...f, phone: e.target.value }))} /></Field>
                 <datalist id="scheme-customers-transfer">{customers.map((c) => <option key={c.id} value={c.phone}>{c.name}</option>)}</datalist>
                 <Field label="New customer name"><input className={inputClass} value={transferForm.name} onChange={(e) => setTransferForm((f) => ({ ...f, name: e.target.value }))} /></Field>
-                <button disabled={saving} onClick={() => void submitTransfer()} className="rounded-xl bg-[var(--accent-dark)] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">Transfer</button>
+                <button disabled={saving} onClick={() => void submitTransfer()} className="rounded-xl bg-[var(--accent-dark)] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50">Transfer</button>
               </div>
             )}
             {detailAction === 'cancel' && (
@@ -1246,29 +1245,29 @@ export default function Schemes() {
     {/* ── Rules (admin) ── */}
     {rulesOpen && <ModalPortal><div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/55 p-3 sm:p-4">
       <form onSubmit={saveRules} className="flex w-full max-w-2xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
-        <div className="shrink-0 flex items-start justify-between border-b border-gray-100 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
-          <div><h3 className="text-xl font-black text-[#273126] flex items-center gap-2"><Gem size={18} className="text-[var(--accent)]" /> Scheme Rules</h3><p className="text-xs text-[#6B7280]">Applied to new schemes and to redemptions at billing.</p></div>
-          <button type="button" onClick={() => setRulesOpen(false)} className="shrink-0 text-[#858C83] hover:text-black"><X size={20} /></button>
+        <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
+          <div><h3 className="text-xl font-black text-[#000000] flex items-center gap-2"><Gem size={18} className="text-[var(--accent)]" /> Scheme Rules</h3><p className="text-xs text-[#000000]">Applied to new schemes and to redemptions at billing.</p></div>
+          <button type="button" onClick={() => setRulesOpen(false)} className="shrink-0 text-[#000000] hover:text-black"><X size={20} /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 space-y-4">
           {modalError && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
-          <div className="rounded-2xl border border-[#ECE9E2] p-3 space-y-3">
+          <div className="rounded-2xl border border-black/10 p-3 space-y-3">
             <div className="flex items-center justify-between gap-2">
-              <div><p className="text-sm font-black text-[#273126]">Scheme Types</p><p className="text-[11px] text-[#6B7280]">Plans offered to customers. Changing a type never changes schemes already created.</p></div>
+              <div><p className="text-sm font-black text-[#000000]">Scheme Types</p><p className="text-[11px] text-[#000000]">Plans offered to customers. Changing a type never changes schemes already created.</p></div>
               <button type="button" onClick={() => setRulesForm((r) => ({ ...r, types: [...r.types, { id: `type-${Date.now()}`, name: 'Monthly Gold Savings', frequency: 'monthly', amount: 5000, installments: 11, durationMonths: 11, benefitType: r.defaultBenefitType, makingBenefitValue: r.defaultMakingBenefitValue, makingBenefitUnit: r.defaultMakingBenefitUnit, wastageBenefitValue: r.defaultWastageBenefitValue, wastageBenefitUnit: r.defaultWastageBenefitUnit, active: true }] }))}
                 className="shrink-0 rounded-lg bg-[#0A0A0A] px-3 py-1.5 text-xs font-black text-[var(--accent)]"><Plus size={12} className="inline -mt-0.5" /> Add Type</button>
             </div>
-            {rulesForm.types.length === 0 && <p className="text-[11px] font-semibold text-[#6B7280]">No scheme types yet. Without types, only the admin (or staff with permission) can enrol customers with custom terms.</p>}
+            {rulesForm.types.length === 0 && <p className="text-[11px] font-semibold text-[#000000]">No scheme types yet. Without types, only the admin (or staff with permission) can enrol customers with custom terms.</p>}
             {rulesForm.types.map((t, idx) => {
               const setT = (patch: Partial<SchemeType>) => setRulesForm((r) => ({ ...r, types: r.types.map((x, i) => (i === idx ? { ...x, ...patch } : x)) }))
               return (
-                <div key={t.id} className={`rounded-xl border p-3 space-y-2 ${t.active ? 'border-[#ECE9E2] bg-[#FBFAF6]' : 'border-dashed border-gray-300 bg-gray-50 opacity-70'}`}>
+                <div key={t.id} className={`rounded-xl border p-3 space-y-2 ${t.active ? 'border-black/10 bg-white' : 'border-dashed border-gray-300 bg-gray-50 opacity-70'}`}>
                   <div className="grid gap-2 sm:grid-cols-[2fr_1fr_auto]">
                     <input className={inputClass} value={t.name} onChange={(e) => setT({ name: e.target.value })} aria-label="Scheme type name" />
                     <select className={inputClass} value={t.frequency} onChange={(e) => { const f = e.target.value as SchemeFrequency; setT({ frequency: f, installments: f === 'one_time' ? 1 : DEFAULT_INSTALLMENTS[f], durationMonths: f === 'one_time' ? 12 : f === 'monthly' ? DEFAULT_INSTALLMENTS.monthly : 12 }) }} aria-label="Plan">
                       {SCHEME_FREQUENCIES.map((f) => <option key={f} value={f}>{FREQUENCY_LABELS[f]}</option>)}
                     </select>
-                    <label className="flex items-center gap-1.5 text-xs font-bold text-[#273126] whitespace-nowrap"><input type="checkbox" className="h-4 w-4 accent-[var(--accent)]" checked={t.active} onChange={(e) => setT({ active: e.target.checked })} /> Active</label>
+                    <label className="flex items-center gap-1.5 text-xs font-bold text-[#000000] whitespace-nowrap"><input type="checkbox" className="h-4 w-4 accent-[var(--accent)]" checked={t.active} onChange={(e) => setT({ active: e.target.checked })} /> Active</label>
                   </div>
                   <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
                     <Field label={t.frequency === 'one_time' ? 'Deposit (₹)' : 'Installment (₹)'}><input type="number" min="1" className={inputClass} value={t.amount} onChange={(e) => setT({ amount: Number(e.target.value) })} /></Field>
@@ -1280,11 +1279,11 @@ export default function Schemes() {
                       </select>
                     </Field>
                     {t.benefitType !== 'wastage' && <Field label="Making discount">
-                      <div className="flex gap-1.5"><select className="rounded-xl border border-[#E5E7EB] bg-white px-2 text-sm font-black" value={t.makingBenefitUnit} onChange={(e) => setT({ makingBenefitUnit: e.target.value as BenefitUnit })}><option value="percent">%</option><option value="fixed">₹</option></select>
+                      <div className="flex gap-1.5"><select className="rounded-xl border border-black/10 bg-white px-2 text-sm font-black" value={t.makingBenefitUnit} onChange={(e) => setT({ makingBenefitUnit: e.target.value as BenefitUnit })}><option value="percent">%</option><option value="fixed">₹</option></select>
                       <input type="number" min="0" className={`${inputClass} flex-1`} value={t.makingBenefitValue} onChange={(e) => setT({ makingBenefitValue: Number(e.target.value) })} /></div>
                     </Field>}
                     {t.benefitType !== 'making' && <Field label="Wastage discount">
-                      <div className="flex gap-1.5"><select className="rounded-xl border border-[#E5E7EB] bg-white px-2 text-sm font-black" value={t.wastageBenefitUnit} onChange={(e) => setT({ wastageBenefitUnit: e.target.value as BenefitUnit })}><option value="percent">%</option><option value="fixed">₹</option></select>
+                      <div className="flex gap-1.5"><select className="rounded-xl border border-black/10 bg-white px-2 text-sm font-black" value={t.wastageBenefitUnit} onChange={(e) => setT({ wastageBenefitUnit: e.target.value as BenefitUnit })}><option value="percent">%</option><option value="fixed">₹</option></select>
                       <input type="number" min="0" className={`${inputClass} flex-1`} value={t.wastageBenefitValue} onChange={(e) => setT({ wastageBenefitValue: Number(e.target.value) })} /></div>
                     </Field>}
                   </div>
@@ -1309,13 +1308,13 @@ export default function Schemes() {
             <Field label="Gift voucher valid for (months)"><input type="number" min="1" className={inputClass} value={rulesForm.voucherValidityMonths} onChange={(e) => setRulesForm((r) => ({ ...r, voucherValidityMonths: Number(e.target.value) }))} /></Field>
             <Field label="Default making discount">
               <div className="flex gap-2">
-                <select className="rounded-xl border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm font-black" value={rulesForm.defaultMakingBenefitUnit} onChange={(e) => setRulesForm((r) => ({ ...r, defaultMakingBenefitUnit: e.target.value as BenefitUnit }))}><option value="percent">%</option><option value="fixed">₹</option></select>
+                <select className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-black" value={rulesForm.defaultMakingBenefitUnit} onChange={(e) => setRulesForm((r) => ({ ...r, defaultMakingBenefitUnit: e.target.value as BenefitUnit }))}><option value="percent">%</option><option value="fixed">₹</option></select>
                 <input type="number" min="0" className={`${inputClass} flex-1`} value={rulesForm.defaultMakingBenefitValue} onChange={(e) => setRulesForm((r) => ({ ...r, defaultMakingBenefitValue: Number(e.target.value) }))} />
               </div>
             </Field>
             <Field label="Default wastage discount">
               <div className="flex gap-2">
-                <select className="rounded-xl border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm font-black" value={rulesForm.defaultWastageBenefitUnit} onChange={(e) => setRulesForm((r) => ({ ...r, defaultWastageBenefitUnit: e.target.value as BenefitUnit }))}><option value="percent">%</option><option value="fixed">₹</option></select>
+                <select className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-black" value={rulesForm.defaultWastageBenefitUnit} onChange={(e) => setRulesForm((r) => ({ ...r, defaultWastageBenefitUnit: e.target.value as BenefitUnit }))}><option value="percent">%</option><option value="fixed">₹</option></select>
                 <input type="number" min="0" className={`${inputClass} flex-1`} value={rulesForm.defaultWastageBenefitValue} onChange={(e) => setRulesForm((r) => ({ ...r, defaultWastageBenefitValue: Number(e.target.value) }))} />
               </div>
             </Field>
@@ -1327,16 +1326,16 @@ export default function Schemes() {
               ['allowCancellation', 'Allow cancelling a scheme', 'Admin can cancel a scheme that has not been redeemed.'],
               ['allowTransfer', 'Allow transfer to another customer', 'Admin can move a scheme to a different customer.'],
             ] as const).map(([key, label, hint]) => (
-              <label key={key} className="flex items-start justify-between gap-3 rounded-xl border border-[#ECE9E2] p-3 cursor-pointer">
-                <span><span className="block text-sm font-black text-[#273126]">{label}</span><span className="block text-[11px] text-[#6B7280]">{hint}</span></span>
+              <label key={key} className="flex items-start justify-between gap-3 rounded-xl border border-black/10 p-3 cursor-pointer">
+                <span><span className="block text-sm font-black text-[#000000]">{label}</span><span className="block text-[11px] text-[#000000]">{hint}</span></span>
                 <input type="checkbox" className="mt-1 h-4 w-4 accent-[var(--accent)]" checked={rulesForm[key]} onChange={(e) => setRulesForm((r) => ({ ...r, [key]: e.target.checked }))} />
               </label>
             ))}
           </div>
         </div>
-        <div className="shrink-0 flex gap-3 border-t border-gray-100 bg-white px-4 py-3 sm:px-6">
+        <div className="shrink-0 flex gap-3 border-t border-black/10 bg-white px-4 py-3 sm:px-6">
           <button type="button" onClick={() => setRulesOpen(false)} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button>
-          <button disabled={saving} className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save Rules'}</button>
+          <button disabled={saving} className="flex-[1.5] rounded-xl bg-[var(--accent-dark)] py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save Rules'}</button>
         </div>
       </form>
     </div></ModalPortal>}

@@ -161,28 +161,28 @@ export default function JewelleryCustomerProfile() {
   return (
     <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
       {formCustomer !== undefined && <CustomerFormModal customer={formCustomer} onClose={() => setFormCustomer(undefined)} onSaved={onCustomerSaved} />}
-      <div className="rounded-2xl border border-[#ECE9E2] bg-white p-4 shadow-sm space-y-3 h-fit">
+      <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm space-y-3 h-fit">
         <button type="button" onClick={() => setFormCustomer(null)}
-          className="w-full flex items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-black text-white hover:opacity-90 cursor-pointer">
+          className="w-full flex items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:opacity-90 cursor-pointer">
           <Plus size={16} /> Add Customer
         </button>
         <label className="relative block">
           <Search className="absolute left-3 top-3 text-[#9CA3AF]" size={17} />
           <input
-            className="w-full h-11 rounded-xl border border-[#E5E7EB] bg-white pl-10 pr-3 text-sm font-semibold text-[#273126] outline-none focus:border-[var(--accent)]"
+            className="w-full h-11 rounded-xl border border-black/10 bg-white pl-10 pr-3 text-sm font-semibold text-[#000000] outline-none focus:border-[var(--accent)]"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search customer name or phone"
           />
         </label>
-        <div className="max-h-[420px] overflow-y-auto divide-y divide-[#F0EEE9]">
+        <div className="max-h-[420px] overflow-y-auto divide-y divide-black/5">
           {matches.length === 0 ? (
-            <p className="py-6 text-center text-xs font-bold text-[#6B7280]">No customers found.</p>
+            <p className="py-6 text-center text-xs font-bold text-[#000000]">No customers found.</p>
           ) : matches.map((c) => (
             <button key={c.id} type="button" onClick={() => void openProfile(c)}
-              className={`w-full text-left px-3 py-2.5 transition-colors cursor-pointer ${selected?.id === c.id ? 'bg-[#FFF9E6]' : 'hover:bg-[#FBFAF6]'}`}>
-              <p className="text-sm font-black text-[#273126] break-words">{c.name || 'Customer'}</p>
-              <p className="text-xs text-[#6B7280]">{formatPhoneDisplay(c.phone) || c.phone}</p>
+              className={`w-full text-left px-3 py-2.5 transition-colors cursor-pointer ${selected?.id === c.id ? 'bg-[#FFF9E6]' : 'hover:bg-black/[0.03]'}`}>
+              <p className="text-sm font-black text-[#000000] break-words">{c.name || 'Customer'}</p>
+              <p className="text-xs text-[#000000]">{formatPhoneDisplay(c.phone) || c.phone}</p>
             </button>
           ))}
         </div>
@@ -190,16 +190,15 @@ export default function JewelleryCustomerProfile() {
 
       <div className="space-y-4 min-w-0">
         {!selected ? (
-          <div className="rounded-2xl border border-[#ECE9E2] bg-white p-10 text-center text-sm font-semibold text-[#6B7280] shadow-sm">
+          <div className="rounded-2xl border border-black/10 bg-white p-10 text-center text-sm font-semibold text-[#000000] shadow-sm">
             Select a customer to see their jewellery purchases and savings schemes.
           </div>
         ) : <>
-          <div className="rounded-2xl border border-[#ECE9E2] bg-white p-4 shadow-sm">
+          <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
-              <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-600">Jewellery customer</p>
               <div className="flex gap-1.5">
               <button type="button" onClick={() => setFormCustomer(selected)} title="Edit customer"
-                className="flex items-center gap-1 rounded-lg bg-[#F4F2F6] px-2.5 py-1.5 text-[11px] font-black text-[#273126] hover:bg-[var(--accent-a10)] cursor-pointer">
+                className="flex items-center gap-1 rounded-lg bg-black/[0.03] px-2.5 py-1.5 text-[11px] font-black text-[#000000] hover:bg-[var(--accent-a10)] cursor-pointer">
                 <Edit2 size={13} /> Edit
               </button>
               {isAdmin && (
@@ -210,29 +209,29 @@ export default function JewelleryCustomerProfile() {
               )}
               </div>
             </div>
-            <h3 className="text-xl font-black text-[#273126] break-words">{selected.name || 'Customer'}</h3>
-            <p className="text-sm text-[#6B7280]">{formatPhoneDisplay(selected.phone) || selected.phone}{selected.email ? ` • ${selected.email}` : ''}{selected.address ? ` • ${selected.address}` : ''}</p>
+            <h3 className="text-xl font-black text-[#000000] break-words">{selected.name || 'Customer'}</h3>
+            <p className="text-sm text-[#000000]">{formatPhoneDisplay(selected.phone) || selected.phone}{selected.email ? ` • ${selected.email}` : ''}{selected.address ? ` • ${selected.address}` : ''}</p>
             {(selected.pan || selected.aadhaar || selected.allowOffers === false) && (
-              <p className="mt-1 text-xs font-bold text-[#374151]">
+              <p className="mt-1 text-xs font-bold text-[#000000]">
                 {[selected.pan ? `PAN ${selected.pan}` : '', selected.aadhaar ? `Aadhaar ${maskAadhaar(selected.aadhaar)}` : '', selected.allowOffers === false ? 'No offers / reminders' : ''].filter(Boolean).join(' • ')}
               </p>
             )}
-            {selected.notes && <p className="mt-1 text-xs text-[#6B7280]">{selected.notes}</p>}
+            {selected.notes && <p className="mt-1 text-xs text-[#000000]">{selected.notes}</p>}
             {profile.preferences.length > 0 && (
               <p className="mt-2 text-xs font-bold text-[var(--accent-dark)]">Prefers: {profile.preferences.join(' • ')}</p>
             )}
           </div>
           {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
           {loading ? (
-            <div className="rounded-2xl border border-[#ECE9E2] bg-white p-10 text-center text-sm text-[#6B7280] shadow-sm">Loading profile…</div>
+            <div className="rounded-2xl border border-black/10 bg-white p-10 text-center text-sm text-[#000000] shadow-sm">Loading profile…</div>
           ) : <>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {cards.map(([label, value, Icon, color]) => (
-                <div key={label} className="rounded-2xl border border-[#ECE9E2] bg-white p-4 shadow-sm">
+                <div key={label} className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-[11px] font-black uppercase tracking-wide text-[#879086]">{label}</p>
-                      <p className="mt-2 text-[17px] font-black text-[#273126] break-words">{value}</p>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">{label}</p>
+                      <p className="mt-2 text-[17px] font-black text-[#000000] break-words">{value}</p>
                     </div>
                     <div className={`rounded-xl p-3 shrink-0 ${color}`}><Icon size={20} /></div>
                   </div>
@@ -240,19 +239,19 @@ export default function JewelleryCustomerProfile() {
               ))}
             </div>
 
-            <div className="rounded-2xl border border-[#ECE9E2] bg-white shadow-sm">
-              <h4 className="px-4 pt-4 text-sm font-black text-[#273126]">Savings Schemes</h4>
+            <div className="rounded-2xl border border-black/10 bg-white shadow-sm">
+              <h4 className="px-4 pt-4 text-sm font-black text-[#000000]">Savings Schemes</h4>
               <div className="overflow-x-auto p-4 pt-3">
                 <table className="w-full text-left text-xs whitespace-nowrap">
-                  <thead className="bg-[#F8F7F4] text-[10px] font-black uppercase tracking-wider text-[#737B72]">
+                  <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
                     <tr>{['Scheme', 'Status', 'Paid', 'Remaining', 'Balance Available', 'Next Due'].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr>
                   </thead>
-                  <tbody className="divide-y divide-[#F0EEE9]">
+                  <tbody className="divide-y divide-black/5">
                     {schemes.length === 0 ? (
-                      <tr><td colSpan={6} className="px-3 py-6 text-center text-[#6B7280]">No savings schemes.</td></tr>
+                      <tr><td colSpan={6} className="px-3 py-6 text-center text-[#000000]">No savings schemes.</td></tr>
                     ) : schemes.map((s) => (
                       <tr key={s.id}>
-                        <td className="px-3 py-2.5"><p className="font-black text-emerald-700">{s.schemeNumber}</p><p className="text-[#858C83]">{s.schemeName}</p></td>
+                        <td className="px-3 py-2.5"><p className="font-black text-emerald-700">{s.schemeNumber}</p><p className="text-[#000000]">{s.schemeName}</p></td>
                         <td className="px-3 py-2.5 font-bold">{SCHEME_STATUS_LABELS[deriveSchemeStatus(s)]}</td>
                         <td className="px-3 py-2.5">{s.installmentsPaid}/{s.totalInstallments} • {formatCurrency(s.totalPaid)}</td>
                         <td className="px-3 py-2.5">{formatCurrency(schemeRemaining(s))}</td>
@@ -265,25 +264,25 @@ export default function JewelleryCustomerProfile() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-[#ECE9E2] bg-white shadow-sm">
-              <h4 className="px-4 pt-4 text-sm font-black text-[#273126]">Jewellery Purchases</h4>
+            <div className="rounded-2xl border border-black/10 bg-white shadow-sm">
+              <h4 className="px-4 pt-4 text-sm font-black text-[#000000]">Jewellery Purchases</h4>
               <div className="overflow-x-auto p-4 pt-3">
                 <table className="w-full text-left text-xs whitespace-nowrap">
-                  <thead className="bg-[#F8F7F4] text-[10px] font-black uppercase tracking-wider text-[#737B72]">
+                  <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
                     <tr>{['Date', 'Invoice', 'Items', 'Total'].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr>
                   </thead>
-                  <tbody className="divide-y divide-[#F0EEE9]">
+                  <tbody className="divide-y divide-black/5">
                     {profile.jewelleryOrders.length === 0 ? (
-                      <tr><td colSpan={4} className="px-3 py-6 text-center text-[#6B7280]">No jewellery purchases yet.</td></tr>
+                      <tr><td colSpan={4} className="px-3 py-6 text-center text-[#000000]">No jewellery purchases yet.</td></tr>
                     ) : profile.jewelleryOrders.map((o) => (
                       <tr key={o.id} className="align-top">
                         <td className="px-3 py-2.5">{fmtDate(o.createdAt)}</td>
                         <td className="px-3 py-2.5 font-bold text-emerald-700">{formatInvoiceNo(o.invoiceNo)}</td>
                         <td className="px-3 py-2.5 whitespace-normal min-w-[220px]">
                           {o.items.map((i, idx) => (
-                            <p key={idx} className="text-[#273126]">
+                            <p key={idx} className="text-[#000000]">
                               <span className="font-bold">{i.name}</span>
-                              {i.jewellery ? <span className="text-[#6B7280]"> • {metalLabel(i.jewellery.metal_type, i.jewellery.purity)} • {formatWeight(i.jewellery.net_weight)}</span> : null}
+                              {i.jewellery ? <span className="text-[#000000]"> • {metalLabel(i.jewellery.metal_type, i.jewellery.purity)} • {formatWeight(i.jewellery.net_weight)}</span> : null}
                             </p>
                           ))}
                         </td>
@@ -295,16 +294,16 @@ export default function JewelleryCustomerProfile() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-[#ECE9E2] bg-white shadow-sm">
-              <h4 className="px-4 pt-4 text-sm font-black text-[#273126]">Advances</h4>
+            <div className="rounded-2xl border border-black/10 bg-white shadow-sm">
+              <h4 className="px-4 pt-4 text-sm font-black text-[#000000]">Advances</h4>
               <div className="overflow-x-auto p-4 pt-3">
                 <table className="w-full text-left text-xs whitespace-nowrap">
-                  <thead className="bg-[#F8F7F4] text-[10px] font-black uppercase tracking-wider text-[#737B72]">
+                  <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
                     <tr>{['Receipt', 'Date', 'Purpose', 'Amount', 'Balance', 'Status'].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr>
                   </thead>
-                  <tbody className="divide-y divide-[#F0EEE9]">
+                  <tbody className="divide-y divide-black/5">
                     {advances.length === 0 ? (
-                      <tr><td colSpan={6} className="px-3 py-6 text-center text-[#6B7280]">No advances.</td></tr>
+                      <tr><td colSpan={6} className="px-3 py-6 text-center text-[#000000]">No advances.</td></tr>
                     ) : advances.map((a) => (
                       <tr key={a.id}>
                         <td className="px-3 py-2.5 font-bold text-[var(--accent-dark)]">{a.receiptNumber}</td>
@@ -320,16 +319,16 @@ export default function JewelleryCustomerProfile() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-[#ECE9E2] bg-white shadow-sm">
-              <h4 className="px-4 pt-4 text-sm font-black text-[#273126]">Exchanges & Returns</h4>
+            <div className="rounded-2xl border border-black/10 bg-white shadow-sm">
+              <h4 className="px-4 pt-4 text-sm font-black text-[#000000]">Exchanges & Returns</h4>
               <div className="overflow-x-auto p-4 pt-3">
                 <table className="w-full text-left text-xs whitespace-nowrap">
-                  <thead className="bg-[#F8F7F4] text-[10px] font-black uppercase tracking-wider text-[#737B72]">
+                  <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
                     <tr>{['No', 'Date', 'Invoice', 'Details', 'Value'].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr>
                   </thead>
-                  <tbody className="divide-y divide-[#F0EEE9]">
+                  <tbody className="divide-y divide-black/5">
                     {oldGold.length + returns.length === 0 ? (
-                      <tr><td colSpan={5} className="px-3 py-6 text-center text-[#6B7280]">No exchanges or returns.</td></tr>
+                      <tr><td colSpan={5} className="px-3 py-6 text-center text-[#000000]">No exchanges or returns.</td></tr>
                     ) : <>
                       {oldGold.map((g) => (
                         <tr key={g.id}>
@@ -355,16 +354,16 @@ export default function JewelleryCustomerProfile() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-[#ECE9E2] bg-white shadow-sm">
-              <h4 className="px-4 pt-4 text-sm font-black text-[#273126]">Repairs</h4>
+            <div className="rounded-2xl border border-black/10 bg-white shadow-sm">
+              <h4 className="px-4 pt-4 text-sm font-black text-[#000000]">Repairs</h4>
               <div className="overflow-x-auto p-4 pt-3">
                 <table className="w-full text-left text-xs whitespace-nowrap">
-                  <thead className="bg-[#F8F7F4] text-[10px] font-black uppercase tracking-wider text-[#737B72]">
+                  <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
                     <tr>{['Repair', 'Received', 'Item', 'Expected', 'Balance', 'Status'].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr>
                   </thead>
-                  <tbody className="divide-y divide-[#F0EEE9]">
+                  <tbody className="divide-y divide-black/5">
                     {repairs.length === 0 ? (
-                      <tr><td colSpan={6} className="px-3 py-6 text-center text-[#6B7280]">No repairs.</td></tr>
+                      <tr><td colSpan={6} className="px-3 py-6 text-center text-[#000000]">No repairs.</td></tr>
                     ) : repairs.map((r) => (
                       <tr key={r.id}>
                         <td className="px-3 py-2.5 font-bold text-[var(--accent-dark)]">{r.repairNumber}</td>

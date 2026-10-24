@@ -228,7 +228,7 @@ export const InventoryTable: React.FC = () => {
       {/* NAVIGATION / HEADER */}
       {role === 'admin' ? (
         <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-2 sm:p-2.5 shadow-sm flex items-center justify-between gap-3 overflow-x-auto hide-scrollbar">
-          <div className="flex items-center gap-1.5 p-1 bg-[#FBFAF6] border border-gray-200 rounded-xl shrink-0">
+          <div className="flex items-center gap-1.5 p-1 bg-white border border-black/10 rounded-xl shrink-0">
             <button
               type="button"
               onClick={() => setActiveTab('stock')}
@@ -298,7 +298,7 @@ export const InventoryTable: React.FC = () => {
               <Box size={18} />
             </div>
             <div>
-              <h2 className="text-base font-black text-[#0A0A0A]">Stock Management</h2>
+              <h2 className="text-base font-black text-[#000000]">Stock Management</h2>
               <p className="text-xs font-semibold text-gray-500">Live jewellery stock, weights and stock levels</p>
             </div>
           </div>
@@ -341,12 +341,12 @@ export const InventoryTable: React.FC = () => {
             </div>
 
             <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
-              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-[#FBFAF6] text-[#0A0A0A] border border-[var(--accent-a40)] flex items-center justify-center font-black text-sm shrink-0">
+              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-white text-[#000000] border border-[var(--accent-a40)] flex items-center justify-center font-black text-sm shrink-0">
                 ₹
               </div>
               <div className="min-w-0">
                 <div className="text-[10px] font-bold text-gray-500">Stock Valuation</div>
-                <div className="text-[14px] sm:text-lg font-black text-[#0A0A0A] break-words">{formatCurrency(totalValuation)}</div>
+                <div className="text-[14px] sm:text-lg font-black text-[#000000] break-words">{formatCurrency(totalValuation)}</div>
               </div>
             </div>
           </div>
@@ -361,7 +361,7 @@ export const InventoryTable: React.FC = () => {
                 placeholder="Search item, HUID, barcode, category, location..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 bg-[#FBFAF6] text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A] focus:bg-white"
+                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A] focus:bg-white"
               />
             </div>
 
@@ -450,7 +450,7 @@ export const InventoryTable: React.FC = () => {
           )}
 
           {/* Stock Table */}
-          <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm">
+          <div className="bg-white border border-black/10 rounded-2xl overflow-hidden shadow-sm">
             {loading ? (
               <div className="p-16 text-center text-gray-400 font-bold text-xs flex flex-col items-center justify-center">
                 <RefreshCw size={24} className="animate-spin text-[var(--accent)] mb-2" />
@@ -464,7 +464,7 @@ export const InventoryTable: React.FC = () => {
               <>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left text-xs whitespace-nowrap">
-                  <thead className="bg-[#FBFAF6] border-b border-gray-200 text-xs font-bold text-gray-700">
+                  <thead className="bg-white border-b border-black/10 text-xs font-bold text-gray-700">
                     <tr>
                       {role === 'admin' && (
                         <th className="p-3.5 w-10">
@@ -488,7 +488,7 @@ export const InventoryTable: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-gray-100">
                     {filtered.map((item) => (
-                      <tr key={item.id} className="hover:bg-[#FBFAF6] transition-colors">
+                      <tr key={item.id} className="hover:bg-black/[0.03] transition-colors">
                         {role === 'admin' && (
                           <td className="p-3.5">
                             <input
@@ -505,7 +505,7 @@ export const InventoryTable: React.FC = () => {
                             {item.name}
                           </div>
                           {item.variant_name ? (
-                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded-md bg-[#FBFAF6] border border-[var(--accent-a40)] text-[#0A0A0A] font-bold text-[10px]">
+                            <span className="inline-block mt-0.5 px-2 py-0.5 rounded-md bg-white border border-[var(--accent-a40)] text-[#000000] font-bold text-[10px]">
                               Size: {item.variant_name}
                             </span>
                           ) : jewelleryOf(item) ? (() => {

@@ -4,7 +4,7 @@ import { auditService, AUDIT_ACTION_LABELS, type AuditEntry } from '../../servic
 import { csvDate, downloadCsv } from '../../lib/csv'
 import { formatCurrency } from '../../lib/retail'
 
-const inputCls = 'w-full px-3.5 py-2.5 bg-[#F9FAFB] border border-[#E5E7EB]/60 rounded-xl text-[13px] font-bold text-[#111111] focus:outline-none focus:border-[var(--accent)] transition-colors'
+const inputCls = 'w-full px-3.5 py-2.5 bg-white border border-black/10 rounded-xl text-[13px] font-bold text-[#000000] focus:outline-none focus:border-[var(--accent)] transition-colors'
 
 /** Short readable form of an old/new value ("₹6,550/g", "Qty 3", JSON otherwise). */
 const describeValue = (v: unknown): string => {
@@ -50,20 +50,20 @@ export default function AuditLogView() {
   ])
 
   return (
-    <div className="bg-white rounded-2xl border border-[#E5E7EB]/60 p-4 sm:p-6 shadow-sm space-y-4">
+    <div className="bg-white rounded-2xl border border-black/10 p-4 sm:p-6 shadow-sm space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <History size={16} className="text-[var(--accent)] shrink-0" />
           <div>
             <p className="text-[13px] font-black uppercase tracking-wider text-[var(--accent)]">Audit Log</p>
-            <p className="text-[12px] text-[#6B7280]">Metal rate, item, price, stock, discount, return and Schema changes. Entries cannot be edited or deleted.</p>
+            <p className="text-[12px] text-[#000000]">Metal rate, item, price, stock, discount, return and Schema changes. Entries cannot be edited or deleted.</p>
           </div>
         </div>
         <div className="flex gap-2">
           <button type="button" onClick={exportCsv} disabled={!rows.length} className="flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-200 disabled:opacity-40">
             <Download size={13} /> Export CSV
           </button>
-          <button type="button" onClick={() => void load()} className="rounded-lg border border-[#E5E7EB] bg-white p-2 text-[#647064]" title="Refresh">
+          <button type="button" onClick={() => void load()} className="rounded-lg border border-black/10 bg-white p-2 text-[#000000]" title="Refresh">
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
@@ -77,24 +77,24 @@ export default function AuditLogView() {
         <input type="date" className={inputCls} value={to} onChange={(e) => setTo(e.target.value)} aria-label="To date" />
       </div>
       {error && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">{error}</div>}
-      <div className="overflow-x-auto rounded-xl border border-[#E5E7EB]/60 max-h-[480px] overflow-y-auto">
+      <div className="overflow-x-auto rounded-xl border border-black/10 max-h-[480px] overflow-y-auto">
         <table className="w-full text-left text-xs">
-          <thead className="bg-[#F9FAFB] sticky top-0 text-[10px] font-black uppercase tracking-wider text-[#6B7280]">
+          <thead className="bg-white sticky top-0 text-[10px] font-bold uppercase tracking-widest text-[#000000]">
             <tr>{['Date & Time', 'Action', 'Record', 'Old', 'New', 'By'].map((h) => <th key={h} className="px-3 py-2.5 whitespace-nowrap">{h}</th>)}</tr>
           </thead>
-          <tbody className="divide-y divide-[#E5E7EB]/60">
+          <tbody className="divide-y divide-black/5">
             {loading ? (
-              <tr><td colSpan={6} className="px-3 py-8 text-center text-[#6B7280]">Loading…</td></tr>
+              <tr><td colSpan={6} className="px-3 py-8 text-center text-[#000000]">Loading…</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={6} className="px-3 py-8 text-center text-[#6B7280]">No changes recorded for these filters.</td></tr>
+              <tr><td colSpan={6} className="px-3 py-8 text-center text-[#000000]">No changes recorded for these filters.</td></tr>
             ) : rows.map((r) => (
               <tr key={r.id} className="align-top">
                 <td className="px-3 py-2.5 whitespace-nowrap">{new Date(r.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                <td className="px-3 py-2.5 font-bold text-[#111111] whitespace-nowrap">{AUDIT_ACTION_LABELS[r.action] || r.action}</td>
-                <td className="px-3 py-2.5 text-[#374151] max-w-[160px] break-words">{r.entityId || '—'}{r.note ? <span className="block text-[10px] text-[#6B7280]">{r.note}</span> : null}</td>
-                <td className="px-3 py-2.5 text-[#6B7280] max-w-[220px] break-words">{describeValue(r.oldValue)}</td>
-                <td className="px-3 py-2.5 text-[#111111] max-w-[220px] break-words">{describeValue(r.newValue)}</td>
-                <td className="px-3 py-2.5 whitespace-nowrap text-[#374151]">{r.userName}</td>
+                <td className="px-3 py-2.5 font-bold text-[#000000] whitespace-nowrap">{AUDIT_ACTION_LABELS[r.action] || r.action}</td>
+                <td className="px-3 py-2.5 text-[#000000] max-w-[160px] break-words">{r.entityId || '—'}{r.note ? <span className="block text-[10px] text-[#000000]">{r.note}</span> : null}</td>
+                <td className="px-3 py-2.5 text-[#000000] max-w-[220px] break-words">{describeValue(r.oldValue)}</td>
+                <td className="px-3 py-2.5 text-[#000000] max-w-[220px] break-words">{describeValue(r.newValue)}</td>
+                <td className="px-3 py-2.5 whitespace-nowrap text-[#000000]">{r.userName}</td>
               </tr>
             ))}
           </tbody>
