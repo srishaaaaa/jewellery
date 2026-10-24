@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf'
 import html2canvas from 'html2canvas'
 import { BRAND_ACCENT, BRAND_ADDRESS, BRAND_EN, BRAND_PHONE_DISPLAY } from './brand'
-import { formatCurrency, formatQuantityDisplay, normalizeStructuredOrderItem, formatInvoiceNo } from './retail'
+import { formatCurrency, formatQuantityDisplay, normalizeStructuredOrderItem, formatInvoiceNo, paymentSplitRows, schemePaidLabel } from './retail'
 import { getActiveLogo } from './activeLogo'
 import { useSettingsStore } from '../store/store'
 import { formatPhoneDisplay } from './phone'
@@ -34,6 +34,11 @@ export type InvoicePdfData = {
   advanceAmountUsed?: number
   exchangeAmount?: number
   customerGstin?: string | null
+  customerPan?: string | null
+  /** The bill's split_details: mixed payment amounts per method */
+  splitDetails?: unknown
+  schemeGramsUsed?: number | null
+  schemeGoldRate?: number | null
   /** For a quotation: 'QUOTATION'. Default: TAX INVOICE / CREDIT INVOICE. */
   documentTitle?: string
 }
@@ -172,7 +177,7 @@ export function createInvoicePdf(data: InvoicePdfData): Blob {
   doc.setFontSize(8)
   doc.setTextColor(muted)
   const phoneY = y + 13 + customerNameLines.length * 4 + 2
-  doc.text(`Mobile Number: ${customerPhone}${data.customerGstin ? `   GSTIN: ${pdfText(data.customerGstin)}` : ''}`, left + 5, phoneY)
+  doc.text(`Mobile Number: ${customerPhone}${data.customerGstin ? `   GSTIN: ${pdfText(data.customerGstin)}` : ''}${data.customerPan ? `   PAN: ${pdfText(data.customerPan)}` : ''}`, left + 5, phoneY)
   if (customerAddressLines.length > 0) {
     doc.text(customerAddressLines, left + 5, phoneY + 5)
   }
@@ -274,7 +279,7 @@ export function createInvoicePdf(data: InvoicePdfData): Blob {
   doc.text(isUnpaidCredit ? 'AMOUNT DUE' : 'TOTAL', 143, y + 6, { align: 'right' })
   doc.text(money(data.total), right - 4, y + 6, { align: 'right' })
   const adjustments: Array<[string, number]> = [
-    [`Paid from Scheme${data.schemeNumber ? ` (${data.schemeNumber})` : ''}`, data.schemeAmountUsed || 0],
+    [pdfText(schemePaidLabel(data.schemeNumber, data.schemeGramsUsed, data.schemeGoldRate)), data.schemeAmountUsed || 0],
     ['Advance Adjusted', data.advanceAmountUsed || 0],
     ['Old Gold Exchange', data.exchangeAmount || 0],
   ].filter(([, v]) => (v as number) > 0) as Array<[string, number]>
@@ -293,6 +298,23 @@ export function createInvoicePdf(data: InvoicePdfData): Blob {
     doc.text('Amount Paid', 143, ay + 1, { align: 'right' })
     doc.text(money(Math.max(0, data.total - adjustments.reduce((s2, [, v]) => s2 + v, 0))), right - 4, ay + 1, { align: 'right' })
     ay += 7
+  }
+  const splitRows = paymentSplitRows(data.splitDetails)
+  if (splitRows.length) {
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8)
+    doc.setTextColor(muted)
+    doc.text('PAYMENT SPLIT', 143, ay + 1, { align: 'right' })
+    ay += 5
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(9)
+    doc.setTextColor(ink)
+    splitRows.forEach(([label, value]) => {
+      doc.text(pdfText(label), 143, ay, { align: 'right' })
+      doc.text(money(value), right - 4, ay, { align: 'right' })
+      ay += 5
+    })
+    ay += 1
   }
   if (data.schemeNumber && data.schemeBalanceAfter != null) {
     doc.setFont('helvetica', 'normal')

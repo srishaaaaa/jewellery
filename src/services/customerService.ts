@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase'
+import { isMissingSchemaError } from './productService'
 
 export interface CustomerRecord {
   id: string
@@ -7,6 +8,49 @@ export interface CustomerRecord {
   address: string
   birthday: string | null
   anniversary: string | null
+  email?: string
+  /** 12-digit Aadhaar, saved once given and filled in on later bills */
+  aadhaar?: string | null
+  pan?: string | null
+  /** Customer agrees to reminders and offers (default yes) */
+  allowOffers?: boolean
+  notes?: string
+}
+
+const BASE_COLUMNS = 'id, phone, name, address, birthday, anniversary'
+const EXTRA_COLUMNS = `${BASE_COLUMNS}, email, aadhaar, pan, allow_offers, notes`
+
+const mapCustomer = (r: Record<string, unknown>): CustomerRecord => ({
+  id: String(r.id), phone: String(r.phone || ''), name: String(r.name || ''), address: String(r.address || ''),
+  birthday: r.birthday ? String(r.birthday) : null, anniversary: r.anniversary ? String(r.anniversary) : null,
+  email: String(r.email || ''), aadhaar: r.aadhaar ? String(r.aadhaar) : null, pan: r.pan ? String(r.pan) : null,
+  allowOffers: r.allow_offers !== false, notes: String(r.notes || ''),
+})
+
+/** Select with the KYC / offers columns, falling back to the original ones before the database update. */
+async function selectCustomers<T>(run: (columns: string) => PromiseLike<{ data: T | null; error: unknown }>): Promise<{ data: T | null; error: unknown }> {
+  const first = await run(EXTRA_COLUMNS)
+  if (!first.error || !isMissingSchemaError(first.error)) return first
+  return run(BASE_COLUMNS)
+}
+
+/** KYC / offers fields for an insert or update; only sent when given, so saving works before the database update. */
+const extraFields = (input: { email?: string; aadhaar?: string | null; pan?: string | null; allowOffers?: boolean; notes?: string }) => ({
+  ...(input.email !== undefined ? { email: input.email.trim() } : {}),
+  ...(input.aadhaar !== undefined ? { aadhaar: normalizeAadhaar(input.aadhaar) || null } : {}),
+  ...(input.pan !== undefined ? { pan: input.pan?.trim().toUpperCase() || null } : {}),
+  ...(input.allowOffers !== undefined ? { allow_offers: input.allowOffers } : {}),
+  ...(input.notes !== undefined ? { notes: input.notes.trim() } : {}),
+})
+
+/** Aadhaar digits only ("1234 5678 9012" -> "123456789012"). */
+export const normalizeAadhaar = (v: string | null | undefined) => String(v || '').replace(/\D/g, '')
+export const isValidAadhaar = (v: string | null | undefined) => /^[2-9][0-9]{11}$/.test(normalizeAadhaar(v))
+export const isValidPan = (v: string | null | undefined) => /^[A-Z]{5}[0-9]{4}[A-Z]$/.test(String(v || '').trim().toUpperCase())
+/** "XXXX XXXX 9012" — Aadhaar is never shown or printed in full. */
+export const maskAadhaar = (v: string | null | undefined) => {
+  const d = normalizeAadhaar(v)
+  return d.length >= 4 ? `XXXX XXXX ${d.slice(-4)}` : ''
 }
 
 export interface CustomerEvent {
@@ -37,17 +81,17 @@ export const customerService = {
    */
   async findByPhone(phone: string): Promise<CustomerRecord | null> {
     if (!phone.trim()) return null
-    const { data, error } = await supabase
+    const { data, error } = await selectCustomers((columns) => supabase
       .from('customers')
-      .select('id, phone, name, address, birthday, anniversary')
+      .select(columns)
       .eq('phone', phone.trim())
-      .maybeSingle()
+      .maybeSingle())
 
     if (error) {
       console.error('[customerService.findByPhone] Error:', error)
       return null
     }
-    return data
+    return data ? mapCustomer(data as unknown as Record<string, unknown>) : null
   },
 
   /**
@@ -55,7 +99,7 @@ export const customerService = {
    * anniversary/name/address never overwrite a previously-saved value —
    * only non-blank fields from this sale are applied.
    */
-  async upsertFromSale(input: { phone: string; name?: string; address?: string; birthday?: string | null; anniversary?: string | null }): Promise<void> {
+  async upsertFromSale(input: { phone: string; name?: string; address?: string; birthday?: string | null; anniversary?: string | null; aadhaar?: string | null; pan?: string | null }): Promise<void> {
     const phone = input.phone.trim()
     if (!phone) return
 
@@ -68,6 +112,9 @@ export const customerService = {
       birthday: input.birthday?.trim() || existing?.birthday || null,
       anniversary: input.anniversary?.trim() || existing?.anniversary || null,
       updated_at: new Date().toISOString(),
+      // Aadhaar / PAN given on this bill are kept for next time (blank never clears a saved one).
+      ...(normalizeAadhaar(input.aadhaar) ? { aadhaar: normalizeAadhaar(input.aadhaar) } : {}),
+      ...(input.pan?.trim() ? { pan: input.pan.trim().toUpperCase() } : {}),
     }
 
     const { error } = await supabase.from('customers').upsert(payload, { onConflict: 'phone' })
@@ -128,23 +175,23 @@ export const customerService = {
    * Birthdays & Anniversaries management screen).
    */
   async fetchAll(): Promise<CustomerRecord[]> {
-    const { data, error } = await supabase
+    const { data, error } = await selectCustomers((columns) => supabase
       .from('customers')
-      .select('id, phone, name, address, birthday, anniversary')
-      .order('name', { ascending: true })
+      .select(columns)
+      .order('name', { ascending: true }))
 
     if (error) {
       console.error('[customerService.fetchAll] Error:', error)
       return []
     }
-    return data || []
+    return ((data || []) as unknown as Array<Record<string, unknown>>).map(mapCustomer)
   },
 
   /**
    * Create a new customer record from the management screen. Throws a
    * friendly error if the phone number is already registered.
    */
-  async create(input: { phone: string; name: string; address?: string; birthday?: string | null; anniversary?: string | null }): Promise<CustomerRecord> {
+  async create(input: { phone: string; name: string; address?: string; birthday?: string | null; anniversary?: string | null; email?: string; aadhaar?: string | null; pan?: string | null; allowOffers?: boolean; notes?: string }): Promise<CustomerRecord> {
     const phone = input.phone.trim()
     const { data, error } = await supabase
       .from('customers')
@@ -154,21 +201,23 @@ export const customerService = {
         address: input.address?.trim() || '',
         birthday: input.birthday || null,
         anniversary: input.anniversary || null,
+        ...extraFields(input),
       })
-      .select('id, phone, name, address, birthday, anniversary')
+      .select('*')
       .single()
 
     if (error) {
       if (error.code === '23505') throw new Error('This phone number is already registered to another customer.')
+      if (isMissingSchemaError(error)) throw new Error('Aadhaar, PAN, email and offers need the database update: run supabase/migrations/jewellery_pos.sql again in the Supabase SQL Editor.')
       throw error
     }
-    return data
+    return mapCustomer(data as Record<string, unknown>)
   },
 
   /**
    * Update an existing customer record from the management screen.
    */
-  async update(id: string, input: { phone: string; name: string; address?: string; birthday?: string | null; anniversary?: string | null }): Promise<void> {
+  async update(id: string, input: { phone: string; name: string; address?: string; birthday?: string | null; anniversary?: string | null; email?: string; aadhaar?: string | null; pan?: string | null; allowOffers?: boolean; notes?: string }): Promise<void> {
     const { error } = await supabase
       .from('customers')
       .update({
@@ -178,11 +227,13 @@ export const customerService = {
         birthday: input.birthday || null,
         anniversary: input.anniversary || null,
         updated_at: new Date().toISOString(),
+        ...extraFields(input),
       })
       .eq('id', id)
 
     if (error) {
       if (error.code === '23505') throw new Error('This phone number is already registered to another customer.')
+      if (isMissingSchemaError(error)) throw new Error('Aadhaar, PAN, email and offers need the database update: run supabase/migrations/jewellery_pos.sql again in the Supabase SQL Editor.')
       throw error
     }
   },

@@ -94,6 +94,7 @@ export type DashboardOrder = {
   split_details?: Record<string, unknown> | null
   scheme_number?: string | null; scheme_amount_used?: number; scheme_discount?: number; scheme_balance_after?: number | null
   advance_amount_used?: number; exchange_amount?: number; customer_gstin?: string | null
+  customer_pan?: string | null; scheme_grams_used?: number | null; scheme_gold_rate?: number | null
 }
 
 /**
@@ -102,14 +103,14 @@ export type DashboardOrder = {
  */
 const attachSchemeInfo = async (orders: DashboardOrder[]): Promise<DashboardOrder[]> => {
   if (!orders.length || !isSupabaseConfigured) return orders
-  const { data, error } = await supabase
-    .from('orders')
-    .select('id, scheme_number, scheme_amount_used, scheme_discount, scheme_balance_after, advance_amount_used, exchange_amount, customer_gstin')
-    .or('scheme_number.not.is.null,advance_amount_used.gt.0,exchange_amount.gt.0,customer_gstin.not.is.null')
-    .order('created_at', { ascending: false })
-    .limit(5000)
+  const base = 'id, scheme_number, scheme_amount_used, scheme_discount, scheme_balance_after, advance_amount_used, exchange_amount, customer_gstin'
+  const baseFilter = 'scheme_number.not.is.null,advance_amount_used.gt.0,exchange_amount.gt.0,customer_gstin.not.is.null'
+  const query = (columns: string, filter: string) => supabase.from('orders').select(columns).or(filter).order('created_at', { ascending: false }).limit(5000)
+  // PAN and gram redemption come with a later database update; fall back to the older columns until then.
+  let { data, error } = await query(`${base}, customer_pan, scheme_grams_used, scheme_gold_rate`, `${baseFilter},customer_pan.not.is.null`)
+  if (error) ({ data, error } = await query(base, baseFilter))
   if (error || !data?.length) return orders
-  const info = new Map(data.map(row => [String(row.id), row as Record<string, unknown>]))
+  const info = new Map((data as unknown as Array<Record<string, unknown>>).map(row => [String(row.id), row]))
   return orders.map(o => {
     const row = info.get(o.id)
     return row ? {
@@ -121,6 +122,9 @@ const attachSchemeInfo = async (orders: DashboardOrder[]): Promise<DashboardOrde
       advance_amount_used: toNumber(row.advance_amount_used, 0),
       exchange_amount: toNumber(row.exchange_amount, 0),
       customer_gstin: row.customer_gstin ? String(row.customer_gstin) : null,
+      customer_pan: row.customer_pan ? String(row.customer_pan) : null,
+      scheme_grams_used: row.scheme_grams_used == null ? null : toNumber(row.scheme_grams_used, 0),
+      scheme_gold_rate: row.scheme_gold_rate == null ? null : toNumber(row.scheme_gold_rate, 0),
     } : o
   })
 }
@@ -1020,6 +1024,10 @@ export default function Dashboard() {
       })),
       subtotal,
       shipping: order.delivery_charge || 0,
+      splitDetails: order.split_details,
+      customerPan: order.customer_pan,
+      schemeGramsUsed: order.scheme_grams_used,
+      schemeGoldRate: order.scheme_gold_rate,
       schemeNumber: order.scheme_number,
       schemeDiscount: order.scheme_discount,
       schemeAmountUsed: order.scheme_amount_used,
@@ -1069,6 +1077,11 @@ export default function Dashboard() {
       gstAmount: order.total_gst,
       paymentMode: formatPaymentMode(order.payment_mode || order.payment_method, order.split_details) || undefined,
       total: order.total,
+      splitDetails: order.split_details,
+      customerGstin: order.customer_gstin,
+      customerPan: order.customer_pan,
+      schemeGramsUsed: order.scheme_grams_used,
+      schemeGoldRate: order.scheme_gold_rate,
       schemeNumber: order.scheme_number,
       schemeDiscount: order.scheme_discount,
       schemeAmountUsed: order.scheme_amount_used,
@@ -3833,6 +3846,10 @@ export default function Dashboard() {
                     advanceAmountUsed={invoicePreviewOrder.advance_amount_used || 0}
                     exchangeAmount={invoicePreviewOrder.exchange_amount || 0}
                     customerGstin={invoicePreviewOrder.customer_gstin}
+                    customerPan={invoicePreviewOrder.customer_pan}
+                    splitDetails={invoicePreviewOrder.split_details}
+                    schemeGramsUsed={invoicePreviewOrder.scheme_grams_used}
+                    schemeGoldRate={invoicePreviewOrder.scheme_gold_rate}
                     total={invoicePreviewOrder.total}
                     status={invoicePreviewOrder.status}
                   />

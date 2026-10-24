@@ -452,6 +452,27 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                     <span className="block text-[11px] text-[#6B7280]">Off: staff enrol customers only on the scheme types set up by admin, with their fixed terms.</span>
                   </span>
                 </label>
+                <div>
+                  <Field label="Cash limit per bill / advance (₹)">
+                    <NumberInput
+                      min={1} className={inputCls}
+                      value={form.posPermissions.cashLimit}
+                      onCommit={n => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, cashLimit: n > 0 ? n : 199500 } }))}
+                    />
+                  </Field>
+                  <p className="text-[11px] text-[#6B7280] mt-1.5">Cash above this is refused (Income Tax s.269ST does not allow ₹2,00,000 or more in cash). The rest must be UPI, card, bank or cheque.</p>
+                </div>
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox" checked={form.posPermissions.allowCashAboveLimit}
+                    onChange={e => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, allowCashAboveLimit: e.target.checked } }))}
+                    className="mt-0.5 w-4 h-4 accent-[var(--accent)]"
+                  />
+                  <span>
+                    <span className="block text-[13px] font-bold text-[#111111]">Admin may accept cash above the limit</span>
+                    <span className="block text-[11px] text-[#6B7280]">On: the admin login can take more cash after confirming. Staff can never go above the limit.</span>
+                  </span>
+                </label>
                 <p className="text-[11px] text-[#6B7280]">Staff never change metal rates, Schema rules, invoices, completed payments, stock quantities or settings.</p>
               </div>
             </SectionCard>

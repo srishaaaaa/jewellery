@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
-import { CalendarDays, Gem, PiggyBank, Receipt, Search, ShoppingBag, Trash2, Wallet } from 'lucide-react'
+import { CalendarDays, Edit2, Gem, PiggyBank, Plus, Receipt, Search, ShoppingBag, Trash2, Wallet } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { customerService, type CustomerRecord } from '../../services/customerService'
+import { customerService, maskAadhaar, type CustomerRecord } from '../../services/customerService'
+import { CustomerFormModal } from './CustomerFormModal'
 import { auditService } from '../../services/auditService'
 import { useAdminAuthStore } from '../../store/store'
 import { schemeService } from '../../services/schemeService'
@@ -47,6 +48,14 @@ export default function JewelleryCustomerProfile() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const isAdmin = useAdminAuthStore((state) => state.role) === 'admin'
+  /** undefined = closed, null = new customer, record = editing */
+  const [formCustomer, setFormCustomer] = useState<CustomerRecord | null | undefined>(undefined)
+  const onCustomerSaved = (saved: CustomerRecord) => {
+    setCustomers((rows) => [...rows.filter((r) => r.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name)))
+    setFormCustomer(undefined)
+    if (selected?.id === saved.id) setSelected(saved)
+    else void openProfile(saved)
+  }
 
   // Removes the customer record only: their invoices, schemes and advances stay (they keep the name and phone).
   const deleteCustomer = async (c: CustomerRecord) => {
@@ -151,7 +160,12 @@ export default function JewelleryCustomerProfile() {
 
   return (
     <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
+      {formCustomer !== undefined && <CustomerFormModal customer={formCustomer} onClose={() => setFormCustomer(undefined)} onSaved={onCustomerSaved} />}
       <div className="rounded-2xl border border-[#ECE9E2] bg-white p-4 shadow-sm space-y-3 h-fit">
+        <button type="button" onClick={() => setFormCustomer(null)}
+          className="w-full flex items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-black text-white hover:opacity-90 cursor-pointer">
+          <Plus size={16} /> Add Customer
+        </button>
         <label className="relative block">
           <Search className="absolute left-3 top-3 text-[#9CA3AF]" size={17} />
           <input
@@ -183,15 +197,27 @@ export default function JewelleryCustomerProfile() {
           <div className="rounded-2xl border border-[#ECE9E2] bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <p className="text-xs font-black uppercase tracking-[.18em] text-emerald-600">Jewellery customer</p>
+              <div className="flex gap-1.5">
+              <button type="button" onClick={() => setFormCustomer(selected)} title="Edit customer"
+                className="flex items-center gap-1 rounded-lg bg-[#F4F2F6] px-2.5 py-1.5 text-[11px] font-black text-[#273126] hover:bg-[var(--accent-a10)] cursor-pointer">
+                <Edit2 size={13} /> Edit
+              </button>
               {isAdmin && (
                 <button type="button" onClick={() => void deleteCustomer(selected)} title="Delete customer"
                   className="flex items-center gap-1 rounded-lg bg-red-50 px-2.5 py-1.5 text-[11px] font-black text-red-600 hover:bg-red-100 cursor-pointer">
                   <Trash2 size={13} /> Delete
                 </button>
               )}
+              </div>
             </div>
             <h3 className="text-xl font-black text-[#273126] break-words">{selected.name || 'Customer'}</h3>
-            <p className="text-sm text-[#6B7280]">{formatPhoneDisplay(selected.phone) || selected.phone}{selected.address ? ` • ${selected.address}` : ''}</p>
+            <p className="text-sm text-[#6B7280]">{formatPhoneDisplay(selected.phone) || selected.phone}{selected.email ? ` • ${selected.email}` : ''}{selected.address ? ` • ${selected.address}` : ''}</p>
+            {(selected.pan || selected.aadhaar || selected.allowOffers === false) && (
+              <p className="mt-1 text-xs font-bold text-[#374151]">
+                {[selected.pan ? `PAN ${selected.pan}` : '', selected.aadhaar ? `Aadhaar ${maskAadhaar(selected.aadhaar)}` : '', selected.allowOffers === false ? 'No offers / reminders' : ''].filter(Boolean).join(' • ')}
+              </p>
+            )}
+            {selected.notes && <p className="mt-1 text-xs text-[#6B7280]">{selected.notes}</p>}
             {profile.preferences.length > 0 && (
               <p className="mt-2 text-xs font-bold text-[var(--accent-dark)]">Prefers: {profile.preferences.join(' • ')}</p>
             )}

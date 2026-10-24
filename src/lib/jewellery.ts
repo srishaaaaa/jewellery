@@ -618,6 +618,12 @@ export interface SchemeRules {
   allowPartialRedemption: boolean
   allowCancellation: boolean
   allowTransfer: boolean
+  /** Months a scheme must run before it can be redeemed by grams; closed before that = value only. */
+  gramRedemptionMinMonths: number
+  /** Gift voucher on a paid one-time deposit, % of the deposit (0 = none). */
+  oneTimeVoucherPercent: number
+  /** Months the one-time deposit gift voucher is valid for (printed on it). */
+  voucherValidityMonths: number
 }
 
 export const DEFAULT_SCHEME_RULES: SchemeRules = {
@@ -636,6 +642,9 @@ export const DEFAULT_SCHEME_RULES: SchemeRules = {
   allowPartialRedemption: true,
   allowCancellation: true,
   allowTransfer: false,
+  gramRedemptionMinMonths: 6,
+  oneTimeVoucherPercent: 2,
+  voucherValidityMonths: 12,
 }
 
 const benefitTypeOf = (v: unknown, fallback: SchemeBenefitType): SchemeBenefitType =>
@@ -679,6 +688,9 @@ export const normalizeSchemeRules = (raw: unknown): SchemeRules => {
     allowPartialRedemption: bool(r.allowPartialRedemption, d.allowPartialRedemption),
     allowCancellation: bool(r.allowCancellation, d.allowCancellation),
     allowTransfer: bool(r.allowTransfer, d.allowTransfer),
+    gramRedemptionMinMonths: int(r.gramRedemptionMinMonths, d.gramRedemptionMinMonths),
+    oneTimeVoucherPercent: Math.min(100, Math.max(0, toNumber(r.oneTimeVoucherPercent, d.oneTimeVoucherPercent))),
+    voucherValidityMonths: int(r.voucherValidityMonths, d.voucherValidityMonths),
   }
 }
 
@@ -714,12 +726,28 @@ export interface JewelleryScheme {
   goldPurity: string
   /** Grams of gold accumulated: the sum of each installment's amount / gold rate on its payment day. */
   totalGrams: number
-  /** Cancel / resume history, oldest first. */
-  statusHistory: Array<{ action: 'cancelled' | 'resumed'; at: string; by: string; reason: string; rescheduledDays?: number }>
+  /** Grams already used on bills (kept in step with amountRedeemed). */
+  gramsRedeemed: number
+  /** Set when the scheme was closed before all installments were paid. */
+  closedEarlyAt: string | null
+  /** Gram-based redemption: null = by the rule (scheme old enough), true / false = set by the admin. */
+  allowGramRedemption: boolean | null
+  /** The making / wastage benefit no longer applies (closed early). */
+  benefitForfeited: boolean
+  /** Gift for joining / completing the scheme handed to the customer. */
+  giftGiven: boolean
+  giftDetails: string
+  giftGivenAt: string | null
+  giftGivenBy: string
+  /** Cancel / resume / early-close history, oldest first. */
+  statusHistory: Array<{ action: SchemeHistoryAction; at: string; by: string; reason: string; rescheduledDays?: number; valueOnly?: boolean }>
   createdBy: string
   createdAt: string
   updatedAt: string
 }
+
+export type SchemeHistoryAction = 'cancelled' | 'resumed' | 'closed_early' | 'terms_changed'
+const HISTORY_ACTIONS: SchemeHistoryAction[] = ['cancelled', 'resumed', 'closed_early', 'terms_changed']
 
 export const mapSchemeRow = (row: Record<string, unknown>): JewelleryScheme => {
   const status = String(row.status || 'active')
@@ -753,10 +781,19 @@ export const mapSchemeRow = (row: Record<string, unknown>): JewelleryScheme => {
     transferHistory: Array.isArray(row.transfer_history) ? (row.transfer_history as Array<Record<string, unknown>>) : [],
     goldPurity: String(row.gold_purity || '22K'),
     totalGrams: toNumber(row.total_grams, 0),
+    gramsRedeemed: toNumber(row.grams_redeemed, 0),
+    closedEarlyAt: row.closed_early_at ? String(row.closed_early_at) : null,
+    allowGramRedemption: typeof row.allow_gram_redemption === 'boolean' ? row.allow_gram_redemption : null,
+    benefitForfeited: Boolean(row.benefit_forfeited),
+    giftGiven: Boolean(row.gift_given),
+    giftDetails: String(row.gift_details || ''),
+    giftGivenAt: row.gift_given_at ? String(row.gift_given_at) : null,
+    giftGivenBy: String(row.gift_given_by || ''),
     statusHistory: (Array.isArray(row.status_history) ? (row.status_history as Array<Record<string, unknown>>) : []).map((h) => ({
-      action: h.action === 'resumed' ? 'resumed' as const : 'cancelled' as const,
+      action: HISTORY_ACTIONS.includes(h.action as SchemeHistoryAction) ? h.action as SchemeHistoryAction : 'cancelled' as const,
       at: String(h.at || ''), by: String(h.by || ''), reason: String(h.reason || ''),
       rescheduledDays: h.rescheduled_days == null ? undefined : toNumber(h.rescheduled_days, 0),
+      valueOnly: typeof h.value_only === 'boolean' ? h.value_only : undefined,
     })),
     createdBy: String(row.created_by || ''),
     createdAt: String(row.created_at || ''),
@@ -831,7 +868,7 @@ export const deriveSchemeStatus = (
   today: string = localIsoDate(),
 ): SchemeStatus => {
   if (s.status === 'cancelled' || s.status === 'redeemed') return s.status
-  if (s.installmentsPaid >= s.totalInstallments) return s.maturityDate <= today ? 'matured' : 'completed'
+  if (s.status === 'completed' || s.status === 'matured' || s.installmentsPaid >= s.totalInstallments) return s.maturityDate <= today ? 'matured' : 'completed'
   if (s.nextDueDate && s.nextDueDate < today) return 'payment_due'
   return 'active'
 }
@@ -849,14 +886,39 @@ export const checkRedemptionEligibility = (
   if (status !== 'completed' && status !== 'matured') {
     return { eligible: false, reason: `${s.totalInstallments - s.installmentsPaid} installment(s) still pending.` }
   }
-  if (rules.requireMaturityForRedemption && status !== 'matured') {
+  // A scheme closed early is redeemable straight away.
+  if (rules.requireMaturityForRedemption && status !== 'matured' && !s.closedEarlyAt) {
     return { eligible: false, reason: `Can be redeemed from the maturity date (${s.maturityDate}).` }
   }
   if (rules.expiryMonths > 0 && addMonthsIso(s.maturityDate, rules.expiryMonths) < today) {
     return { eligible: false, reason: 'Scheme redemption period has expired.' }
   }
-  if (schemeBalance(s) <= 0 && s.benefitUsed) return { eligible: false, reason: 'Nothing left to redeem.' }
+  if (schemeBalance(s) <= 0 && (s.benefitUsed || s.benefitForfeited)) return { eligible: false, reason: 'Nothing left to redeem.' }
   return { eligible: true }
+}
+
+/** Grams saved that are not used on a bill yet. */
+export const schemeGramsLeft = (s: Pick<JewelleryScheme, 'totalGrams' | 'gramsRedeemed'>) =>
+  Math.max(0, roundTo(s.totalGrams - s.gramsRedeemed, 3))
+
+/**
+ * Whether the scheme can be redeemed by grams at today's rate (admin only at billing).
+ * The admin's choice for the scheme wins; otherwise it must have run for the rule's months
+ * (counted to the early-closure date when it was closed early). Closed before that = value only.
+ */
+export const gramRedemptionAllowed = (
+  s: Pick<JewelleryScheme, 'allowGramRedemption' | 'startDate' | 'closedEarlyAt' | 'totalGrams' | 'gramsRedeemed'>,
+  rules: Pick<SchemeRules, 'gramRedemptionMinMonths'>,
+  today: string = localIsoDate(),
+): { allowed: boolean; reason: string } => {
+  if (schemeGramsLeft(s) <= 0) return { allowed: false, reason: 'No gold grams recorded on this scheme.' }
+  if (s.allowGramRedemption === true) return { allowed: true, reason: 'Allowed by the admin.' }
+  if (s.allowGramRedemption === false) return { allowed: false, reason: 'Value only (set by the admin).' }
+  const upTo = s.closedEarlyAt ? s.closedEarlyAt.slice(0, 10) : today
+  if (addMonthsIso(s.startDate, rules.gramRedemptionMinMonths) > upTo) {
+    return { allowed: false, reason: `Value only: ${s.closedEarlyAt ? 'closed' : 'running'} for less than ${rules.gramRedemptionMinMonths} months.` }
+  }
+  return { allowed: true, reason: '' }
 }
 
 export type SchemeBenefitLine = { makingAmount: number; wastageAmount: number; qty: number }
@@ -892,7 +954,7 @@ export const calculateSchemeBenefit = (
 }
 
 /** Status of one installment as shown to staff. */
-export type InstallmentDisplayStatus = 'paid' | 'due' | 'overdue' | 'upcoming' | 'cancelled'
+export type InstallmentDisplayStatus = 'paid' | 'due' | 'overdue' | 'upcoming' | 'cancelled' | 'closed'
 
 export const INSTALLMENT_STATUS_LABELS: Record<InstallmentDisplayStatus, string> = {
   paid: 'Paid',
@@ -900,14 +962,16 @@ export const INSTALLMENT_STATUS_LABELS: Record<InstallmentDisplayStatus, string>
   overdue: 'Overdue',
   upcoming: 'Upcoming',
   cancelled: 'Cancelled',
+  closed: 'Not collected',
 }
 
 export const installmentDisplayStatus = (
-  i: { status: 'pending' | 'paid'; dueDate: string },
+  i: { status: 'pending' | 'paid' | 'closed'; dueDate: string },
   schemeStatus: SchemeStoredStatus,
   today: string = localIsoDate(),
 ): InstallmentDisplayStatus => {
   if (i.status === 'paid') return 'paid'
+  if (i.status === 'closed') return 'closed'
   if (schemeStatus === 'cancelled') return 'cancelled'
   if (i.dueDate < today) return 'overdue'
   if (i.dueDate === today) return 'due'

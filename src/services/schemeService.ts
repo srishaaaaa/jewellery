@@ -28,7 +28,8 @@ export interface SchemeInstallment {
   paymentDate: string | null
   paymentMethod: string | null
   receiptNumber: string | null
-  status: 'pending' | 'paid'
+  /** closed = left unpaid when the scheme was closed early */
+  status: 'pending' | 'paid' | 'closed'
   notes: string
   createdBy: string | null
   /** Gold rate (₹/g) on the payment day; null for payments recorded before rates were kept. */
@@ -49,6 +50,10 @@ export interface SchemeRedemption {
   status: 'applied' | 'reversed'
   redeemedAt: string
   createdBy: string
+  /** value = from the money paid in; grams = the grams saved at the day's rate */
+  mode: 'value' | 'grams'
+  gramsUsed: number | null
+  goldRate: number | null
 }
 
 export const mapInstallmentRow = (row: Record<string, unknown>): SchemeInstallment => ({
@@ -61,7 +66,7 @@ export const mapInstallmentRow = (row: Record<string, unknown>): SchemeInstallme
   paymentDate: row.payment_date ? String(row.payment_date) : null,
   paymentMethod: row.payment_method ? String(row.payment_method) : null,
   receiptNumber: row.receipt_number ? String(row.receipt_number) : null,
-  status: row.status === 'paid' ? 'paid' : 'pending',
+  status: row.status === 'paid' || row.status === 'closed' ? row.status : 'pending',
   notes: String(row.notes || ''),
   createdBy: row.created_by ? String(row.created_by) : null,
   goldRate: row.gold_rate == null ? null : toNumber(row.gold_rate, 0),
@@ -80,7 +85,28 @@ const mapRedemptionRow = (row: Record<string, unknown>): SchemeRedemption => ({
   status: row.status === 'reversed' ? 'reversed' : 'applied',
   redeemedAt: String(row.redeemed_at || ''),
   createdBy: String(row.created_by || ''),
+  mode: row.mode === 'grams' ? 'grams' : 'value',
+  gramsUsed: row.grams_used == null ? null : toNumber(row.grams_used, 0),
+  goldRate: row.gold_rate == null ? null : toNumber(row.gold_rate, 0),
 })
+
+/** A one-time deposit's gift voucher (customer credit used like an advance). */
+export interface SchemeVoucher {
+  id: string
+  code: string
+  amount: number
+  amountUsed: number
+  status: 'active' | 'used' | 'cancelled'
+  createdAt: string
+}
+
+const mapVoucher = (row: Record<string, unknown>): SchemeVoucher => ({
+  id: String(row.id), code: String(row.receipt_number || ''), amount: toNumber(row.amount, 0), amountUsed: toNumber(row.amount_used, 0),
+  status: row.status === 'used' || row.status === 'cancelled' ? row.status : 'active', createdAt: String(row.created_at || ''),
+})
+
+const needsUpdate = (error: unknown) => (error as { code?: string })?.code === 'PGRST202' || isMissingSchemaError(error)
+const UPDATE_HINT = 'This needs the database update: run supabase/migrations/jewellery_pos.sql again in the Supabase SQL Editor.'
 
 export const schemeService = {
   async fetchRules(): Promise<SchemeRules> {
@@ -224,7 +250,10 @@ export const schemeService = {
     benefitAmount: number
     rules: SchemeRules
     createdBy: string
+    /** grams = redeem the grams saved at today's rate (admin only) */
+    mode?: 'value' | 'grams'
   }) {
+    const mode = params.mode || 'value'
     const { data, error } = await supabase.rpc('redeem_jewellery_scheme', {
       p_scheme_id: params.schemeId,
       p_amount: params.amount,
@@ -233,8 +262,13 @@ export const schemeService = {
       p_require_maturity: params.rules.requireMaturityForRedemption,
       p_expiry_months: params.rules.expiryMonths,
       p_created_by: params.createdBy,
+      p_mode: mode,
+      p_min_gram_months: params.rules.gramRedemptionMinMonths,
     })
-    if (error) throw toError(error, 'Unable to redeem the scheme')
+    if (error) {
+      if ((error as { code?: string }).code === 'PGRST202') throw new Error(`Scheme redemption ${UPDATE_HINT.charAt(0).toLowerCase()}${UPDATE_HINT.slice(1)}`)
+      throw toError(error, 'Unable to redeem the scheme')
+    }
     const payload = (data || {}) as { redemption?: Record<string, unknown>; scheme?: Record<string, unknown> }
     if (!payload.redemption || !payload.scheme) throw new Error('Scheme redemption failed')
     return { redemption: mapRedemptionRow(payload.redemption), scheme: mapSchemeRow(payload.scheme) }
@@ -307,6 +341,55 @@ export const schemeService = {
       throw toError(error, 'Unable to resume the scheme')
     }
     return mapSchemeRow((Array.isArray(data) ? data[0] : data) as Record<string, unknown>)
+  },
+
+  /**
+   * Closes an active scheme before all installments are paid, so it can be redeemed now.
+   * Before the rule's months it becomes value-only without its benefit, unless the admin
+   * overrides (allowGrams / keepBenefit; null = by the rule).
+   */
+  async closeEarly(schemeId: string, reason: string, opts: { allowGrams: boolean | null; keepBenefit: boolean | null; minGramMonths: number }, createdBy: string): Promise<JewelleryScheme> {
+    const { data, error } = await supabase.rpc('close_scheme_early', {
+      p_scheme_id: schemeId, p_reason: reason, p_allow_grams: opts.allowGrams, p_keep_benefit: opts.keepBenefit,
+      p_min_gram_months: opts.minGramMonths, p_created_by: createdBy,
+    })
+    if (error) throw needsUpdate(error) ? new Error(UPDATE_HINT) : toError(error, 'Unable to close the scheme')
+    return mapSchemeRow((Array.isArray(data) ? data[0] : data) as Record<string, unknown>)
+  },
+
+  /** Admin change of how a scheme may be redeemed (gram mode: null = by the rule; benefit). */
+  async setRedemptionTerms(schemeId: string, allowGrams: boolean | null, keepBenefit: boolean | null, createdBy: string): Promise<JewelleryScheme> {
+    const { data, error } = await supabase.rpc('set_scheme_redemption_terms', {
+      p_scheme_id: schemeId, p_allow_grams: allowGrams, p_keep_benefit: keepBenefit, p_created_by: createdBy,
+    })
+    if (error) throw needsUpdate(error) ? new Error(UPDATE_HINT) : toError(error, 'Unable to change the redemption terms')
+    return mapSchemeRow((Array.isArray(data) ? data[0] : data) as Record<string, unknown>)
+  },
+
+  /** Records that the scheme gift was handed to the customer (or clears it). */
+  async setGift(schemeId: string, given: boolean, details: string, givenBy: string): Promise<JewelleryScheme> {
+    const { data, error } = await supabase.from('jewellery_schemes').update({
+      gift_given: given, gift_details: given ? details.trim() : '', gift_given_at: given ? new Date().toISOString() : null,
+      gift_given_by: given ? givenBy : null, updated_at: new Date().toISOString(),
+    }).eq('id', schemeId).select('*').single()
+    if (error) throw needsUpdate(error) ? new Error(UPDATE_HINT) : toError(error, 'Unable to save the gift')
+    return mapSchemeRow(data as Record<string, unknown>)
+  },
+
+  /** The gift voucher of a one-time deposit, or null (none yet / before the database update). */
+  async fetchVoucher(schemeNumber: string): Promise<SchemeVoucher | null> {
+    const { data, error } = await supabase.from('customer_advances').select('*')
+      .eq('source', 'gift_voucher').eq('source_ref', schemeNumber).limit(1).maybeSingle()
+    if (error || !data) return null
+    return mapVoucher(data as Record<string, unknown>)
+  },
+
+  /** Issues the one-time deposit gift voucher if it was not issued yet (returns the existing one otherwise). */
+  async issueVoucher(schemeId: string, createdBy: string): Promise<SchemeVoucher | null> {
+    const { data, error } = await supabase.rpc('issue_scheme_gift_voucher', { p_scheme_id: schemeId, p_percent: null, p_created_by: createdBy })
+    if (error) throw needsUpdate(error) ? new Error(UPDATE_HINT) : toError(error, 'Unable to issue the gift voucher')
+    const row = Array.isArray(data) ? data[0] : data
+    return row && (row as Record<string, unknown>).id ? mapVoucher(row as Record<string, unknown>) : null
   },
 
   async transfer(schemeId: string, phone: string, customerName: string, createdBy: string): Promise<JewelleryScheme> {

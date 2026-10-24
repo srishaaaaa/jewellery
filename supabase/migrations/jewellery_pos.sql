@@ -187,6 +187,14 @@ ALTER TABLE public.jewellery_schemes ADD COLUMN IF NOT EXISTS gold_purity TEXT N
 ALTER TABLE public.jewellery_schemes ADD COLUMN IF NOT EXISTS total_grams NUMERIC(12,3) NOT NULL DEFAULT 0;
 -- Cancel / resume history: [{ action, at, by, reason }]
 ALTER TABLE public.jewellery_schemes ADD COLUMN IF NOT EXISTS status_history JSONB NOT NULL DEFAULT '[]'::JSONB;
+-- Grams already used on bills (kept in step with amount_redeemed).
+ALTER TABLE public.jewellery_schemes ADD COLUMN IF NOT EXISTS grams_redeemed NUMERIC(12,3) NOT NULL DEFAULT 0;
+-- Closed before all installments were paid (see close_scheme_early).
+ALTER TABLE public.jewellery_schemes ADD COLUMN IF NOT EXISTS closed_early_at TIMESTAMPTZ;
+-- Gram-based redemption: NULL = by the rule (scheme at least 6 months old), TRUE / FALSE = set by the admin.
+ALTER TABLE public.jewellery_schemes ADD COLUMN IF NOT EXISTS allow_gram_redemption BOOLEAN;
+-- The making / wastage benefit no longer applies (closed early).
+ALTER TABLE public.jewellery_schemes ADD COLUMN IF NOT EXISTS benefit_forfeited BOOLEAN NOT NULL DEFAULT FALSE;
 
 CREATE INDEX IF NOT EXISTS jewellery_schemes_phone_idx ON public.jewellery_schemes(phone);
 CREATE INDEX IF NOT EXISTS jewellery_schemes_status_idx ON public.jewellery_schemes(status);
@@ -249,6 +257,13 @@ CREATE TABLE IF NOT EXISTS public.scheme_redemptions (
 );
 
 CREATE INDEX IF NOT EXISTS scheme_redemptions_scheme_idx ON public.scheme_redemptions(scheme_id, redeemed_at DESC);
+
+-- How the redemption was made: by value, or by grams at today's rate. amount_used is what went on
+-- the bill; contribution_used is the part of the money paid in that it used up.
+ALTER TABLE public.scheme_redemptions ADD COLUMN IF NOT EXISTS mode TEXT NOT NULL DEFAULT 'value';
+ALTER TABLE public.scheme_redemptions ADD COLUMN IF NOT EXISTS contribution_used NUMERIC(12,2);
+ALTER TABLE public.scheme_redemptions ADD COLUMN IF NOT EXISTS grams_used NUMERIC(12,3);
+ALTER TABLE public.scheme_redemptions ADD COLUMN IF NOT EXISTS gold_rate NUMERIC(12,2);
 
 -- ----------------------------------------------------------------------------
 -- 6. Scheme redemption details on invoices (orders)
@@ -455,6 +470,16 @@ $$;
 
 -- Reserves scheme balance / benefit for a bill. Called before the order is
 -- created; linked to the order afterwards, or reversed if the bill fails.
+--   value mode: the amount used comes out of the money paid in.
+--   grams mode: the grams saved are valued at today's rate for the scheme's purity, so the
+--               customer gets the gold they saved even if the rate has gone up. Allowed when
+--               the admin turned it on for the scheme, or (by default) once the scheme is at
+--               least p_min_gram_months old: a scheme closed before that is value-only.
+-- Both modes keep the rupee and gram balances in step (the part used of one is used of the other).
+
+-- Earlier version without the redemption mode.
+DROP FUNCTION IF EXISTS public.redeem_jewellery_scheme(UUID, NUMERIC, NUMERIC, BOOLEAN, BOOLEAN, INTEGER, TEXT);
+
 CREATE OR REPLACE FUNCTION public.redeem_jewellery_scheme(
   p_scheme_id UUID,
   p_amount NUMERIC,
@@ -462,7 +487,9 @@ CREATE OR REPLACE FUNCTION public.redeem_jewellery_scheme(
   p_allow_partial BOOLEAN DEFAULT TRUE,
   p_require_maturity BOOLEAN DEFAULT FALSE,
   p_expiry_months INTEGER DEFAULT 0,
-  p_created_by TEXT DEFAULT 'Admin'
+  p_created_by TEXT DEFAULT 'Admin',
+  p_mode TEXT DEFAULT 'value',
+  p_min_gram_months INTEGER DEFAULT 6
 )
 RETURNS JSON
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -470,8 +497,14 @@ DECLARE
   v_scheme public.jewellery_schemes;
   v_status TEXT;
   v_balance NUMERIC;
+  v_grams_left NUMERIC;
   v_amount NUMERIC := ROUND(COALESCE(p_amount, 0), 2);
   v_benefit NUMERIC := ROUND(COALESCE(p_benefit_amount, 0), 2);
+  v_mode TEXT := CASE WHEN p_mode = 'grams' THEN 'grams' ELSE 'value' END;
+  v_rate NUMERIC;
+  v_value_available NUMERIC;
+  v_grams_used NUMERIC := 0;
+  v_contribution NUMERIC;
   v_redemption public.scheme_redemptions;
 BEGIN
   SELECT * INTO v_scheme FROM public.jewellery_schemes WHERE id = p_scheme_id FOR UPDATE;
@@ -483,7 +516,8 @@ BEGIN
   IF v_status NOT IN ('completed', 'matured') THEN
     RAISE EXCEPTION 'Scheme % is not eligible for redemption (status: %).', v_scheme.scheme_number, v_scheme.status;
   END IF;
-  IF p_require_maturity AND v_status <> 'matured' THEN
+  -- A scheme closed early is redeemable straight away.
+  IF p_require_maturity AND v_status <> 'matured' AND v_scheme.closed_early_at IS NULL THEN
     RAISE EXCEPTION 'Scheme % can only be redeemed on or after its maturity date (%).', v_scheme.scheme_number, v_scheme.maturity_date;
   END IF;
   IF COALESCE(p_expiry_months, 0) > 0
@@ -492,28 +526,66 @@ BEGIN
   END IF;
 
   v_balance := v_scheme.total_paid - v_scheme.amount_redeemed;
+  v_grams_left := GREATEST(0, v_scheme.total_grams - v_scheme.grams_redeemed);
   IF v_amount < 0 OR v_benefit < 0 THEN RAISE EXCEPTION 'Redemption amounts cannot be negative.'; END IF;
-  IF v_amount > v_balance THEN
-    RAISE EXCEPTION 'Only % is available in scheme %.', v_balance, v_scheme.scheme_number;
-  END IF;
-  IF NOT p_allow_partial AND v_amount <> v_balance THEN
-    RAISE EXCEPTION 'Partial redemption is not allowed: the full balance of % must be used.', v_balance;
-  END IF;
   IF v_benefit > 0 AND v_scheme.benefit_used THEN
     RAISE EXCEPTION 'The benefit of scheme % has already been used.', v_scheme.scheme_number;
   END IF;
+  IF v_benefit > 0 AND v_scheme.benefit_forfeited THEN
+    RAISE EXCEPTION 'Scheme % was closed early, so its benefit does not apply.', v_scheme.scheme_number;
+  END IF;
   IF v_amount = 0 AND v_benefit = 0 THEN RAISE EXCEPTION 'Nothing to redeem.'; END IF;
 
+  IF v_mode = 'grams' THEN
+    IF NOT (v_scheme.allow_gram_redemption IS TRUE
+            OR (v_scheme.allow_gram_redemption IS NULL
+                AND (v_scheme.start_date + make_interval(months => GREATEST(0, COALESCE(p_min_gram_months, 6))))::DATE
+                    <= COALESCE(v_scheme.closed_early_at::DATE, CURRENT_DATE))) THEN
+      RAISE EXCEPTION 'Scheme % can only be redeemed by value (closed before % months).', v_scheme.scheme_number, COALESCE(p_min_gram_months, 6);
+    END IF;
+    IF v_grams_left <= 0 THEN RAISE EXCEPTION 'Scheme % has no gold grams recorded.', v_scheme.scheme_number; END IF;
+    SELECT rate_per_gram INTO v_rate FROM public.current_metal_rates WHERE metal_type = 'gold' AND purity = v_scheme.gold_purity;
+    IF COALESCE(v_rate, 0) <= 0 THEN RAISE EXCEPTION 'No % gold rate is set for today.', v_scheme.gold_purity; END IF;
+    v_value_available := ROUND(v_grams_left * v_rate, 2);
+    IF v_amount > v_value_available THEN
+      RAISE EXCEPTION 'Only % (% g at %/g) is available in scheme %.', v_value_available, v_grams_left, v_rate, v_scheme.scheme_number;
+    END IF;
+    IF NOT p_allow_partial AND v_amount <> v_value_available THEN
+      RAISE EXCEPTION 'Partial redemption is not allowed: all % g (%) must be used.', v_grams_left, v_value_available;
+    END IF;
+    IF v_amount >= v_value_available THEN
+      v_grams_used := v_grams_left;
+      v_contribution := v_balance;
+    ELSE
+      v_grams_used := ROUND(v_amount / v_rate, 3);
+      v_contribution := ROUND(v_balance * v_grams_used / v_grams_left, 2);
+    END IF;
+  ELSE
+    IF v_amount > v_balance THEN
+      RAISE EXCEPTION 'Only % is available in scheme %.', v_balance, v_scheme.scheme_number;
+    END IF;
+    IF NOT p_allow_partial AND v_amount > 0 AND v_amount <> v_balance THEN
+      RAISE EXCEPTION 'Partial redemption is not allowed: the full balance of % must be used.', v_balance;
+    END IF;
+    v_contribution := v_amount;
+    v_grams_used := CASE WHEN v_balance > 0 THEN
+                      CASE WHEN v_amount >= v_balance THEN v_grams_left ELSE ROUND(v_grams_left * v_amount / v_balance, 3) END
+                    ELSE 0 END;
+  END IF;
+
   UPDATE public.jewellery_schemes
-  SET amount_redeemed = amount_redeemed + v_amount,
+  SET amount_redeemed = amount_redeemed + v_contribution,
+      grams_redeemed = LEAST(total_grams, grams_redeemed + v_grams_used),
       benefit_used = benefit_used OR v_benefit > 0,
-      status = CASE WHEN total_paid - (amount_redeemed + v_amount) <= 0 THEN 'redeemed' ELSE v_status END,
+      status = CASE WHEN total_paid - (amount_redeemed + v_contribution) <= 0 THEN 'redeemed' ELSE v_status END,
       updated_at = NOW()
   WHERE id = p_scheme_id
   RETURNING * INTO v_scheme;
 
-  INSERT INTO public.scheme_redemptions (scheme_id, amount_used, benefit_applied, balance_after, created_by)
-  VALUES (p_scheme_id, v_amount, v_benefit, v_scheme.total_paid - v_scheme.amount_redeemed, COALESCE(p_created_by, 'Admin'))
+  INSERT INTO public.scheme_redemptions (scheme_id, amount_used, benefit_applied, balance_after, created_by,
+                                         mode, contribution_used, grams_used, gold_rate)
+  VALUES (p_scheme_id, v_amount, v_benefit, v_scheme.total_paid - v_scheme.amount_redeemed, COALESCE(p_created_by, 'Admin'),
+          v_mode, v_contribution, v_grams_used, v_rate)
   RETURNING * INTO v_redemption;
 
   RETURN json_build_object('redemption', row_to_json(v_redemption), 'scheme', row_to_json(v_scheme));
@@ -548,7 +620,8 @@ BEGIN
   SELECT * INTO v_scheme FROM public.jewellery_schemes WHERE id = v_red.scheme_id FOR UPDATE;
 
   UPDATE public.jewellery_schemes
-  SET amount_redeemed = GREATEST(0, amount_redeemed - v_red.amount_used),
+  SET amount_redeemed = GREATEST(0, amount_redeemed - COALESCE(v_red.contribution_used, v_red.amount_used)),
+      grams_redeemed = GREATEST(0, grams_redeemed - COALESCE(v_red.grams_used, 0)),
       benefit_used = CASE WHEN v_red.benefit_applied > 0 THEN FALSE ELSE benefit_used END,
       status = CASE WHEN status = 'redeemed' THEN public.scheme_paid_status(maturity_date) ELSE status END,
       updated_at = NOW()
@@ -687,7 +760,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.create_jewellery_scheme(TEXT, TEXT, TEXT, NUMERIC, INTEGER, INTEGER, DATE, DATE, TEXT, NUMERIC, TEXT, NUMERIC, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.record_scheme_installment(UUID, TEXT, TEXT, TEXT, NUMERIC, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.resume_jewellery_scheme(UUID, TEXT, BOOLEAN, TEXT) TO anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.redeem_jewellery_scheme(UUID, NUMERIC, NUMERIC, BOOLEAN, BOOLEAN, INTEGER, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.redeem_jewellery_scheme(UUID, NUMERIC, NUMERIC, BOOLEAN, BOOLEAN, INTEGER, TEXT, TEXT, INTEGER) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.link_scheme_redemption(UUID, UUID, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reverse_scheme_redemption(UUID) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.cancel_jewellery_scheme(UUID, TEXT, TEXT) TO anon, authenticated;
@@ -1227,7 +1300,8 @@ BEGIN
   -- Scheme balance / benefit used on this bill goes back to the scheme.
   FOR r IN SELECT * FROM public.scheme_redemptions WHERE invoice_id = OLD.id AND status = 'applied' FOR UPDATE LOOP
     UPDATE public.jewellery_schemes
-    SET amount_redeemed = GREATEST(0, amount_redeemed - r.amount_used),
+    SET amount_redeemed = GREATEST(0, amount_redeemed - COALESCE(r.contribution_used, r.amount_used)),
+        grams_redeemed = GREATEST(0, grams_redeemed - COALESCE(r.grams_used, 0)),
         benefit_used = CASE WHEN r.benefit_applied > 0 THEN FALSE ELSE benefit_used END,
         status = CASE WHEN status = 'redeemed' THEN public.scheme_paid_status(maturity_date) ELSE status END,
         updated_at = NOW()
@@ -1345,7 +1419,8 @@ BEGIN
 
   FOR r IN SELECT * FROM public.scheme_redemptions WHERE invoice_id = p_order_id AND status = 'applied' FOR UPDATE LOOP
     UPDATE public.jewellery_schemes
-    SET amount_redeemed = GREATEST(0, amount_redeemed - r.amount_used),
+    SET amount_redeemed = GREATEST(0, amount_redeemed - COALESCE(r.contribution_used, r.amount_used)),
+        grams_redeemed = GREATEST(0, grams_redeemed - COALESCE(r.grams_used, 0)),
         benefit_used = CASE WHEN r.benefit_applied > 0 THEN FALSE ELSE benefit_used END,
         status = CASE WHEN status = 'redeemed' THEN public.scheme_paid_status(maturity_date) ELSE status END,
         updated_at = NOW()
@@ -1667,3 +1742,155 @@ BEGIN
 END $$;
 GRANT EXECUTE ON FUNCTION public.record_supplier_purchase(UUID, TEXT, DATE, JSONB, NUMERIC, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.record_supplier_payment(UUID, NUMERIC, TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
+
+-- ============================================================================
+-- 22. Customer KYC and offers, early scheme closure, scheme gifts and
+--     one-time deposit gift vouchers
+-- ============================================================================
+
+-- Aadhaar / PAN are saved on the customer the first time they are given and
+-- filled in again on later bills; PAN is also kept on the bill.
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS email TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS aadhaar TEXT;
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS pan TEXT;
+-- Customer agrees to reminders and offers (on unless they ask not to be contacted).
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS allow_offers BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS notes TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS customer_pan TEXT;
+
+-- Scheme redemption on a bill: how it was redeemed.
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS scheme_redemption_mode TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS scheme_grams_used NUMERIC(12,3);
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS scheme_gold_rate NUMERIC(12,2);
+
+-- Customer gift for joining / completing a scheme.
+ALTER TABLE public.jewellery_schemes ADD COLUMN IF NOT EXISTS gift_given BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.jewellery_schemes ADD COLUMN IF NOT EXISTS gift_details TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.jewellery_schemes ADD COLUMN IF NOT EXISTS gift_given_at TIMESTAMPTZ;
+ALTER TABLE public.jewellery_schemes ADD COLUMN IF NOT EXISTS gift_given_by TEXT;
+
+-- Installments left unpaid when a scheme is closed early.
+ALTER TABLE public.scheme_installments DROP CONSTRAINT IF EXISTS scheme_installments_status_check;
+ALTER TABLE public.scheme_installments ADD CONSTRAINT scheme_installments_status_check CHECK (status IN ('pending', 'paid', 'closed'));
+
+-- A one-time deposit's gift voucher is customer credit used like an advance on a later bill.
+ALTER TABLE public.customer_advances DROP CONSTRAINT IF EXISTS customer_advances_source_check;
+ALTER TABLE public.customer_advances ADD CONSTRAINT customer_advances_source_check CHECK (source IN ('payment', 'exchange', 'old_gold', 'gift_voucher'));
+
+-- Closes a scheme before all installments are paid. Before p_min_gram_months it becomes
+-- value-only and loses its making / wastage benefit, unless the admin says otherwise
+-- (p_allow_grams / p_keep_benefit). The scheme can then be redeemed on a bill straight away.
+CREATE OR REPLACE FUNCTION public.close_scheme_early(
+  p_scheme_id UUID, p_reason TEXT, p_allow_grams BOOLEAN DEFAULT NULL, p_keep_benefit BOOLEAN DEFAULT NULL,
+  p_min_gram_months INTEGER DEFAULT 6, p_created_by TEXT DEFAULT 'Admin'
+)
+RETURNS public.jewellery_schemes
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_scheme public.jewellery_schemes;
+  v_early BOOLEAN;
+BEGIN
+  IF BTRIM(COALESCE(p_reason, '')) = '' THEN RAISE EXCEPTION 'Enter the reason for closing the scheme.'; END IF;
+  SELECT * INTO v_scheme FROM public.jewellery_schemes WHERE id = p_scheme_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Scheme not found.'; END IF;
+  IF v_scheme.status <> 'active' THEN
+    RAISE EXCEPTION 'Scheme % is %, only an active scheme can be closed early.', v_scheme.scheme_number, v_scheme.status;
+  END IF;
+  IF v_scheme.total_paid <= 0 THEN RAISE EXCEPTION 'Scheme % has no payments; cancel it instead.', v_scheme.scheme_number; END IF;
+
+  v_early := (v_scheme.start_date + make_interval(months => GREATEST(0, COALESCE(p_min_gram_months, 6))))::DATE > CURRENT_DATE;
+
+  UPDATE public.scheme_installments SET status = 'closed' WHERE scheme_id = p_scheme_id AND status = 'pending';
+
+  UPDATE public.jewellery_schemes
+  SET status = 'completed',
+      closed_early_at = NOW(),
+      next_due_date = NULL,
+      allow_gram_redemption = p_allow_grams,
+      benefit_forfeited = CASE WHEN p_keep_benefit IS NULL THEN v_early ELSE NOT p_keep_benefit END,
+      updated_at = NOW(),
+      status_history = status_history || jsonb_build_array(jsonb_build_object(
+        'action', 'closed_early', 'at', NOW(), 'by', COALESCE(p_created_by, 'Admin'), 'reason', BTRIM(p_reason),
+        'value_only', CASE WHEN p_allow_grams IS NULL THEN v_early ELSE NOT p_allow_grams END))
+  WHERE id = p_scheme_id
+  RETURNING * INTO v_scheme;
+  RETURN v_scheme;
+END;
+$$;
+
+-- Admin change of how a scheme can be redeemed (gram mode, benefit).
+CREATE OR REPLACE FUNCTION public.set_scheme_redemption_terms(
+  p_scheme_id UUID, p_allow_grams BOOLEAN, p_keep_benefit BOOLEAN, p_created_by TEXT DEFAULT 'Admin'
+)
+RETURNS public.jewellery_schemes
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_scheme public.jewellery_schemes;
+BEGIN
+  UPDATE public.jewellery_schemes
+  SET allow_gram_redemption = p_allow_grams,
+      benefit_forfeited = CASE WHEN p_keep_benefit IS NULL THEN benefit_forfeited ELSE NOT p_keep_benefit END,
+      updated_at = NOW(),
+      status_history = status_history || jsonb_build_array(jsonb_build_object(
+        'action', 'terms_changed', 'at', NOW(), 'by', COALESCE(p_created_by, 'Admin'),
+        'reason', 'Gram redemption: ' || COALESCE(CASE WHEN p_allow_grams THEN 'allowed' ELSE 'not allowed' END, 'by rule')
+                  || '; benefit: ' || COALESCE(CASE WHEN p_keep_benefit THEN 'kept' ELSE 'not given' END, 'unchanged')))
+  WHERE id = p_scheme_id
+  RETURNING * INTO v_scheme;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Scheme not found.'; END IF;
+  RETURN v_scheme;
+END;
+$$;
+
+-- Gift voucher for a paid one-time deposit: p_percent of the deposit (default from the scheme
+-- rules, else 2%), issued once per scheme as customer credit for a later bill.
+CREATE OR REPLACE FUNCTION public.issue_scheme_gift_voucher(p_scheme_id UUID, p_percent NUMERIC DEFAULT NULL, p_created_by TEXT DEFAULT 'Admin')
+RETURNS public.customer_advances
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_scheme public.jewellery_schemes;
+  v_pct NUMERIC;
+  v_paid NUMERIC;
+  v_value NUMERIC;
+  v_adv public.customer_advances;
+BEGIN
+  SELECT * INTO v_scheme FROM public.jewellery_schemes WHERE id = p_scheme_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Scheme not found.'; END IF;
+  IF v_scheme.frequency <> 'one_time' THEN RAISE EXCEPTION 'Gift vouchers are for one-time deposits.'; END IF;
+  SELECT * INTO v_adv FROM public.customer_advances WHERE source = 'gift_voucher' AND source_ref = v_scheme.scheme_number LIMIT 1;
+  IF FOUND THEN RETURN v_adv; END IF;
+  -- Paid installments, not total_paid: this also runs from the installment trigger, before the
+  -- scheme's totals are updated.
+  SELECT COALESCE(SUM(amount_paid), 0) INTO v_paid FROM public.scheme_installments WHERE scheme_id = p_scheme_id AND status = 'paid';
+  IF v_paid <= 0 THEN RAISE EXCEPTION 'The deposit of scheme % is not paid yet.', v_scheme.scheme_number; END IF;
+  v_pct := COALESCE(p_percent, (SELECT NULLIF(scheme_rules->>'oneTimeVoucherPercent', '')::NUMERIC FROM public.store_settings WHERE id = 1), 2);
+  IF v_pct <= 0 THEN RETURN NULL; END IF;
+  v_value := ROUND(v_paid * v_pct / 100, 0);
+  IF v_value <= 0 THEN RETURN NULL; END IF;
+  INSERT INTO public.customer_advances (customer_id, customer_name, phone, amount, payment_method, purpose, source, source_ref, created_by)
+  VALUES (v_scheme.customer_id, v_scheme.customer_name, v_scheme.phone, v_value, 'gift_voucher',
+          'Gift voucher ' || v_pct || '% of deposit ' || v_scheme.scheme_number, 'gift_voucher', v_scheme.scheme_number, COALESCE(p_created_by, 'Admin'))
+  RETURNING * INTO v_adv;
+  RETURN v_adv;
+END;
+$$;
+
+-- Paying a one-time deposit issues its gift voucher in the same transaction.
+CREATE OR REPLACE FUNCTION public.scheme_installment_issue_voucher()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NEW.status = 'paid' AND OLD.status IS DISTINCT FROM 'paid'
+     AND EXISTS (SELECT 1 FROM public.jewellery_schemes WHERE id = NEW.scheme_id AND frequency = 'one_time') THEN
+    PERFORM public.issue_scheme_gift_voucher(NEW.scheme_id, NULL, COALESCE(NEW.created_by, 'Admin'));
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS scheme_installment_issue_voucher ON public.scheme_installments;
+CREATE TRIGGER scheme_installment_issue_voucher
+  AFTER UPDATE OF status ON public.scheme_installments
+  FOR EACH ROW EXECUTE FUNCTION public.scheme_installment_issue_voucher();
+
+GRANT EXECUTE ON FUNCTION public.close_scheme_early(UUID, TEXT, BOOLEAN, BOOLEAN, INTEGER, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.set_scheme_redemption_terms(UUID, BOOLEAN, BOOLEAN, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.issue_scheme_gift_voucher(UUID, NUMERIC, TEXT) TO anon, authenticated;

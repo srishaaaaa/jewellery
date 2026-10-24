@@ -38,7 +38,7 @@ import { QuickAddScannedProductModal } from '../components/pos/QuickAddScannedPr
 import { JewelleryCalculatorModal } from '../components/pos/JewelleryCalculatorModal'
 import { AddUnregisteredItemModal } from '../components/pos/AddUnregisteredItemModal'
 import { getOrCreateUnregisteredProduct } from '../services/productService'
-import { customerService } from '../services/customerService'
+import { customerService, isValidAadhaar, isValidPan, normalizeAadhaar } from '../services/customerService'
 import { DateInputDDMMYYYY } from '../components/DateInputDDMMYYYY'
 import { toLocalDateStr } from '../lib/dateRanges'
 import { useMetalRateStore } from '../store/metalRateStore'
@@ -49,9 +49,12 @@ import {
   describeSchemeBenefit,
   deriveSchemeStatus,
   formatWeight,
+  gramRedemptionAllowed,
   metalLabel,
   normalizeSchemeRules,
+  rateKey,
   schemeBalance,
+  schemeGramsLeft,
   SCHEME_STATUS_LABELS,
   type CurrentRates,
   type JewelleryScheme,
@@ -61,7 +64,7 @@ import {
 import { schemeService } from '../services/schemeService'
 import { advanceService, oldGoldService, quotationService, type CustomerAdvance, type OldGoldEntry, type Quotation } from '../services/salesDeskService'
 import { auditService } from '../services/auditService'
-import { useSettingsStore } from '../store/store'
+import { cashLimitCheck, useSettingsStore } from '../store/store'
 import { COUNTER_PAYMENT_METHODS, PAYMENT_REFERENCE_KEY, type CounterPaymentMethod } from '../lib/retail'
 import { calculateNetWeight, calculateOldGoldValue, normalizeMetalType, suggestOldGoldRate, STANDARD_PURITY, GOLD_PURITIES, ITEM_STATUS_LABELS } from '../lib/jewellery'
 
@@ -116,6 +119,11 @@ type InvoiceSnap = {
   advanceAmountUsed?: number
   exchangeAmount?: number
   customerGstin?: string
+  customerPan?: string
+  /** Mixed payment amounts per method (and the payment reference), as stored on the bill */
+  splitDetails?: Record<string, number | string>
+  schemeGramsUsed?: number | null
+  schemeGoldRate?: number | null
 }
 
 type MixedPart = { method: CounterPaymentMethod; amount: string }
@@ -351,6 +359,8 @@ export default function Pos(props: PosProps = {}) {
     }))
     if (found.birthday) setCustomerBirthday((prev) => prev || found.birthday || '')
     if (found.anniversary) setCustomerAnniversary((prev) => prev || found.anniversary || '')
+    if (found.aadhaar) setCustomerAadhaar((prev) => prev || found.aadhaar || '')
+    if (found.pan) setCustomerPan((prev) => prev || found.pan || '')
   }
   const [remarks, setRemarks] = useState('')
   const [referenceNumber, setReferenceNumber] = useState('')
@@ -360,6 +370,11 @@ export default function Pos(props: PosProps = {}) {
   const [mixedParts, setMixedParts] = useState<MixedPart[]>([{ method: 'cash', amount: '' }, { method: 'qr', amount: '' }])
   // Customer GSTIN (business customers), old gold taken in part-payment, customer advance adjusted
   const [customerGstin, setCustomerGstin] = useState('')
+  // Saved on the customer the first time they are given and filled in again on later bills.
+  const [customerAadhaar, setCustomerAadhaar] = useState('')
+  const [customerPan, setCustomerPan] = useState('')
+  /** How the applied scheme is redeemed; grams is admin only. */
+  const [schemeMode, setSchemeMode] = useState<'value' | 'grams'>('value')
   /** UPI / card / bank / cheque transaction or cheque number */
   const [paymentRef, setPaymentRef] = useState('')
   const [oldGoldEntries, setOldGoldEntries] = useState<OldGoldEntry[]>([])
@@ -502,7 +517,7 @@ export default function Pos(props: PosProps = {}) {
     : manualDiscountNumeric
 
   // Scheme benefit: a discount on making charges and/or wastage only — never on the metal value.
-  const appliedSchemeBenefit = appliedScheme && schemeUseBenefit && !appliedScheme.benefitUsed
+  const appliedSchemeBenefit = appliedScheme && schemeUseBenefit && !appliedScheme.benefitUsed && !appliedScheme.benefitForfeited
     ? calculateSchemeBenefit(appliedScheme, billItems
         .filter((item) => item.jewellery)
         .map((item) => ({ makingAmount: item.jewellery!.making_amount, wastageAmount: item.jewellery!.wastage_amount, qty: item.qty })))
@@ -518,8 +533,14 @@ export default function Pos(props: PosProps = {}) {
     : 0
   const total = Math.max(0, discountedSubtotal + (Number(shipping || 0) || 0) + totalGst)
 
+  // Scheme by grams (admin only): the grams saved, at today's rate for the scheme's purity.
+  const schemeGoldRate = appliedScheme ? rates[rateKey('gold', appliedScheme.goldPurity)]?.ratePerGram || 0 : 0
+  const schemeGramCheck = appliedScheme ? gramRedemptionAllowed(appliedScheme, schemeRules) : { allowed: false, reason: '' }
+  const canRedeemByGrams = role === 'admin' && schemeGramCheck.allowed && schemeGoldRate > 0
+  const redeemByGrams = canRedeemByGrams && schemeMode === 'grams'
+  const schemeGramValue = appliedScheme ? Math.round(schemeGramsLeft(appliedScheme) * schemeGoldRate * 100) / 100 : 0
   // Scheme balance works like an earlier payment: it reduces what is collected now, not the invoice value.
-  const appliedSchemeBalance = appliedScheme ? schemeBalance(appliedScheme) : 0
+  const appliedSchemeBalance = appliedScheme ? (redeemByGrams ? schemeGramValue : schemeBalance(appliedScheme)) : 0
   const schemeAmountUsed = appliedScheme
     ? Math.round(Math.max(0, Math.min(
         appliedSchemeBalance,
@@ -992,6 +1013,10 @@ export default function Pos(props: PosProps = {}) {
     setAppliedAdvance(null)
     setAdvanceUseAmount('')
     setCustomerGstin('')
+    setCustomerAadhaar('')
+    setCustomerPan('')
+    setSchemeMode('value')
+    setPaymentRef('')
     setMixedParts([{ method: 'cash', amount: '' }, { method: 'qr', amount: '' }])
     searchRef.current?.focus()
   }
@@ -1037,7 +1062,8 @@ export default function Pos(props: PosProps = {}) {
     if (paymentType === 'credit') { setError('A scheme cannot be redeemed on a credit bill. Turn off "Bill on Credit" first.'); return }
     setError('')
     setAppliedScheme(scheme)
-    setSchemeUseBenefit(!scheme.benefitUsed)
+    setSchemeMode('value')
+    setSchemeUseBenefit(!scheme.benefitUsed && !scheme.benefitForfeited)
     // Default: use as much of the balance as the bill needs.
     setSchemeUseAmount(String(Math.min(schemeBalance(scheme), Math.max(0, total))))
   }
@@ -1125,6 +1151,11 @@ export default function Pos(props: PosProps = {}) {
     const depositAmount = Number(depositForm.amount)
     if (!Number.isFinite(depositAmount) || depositAmount <= 0 || depositAmount >= total) { setError(`Deposit must be greater than ${formatCurrency(0)} and less than ${formatCurrency(total)}.`); return }
     if (!depositForm.expectedDeliveryDate) { setError('Select the expected delivery date.'); return }
+    if (depositForm.paymentMethod === 'cash') {
+      const depositCash = cashLimitCheck(depositAmount, role, posPermissions)
+      if (depositCash.blocked) { setError(depositCash.blocked); return }
+      if (depositCash.needsConfirm && !window.confirm(`Accept ${formatCurrency(depositAmount)} in cash? This is above the cash limit.`)) return
+    }
     setSaving(true); setError('')
     try {
       const allocationBase = billItems.reduce((sum, item) => sum + item.lineTotal, 0)
@@ -1200,6 +1231,14 @@ export default function Pos(props: PosProps = {}) {
     if (paymentType === 'credit' && !creditDueDate.trim()) { setError('Select a due date for this credit sale'); return }
     // Validate online mode availability
     if (ordermode === 'online' && !isSupabaseConfigured) { setError('Cannot place online orders while offline'); return }
+    if (customerAadhaar.trim() && !isValidAadhaar(customerAadhaar)) { setError('Aadhaar number must be 12 digits.'); return }
+    if (customerPan.trim() && !isValidPan(customerPan)) { setError('PAN must be like ABCDE1234F (5 letters, 4 digits, 1 letter).'); return }
+    if (redeemByGrams && !(schemeGoldRate > 0)) { setError(`No ${appliedScheme?.goldPurity} gold rate is set for today, so the scheme cannot be redeemed by grams.`); return }
+    // Cash above the limit (Income Tax s.269ST): refused, or admin confirms when allowed in Store Settings.
+    const cashTaken = paymentType === 'cash' ? payable : paymentType === 'split' ? (Number(mixedParts.find((part) => part.method === 'cash')?.amount) || 0) : 0
+    const cashRule = cashLimitCheck(cashTaken, role, posPermissions)
+    if (cashRule.blocked) { setError(cashRule.blocked); return }
+    if (cashRule.needsConfirm && !window.confirm(`Accept ${formatCurrency(cashTaken)} in cash? This is above the cash limit of ${formatCurrency(posPermissions?.cashLimit ?? 199500)}.`)) return
     setSaving(true); setError('')
     // Scheme balance/benefit is reserved first (row-locked in the database) so it can never be
     // used twice; if the bill then fails, the reservation is released again.
@@ -1214,6 +1253,7 @@ export default function Pos(props: PosProps = {}) {
           benefitAmount: schemeDiscount,
           rules: schemeRules,
           createdBy: role || 'Staff',
+          mode: redeemByGrams ? 'grams' : 'value',
         })
       }
       if (appliedAdvance && advanceAmountUsed > 0) {
@@ -1302,12 +1342,17 @@ export default function Pos(props: PosProps = {}) {
             scheme_amount_used: schemeAmountUsed,
             scheme_discount: schemeDiscount,
             scheme_balance_after: schemeReservation.redemption.balanceAfter,
+            ...(schemeReservation.redemption.mode === 'grams' ? {
+              scheme_redemption_mode: 'grams', scheme_grams_used: schemeReservation.redemption.gramsUsed, scheme_gold_rate: schemeReservation.redemption.goldRate,
+            } : {}),
           }).eq('id', created.orderId)
           if (schemeColsError) throw schemeColsError
-          await schemeService.linkRedemption(schemeReservation.redemption.id, created.orderId, created.invoiceNo)
-        } catch (linkErr) {
-          console.error('Scheme redemption saved but not linked to the invoice:', linkErr)
+        } catch (colsErr) {
+          console.error('Scheme details were not saved on the invoice:', colsErr)
         }
+        // Linking is what makes the redemption permanent, so it never depends on the step above.
+        await schemeService.linkRedemption(schemeReservation.redemption.id, created.orderId, created.invoiceNo)
+          .catch((linkErr) => console.error('Scheme redemption saved but not linked to the invoice:', linkErr))
       }
       // Jewellery bill details (separate update: these columns come with the jewellery database update)
       if (advanceAmountUsed > 0 || exchangeTotal > 0 || customerGstin.trim() || adjustmentsTotal > 0) {
@@ -1324,6 +1369,10 @@ export default function Pos(props: PosProps = {}) {
           await advanceService.link(advanceReservation.id, created.orderId, created.invoiceNo)
             .catch((linkErr) => console.error('Advance used but not linked to the invoice:', linkErr))
         }
+      }
+      if (customerPan.trim()) {
+        const { error: panErr } = await supabase.from('orders').update({ customer_pan: customerPan.trim().toUpperCase() }).eq('id', created.orderId)
+        if (panErr) console.error('Bill saved, but the PAN was not stored on it:', panErr)
       }
       // Old gold goes to Sales Desk → Old Gold Exchange (tagged "Billing"); a failure here must not go unnoticed.
       let oldGoldWarning = ''
@@ -1367,7 +1416,10 @@ export default function Pos(props: PosProps = {}) {
           schemeDiscount,
           schemeAmountUsed,
           schemeBalanceAfter: schemeReservation.redemption.balanceAfter,
+          ...(schemeReservation.redemption.mode === 'grams' ? { schemeGramsUsed: schemeReservation.redemption.gramsUsed, schemeGoldRate: schemeReservation.redemption.goldRate } : {}),
         } : {}),
+        splitDetails: splitPaymentDetails,
+        customerPan: customerPan.trim().toUpperCase() || undefined,
         payable,
         advanceAmountUsed,
         exchangeAmount: exchangeTotal,
@@ -1381,6 +1433,8 @@ export default function Pos(props: PosProps = {}) {
         address: customer.address,
         birthday: customerBirthday,
         anniversary: customerAnniversary,
+        aadhaar: normalizeAadhaar(customerAadhaar) || null,
+        pan: customerPan.trim().toUpperCase() || null,
       })
 
       setItems([])
@@ -1399,6 +1453,9 @@ export default function Pos(props: PosProps = {}) {
       setAppliedAdvance(null)
       setAdvanceUseAmount('')
       setCustomerGstin('')
+      setCustomerAadhaar('')
+      setCustomerPan('')
+      setSchemeMode('value')
       setPaymentRef('')
       if (billingQuotation) {
         const quoteRef = billingQuotation
@@ -1495,6 +1552,10 @@ export default function Pos(props: PosProps = {}) {
         advanceAmountUsed: inv.advanceAmountUsed,
         exchangeAmount: inv.exchangeAmount,
         customerGstin: inv.customerGstin,
+        customerPan: inv.customerPan,
+        splitDetails: inv.splitDetails,
+        schemeGramsUsed: inv.schemeGramsUsed,
+        schemeGoldRate: inv.schemeGoldRate,
         discountAmount: inv.couponDiscount,
         manualDiscountAmount: inv.manualDiscountAmount,
         gstAmount: inv.gstAmount,
@@ -1531,6 +1592,10 @@ export default function Pos(props: PosProps = {}) {
       advanceAmountUsed: inv.advanceAmountUsed,
       exchangeAmount: inv.exchangeAmount,
       customerGstin: inv.customerGstin,
+      customerPan: inv.customerPan,
+      splitDetails: inv.splitDetails,
+      schemeGramsUsed: inv.schemeGramsUsed,
+      schemeGoldRate: inv.schemeGoldRate,
       couponDiscount: inv.couponDiscount,
       manualDiscount: inv.manualDiscountAmount,
       totalGst: inv.gstAmount,
@@ -1694,6 +1759,10 @@ export default function Pos(props: PosProps = {}) {
             advanceAmountUsed={invoice.advanceAmountUsed || 0}
             exchangeAmount={invoice.exchangeAmount || 0}
             customerGstin={invoice.customerGstin}
+            customerPan={invoice.customerPan}
+            splitDetails={invoice.splitDetails}
+            schemeGramsUsed={invoice.schemeGramsUsed}
+            schemeGoldRate={invoice.schemeGoldRate}
           />
         </div>
       </div>
@@ -1842,6 +1911,28 @@ export default function Pos(props: PosProps = {}) {
                   onChange={e => setCustomerGstin(e.target.value.toUpperCase())}
                   placeholder="For business customers"
                   className="w-full h-10 sm:h-11 px-3 sm:px-4 bg-white border border-gray-200 rounded-xl focus:outline-none focus:border-[var(--accent)] text-[13px] font-bold text-[#111111] placeholder:text-gray-400 placeholder:font-medium"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] md:text-[10px] font-bold text-[#374151] mb-1">Aadhaar No. (Optional)</label>
+                <input
+                  type="text" inputMode="numeric"
+                  value={customerAadhaar}
+                  maxLength={14}
+                  onChange={e => setCustomerAadhaar(e.target.value.replace(/[^0-9 ]/g, ''))}
+                  placeholder="12 digits, saved for next time"
+                  className="w-full h-10 sm:h-11 px-3 sm:px-4 bg-white border border-gray-200 rounded-xl focus:outline-none focus:border-[var(--accent)] text-[13px] font-bold text-[#111111] placeholder:text-gray-400 placeholder:font-medium"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] md:text-[10px] font-bold text-[#374151] mb-1">PAN (Optional{total >= 200000 ? ', needed for ₹2 lakh+' : ''})</label>
+                <input
+                  type="text"
+                  value={customerPan}
+                  maxLength={10}
+                  onChange={e => setCustomerPan(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                  placeholder="ABCDE1234F"
+                  className={`w-full h-10 sm:h-11 px-3 sm:px-4 bg-white border rounded-xl focus:outline-none focus:border-[var(--accent)] text-[13px] font-bold text-[#111111] placeholder:text-gray-400 placeholder:font-medium ${total >= 200000 && !customerPan && !customerAadhaar ? 'border-amber-400' : 'border-gray-200'}`}
                 />
               </div>
             </div>
@@ -2335,8 +2426,26 @@ export default function Pos(props: PosProps = {}) {
                         Remove
                       </button>
                     </div>
-                    {appliedScheme.benefitUsed ? (
-                      <p className="text-[10px] font-bold text-[#6B7280]">Scheme benefit already used on an earlier bill.</p>
+                    {role === 'admin' && appliedScheme.totalGrams > 0 && (
+                      <div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {(['value', 'grams'] as const).map((m) => (
+                            <button key={m} type="button" disabled={m === 'grams' && !canRedeemByGrams}
+                              onClick={() => { setSchemeMode(m); setSchemeUseAmount(String(Math.min(m === 'grams' ? schemeGramValue : schemeBalance(appliedScheme), Math.max(0, total)))) }}
+                              className={`h-8 rounded-lg border-2 text-[10px] font-black uppercase tracking-wide transition-colors disabled:opacity-40 ${schemeMode === m && (m === 'value' || canRedeemByGrams) ? 'bg-[#0A0A0A] text-[var(--accent)] border-[#0A0A0A]' : 'bg-white text-[#374151] border-gray-200'}`}>
+                              {m === 'value' ? `By value ${formatCurrency(schemeBalance(appliedScheme))}` : `By grams ${schemeGramsLeft(appliedScheme).toFixed(3)} g`}
+                            </button>
+                          ))}
+                        </div>
+                        <p className="mt-1 text-[10px] font-bold text-[#6B7280]">
+                          {canRedeemByGrams
+                            ? `Grams at today's ${appliedScheme.goldPurity} rate ${formatCurrency(schemeGoldRate)}/g = ${formatCurrency(schemeGramValue)} (admin only).`
+                            : schemeGramCheck.allowed ? `No ${appliedScheme.goldPurity} rate set today for gram redemption.` : schemeGramCheck.reason}
+                        </p>
+                      </div>
+                    )}
+                    {appliedScheme.benefitUsed || appliedScheme.benefitForfeited ? (
+                      <p className="text-[10px] font-bold text-[#6B7280]">{appliedScheme.benefitForfeited ? 'Scheme closed early: its benefit does not apply.' : 'Scheme benefit already used on an earlier bill.'}</p>
                     ) : (
                       <label className="flex items-center justify-between gap-2 text-[11px] font-bold text-[#374151] cursor-pointer">
                         <span className="flex items-center gap-1.5">

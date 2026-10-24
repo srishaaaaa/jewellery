@@ -189,6 +189,11 @@ export default function DigitalInvoice() {
     schemeBalanceAfter: invoice.scheme_balance_after == null ? null : Number(invoice.scheme_balance_after),
     advanceAmountUsed: Number(invoice.advance_amount_used || 0),
     exchangeAmount: Number(invoice.exchange_amount || 0),
+    customerGstin: invoice.customer_gstin ? String(invoice.customer_gstin) : null,
+    customerPan: invoice.customer_pan ? String(invoice.customer_pan) : null,
+    splitDetails: invoice.split_details,
+    schemeGramsUsed: invoice.scheme_grams_used == null ? null : Number(invoice.scheme_grams_used),
+    schemeGoldRate: invoice.scheme_gold_rate == null ? null : Number(invoice.scheme_gold_rate),
   }
 
   const buildPdfData = () => ({
@@ -368,6 +373,10 @@ export default function DigitalInvoice() {
             advanceAmountUsed={schemeInfo.advanceAmountUsed}
             exchangeAmount={schemeInfo.exchangeAmount}
             customerGstin={invoice.customer_gstin || null}
+            customerPan={schemeInfo.customerPan}
+            splitDetails={schemeInfo.splitDetails}
+            schemeGramsUsed={schemeInfo.schemeGramsUsed}
+            schemeGoldRate={schemeInfo.schemeGoldRate}
             onPrintReceipt={printReceipt}
           />
         </div>

@@ -1,5 +1,5 @@
 import { BRAND_ADDRESS, BRAND_EMAIL, BRAND_EN, BRAND_INSTAGRAM, BRAND_PRIMARY_PHONE_DISPLAY } from './brand'
-import { formatCurrency, formatInvoiceNo } from './retail'
+import { formatCurrency, formatInvoiceNo, paymentSplitRows, schemePaidLabel } from './retail'
 import { formatPhoneDisplay } from './phone'
 import { useSettingsStore } from '../store/store'
 import { formatWeight, metalLabel, readJewellerySnapshot, type JewellerySnapshot } from './jewellery'
@@ -43,6 +43,11 @@ export interface ThermalReceiptData {
   advanceAmountUsed?: number
   exchangeAmount?: number
   customerGstin?: string | null
+  customerPan?: string | null
+  /** The bill's split_details: mixed payment amounts per method */
+  splitDetails?: unknown
+  schemeGramsUsed?: number | null
+  schemeGoldRate?: number | null
 }
 
 const jewelleryReceiptLines = (raw: unknown) => {
@@ -151,6 +156,7 @@ export function printThermalReceipt(data: ThermalReceiptData) {
           ${data.customerName ? `<div>Name: ${data.customerName}</div>` : ''}
           ${data.phone ? `<div>Tel: ${formatPhoneDisplay(data.phone)}</div>` : ''}
           ${data.customerGstin ? `<div>GSTIN: ${data.customerGstin}</div>` : ''}
+          ${data.customerPan ? `<div>PAN: ${data.customerPan}</div>` : ''}
         </div>
 
         ${data.isCredit ? `
@@ -237,7 +243,7 @@ export function printThermalReceipt(data: ThermalReceiptData) {
             </tr>
             ${(data.schemeAmountUsed || 0) > 0 ? `
               <tr>
-                <td class="text-left">Paid from Scheme${data.schemeNumber ? ` (${data.schemeNumber})` : ''}</td>
+                <td class="text-left">${schemePaidLabel(data.schemeNumber, data.schemeGramsUsed, data.schemeGoldRate)}</td>
                 <td class="text-right">-${formatCurrency(data.schemeAmountUsed || 0)}</td>
               </tr>` : ''}
             ${(data.advanceAmountUsed || 0) > 0 ? `
@@ -255,6 +261,14 @@ export function printThermalReceipt(data: ThermalReceiptData) {
                 <td class="text-left">Amount Paid</td>
                 <td class="text-right">${formatCurrency(Math.max(0, data.total - (data.schemeAmountUsed || 0) - (data.advanceAmountUsed || 0) - (data.exchangeAmount || 0)))}</td>
               </tr>
+            ` : ''}
+            ${paymentSplitRows(data.splitDetails).length ? `
+              <tr><td colspan="2" class="text-left font-bold" style="font-size: 10px; padding-top: 4px;">PAYMENT SPLIT</td></tr>
+              ${paymentSplitRows(data.splitDetails).map(([label, amount]) => `
+              <tr>
+                <td class="text-left">${label}</td>
+                <td class="text-right">${formatCurrency(amount)}</td>
+              </tr>`).join('')}
             ` : ''}
             ${data.schemeNumber && data.schemeBalanceAfter != null ? `
               <tr>

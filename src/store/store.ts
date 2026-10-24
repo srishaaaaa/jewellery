@@ -168,9 +168,13 @@ export interface PosPermissions {
   staffMaxDiscountPercent: number
   /** Whether staff may change a scheme type's terms when enrolling a customer. */
   staffCanCustomiseSchemes: boolean
+  /** Most cash accepted on one bill / advance (Income Tax s.269ST: below ₹2,00,000). */
+  cashLimit: number
+  /** Admin may accept cash above cashLimit (staff never can). */
+  allowCashAboveLimit: boolean
 }
 
-export const DEFAULT_POS_PERMISSIONS: PosPermissions = { staffMaxDiscountPercent: 5, staffCanCustomiseSchemes: false }
+export const DEFAULT_POS_PERMISSIONS: PosPermissions = { staffMaxDiscountPercent: 5, staffCanCustomiseSchemes: false, cashLimit: 199500, allowCashAboveLimit: false }
 
 export const normalizePosPermissions = (raw: unknown): PosPermissions => {
   const r = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
@@ -178,6 +182,25 @@ export const normalizePosPermissions = (raw: unknown): PosPermissions => {
   return {
     staffMaxDiscountPercent: Number.isFinite(pct) ? Math.min(100, Math.max(0, pct)) : DEFAULT_POS_PERMISSIONS.staffMaxDiscountPercent,
     staffCanCustomiseSchemes: typeof r.staffCanCustomiseSchemes === 'boolean' ? r.staffCanCustomiseSchemes : DEFAULT_POS_PERMISSIONS.staffCanCustomiseSchemes,
+    cashLimit: Number(r.cashLimit) > 0 ? Number(r.cashLimit) : DEFAULT_POS_PERMISSIONS.cashLimit,
+    allowCashAboveLimit: typeof r.allowCashAboveLimit === 'boolean' ? r.allowCashAboveLimit : DEFAULT_POS_PERMISSIONS.allowCashAboveLimit,
+  }
+}
+
+/**
+ * Why this much cash cannot be taken (null = fine). Above the limit only the admin can accept,
+ * and only when "Allow cash above the limit" is on; then the caller asks to confirm.
+ */
+export const cashLimitCheck = (cash: number, role: string | null, p: PosPermissions | undefined): { blocked: string | null; needsConfirm: boolean } => {
+  const perms = p || DEFAULT_POS_PERMISSIONS
+  if (!(cash > perms.cashLimit)) return { blocked: null, needsConfirm: false }
+  const limit = `₹${perms.cashLimit.toLocaleString('en-IN')}`
+  if (role === 'admin' && perms.allowCashAboveLimit) return { blocked: null, needsConfirm: true }
+  return {
+    blocked: role === 'admin'
+      ? `Cash above ${limit} is not accepted (Income Tax s.269ST). Take the rest by UPI / card / bank, or allow it in Store Settings → Staff Permissions.`
+      : `Cash above ${limit} is not accepted. Take the rest by UPI / card / bank, or ask the admin.`,
+    needsConfirm: false,
   }
 }
 

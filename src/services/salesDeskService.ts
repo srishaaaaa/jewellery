@@ -24,8 +24,9 @@ export interface CustomerAdvance {
   balance: number
   paymentMethod: string
   purpose: string
-  /** payment = money paid in; exchange = credit from a return; old_gold = credit for old gold bought at the counter */
-  source: 'payment' | 'exchange' | 'old_gold'
+  /** payment = money paid in; exchange = credit from a return; old_gold = credit for old gold bought at the counter;
+   *  gift_voucher = a one-time deposit's gift voucher */
+  source: 'payment' | 'exchange' | 'old_gold' | 'gift_voucher'
   sourceRef: string
   status: 'active' | 'used' | 'cancelled'
   notes: string
@@ -39,7 +40,7 @@ const mapAdvance = (r: Record<string, unknown>): CustomerAdvance => {
   return {
     id: str(r.id), receiptNumber: str(r.receipt_number), customerName: str(r.customer_name), phone: str(r.phone),
     amount, amountUsed: used, balance: Math.max(0, Math.round((amount - used) * 100) / 100),
-    paymentMethod: str(r.payment_method), purpose: str(r.purpose), source: r.source === 'exchange' || r.source === 'old_gold' ? r.source : 'payment',
+    paymentMethod: str(r.payment_method), purpose: str(r.purpose), source: r.source === 'exchange' || r.source === 'old_gold' || r.source === 'gift_voucher' ? r.source : 'payment',
     sourceRef: str(r.source_ref), status: r.status === 'used' || r.status === 'cancelled' ? r.status : 'active',
     notes: str(r.notes), createdBy: str(r.created_by), createdAt: str(r.created_at),
   }

@@ -10,7 +10,7 @@ import { csvDate, csvPhone, downloadCsv } from '../lib/csv'
 import { calculateNetWeight, calculateOldGoldValue, formatWeight, GOLD_PURITIES, metalLabel, normalizeMetalType, readJewellerySnapshot, STANDARD_PURITY, suggestOldGoldRate } from '../lib/jewellery'
 import { useMetalRateStore } from '../store/metalRateStore'
 import { ModalPortal } from '../components/ModalPortal'
-import { useAdminAuthStore, useSettingsStore } from '../store/store'
+import { cashLimitCheck, useAdminAuthStore, useSettingsStore } from '../store/store'
 import { invoicePdfFile } from '../lib/invoicePdf'
 import { printDeskReceipt } from '../lib/deskReceipt'
 import { auditService } from '../services/auditService'
@@ -355,6 +355,11 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     const amount = Number(advanceForm.amount)
     if (!phone) { setModalError('Enter a valid mobile number.'); return }
     if (!Number.isFinite(amount) || amount <= 0) { setModalError('Enter the advance amount.'); return }
+    if (advanceForm.method === 'cash') {
+      const cashRule = cashLimitCheck(amount, role, useSettingsStore.getState().settings?.posPermissions)
+      if (cashRule.blocked) { setModalError(cashRule.blocked); return }
+      if (cashRule.needsConfirm && !window.confirm(`Accept ${formatCurrency(amount)} in cash? This is above the cash limit.`)) return
+    }
     setSaving(true)
     setModalError('')
     try {
@@ -369,7 +374,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     }
   }
   const printAdvance = (a: CustomerAdvance) => printDeskReceipt({
-    title: a.source === 'exchange' ? 'Exchange Credit' : a.source === 'old_gold' ? 'Old Gold Credit' : 'Advance Receipt', number: a.receiptNumber, date: fmtDate(a.createdAt, true),
+    title: a.source === 'exchange' ? 'Exchange Credit' : a.source === 'old_gold' ? 'Old Gold Credit' : a.source === 'gift_voucher' ? 'Gift Voucher' : 'Advance Receipt', number: a.receiptNumber, date: fmtDate(a.createdAt, true),
     customerName: a.customerName, phone: a.phone,
     rows: [['Purpose', a.purpose || '—'], ['Payment', formatPaymentMode(a.paymentMethod)], ['Used on bills', formatCurrency(a.amountUsed)]],
     totals: [['Amount', formatCurrency(a.amount)], ['Balance', formatCurrency(a.balance)]],
@@ -615,7 +620,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                   <tr key={x.id} className="hover:bg-[var(--accent-a5)] transition-colors">
                     <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.receiptNumber}</p><p className="text-[11px] text-[#8B9389]">{fmtDate(x.createdAt, true)} • {x.createdBy}</p></td>
                     <td className="px-4 py-3.5"><p className="font-bold text-[#273126]">{x.customerName || '—'}</p><p className="text-xs text-[#727970]">{x.phone}</p></td>
-                    <td className="px-4 py-3.5 text-xs whitespace-normal max-w-[220px]">{x.purpose || '—'}{x.source === 'exchange' && <p className="text-[#858C83]">From return {x.sourceRef}</p>}{x.source === 'old_gold' && <p className="text-[#858C83]">From old gold {x.sourceRef}</p>}</td>
+                    <td className="px-4 py-3.5 text-xs whitespace-normal max-w-[220px]">{x.purpose || '—'}{x.source === 'exchange' && <p className="text-[#858C83]">From return {x.sourceRef}</p>}{x.source === 'old_gold' && <p className="text-[#858C83]">From old gold {x.sourceRef}</p>}{x.source === 'gift_voucher' && <p className="text-[#858C83]">Gift voucher for deposit {x.sourceRef}</p>}</td>
                     <td className="px-4 py-3.5 font-black">{formatCurrency(x.amount)}<p className="text-[11px] font-semibold text-[#858C83]">{formatPaymentMode(x.paymentMethod)}</p></td>
                     <td className="px-4 py-3.5 text-xs"><p>Used {formatCurrency(x.amountUsed)}</p><p className="font-black text-emerald-700">Balance {formatCurrency(x.balance)}</p></td>
                     <td className="px-4 py-3.5">{statusChip(x.status === 'active' ? 'Available' : x.status === 'used' ? 'Fully used' : 'Cancelled', x.status === 'active' ? 'green' : 'gray')}</td>

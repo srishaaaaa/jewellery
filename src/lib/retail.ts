@@ -106,6 +106,16 @@ export const splitPaymentParts = (splitDetails: unknown): Array<[string, number]
       .map(([k, v]) => [k, Number(v)])
     : []
 
+/** Payment split rows for the bill ([label, amount] per method), empty unless it was a mixed payment. */
+export const paymentSplitRows = (splitDetails: unknown): Array<[string, number]> =>
+  splitPaymentParts(splitDetails).map(([k, v]) => [PAYMENT_LABELS[k] || k, v])
+
+/** "Paid from Scheme (SCH000001 · 1.000 g @ ₹7,000/g)" */
+export const schemePaidLabel = (schemeNumber?: string | null, gramsUsed?: number | null, goldRate?: number | null) => {
+  const grams = gramsUsed && gramsUsed > 0 && goldRate && goldRate > 0 ? ` · ${gramsUsed.toFixed(3)} g @ ${formatCurrency(goldRate)}/g` : ''
+  return `Paid from Scheme${schemeNumber || grams ? ` (${[schemeNumber, grams.replace(/^ · /, '')].filter(Boolean).join(' · ')})` : ''}`
+}
+
 /** "split" + { cash: 300, qr: 200 } -> "Split (Cash ₹300 + QR ₹200)"; other modes -> "Cash", "QR", ...; plus " · Ref 1234" when recorded. */
 export const formatPaymentMode = (mode: unknown, splitDetails?: unknown): string => {
   const m = String(mode || '').trim().toLowerCase()

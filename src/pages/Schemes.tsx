@@ -11,10 +11,11 @@ import { ModalPortal } from '../components/ModalPortal'
 import { useAdminAuthStore, useSettingsStore } from '../store/store'
 import { auditService } from '../services/auditService'
 import { customerService, type CustomerRecord } from '../services/customerService'
-import { schemeService, type SchemeInstallment, type SchemeRedemption } from '../services/schemeService'
+import { schemeService, type SchemeInstallment, type SchemeRedemption, type SchemeVoucher } from '../services/schemeService'
 import { buildSchemeInstallmentWhatsAppMessage } from '../lib/whatsappMessage'
 import { useMetalRateStore } from '../store/metalRateStore'
 import { paymentMethodLabel, printSchemeReceipt, totalsAfterInstallment } from '../lib/schemeReceipt'
+import { printDepositCertificate } from '../lib/schemeCertificate'
 import {
   BENEFIT_TYPE_LABELS,
   FREQUENCY_LABELS,
@@ -30,6 +31,9 @@ import {
   monthsBetween,
   deriveSchemeStatus,
   describeSchemeBenefit,
+  addMonthsIso,
+  gramRedemptionAllowed,
+  schemeGramsLeft,
   installmentsDueCount,
   localIsoDate,
   normalizeSchemeRules,
@@ -144,7 +148,12 @@ export default function Schemes() {
   const [detail, setDetail] = useState<JewelleryScheme | null>(null)
   const [detailInstallments, setDetailInstallments] = useState<SchemeInstallment[]>([])
   const [detailRedemptions, setDetailRedemptions] = useState<SchemeRedemption[]>([])
-  const [detailAction, setDetailAction] = useState<'cancel' | 'transfer' | null>(null)
+  const [detailAction, setDetailAction] = useState<'cancel' | 'transfer' | 'close' | null>(null)
+  const [detailVoucher, setDetailVoucher] = useState<SchemeVoucher | null>(null)
+  // Early closure / redemption terms (admin). 'auto' = by the rule.
+  const [closeForm, setCloseForm] = useState({ reason: '', allowGrams: 'auto', keepBenefit: 'auto' })
+  const [termsForm, setTermsForm] = useState({ allowGrams: 'auto', keepBenefit: 'yes' })
+  const [giftDetails, setGiftDetails] = useState('')
   const [cancelReason, setCancelReason] = useState('')
   const [resumeReason, setResumeReason] = useState('')
   const [resumeReschedule, setResumeReschedule] = useState(true)
@@ -413,6 +422,10 @@ export default function Schemes() {
     setModalError('')
     setDetailInstallments([])
     setDetailRedemptions([])
+    setDetailVoucher(null)
+    setGiftDetails(scheme.giftDetails)
+    setTermsForm({ allowGrams: scheme.allowGramRedemption === null ? 'auto' : scheme.allowGramRedemption ? 'yes' : 'no', keepBenefit: scheme.benefitForfeited ? 'no' : 'yes' })
+    if (scheme.frequency === 'one_time') schemeService.fetchVoucher(scheme.schemeNumber).then(setDetailVoucher).catch(() => undefined)
     try {
       const [inst, red] = await Promise.all([schemeService.fetchInstallments(scheme.id), schemeService.fetchRedemptions(scheme.id)])
       setDetailInstallments(inst)
@@ -468,6 +481,77 @@ export default function Schemes() {
       setModalError(getErrorMessage(err, 'Unable to cancel the scheme'))
     } finally {
       setSaving(false)
+    }
+  }
+
+  const triState = (v: string): boolean | null => (v === 'yes' ? true : v === 'no' ? false : null)
+
+  const submitCloseEarly = async () => {
+    if (!detail) return
+    if (!closeForm.reason.trim()) { setModalError('Enter the reason for closing the scheme.'); return }
+    if (!window.confirm(`Close scheme ${detail.schemeNumber} now? Unpaid installments will not be collected and the ${formatCurrency(schemeBalance(detail))} paid can be redeemed on a bill.`)) return
+    setSaving(true)
+    setModalError('')
+    try {
+      const updated = await schemeService.closeEarly(detail.id, closeForm.reason.trim(), {
+        allowGrams: triState(closeForm.allowGrams), keepBenefit: triState(closeForm.keepBenefit), minGramMonths: rules.gramRedemptionMinMonths,
+      }, staffName)
+      replaceScheme(updated)
+      setDetailInstallments(await schemeService.fetchInstallments(updated.id))
+      setDetailAction(null)
+      setTermsForm({ allowGrams: updated.allowGramRedemption === null ? 'auto' : updated.allowGramRedemption ? 'yes' : 'no', keepBenefit: updated.benefitForfeited ? 'no' : 'yes' })
+      const valueOnly = !gramRedemptionAllowed(updated, rules, today).allowed
+      void auditService.log({ action: 'scheme_closed_early', entityType: 'scheme', entityId: updated.schemeNumber, newValue: { paid: updated.totalPaid, value_only: valueOnly, benefit: !updated.benefitForfeited }, note: closeForm.reason.trim() })
+      setNotice(`Scheme ${updated.schemeNumber} closed. ${formatCurrency(updated.totalPaid)} can be redeemed${valueOnly ? ' by value' : ''}${updated.benefitForfeited ? ' without the benefit' : ''}.`)
+    } catch (err) {
+      setModalError(getErrorMessage(err, 'Unable to close the scheme'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const submitTerms = async () => {
+    if (!detail) return
+    setSaving(true)
+    setModalError('')
+    try {
+      const updated = await schemeService.setRedemptionTerms(detail.id, triState(termsForm.allowGrams), termsForm.keepBenefit === 'yes', staffName)
+      replaceScheme(updated)
+      void auditService.log({ action: 'scheme_terms_changed', entityType: 'scheme', entityId: updated.schemeNumber, oldValue: { grams: detail.allowGramRedemption, benefit: !detail.benefitForfeited }, newValue: { grams: updated.allowGramRedemption, benefit: !updated.benefitForfeited } })
+      setNotice(`Redemption terms of ${updated.schemeNumber} updated.`)
+    } catch (err) {
+      setModalError(getErrorMessage(err, 'Unable to change the redemption terms'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveGift = async (given: boolean) => {
+    if (!detail) return
+    if (given && !giftDetails.trim()) { setModalError('Enter what gift was given.'); return }
+    setSaving(true)
+    setModalError('')
+    try {
+      const updated = await schemeService.setGift(detail.id, given, giftDetails, staffName)
+      replaceScheme(updated)
+      void auditService.log({ action: given ? 'scheme_gift_given' : 'scheme_gift_cleared', entityType: 'scheme', entityId: updated.schemeNumber, newValue: { gift: updated.giftDetails } })
+    } catch (err) {
+      setModalError(getErrorMessage(err, 'Unable to save the gift'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  /** One-time deposit certificate (A4) with its gift voucher, on the shop letterhead or pre-printed paper. */
+  const printCertificate = async (scheme: JewelleryScheme, letterhead: boolean) => {
+    try {
+      let voucher = await schemeService.fetchVoucher(scheme.schemeNumber)
+      if (!voucher && scheme.totalPaid > 0 && rules.oneTimeVoucherPercent > 0) voucher = await schemeService.issueVoucher(scheme.id, staffName)
+      if (detail?.id === scheme.id) setDetailVoucher(voucher)
+      const deposit = (await schemeService.fetchInstallments(scheme.id)).find((i) => i.status === 'paid') || null
+      printDepositCertificate({ scheme, deposit, voucher, voucherPercent: rules.oneTimeVoucherPercent, voucherValidityMonths: rules.voucherValidityMonths, letterhead })
+    } catch (err) {
+      setError(getErrorMessage(err, 'Unable to print the certificate'))
     }
   }
 
@@ -929,6 +1013,11 @@ export default function Schemes() {
           <button onClick={() => printSchemeReceipt(receipt.scheme, receipt.installment)} className="rounded-xl border border-emerald-200 py-3 text-sm font-black text-emerald-700"><Printer size={16} className="mr-1 inline" />Print Receipt</button>
           <button onClick={() => whatsappReceipt(receipt.scheme, receipt.installment)} className="rounded-xl bg-[#25D366] py-3 text-sm font-black text-white"><MessageCircle size={16} className="mr-1 inline -mt-0.5" />WhatsApp</button>
         </div>
+        {receipt.scheme.frequency === 'one_time' && (
+          <button onClick={() => void printCertificate(receipt.scheme, true)} className="mt-2 w-full rounded-xl border border-amber-300 bg-amber-50 py-3 text-sm font-black text-amber-900">
+            <Printer size={16} className="mr-1 inline -mt-0.5" />Deposit Certificate + {rules.oneTimeVoucherPercent}% Gift Voucher (Letterhead)
+          </button>
+        )}
         <button onClick={() => setReceipt(null)} className="mt-3 w-full rounded-xl bg-[#111111] py-3 text-sm font-black text-white">Done</button>
       </div>
     </div></ModalPortal>}
@@ -948,10 +1037,43 @@ export default function Schemes() {
             ['Plan', FREQUENCY_LABELS[detail.frequency]], ['Installment', installmentLabel(detail)], ['Installments', `${detail.installmentsPaid} of ${detail.totalInstallments} paid`],
             ['Total Paid', formatCurrency(detail.totalPaid)], ['Remaining', formatCurrency(schemeRemaining(detail))], ['Scheme Target', formatCurrency(schemeTarget(detail))],
             ['Benefit', describeSchemeBenefit(detail, formatCurrency)], ['Redemption', redemptionLabel(detail)], ['Balance Available', formatCurrency(schemeBalance(detail))],
-            ['Gold Saved', `${detail.totalGrams.toFixed(3)} g (${detail.goldPurity})`],
+            ['Gold Saved', `${detail.totalGrams.toFixed(3)} g (${detail.goldPurity})${detail.gramsRedeemed > 0 ? ` • ${schemeGramsLeft(detail).toFixed(3)} g left` : ''}`],
+            ['Redeem By', gramRedemptionAllowed(detail, rules, today).allowed ? 'Value or grams (admin)' : `Value only${detail.totalGrams > 0 ? ` (${gramRedemptionAllowed(detail, rules, today).reason.replace(/^Value only:? ?/, '').replace(/\.$/, '') || 'no grams'})` : ''}`],
+            ['Gift', detail.giftGiven ? `Given${detail.giftGivenAt ? ` ${fmtDate(detail.giftGivenAt)}` : ''}` : 'Not given'],
           ].map(([k, v]) => <div key={k} className="rounded-xl bg-[#F8F7F4] p-3"><p className="text-[10px] font-black uppercase text-[#858C83]">{k}</p><p className="mt-1 break-words text-sm font-bold">{v}</p></div>)}
         </div>
         {detail.cancelReason && <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm"><b>Cancelled:</b> {detail.cancelReason}</div>}
+        {detail.closedEarlyAt && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm"><b>Closed early</b> on {fmtDate(detail.closedEarlyAt)}.{detail.benefitForfeited ? ' Benefit does not apply.' : ''} {gramRedemptionAllowed(detail, rules, today).allowed ? 'Can be redeemed by value or grams.' : 'Redeemed by value.'}</div>}
+
+        {/* Gift handed to the customer */}
+        <div className="mt-3 rounded-xl border border-[#ECE9E2] p-3">
+          <p className="text-[10px] font-black uppercase text-[#858C83]">Scheme Gift</p>
+          {detail.giftGiven ? (
+            <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-sm">
+              <span><b>🎁 {detail.giftDetails || 'Gift given'}</b> <span className="text-xs text-[#6B7280]">• {fmtDate(detail.giftGivenAt)}{detail.giftGivenBy ? ` by ${detail.giftGivenBy}` : ''}</span></span>
+              {isAdmin && <button disabled={saving} onClick={() => void saveGift(false)} className="text-xs font-black text-red-600 hover:underline">Undo</button>}
+            </div>
+          ) : (
+            <div className="mt-1.5 grid gap-2 sm:grid-cols-[1fr_auto]">
+              <input className={inputClass} value={giftDetails} onChange={(e) => setGiftDetails(e.target.value)} placeholder="Gift given, e.g. Silver coin 5 g, wall clock" />
+              <button disabled={saving} onClick={() => void saveGift(true)} className="rounded-xl bg-[var(--accent-dark)] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">Mark Gift Received</button>
+            </div>
+          )}
+        </div>
+
+        {detail.frequency === 'one_time' && detail.totalPaid > 0 && (
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-black text-[#273126]">Deposit Certificate & Gift Voucher</p>
+              {detailVoucher ? <span className="text-xs font-bold text-amber-800">Voucher {detailVoucher.code} • {formatCurrency(detailVoucher.amount)}{detailVoucher.status === 'used' ? ' • used' : detailVoucher.amountUsed > 0 ? ` • ${formatCurrency(detailVoucher.amount - detailVoucher.amountUsed)} left` : ''}</span>
+                : <span className="text-xs font-semibold text-[#6B7280]">{rules.oneTimeVoucherPercent > 0 ? `${rules.oneTimeVoucherPercent}% voucher is created when printing` : 'Gift voucher is off (Scheme Rules)'}</span>}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button onClick={() => void printCertificate(detail, true)} className="rounded-lg bg-[#0A0A0A] px-3 py-2 text-xs font-black text-[var(--accent)]"><Printer size={13} className="inline -mt-0.5 mr-1" />Print on Letterhead</button>
+              <button onClick={() => void printCertificate(detail, false)} className="rounded-lg border border-[#0A0A0A] px-3 py-2 text-xs font-black text-[#0A0A0A]">Print on Pre-printed Letterhead Paper</button>
+            </div>
+          </div>
+        )}
         {detail.notes && <div className="mt-3 rounded-xl border p-3"><p className="text-[10px] font-black uppercase text-[#858C83]">Notes</p><p className="text-sm">{detail.notes}</p></div>}
 
         <div className="mt-6">
@@ -967,7 +1089,7 @@ export default function Schemes() {
                     <td className="px-3 py-2 font-bold">{formatCurrency(i.status === 'paid' ? i.amountPaid : i.amountDue)}</td>
                     <td className="px-3 py-2">{(() => {
                       const st = installmentDisplayStatus(i, detail.status, today)
-                      const cls = { paid: 'bg-emerald-50 text-emerald-700', due: 'bg-amber-50 text-amber-800', overdue: 'bg-red-50 text-red-700', upcoming: 'bg-gray-100 text-gray-600', cancelled: 'bg-gray-50 text-gray-400' }[st]
+                      const cls = { paid: 'bg-emerald-50 text-emerald-700', due: 'bg-amber-50 text-amber-800', overdue: 'bg-red-50 text-red-700', upcoming: 'bg-gray-100 text-gray-600', cancelled: 'bg-gray-50 text-gray-400', closed: 'bg-gray-50 text-gray-400' }[st]
                       return <span className={`rounded-lg px-2 py-0.5 text-[10px] font-black ${cls}`}>{INSTALLMENT_STATUS_LABELS[st]}</span>
                     })()}</td>
                     <td className="px-3 py-2">{fmtDate(i.paymentDate)}</td>
@@ -993,7 +1115,7 @@ export default function Schemes() {
           <div className="mt-2 space-y-2">
             {detailRedemptions.length === 0 ? <p className="text-sm text-[#6B7280]">Not redeemed yet.</p> : detailRedemptions.map((r) => (
               <div key={r.id} className={`flex flex-wrap justify-between gap-2 rounded-xl p-3 text-sm ${r.status === 'reversed' ? 'bg-gray-50 text-gray-400 line-through' : 'bg-emerald-50'}`}>
-                <span className="font-bold">{fmtDate(r.redeemedAt)} • {r.invoiceNo || 'No invoice'}{r.benefitApplied > 0 ? ` • Benefit ${formatCurrency(r.benefitApplied)}` : ''}</span>
+                <span className="font-bold">{fmtDate(r.redeemedAt)} • {r.invoiceNo || 'No invoice'}{r.mode === 'grams' && r.gramsUsed ? ` • ${r.gramsUsed.toFixed(3)} g @ ${formatCurrency(r.goldRate || 0)}/g` : ''}{r.benefitApplied > 0 ? ` • Benefit ${formatCurrency(r.benefitApplied)}` : ''}</span>
                 <span className="font-black">{formatCurrency(r.amountUsed)} used • {formatCurrency(r.balanceAfter)} left</span>
               </div>
             ))}
@@ -1013,11 +1135,11 @@ export default function Schemes() {
 
         {detail.statusHistory.length > 0 && (
           <div className="mt-6">
-            <h4 className="font-black">Cancel / Resume History</h4>
+            <h4 className="font-black">Scheme History</h4>
             <div className="mt-2 space-y-1">
               {detail.statusHistory.map((h, idx) => (
                 <p key={idx} className={`rounded-xl p-2.5 text-xs ${h.action === 'resumed' ? 'bg-emerald-50' : 'bg-gray-50'}`}>
-                  <b>{h.action === 'resumed' ? 'Resumed' : 'Cancelled'}</b> {fmtDate(h.at)} by {h.by || '—'}{h.reason ? `: ${h.reason}` : ''}{h.rescheduledDays ? ` (installments moved ${h.rescheduledDays} days)` : ''}
+                  <b>{{ resumed: 'Resumed', cancelled: 'Cancelled', closed_early: 'Closed early', terms_changed: 'Redemption terms changed' }[h.action]}</b> {fmtDate(h.at)} by {h.by || '—'}{h.reason ? `: ${h.reason}` : ''}{h.rescheduledDays ? ` (installments moved ${h.rescheduledDays} days)` : ''}{h.action === 'closed_early' && h.valueOnly !== undefined ? (h.valueOnly ? ' (value only)' : ' (grams allowed)') : ''}
                 </p>
               ))}
             </div>
@@ -1046,13 +1168,62 @@ export default function Schemes() {
           </div>
         )}
 
-        {isAdmin && detail.status !== 'cancelled' && detail.status !== 'redeemed' && (rules.allowCancellation || rules.allowTransfer) && (
+        {isAdmin && detail.status !== 'cancelled' && detail.status !== 'redeemed' && (
+          <div className="mt-6 rounded-2xl border border-[#ECE9E2] p-4 space-y-2">
+            <h4 className="font-black">Redemption Terms <span className="text-xs font-semibold text-[#6B7280]">(admin)</span></h4>
+            <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
+              <Field label="Redeem by grams">
+                <select className={inputClass} value={termsForm.allowGrams} onChange={(e) => setTermsForm((f) => ({ ...f, allowGrams: e.target.value }))}>
+                  <option value="auto">By rule (after {rules.gramRedemptionMinMonths} months)</option><option value="yes">Allow grams</option><option value="no">Value only</option>
+                </select>
+              </Field>
+              <Field label="Making / wastage benefit">
+                <select className={inputClass} value={termsForm.keepBenefit} onChange={(e) => setTermsForm((f) => ({ ...f, keepBenefit: e.target.value }))}>
+                  <option value="yes">Applies</option><option value="no">Does not apply</option>
+                </select>
+              </Field>
+              <button disabled={saving} onClick={() => void submitTerms()} className="rounded-xl bg-[var(--accent-dark)] px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">Save</button>
+            </div>
+          </div>
+        )}
+
+        {isAdmin && detail.status !== 'cancelled' && detail.status !== 'redeemed' && (rules.allowCancellation || rules.allowTransfer || detail.status === 'active') && (
           <div className="mt-6 rounded-2xl border border-[#ECE9E2] p-4">
             <h4 className="font-black">Admin Actions</h4>
             <div className="mt-2 flex flex-wrap gap-2">
               {rules.allowTransfer && <button onClick={() => { setDetailAction('transfer'); setTransferForm({ phone: '', name: '' }); setModalError('') }} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-black text-emerald-700">Transfer to another customer</button>}
               {rules.allowCancellation && detail.amountRedeemed === 0 && <button onClick={() => { setDetailAction('cancel'); setCancelReason(''); setModalError('') }} className="rounded-lg border border-red-200 px-3 py-2 text-xs font-black text-red-600">Cancel scheme</button>}
+              {detail.status === 'active' && detail.totalPaid > 0 && <button onClick={() => { setDetailAction('close'); setCloseForm({ reason: '', allowGrams: 'auto', keepBenefit: 'auto' }); setModalError('') }} className="rounded-lg border border-amber-300 px-3 py-2 text-xs font-black text-amber-800">Close early (redeem now)</button>}
             </div>
+            {detailAction === 'close' && (() => {
+              const early = addMonthsIso(detail.startDate, rules.gramRedemptionMinMonths) > today
+              return (
+                <div className="mt-3 space-y-3 rounded-xl bg-amber-50/60 p-3">
+                  <p className="text-xs font-semibold text-amber-900">
+                    {early
+                      ? `Started ${fmtDate(detail.startDate)}, less than ${rules.gramRedemptionMinMonths} months ago: by the rule it becomes value only (${formatCurrency(detail.totalPaid)}) and the making / wastage benefit does not apply.`
+                      : `Started ${fmtDate(detail.startDate)}: over ${rules.gramRedemptionMinMonths} months, so it can still be redeemed by grams and keeps its benefit.`}
+                    {' '}Unpaid installments will not be collected.
+                  </p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Redeem by grams">
+                      <select className={inputClass} value={closeForm.allowGrams} onChange={(e) => setCloseForm((f) => ({ ...f, allowGrams: e.target.value }))}>
+                        <option value="auto">By rule ({early ? 'value only' : 'grams allowed'})</option><option value="yes">Allow grams (admin override)</option><option value="no">Value only</option>
+                      </select>
+                    </Field>
+                    <Field label="Benefit">
+                      <select className={inputClass} value={closeForm.keepBenefit} onChange={(e) => setCloseForm((f) => ({ ...f, keepBenefit: e.target.value }))}>
+                        <option value="auto">By rule ({early ? 'does not apply' : 'applies'})</option><option value="yes">Applies (admin override)</option><option value="no">Does not apply</option>
+                      </select>
+                    </Field>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-[1fr_auto] items-end">
+                    <Field label="Reason for closing"><input className={inputClass} value={closeForm.reason} onChange={(e) => setCloseForm((f) => ({ ...f, reason: e.target.value }))} placeholder="e.g. Customer buying now, cannot continue" /></Field>
+                    <button disabled={saving} onClick={() => void submitCloseEarly()} className="rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-black text-white disabled:opacity-50">{saving ? 'Closing…' : 'Close Scheme'}</button>
+                  </div>
+                </div>
+              )
+            })()}
             {detailAction === 'transfer' && (
               <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
                 <Field label="New customer mobile"><input className={inputClass} list="scheme-customers-transfer" value={transferForm.phone} onChange={(e) => setTransferForm((f) => ({ ...f, phone: e.target.value }))} /></Field>
@@ -1133,6 +1304,9 @@ export default function Schemes() {
               </select>
             </Field>
             <Field label="Redemption expires (months after maturity, 0 = never)"><input type="number" min="0" className={inputClass} value={rulesForm.expiryMonths} onChange={(e) => setRulesForm((r) => ({ ...r, expiryMonths: Number(e.target.value) }))} /></Field>
+            <Field label="Months before gram redemption (closed earlier = value only)"><input type="number" min="0" className={inputClass} value={rulesForm.gramRedemptionMinMonths} onChange={(e) => setRulesForm((r) => ({ ...r, gramRedemptionMinMonths: Number(e.target.value) }))} /></Field>
+            <Field label="One-time deposit gift voucher (% of deposit, 0 = none)"><input type="number" min="0" max="100" step="0.1" className={inputClass} value={rulesForm.oneTimeVoucherPercent} onChange={(e) => setRulesForm((r) => ({ ...r, oneTimeVoucherPercent: Number(e.target.value) }))} /></Field>
+            <Field label="Gift voucher valid for (months)"><input type="number" min="1" className={inputClass} value={rulesForm.voucherValidityMonths} onChange={(e) => setRulesForm((r) => ({ ...r, voucherValidityMonths: Number(e.target.value) }))} /></Field>
             <Field label="Default making discount">
               <div className="flex gap-2">
                 <select className="rounded-xl border border-[#E5E7EB] bg-white px-3 py-2.5 text-sm font-black" value={rulesForm.defaultMakingBenefitUnit} onChange={(e) => setRulesForm((r) => ({ ...r, defaultMakingBenefitUnit: e.target.value as BenefitUnit }))}><option value="percent">%</option><option value="fixed">₹</option></select>

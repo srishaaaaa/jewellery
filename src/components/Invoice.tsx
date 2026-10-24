@@ -1,6 +1,6 @@
 import React from 'react'
 import { BRAND_ADDRESS, BRAND_EMAIL, BRAND_EN, BRAND_INSTAGRAM, BRAND_LOGO, BRAND_PRIMARY_PHONE_DISPLAY } from '../lib/brand'
-import { formatCurrency, formatQuantityDisplay, normalizeStructuredOrderItem, formatInvoiceNo } from '../lib/retail'
+import { formatCurrency, formatQuantityDisplay, normalizeStructuredOrderItem, formatInvoiceNo, paymentSplitRows, schemePaidLabel } from '../lib/retail'
 import { formatPhoneDisplay } from '../lib/phone'
 import { useSettingsStore } from '../store/store'
 import { formatWeight, metalLabel, type JewellerySnapshot } from '../lib/jewellery'
@@ -55,6 +55,12 @@ export interface InvoiceProps {
   /** Value of old gold taken in exchange on this bill */
   exchangeAmount?: number
   customerGstin?: string | null
+  customerPan?: string | null
+  /** The bill's split_details: mixed payment amounts per method (and the payment reference) */
+  splitDetails?: unknown
+  /** Scheme redeemed by grams: grams used and the day's rate */
+  schemeGramsUsed?: number | null
+  schemeGoldRate?: number | null
   onPrintReceipt?: () => void
 }
 
@@ -115,8 +121,13 @@ export const Invoice: React.FC<InvoiceProps> = ({
   advanceAmountUsed = 0,
   exchangeAmount = 0,
   customerGstin,
+  customerPan,
+  splitDetails,
+  schemeGramsUsed,
+  schemeGoldRate,
   onPrintReceipt,
 }) => {
+  const splitRows = paymentSplitRows(splitDetails)
   const formattedInvoiceNo = formatInvoiceNo(invoiceNo)
   const dueDateStr = creditDueDate
     ? (() => {
@@ -226,6 +237,7 @@ export const Invoice: React.FC<InvoiceProps> = ({
         <div style={{ fontSize: 12, color: '#555', lineHeight: 1.4, wordBreak: 'break-word' }}>{phone ? formatPhoneDisplay(phone) : '—'}</div>
         {address && <div style={{ fontSize: 11, color: '#777', marginTop: 4, lineHeight: 1.4, wordBreak: 'break-word' }}>Address: {address}</div>}
         {customerGstin && <div style={{ fontSize: 11, color: '#555', marginTop: 4, fontWeight: 700 }}>GSTIN: {customerGstin}</div>}
+        {customerPan && <div style={{ fontSize: 11, color: '#555', marginTop: 4, fontWeight: 700 }}>PAN: {customerPan}</div>}
       </div>
 
       {/* ── ITEMS TABLE ──────────────────────────────────────────── */}
@@ -336,7 +348,7 @@ export const Invoice: React.FC<InvoiceProps> = ({
               <>
                 {schemeAmountUsed > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-                    <span style={{ fontSize: 12, color: 'var(--accent-dark)' }}>Paid from Scheme{schemeNumber ? ` (${schemeNumber})` : ''}</span>
+                    <span style={{ fontSize: 12, color: 'var(--accent-dark)' }}>{schemePaidLabel(schemeNumber, schemeGramsUsed, schemeGoldRate)}</span>
                     <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-dark)' }}>−{formatCurrency(schemeAmountUsed)}</span>
                   </div>
                 )}
@@ -357,6 +369,17 @@ export const Invoice: React.FC<InvoiceProps> = ({
                   <span style={{ fontSize: 14, fontWeight: 900, color: '#0A0A0A' }}>{formatCurrency(Math.max(0, total - schemeAmountUsed - advanceAmountUsed - exchangeAmount))}</span>
                 </div>
               </>
+            )}
+            {splitRows.length > 0 && (
+              <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed #d0d0d0' }}>
+                <div style={{ fontSize: 10, fontWeight: 800, color: '#888', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 4 }}>Payment Split</div>
+                {splitRows.map(([label, amount]) => (
+                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
+                    <span style={{ fontSize: 12, color: '#444' }}>{label}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700 }}>{formatCurrency(amount)}</span>
+                  </div>
+                ))}
+              </div>
             )}
             {schemeNumber && schemeBalanceAfter != null && (
               <div style={{ fontSize: 10, color: '#6b7280', marginTop: 6, textAlign: 'right' }}>
