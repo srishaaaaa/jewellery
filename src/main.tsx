@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { SoundProvider } from './context/SoundContext'
+import './lib/installPrompt'
 
 // Suppress benign Chrome extension / message channel disconnect noise
 if (typeof window !== 'undefined') {

@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Lock, Eye, EyeOff, AlertCircle, ShieldCheck } from 'lucide-react'
+import { ChevronRight, Eye, EyeOff, Lock, User } from 'lucide-react'
 import { useAdminAuthStore, useSettingsStore } from '../store/store'
-import { BRAND_EN, BRAND_TA, BRAND_SUBTITLE, BRAND_LOGO } from '../lib/brand'
+import { BRAND_EN, BRAND_LOGO } from '../lib/brand'
 import { useLangStore } from '../store/langStore'
+import { InstallBanner } from '../components/InstallBanner'
 
+/** Admin / staff sign-in, in the IGMOLS terminal design. */
 export default function AdminLogin() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -26,6 +28,7 @@ export default function AdminLogin() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    if (!portalId.trim() || !password) { setError(l('Enter your login ID and passcode.', 'உள்நுழைவு ID மற்றும் கடவுச்சொல்லை உள்ளிடவும்.')); return }
     setLoading(true)
     const role = await login(portalId.trim(), password)
     setLoading(false)
@@ -35,122 +38,103 @@ export default function AdminLogin() {
     } else if (role === 'staff') {
       navigate('/dashboard', { replace: true })
     } else {
-      setError(l('Invalid Admin or Staff credentials', 'தவறான நிர்வாகி அல்லது பணியாளர் விவரங்கள்'))
+      setError(l('Invalid login ID or passcode.', 'தவறான உள்நுழைவு ID அல்லது கடவுச்சொல்.'))
     }
   }
 
+  const inputClass = 'w-full bg-[#FAFAFA] border border-black/10 hover:border-[var(--accent-a50)] focus:border-[var(--accent)] focus:bg-white rounded-2xl pl-12 pr-12 py-3.5 text-[var(--accent)] focus:outline-none transition-all placeholder:text-black/20 disabled:opacity-60'
+
   return (
-    <div className="relative h-dvh max-h-dvh min-h-dvh overflow-y-auto lg:overflow-hidden bg-white p-3 sm:p-5 lg:p-6 font-sans flex items-center justify-center">
-      <div className="relative grid w-full max-w-4xl max-h-[92vh] overflow-hidden rounded-3xl border border-gray-200/90 bg-[#141414] shadow-[0_25px_60px_-12px_rgba(0,0,0,0.25),0_12px_28px_-6px_rgba(0,0,0,0.15)] lg:grid-cols-[0.85fr_1.15fr]">
-        <div className="hidden flex-col justify-between bg-[#0A0A0A] border-r border-[var(--accent-a20)] p-6 lg:p-8 text-white lg:flex overflow-y-auto hide-scrollbar">
-          <div>
-            <div className="mb-5 inline-flex items-center gap-2 rounded-2xl bg-[#141414] border border-[var(--accent-a40)] px-3.5 py-2 shadow-xl">
-              <span className="w-6 h-6 rounded-full overflow-hidden shrink-0"><img src={logoUrl} alt={shopName} className="w-full h-full object-cover" /></span>
-              <span className="text-xs font-black tracking-widest text-white uppercase">{shopName}</span>
-            </div>
-            <p className="text-[10px] font-black uppercase tracking-[0.26em] text-[var(--accent)]">{BRAND_SUBTITLE}</p>
-            <h2 className="mt-3 max-w-xs text-2xl lg:text-3xl font-black leading-tight tracking-tight text-white">Everything you need to run your jewellery store.</h2>
-            <p className="mt-3.5 max-w-sm text-xs leading-6 text-white/70">Daily gold & silver rates, jewellery billing, savings schemes, barcodes, stock, invoices and customer messages — in one secure portal.</p>
+    <div className="min-h-dvh bg-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
+      {/* Fine accent grid */}
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,var(--accent-a5)_1px,transparent_1px),linear-gradient(to_bottom,var(--accent-a5)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
+      {/* Soft background orbs */}
+      <div className="absolute top-[-20%] left-[-20%] w-[600px] h-[600px] bg-[var(--accent-a10)] rounded-full blur-[150px] animate-pulse" />
+      <div className="absolute bottom-[-20%] right-[-20%] w-[600px] h-[600px] bg-[var(--accent-a10)] rounded-full blur-[150px] animate-pulse" style={{ animationDelay: '2s' }} />
+
+      {/* Card */}
+      <div className="relative z-10 w-full max-w-md bg-white border border-[var(--accent-a30)] rounded-[2.5rem] p-8 md:p-10 shadow-[0_30px_70px_rgba(63,63,70,0.1)] overflow-hidden group flex flex-col items-center text-center">
+        <div className="absolute top-0 left-0 right-0 h-1.5 bg-[var(--accent)]" />
+
+        {/* Logo with glow */}
+        <div className="relative group mb-6">
+          <div className="absolute -inset-1.5 bg-[var(--accent)] rounded-2xl blur opacity-30 group-hover:opacity-50 transition duration-1000 group-hover:duration-200" />
+          <div className="relative w-24 h-24 bg-white rounded-2xl border border-[var(--accent-a30)] shadow-lg overflow-hidden flex items-center justify-center">
+            <img src={logoUrl} alt={`${shopName} Logo`} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" />
           </div>
-          <div className="mt-6 flex items-center gap-2 text-xs font-bold text-[var(--accent)]"><ShieldCheck size={15} /> Secure jewellery workspace</div>
         </div>
-        <div className="p-5 sm:p-7 lg:p-8 bg-white text-[#111111] overflow-y-auto hide-scrollbar flex flex-col justify-center">
-          {/* Brand */}
-          <div className="mb-4 sm:mb-5 flex flex-col items-center text-center lg:items-start lg:text-left">
-            <div className="mb-3 h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-[var(--accent-a40)] shadow-sm">
-              <img src={logoUrl} alt={shopName} className="h-full w-full object-cover" />
-            </div>
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-[var(--accent-dark)]">{BRAND_SUBTITLE}</p>
-            <h1 className="mt-1 text-2xl sm:text-3xl font-black tracking-tight text-[#0A0A0A]">{shopName}</h1>
-            <p className="mt-0.5 text-xs font-semibold text-[#7A786F]">{BRAND_TA}</p>
-            <p className="mt-2.5 inline-flex items-center gap-1.5 rounded-full border border-[var(--accent)] bg-[#FBFAF6] px-3 py-1 text-[10px] font-black uppercase tracking-wider text-[#0A0A0A]">
-              <ShieldCheck size={12} className="text-[var(--accent-dark)]" />
-              {l('Admin / Staff Portal', 'நிர்வாக நுழைவு')}
-            </p>
-          </div>
 
-          {/* Server-level error */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-3.5 py-2.5 rounded-xl text-[12px] mb-3.5 flex items-center gap-2">
-              <AlertCircle size={14} />
-              {error}
-            </div>
-          )}
+        <h1 className="text-3xl font-serif text-[var(--accent)] tracking-tight leading-tight mb-2">{shopName}</h1>
+        <p className="text-[#1C1917]/50 text-xs font-bold uppercase tracking-[0.2em] mb-8">POS Terminal</p>
 
-          {/* Login Form */}
-          <form onSubmit={handleSubmit} noValidate className="space-y-3.5">
-            <p className="text-xs font-bold text-[#111111]">{l('Enter your portal credentials', 'உங்கள் பயனர் விவரங்களை உள்ளிடவும்')}</p>
-
-            <div>
-              <label className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-[#6B7280]">
-                <ShieldCheck size={13} />
-                Portal ID
-                <span className="font-black text-red-500">*</span>
-              </label>
+        <form onSubmit={handleSubmit} noValidate className="w-full space-y-6 text-left">
+          <div className="space-y-3">
+            <label htmlFor="login-id" className="text-[9px] font-bold text-[var(--accent)] uppercase tracking-[0.25em] ml-1">Login ID</label>
+            <div className="relative">
+              <div className="absolute left-5 top-1/2 -translate-y-1/2 text-[var(--accent)]"><User className="w-4 h-4" /></div>
               <input
+                id="login-id"
                 type="text"
                 autoComplete="username"
-                placeholder="Enter portal ID"
-                className="w-full rounded-xl border-2 border-[var(--accent-a40)] bg-[#FBFAF6] px-3.5 py-3.5 sm:py-3.5 text-xs sm:text-sm font-semibold outline-none transition-colors placeholder:text-[#AAA69C] focus:border-[#0A0A0A] focus:bg-white text-[#111111] min-h-[44px]"
+                placeholder="admin or staff"
+                className={`${inputClass} text-sm font-bold tracking-wide`}
                 value={portalId}
                 onChange={(e) => { setPortalId(e.target.value); setError('') }}
                 disabled={loading}
-                required
+                autoFocus
               />
             </div>
+          </div>
 
-            <div>
-              <label className="flex items-center gap-1.5 text-[11px] font-bold text-[#6B7280] uppercase tracking-wide mb-1.5">
-                <Lock size={13} />
-                {l('Portal Password', 'நுழைவு கடவுச்சொல்')}
-                <span className="text-red-500 font-black">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  placeholder="Enter portal password"
-                  className="w-full rounded-xl border-2 border-[var(--accent-a40)] bg-[#FBFAF6] px-3.5 py-3.5 sm:py-3.5 pr-11 text-xs sm:text-sm font-semibold outline-none transition-colors placeholder:text-[#AAA69C] focus:border-[#0A0A0A] focus:bg-white text-[#111111] min-h-[44px]"
-                  value={password}
-                  onChange={(e) => { setPassword(e.target.value); setError('') }}
-                  disabled={loading}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-[#6B7280] hover:bg-[#F9FAFB] hover:text-[#111111] cursor-pointer"
-                  aria-label={showPassword ? l('Hide password', 'கடவுச்சொல்லை மறை') : l('Show password', 'கடவுச்சொல்லை காட்டு')}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
+          <div className="space-y-3">
+            <label htmlFor="login-passcode" className="text-[9px] font-bold text-[var(--accent)] uppercase tracking-[0.25em] ml-1">Security Passcode</label>
+            <div className="relative">
+              <div className="absolute left-5 top-1/2 -translate-y-1/2 text-[var(--accent)]"><Lock className="w-4 h-4" /></div>
+              <input
+                id="login-passcode"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="current-password"
+                placeholder="••••••••"
+                className={`${inputClass} font-mono tracking-widest text-lg`}
+                value={password}
+                onChange={(e) => { setPassword(e.target.value); setError('') }}
+                disabled={loading}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-5 top-1/2 -translate-y-1/2 text-black/30 hover:text-[var(--accent)] transition-colors cursor-pointer"
+                aria-label={showPassword ? 'Hide passcode' : 'Show passcode'}
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
+            {error && <p className="text-xs text-[#27272A] font-bold mt-2 ml-1" role="alert">{error}</p>}
+          </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="group flex w-full items-center justify-center gap-2 rounded-xl bg-[#0A0A0A] border border-[var(--accent)] py-3.5 font-black text-xs sm:text-sm text-[var(--accent)] shadow-lg shadow-black/20 transition-all hover:bg-[#1A1A1A] hover:scale-[1.01] active:scale-[0.99] disabled:opacity-60 cursor-pointer min-h-[48px]"
-            >
-              {loading ? (
-                <>
-                  <span className="w-3.5 h-3.5 border-2 border-[var(--accent-a30)] border-t-[var(--accent)] rounded-full animate-spin inline-block" />
-                  {l('Signing in...', 'உள்நுழைகிறது...')}
-                </>
-              ) : (
-                <>
-                  <Lock size={14} />
-                  {l(`Sign In to ${shopName} Portal`, `${shopName} போர்ட்டலில் உள்நுழை`)}
-                </>
-              )}
-            </button>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-4 bg-[var(--accent)] hover:brightness-105 active:scale-[0.98] text-white rounded-2xl font-bold text-xs uppercase tracking-[0.2em] transition-all shadow-[0_10px_30px_rgba(63,63,70,0.2)] flex items-center justify-center gap-3 mt-4 group cursor-pointer border border-[var(--accent-a30)] disabled:opacity-70"
+          >
+            {loading ? (
+              <><span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin inline-block" /> Authenticating</>
+            ) : (
+              <>Authenticate <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform text-white" /></>
+            )}
+          </button>
+        </form>
 
-            <p className="text-center text-[10px] leading-relaxed text-[#888888]">
-              {l('Enter your admin or staff credentials to access billing & inventory.', 'பில்லிங் மற்றும் சரக்கு இருப்பு நிர்வாகத்தை அணுக பயனர் விவரங்களை உள்ளிடவும்.')}
-            </p>
-          </form>
+        <div className="mt-8 inline-flex items-center gap-2 px-3 py-1 bg-[var(--accent-a10)] border border-[var(--accent-a30)] rounded-full shadow-sm">
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-pulse" />
+          <span className="text-[8px] font-bold text-[var(--accent)] tracking-[0.15em] uppercase">System Online • Encrypted</span>
         </div>
       </div>
+
+      <div className="relative z-10 mt-6 text-[#1C1917]/30 text-[9px] font-bold tracking-widest uppercase">{shopName} Terminal v1.0</div>
+
+      {/* Install banner: login page only */}
+      <InstallBanner shopName={shopName} logo={logoUrl} />
     </div>
   )
 }
