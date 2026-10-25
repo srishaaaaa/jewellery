@@ -4,6 +4,16 @@ import './index.css'
 import App from './App.tsx'
 import { SoundProvider } from './context/SoundContext'
 import './lib/installPrompt'
+import { registerSW } from 'virtual:pwa-register'
+
+// Take new deploys straight away: the page reloads as soon as a new version is installed,
+// and an open till checks for one every 5 minutes.
+registerSW({
+  immediate: true,
+  onRegisteredSW(_url, registration) {
+    if (registration) window.setInterval(() => { void registration.update() }, 5 * 60 * 1000)
+  },
+})
 
 // Suppress benign Chrome extension / message channel disconnect noise
 if (typeof window !== 'undefined') {

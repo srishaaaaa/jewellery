@@ -224,20 +224,20 @@ export default function JewelleryReports({ orders, dateFrom, dateTo }: { orders:
   const td = 'px-3 py-2.5 text-[12px] text-[#000000] whitespace-nowrap'
 
   const bucketTable = (title: string, subtitle: string, keyHeader: string, countHeader: string, list: Bucket[], onExport: () => void) => (
-    <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm min-w-0">
+    <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm min-w-0">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
         <div>
-          <h3 className="text-[15px] font-bold text-[#000000]">{title}</h3>
-          <p className="text-[12px] text-[#000000]">{subtitle}</p>
+          <h3 className="text-sm font-bold text-[#000000]">{title}</h3>
+          <p className="text-xs text-[#000000]">{subtitle}</p>
         </div>
         {exportButton(onExport, !list.length)}
       </div>
       <div className="overflow-x-auto rounded-xl border border-black/10 max-h-[340px] overflow-y-auto">
-        <table className="w-full text-left">
-          <thead className="bg-white sticky top-0"><tr>{[keyHeader, countHeader, 'Amount'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
+        <table className="w-full text-left text-xs">
+          <thead className="sticky top-0 bg-[#F9FAFB]"><tr>{[keyHeader, countHeader, 'Amount'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
           <tbody className="divide-y divide-black/5">
             {list.length === 0 ? (
-              <tr><td colSpan={3} className="px-3 py-8 text-center text-[12px] text-[#000000]">No sales in this period.</td></tr>
+              <tr><td colSpan={3} className="px-4 py-8 text-center text-xs text-[#000000]">No sales in this period.</td></tr>
             ) : list.map((b) => (
               <tr key={b.key}>
                 <td className={`${td} font-bold`}>{b.label}</td>
@@ -261,10 +261,10 @@ export default function JewelleryReports({ orders, dateFrom, dateTo }: { orders:
             <div className="absolute inset-0 bg-gradient-to-tl from-white/30 via-white/10 to-transparent" />
             <div className="relative z-10">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-[10px] uppercase font-black text-white/80 tracking-wider">{card.label}</p>
+                <p className="text-[10px] uppercase font-bold text-white/80 tracking-wider">{card.label}</p>
                 <div className="w-9 h-9 rounded-xl bg-white/25 backdrop-blur-sm flex items-center justify-center text-white shadow-sm">{card.icon}</div>
               </div>
-              <p className="text-[15px] sm:text-[22px] font-extrabold text-white drop-shadow-sm break-words">{card.value}</p>
+              <p className="text-sm sm:text-[22px] font-extrabold text-white drop-shadow-sm break-words">{card.value}</p>
             </div>
           </div>
         ))}
@@ -278,20 +278,20 @@ export default function JewelleryReports({ orders, dateFrom, dateTo }: { orders:
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm min-w-0">
+        <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
-              <h3 className="text-[15px] font-bold text-[#000000]">Metal-wise Sales & Weight</h3>
-              <p className="text-[12px] text-[#000000]">Gold, silver and platinum sold in the period</p>
+              <h3 className="text-sm font-bold text-[#000000]">Metal-wise Sales & Weight</h3>
+              <p className="text-xs text-[#000000]">Gold, silver and platinum sold in the period</p>
             </div>
             {exportButton(() => exportBuckets('metal_sales', 'Metal', sales.byMetal, true), !sales.byMetal.length)}
           </div>
           <div className="overflow-x-auto rounded-xl border border-black/10">
-            <table className="w-full text-left">
-              <thead className="bg-white"><tr>{['Metal', 'Pieces', 'Gross Wt', 'Net Wt', 'Amount'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
+            <table className="w-full text-left text-xs">
+              <thead className="bg-[#F9FAFB]"><tr>{['Metal', 'Pieces', 'Gross Wt', 'Net Wt', 'Amount'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
               <tbody className="divide-y divide-black/5">
                 {sales.byMetal.length === 0 ? (
-                  <tr><td colSpan={5} className="px-3 py-8 text-center text-[12px] text-[#000000]">No jewellery sales in this period.</td></tr>
+                  <tr><td colSpan={5} className="px-4 py-8 text-center text-xs text-[#000000]">No jewellery sales in this period.</td></tr>
                 ) : sales.byMetal.map((b) => (
                   <tr key={b.key}>
                     <td className={`${td} font-bold`}>{b.label}</td>
@@ -306,10 +306,10 @@ export default function JewelleryReports({ orders, dateFrom, dateTo }: { orders:
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm min-w-0">
+        <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm min-w-0">
           <div className="mb-4">
-            <h3 className="text-[15px] font-bold text-[#000000]">Charges & Discounts</h3>
-            <p className="text-[12px] text-[#000000]">Making, wastage and stone charges billed, and discounts given</p>
+            <h3 className="text-sm font-bold text-[#000000]">Charges & Discounts</h3>
+            <p className="text-xs text-[#000000]">Making, wastage and stone charges billed, and discounts given</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {([
@@ -327,20 +327,20 @@ export default function JewelleryReports({ orders, dateFrom, dateTo }: { orders:
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+      <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
-            <h3 className="text-[15px] font-bold text-[#000000]">Inventory Value</h3>
-            <p className="text-[12px] text-[#000000]">Jewellery in stock now, valued at today's metal rates</p>
+            <h3 className="text-sm font-bold text-[#000000]">Inventory Value</h3>
+            <p className="text-xs text-[#000000]">Jewellery in stock now, valued at today's metal rates</p>
           </div>
           {exportButton(exportInventory, !inventory.list.length)}
         </div>
         <div className="overflow-x-auto rounded-xl border border-black/10">
-          <table className="w-full text-left">
-            <thead className="bg-white"><tr>{['Metal / Purity', 'Items', 'Pieces', 'Gross Wt', 'Net Wt', 'Estimated Value'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[#F9FAFB]"><tr>{['Metal / Purity', 'Items', 'Pieces', 'Gross Wt', 'Net Wt', 'Estimated Value'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
             <tbody className="divide-y divide-black/5">
               {inventory.list.length === 0 ? (
-                <tr><td colSpan={6} className="px-3 py-8 text-center text-[12px] text-[#000000]">No jewellery items in the catalogue.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-xs text-[#000000]">No jewellery items in the catalogue.</td></tr>
               ) : <>
                 {inventory.list.map((g) => (
                   <tr key={g.label}>
@@ -366,20 +366,20 @@ export default function JewelleryReports({ orders, dateFrom, dateTo }: { orders:
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+      <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
-            <h3 className="text-[15px] font-bold text-[#000000]">Jewellery Sales</h3>
-            <p className="text-[12px] text-[#000000]">Every jewellery line billed in the selected period, with the rate and charges used on the invoice</p>
+            <h3 className="text-sm font-bold text-[#000000]">Jewellery Sales</h3>
+            <p className="text-xs text-[#000000]">Every jewellery line billed in the selected period, with the rate and charges used on the invoice</p>
           </div>
           {exportButton(exportSales, !sales.rows.length)}
         </div>
         <div className="overflow-x-auto rounded-xl border border-black/10">
-          <table className="w-full text-left">
-            <thead className="bg-white"><tr>{['Date', 'Invoice', 'Item', 'Metal', 'Weight', 'Rate', 'Making', 'Wastage', 'Final Amount'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[#F9FAFB]"><tr>{['Date', 'Invoice', 'Item', 'Metal', 'Weight', 'Rate', 'Making', 'Wastage', 'Final Amount'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
             <tbody className="divide-y divide-black/5">
               {sales.rows.length === 0 ? (
-                <tr><td colSpan={9} className="px-3 py-8 text-center text-[12px] text-[#000000]">No jewellery sales in this period.</td></tr>
+                <tr><td colSpan={9} className="px-4 py-8 text-center text-xs text-[#000000]">No jewellery sales in this period.</td></tr>
               ) : sales.rows.slice(0, 300).map((r, idx) => (
                 <tr key={`${r.invoice}-${idx}`}>
                   <td className={td}>{new Date(r.date).toLocaleDateString('en-IN')}</td>
@@ -399,20 +399,20 @@ export default function JewelleryReports({ orders, dateFrom, dateTo }: { orders:
       </div>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm min-w-0">
+        <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
-              <h3 className="text-[15px] font-bold text-[#000000]">Metal Rate Report</h3>
-              <p className="text-[12px] text-[#000000]">Rates entered in the selected period</p>
+              <h3 className="text-sm font-bold text-[#000000]">Metal Rate Report</h3>
+              <p className="text-xs text-[#000000]">Rates entered in the selected period</p>
             </div>
             {exportButton(exportRates, !rates.length)}
           </div>
           <div className="overflow-x-auto rounded-xl border border-black/10 max-h-[420px] overflow-y-auto">
-            <table className="w-full text-left">
-              <thead className="bg-white sticky top-0"><tr>{['Date', 'Metal', 'Purity', 'Rate / g'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
+            <table className="w-full text-left text-xs">
+              <thead className="sticky top-0 bg-[#F9FAFB]"><tr>{['Date', 'Metal', 'Purity', 'Rate / g'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
               <tbody className="divide-y divide-black/5">
                 {rates.length === 0 ? (
-                  <tr><td colSpan={4} className="px-3 py-8 text-center text-[12px] text-[#000000]">No rates in this period.</td></tr>
+                  <tr><td colSpan={4} className="px-4 py-8 text-center text-xs text-[#000000]">No rates in this period.</td></tr>
                 ) : rates.map((r) => (
                   <tr key={r.id}>
                     <td className={td}>{new Date(r.effectiveFrom).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
@@ -426,20 +426,20 @@ export default function JewelleryReports({ orders, dateFrom, dateTo }: { orders:
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm min-w-0">
+        <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm min-w-0">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
             <div>
-              <h3 className="text-[15px] font-bold text-[#000000]">Scheme Report</h3>
-              <p className="text-[12px] text-[#000000]">All savings schemes and their collection status</p>
+              <h3 className="text-sm font-bold text-[#000000]">Scheme Report</h3>
+              <p className="text-xs text-[#000000]">All savings schemes and their collection status</p>
             </div>
             {exportButton(exportSchemes, !schemes.length)}
           </div>
           <div className="overflow-x-auto rounded-xl border border-black/10 max-h-[420px] overflow-y-auto">
-            <table className="w-full text-left">
-              <thead className="bg-white sticky top-0"><tr>{['Customer', 'Scheme', 'Amount', 'Paid', 'Pending', 'Status'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
+            <table className="w-full text-left text-xs">
+              <thead className="sticky top-0 bg-[#F9FAFB]"><tr>{['Customer', 'Scheme', 'Amount', 'Paid', 'Pending', 'Status'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
               <tbody className="divide-y divide-black/5">
                 {schemes.length === 0 ? (
-                  <tr><td colSpan={6} className="px-3 py-8 text-center text-[12px] text-[#000000]">No schemes yet.</td></tr>
+                  <tr><td colSpan={6} className="px-4 py-8 text-center text-xs text-[#000000]">No schemes yet.</td></tr>
                 ) : schemes.map((s) => (
                   <tr key={s.id}>
                     <td className={`${td} font-bold`}>{s.customerName || s.phone}</td>

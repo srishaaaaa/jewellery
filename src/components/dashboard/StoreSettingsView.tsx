@@ -173,20 +173,20 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
     <div className="space-y-6 max-w-6xl">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-[20px] sm:text-[22px] font-black text-[#000000]">Store Settings</h2>
-          <p className="text-[13px] text-[#000000] mt-1">Shop profile used across invoices, receipts and the app header.</p>
+          <h2 className="text-[28px] font-black text-[#000000] tracking-tight">Store Settings</h2>
+          <p className="text-xs text-[#000000] mt-1">Shop profile used across invoices, receipts and the app header.</p>
         </div>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={handleReset}
-            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-black/10 rounded-xl text-[13px] font-bold text-[#000000] hover:bg-black/[0.03] transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2.5 bg-white border border-black/10 rounded-xl text-xs font-bold text-[#000000] hover:bg-black/[0.03] transition-colors shadow-sm"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Reset
           </button>
           <button
             type="submit" form="store-settings-form" disabled={saving}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-dark)] text-white rounded-xl text-[13px] font-bold shadow-sm transition-colors disabled:opacity-60"
+            className="flex items-center gap-2 px-4 py-2.5 bg-[var(--accent)] hover:bg-[var(--accent-dark)] text-white rounded-xl text-xs font-bold shadow-sm transition-colors disabled:opacity-60"
           >
             <Save size={14} /> {saving ? 'Saving...' : 'Save'}
           </button>
@@ -200,7 +200,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
       )}
 
       {loading && !settings ? (
-        <div className="p-10 text-center text-[13px] font-bold text-[#000000]">Loading settings...</div>
+        <div className="p-10 text-center text-xs font-bold text-[#000000]">Loading settings...</div>
       ) : (
         <form id="store-settings-form" onSubmit={handleSave} className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -208,7 +208,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
             <SectionCard icon={Store} title="Shop Profile" subtitle="Logo, owner and shop name">
               <div className="flex items-center gap-4 mb-5">
                 <div className="relative shrink-0">
-                  <div className="w-16 h-16 rounded-2xl overflow-hidden border border-black/10">
+                  <div className="w-16 h-16 rounded-xl overflow-hidden border border-black/10">
                     <img src={logoSrc} alt={BRAND_EN} className="w-full h-full object-cover" />
                   </div>
                   <input
@@ -331,7 +331,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
               </Field>
               <div className="mt-4 rounded-xl p-4 text-white" style={{ backgroundColor: /^#[0-9A-Fa-f]{6}$/.test(form.accentColor) ? form.accentColor : BRAND_ACCENT }}>
                 <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Card Preview</p>
-                <p className="text-[13px] font-bold mt-0.5">Selected colour + white stays the app theme.</p>
+                <p className="text-xs font-bold mt-0.5">Selected colour + white stays the app theme.</p>
               </div>
               <p className="mt-3 text-[11px] text-[#9CA3AF]">
                 White backgrounds, layout and components are unchanged — only the accent colour follows this setting.
@@ -345,11 +345,11 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
               <button
                 type="button"
                 onClick={onAddProduct}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[#111111] hover:bg-[#1A1A1A] text-white rounded-xl text-[12px] font-black transition-colors"
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#111111] hover:bg-[#1A1A1A] text-white rounded-xl text-xs font-black transition-colors"
               >
                 + ADD PRODUCT TO CATALOGUE
               </button>
-              <span className="text-[12px] font-semibold text-[#000000]">{catalogueItemCount} items in the catalogue</span>
+              <span className="text-xs font-semibold text-[#000000]">{catalogueItemCount} items in the catalogue</span>
             </div>
             {catalogueCategories.length > 0 ? (
               <div className="flex flex-wrap gap-2">
@@ -360,7 +360,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                 ))}
               </div>
             ) : (
-              <p className="text-[12px] text-[#9CA3AF]">No products yet — add your first product from the Inventory screen.</p>
+              <p className="text-xs text-[#9CA3AF]">No products yet — add your first product from the Inventory screen.</p>
             )}
             <p className="mt-3 text-[11px] text-[#9CA3AF]">
               Product name, category, image, price and stock are managed on the existing inventory screen.
@@ -398,7 +398,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                   className="mt-0.5 w-4 h-4 accent-[var(--accent)]"
                 />
                 <span>
-                  <span className="block text-[13px] font-bold text-[#000000]">Enable GST Billing in POS</span>
+                  <span className="block text-xs font-bold text-[#000000]">Enable GST Billing in POS</span>
                   <span className="block text-[11px] text-[#000000]">When enabled, GST line items are computed on invoices.</span>
                 </span>
               </label>
@@ -448,7 +448,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                     className="mt-0.5 w-4 h-4 accent-[var(--accent)]"
                   />
                   <span>
-                    <span className="block text-[13px] font-bold text-[#000000]">Staff may change scheme terms</span>
+                    <span className="block text-xs font-bold text-[#000000]">Staff may change scheme terms</span>
                     <span className="block text-[11px] text-[#000000]">Off: staff enrol customers only on the scheme types set up by admin, with their fixed terms.</span>
                   </span>
                 </label>
@@ -469,7 +469,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                     className="mt-0.5 w-4 h-4 accent-[var(--accent)]"
                   />
                   <span>
-                    <span className="block text-[13px] font-bold text-[#000000]">Admin may accept cash above the limit</span>
+                    <span className="block text-xs font-bold text-[#000000]">Admin may accept cash above the limit</span>
                     <span className="block text-[11px] text-[#000000]">On: the admin login can take more cash after confirming. Staff can never go above the limit.</span>
                   </span>
                 </label>
@@ -479,17 +479,17 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
           </div>
 
           {/* Account Security */}
-          <div className="bg-white rounded-2xl border border-black/10 p-4 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="bg-white rounded-xl border border-black/10 p-4 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-2.5">
               <Lock size={16} className="text-[var(--accent)] shrink-0" />
               <div>
-                <p className="text-[13px] font-black uppercase tracking-wider text-[var(--accent)]">Account Security</p>
-                <p className="text-[12px] text-[#000000]">Update your {role || 'portal'} login password.</p>
+                <p className="text-xs font-black uppercase tracking-wider text-[var(--accent)]">Account Security</p>
+                <p className="text-xs text-[#000000]">Update your {role || 'portal'} login password.</p>
               </div>
             </div>
             <button
               type="button" onClick={openPasswordModal}
-              className="px-5 py-2.5 bg-[#0A0A0A] hover:bg-[#1A1A1A] text-white rounded-xl text-[13px] font-bold shadow-sm transition-colors shrink-0"
+              className="px-5 py-2.5 bg-[#0A0A0A] hover:bg-[#1A1A1A] text-white rounded-xl text-xs font-bold shadow-sm transition-colors shrink-0"
             >
               Change Password
             </button>
@@ -506,14 +506,14 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
             className="w-full max-w-sm bg-white rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto"
           >
             <div className="flex items-center justify-between p-4 border-b border-black/10">
-              <h3 className="text-[14px] font-black text-[#000000]">Change Password</h3>
+              <h3 className="text-sm font-black text-[#000000]">Change Password</h3>
               <button type="button" onClick={() => setPwOpen(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/[0.03] text-[#000000]">
                 <X size={16} />
               </button>
             </div>
             <form onSubmit={handleChangePassword} className="p-4 space-y-4">
               {pwSuccess ? (
-                <p className="text-[13px] font-bold text-[var(--accent)] flex items-center gap-2"><Check size={16} /> Password updated.</p>
+                <p className="text-xs font-bold text-[var(--accent)] flex items-center gap-2"><Check size={16} /> Password updated.</p>
               ) : (
                 <>
                   <Field label="New Password">
@@ -522,10 +522,10 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                   <Field label="Confirm New Password">
                     <input type="password" className={inputCls} value={pwConfirm} onChange={e => setPwConfirm(e.target.value)} />
                   </Field>
-                  {pwErr && <p className="text-[12px] text-red-600">{pwErr}</p>}
+                  {pwErr && <p className="text-xs text-red-600">{pwErr}</p>}
                   <button
                     type="submit" disabled={pwSaving}
-                    className="w-full py-3 bg-[var(--accent)] hover:bg-[var(--accent-dark)] text-white rounded-xl text-[13px] font-bold shadow-sm transition-colors disabled:opacity-60"
+                    className="w-full py-3 bg-[var(--accent)] hover:bg-[var(--accent-dark)] text-white rounded-xl text-xs font-bold shadow-sm transition-colors disabled:opacity-60"
                   >
                     {pwSaving ? 'Saving...' : 'Update Password'}
                   </button>
@@ -552,11 +552,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function SectionCard({ icon: Icon, title, subtitle, children }: { icon: typeof Store; title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-2xl border border-black/10 p-4 sm:p-6 shadow-sm">
+    <div className="bg-white rounded-xl border border-black/10 p-4 sm:p-6 shadow-sm">
       <div className="flex items-start gap-2 mb-5">
         <Icon size={16} className="text-[var(--accent)] mt-0.5 shrink-0" />
         <div>
-          <h3 className="text-[13px] font-black text-[#000000]">{title}</h3>
+          <h3 className="text-xs font-black text-[#000000]">{title}</h3>
           {subtitle && <p className="text-[11px] text-[#000000] mt-0.5">{subtitle}</p>}
         </div>
       </div>

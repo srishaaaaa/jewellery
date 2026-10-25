@@ -256,7 +256,7 @@ export default function CustomerEvents() {
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map(([label, value, Icon, color]) => (
-          <div key={label} className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+          <div key={label} className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">{label}</p>
@@ -268,7 +268,7 @@ export default function CustomerEvents() {
         ))}
       </div>
 
-      <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm space-y-3">
+      <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm space-y-3">
         <div className="grid gap-3 lg:grid-cols-[1fr_auto]">
           <label className="relative">
             <Search className="absolute left-3 top-3 text-[#9CA3AF]" size={17} />
@@ -334,7 +334,7 @@ export default function CustomerEvents() {
       </div>
 
       {/* Birthdays Section */}
-      <div className="rounded-2xl border border-black/10 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-xl border border-black/10 bg-white shadow-sm overflow-hidden">
         <div className="px-4 py-4 sm:px-5 sm:py-5 border-b border-black/10 bg-white flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-pink-100 text-pink-600 flex items-center justify-center font-black">
             <Cake size={18} />
@@ -352,14 +352,14 @@ export default function CustomerEvents() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead className="bg-black/[0.03] border-t border-black/10 text-[10px] font-bold uppercase tracking-widest text-[#000000]">
+            <table className="w-full text-left text-xs">
+              <thead className="border-t border-black/10 text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
                 <tr>
-                  <th className="px-4 py-3 whitespace-nowrap">#</th>
-                  <th className="px-4 py-3 whitespace-nowrap">Name</th>
-                  <th className="px-4 py-3 whitespace-nowrap">Phone</th>
-                  <th className="px-4 py-3 whitespace-nowrap">Date</th>
-                  <th className="px-4 py-3 whitespace-nowrap">Actions</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">#</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Name</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Phone</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Date</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-black/5">
@@ -423,7 +423,7 @@ export default function CustomerEvents() {
       </div>
 
       {/* Anniversaries Section */}
-      <div className="rounded-2xl border border-black/10 bg-white shadow-sm overflow-hidden">
+      <div className="rounded-xl border border-black/10 bg-white shadow-sm overflow-hidden">
         <div className="px-4 py-4 sm:px-5 sm:py-5 border-b border-black/10 bg-white flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-rose-100 text-rose-600 flex items-center justify-center font-black">
             <Heart size={18} />
@@ -441,14 +441,14 @@ export default function CustomerEvents() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead className="bg-black/[0.03] border-t border-black/10 text-[10px] font-bold uppercase tracking-widest text-[#000000]">
+            <table className="w-full text-left text-xs">
+              <thead className="border-t border-black/10 text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
                 <tr>
-                  <th className="px-4 py-3 whitespace-nowrap">#</th>
-                  <th className="px-4 py-3 whitespace-nowrap">Name</th>
-                  <th className="px-4 py-3 whitespace-nowrap">Phone</th>
-                  <th className="px-4 py-3 whitespace-nowrap">Date</th>
-                  <th className="px-4 py-3 whitespace-nowrap">Actions</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">#</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Name</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Phone</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Date</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-black/5">
@@ -514,7 +514,7 @@ export default function CustomerEvents() {
       {/* Add / Edit Modal */}
       {(modalMode === 'add' || modalMode === 'edit') && (
         <ModalPortal><div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl overflow-y-auto border border-pink-200 animate-in fade-in zoom-in-95">
+          <div className="bg-white rounded-xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl overflow-y-auto border border-pink-200 animate-in fade-in zoom-in-95">
             <div className="px-4 sm:px-5 py-3 border-b border-black/10 flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-7 h-7 rounded-lg bg-pink-500/10 flex items-center justify-center text-pink-600">
@@ -621,7 +621,7 @@ export default function CustomerEvents() {
       {/* View Modal */}
       {modalMode === 'view' && activeCustomer && (
         <ModalPortal><div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-y-auto border border-pink-200 animate-in fade-in zoom-in-95">
+          <div className="bg-white rounded-xl w-full max-w-sm shadow-2xl overflow-y-auto border border-pink-200 animate-in fade-in zoom-in-95">
             <div className="px-4 sm:px-5 py-3 border-b border-black/10 flex items-center justify-between bg-white">
               <h3 className="font-bold text-sm text-[#000000] flex items-center gap-2">
                 <Eye className="w-4 h-4 text-pink-600" /> Customer Details

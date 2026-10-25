@@ -50,13 +50,13 @@ export default function AuditLogView() {
   ])
 
   return (
-    <div className="bg-white rounded-2xl border border-black/10 p-4 sm:p-6 shadow-sm space-y-4">
+    <div className="bg-white rounded-xl border border-black/10 p-4 sm:p-6 shadow-sm space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <History size={16} className="text-[var(--accent)] shrink-0" />
           <div>
-            <p className="text-[13px] font-black uppercase tracking-wider text-[var(--accent)]">Audit Log</p>
-            <p className="text-[12px] text-[#000000]">Metal rate, item, price, stock, discount, return and Schema changes. Entries cannot be edited or deleted.</p>
+            <p className="text-xs font-black uppercase tracking-wider text-[var(--accent)]">Audit Log</p>
+            <p className="text-xs text-[#000000]">Metal rate, item, price, stock, discount, return and Schema changes. Entries cannot be edited or deleted.</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -79,22 +79,22 @@ export default function AuditLogView() {
       {error && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">{error}</div>}
       <div className="overflow-x-auto rounded-xl border border-black/10 max-h-[480px] overflow-y-auto">
         <table className="w-full text-left text-xs">
-          <thead className="bg-white sticky top-0 text-[10px] font-bold uppercase tracking-widest text-[#000000]">
-            <tr>{['Date & Time', 'Action', 'Record', 'Old', 'New', 'By'].map((h) => <th key={h} className="px-3 py-2.5 whitespace-nowrap">{h}</th>)}</tr>
+          <thead className="sticky top-0 text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
+            <tr>{['Date & Time', 'Action', 'Record', 'Old', 'New', 'By'].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-black/5">
             {loading ? (
-              <tr><td colSpan={6} className="px-3 py-8 text-center text-[#000000]">Loading…</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#000000]">Loading…</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={6} className="px-3 py-8 text-center text-[#000000]">No changes recorded for these filters.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-[#000000]">No changes recorded for these filters.</td></tr>
             ) : rows.map((r) => (
               <tr key={r.id} className="align-top">
-                <td className="px-3 py-2.5 whitespace-nowrap">{new Date(r.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-                <td className="px-3 py-2.5 font-bold text-[#000000] whitespace-nowrap">{AUDIT_ACTION_LABELS[r.action] || r.action}</td>
-                <td className="px-3 py-2.5 text-[#000000] max-w-[160px] break-words">{r.entityId || '—'}{r.note ? <span className="block text-[10px] text-[#000000]">{r.note}</span> : null}</td>
-                <td className="px-3 py-2.5 text-[#000000] max-w-[220px] break-words">{describeValue(r.oldValue)}</td>
-                <td className="px-3 py-2.5 text-[#000000] max-w-[220px] break-words">{describeValue(r.newValue)}</td>
-                <td className="px-3 py-2.5 whitespace-nowrap text-[#000000]">{r.userName}</td>
+                <td className="px-4 py-2.5">{new Date(r.createdAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                <td className="px-4 py-2.5 font-bold text-[#000000]">{AUDIT_ACTION_LABELS[r.action] || r.action}</td>
+                <td className="px-4 py-2.5 text-[#000000] max-w-[160px] break-words">{r.entityId || '—'}{r.note ? <span className="block text-[10px] text-[#000000]">{r.note}</span> : null}</td>
+                <td className="px-4 py-2.5 text-[#000000] max-w-[220px] break-words">{describeValue(r.oldValue)}</td>
+                <td className="px-4 py-2.5 text-[#000000] max-w-[220px] break-words">{describeValue(r.newValue)}</td>
+                <td className="px-4 py-2.5 text-[#000000]">{r.userName}</td>
               </tr>
             ))}
           </tbody>

@@ -45,7 +45,7 @@ const sendWhatsApp = (phone: string, text: string) => window.open(toWhatsAppUrl(
 
 const TH = 'px-4 py-3.5 whitespace-nowrap'
 const thead = (cols: string[]) => (
-  <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
+  <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
     <tr>{cols.map((h) => <th key={h} className={TH}>{h}</th>)}</tr>
   </thead>
 )
@@ -509,7 +509,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
     {notice && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</div>}
 
-    <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
       <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
         <label className="relative"><Search className="absolute left-3 top-3 text-[#9CA3AF]" size={17} /><input className={`${inputClass} pl-10`} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search number, customer, phone or invoice" /></label>
         <button onClick={exportCsv} className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-200 cursor-pointer">
@@ -531,9 +531,9 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
       {tab === 'returns' && !isAdmin && <p className="mt-2 text-[11px] font-semibold text-[#000000]">Returns recorded by staff wait for admin approval before stock and refunds are updated.</p>}
     </div>
 
-    <div className="rounded-2xl border border-black/10 bg-white shadow-sm flex flex-col">
-      <div className="overflow-x-auto overscroll-x-contain">
-        <table className="w-full text-left text-sm whitespace-nowrap">
+    <div className="rounded-xl border border-black/10 bg-white shadow-sm flex flex-col">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs">
           {tab === 'quotations' && <>
             {thead(['Quotation', 'Customer', 'Items', 'Total', 'Valid Until', 'Status', 'Actions'])}
             <tbody className="divide-y divide-black/5">
@@ -667,7 +667,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
 
     {/* ── New return / exchange ── */}
     {returnOpen && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
-      <form onSubmit={submitReturn} className="flex w-full max-w-2xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
+      <form onSubmit={submitReturn} className="flex w-full max-w-2xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-xl sm:rounded-xl bg-white shadow-2xl">
         <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
           <div><h3 className="text-xl font-black text-[#000000]">Return / Exchange</h3><p className="text-xs text-[#000000]">With or without the original invoice. The invoice itself is never changed.</p></div>
           <button type="button" onClick={() => setReturnOpen(false)} className="shrink-0 text-[#000000] hover:text-black"><X size={20} /></button>
@@ -756,7 +756,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
 
     {/* ── New counter old gold purchase ── */}
     {ogOpen && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
-      <form onSubmit={submitOldGold} className="flex w-full max-w-2xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
+      <form onSubmit={submitOldGold} className="flex w-full max-w-2xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-xl sm:rounded-xl bg-white shadow-2xl">
         <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
           <div><p className="text-[11px] font-black uppercase tracking-[.16em] text-[var(--accent-dark)]">Counter purchase · no bill</p><h3 className="text-xl font-black text-[#000000]">Buy Old Gold</h3><p className="text-xs text-[#000000]">Old gold given as part-payment on a bill is added in the Billing Panel instead.</p></div>
           <button type="button" onClick={() => setOgOpen(false)} className="shrink-0 text-[#000000] hover:text-black"><X size={20} /></button>
@@ -789,10 +789,10 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
             <Field label="Rate (₹/g)"><input type="number" min="0" step="0.01" className={inputClass} value={ogForm.exchangeRate} onChange={(e) => setOgForm((f) => ({ ...f, exchangeRate: e.target.value }))} placeholder={ogSuggestedRate ? String(ogSuggestedRate) : 'Rate'} /></Field>
             <Field label="Other ded. (₹)"><input type="number" min="0" step="0.01" className={inputClass} value={ogForm.otherDeduction} onChange={(e) => setOgForm((f) => ({ ...f, otherDeduction: e.target.value }))} placeholder="0" /></Field>
           </div>
-          <div className="sm:col-span-2 rounded-2xl bg-[var(--accent-a10)] p-3 text-[12px] font-bold text-[#000000] space-y-0.5">
+          <div className="sm:col-span-2 rounded-xl bg-[var(--accent-a10)] p-3 text-xs font-bold text-[#000000] space-y-0.5">
             <div className="flex justify-between"><span>Weight after melting loss</span><span>{ogPreview.effectiveWeight.toFixed(3)} g</span></div>
             <div className="flex justify-between"><span>@ {formatCurrency(ogRate)}/g{ogForm.exchangeRate.trim() === '' && ogSuggestedRate ? " (today's rate)" : ''}</span><span>{formatCurrency(ogPreview.grossValue)}</span></div>
-            <div className="flex justify-between text-[14px] font-black text-[#000000] pt-1 border-t border-[var(--accent-a30)]"><span>Value to customer</span><span>{formatCurrency(ogPreview.value)}</span></div>
+            <div className="flex justify-between text-sm font-black text-[#000000] pt-1 border-t border-[var(--accent-a30)]"><span>Value to customer</span><span>{formatCurrency(ogPreview.value)}</span></div>
           </div>
           <div className="sm:col-span-2 grid gap-2 sm:grid-cols-2">
             {([['paid', 'Pay the customer now', 'Cash / UPI / bank paid out today'], ['credit', 'Keep as store credit', 'Becomes an advance used on a later bill']] as const).map(([key, title, sub]) => (
@@ -817,7 +817,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
 
     {/* ── New advance ── */}
     {advanceOpen && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
-      <form onSubmit={submitAdvance} className="flex w-full max-w-lg max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
+      <form onSubmit={submitAdvance} className="flex w-full max-w-lg max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-xl sm:rounded-xl bg-white shadow-2xl">
         <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
           <div><h3 className="text-xl font-black text-[#000000]">New Advance</h3><p className="text-xs text-[#000000]">Customer money held for a later purchase. Adjusted in billing.</p></div>
           <button type="button" onClick={() => setAdvanceOpen(false)} className="shrink-0 text-[#000000] hover:text-black"><X size={20} /></button>
@@ -843,7 +843,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     </div></ModalPortal>}
 
     {advanceCreated && <ModalPortal><div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/55 p-4">
-      <div className="w-full max-w-md rounded-3xl bg-white p-6 text-center shadow-2xl">
+      <div className="w-full max-w-md rounded-xl bg-white p-6 text-center shadow-2xl">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl">✓</div>
         <p className="mt-4 text-[11px] font-black uppercase tracking-[.16em] text-emerald-600">Advance received</p>
         <h3 className="mt-1 text-2xl font-black text-[#000000]">{advanceCreated.receiptNumber}</h3>
@@ -858,7 +858,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
 
     {/* ── New repair ── */}
     {repairOpen && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
-      <form onSubmit={submitRepair} className="flex w-full max-w-2xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
+      <form onSubmit={submitRepair} className="flex w-full max-w-2xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-xl sm:rounded-xl bg-white shadow-2xl">
         <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
           <div><h3 className="text-xl font-black text-[#000000]">New Repair</h3><p className="text-xs text-[#000000]">A repair receipt prints when you save.</p></div>
           <button type="button" onClick={() => setRepairOpen(false)} className="shrink-0 text-[#000000] hover:text-black"><X size={20} /></button>
@@ -894,7 +894,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     </div></ModalPortal>}
 
     {repairEdit && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
-      <form onSubmit={submitRepairEdit} className="w-full max-w-md rounded-2xl sm:rounded-3xl bg-white p-5 shadow-2xl space-y-4">
+      <form onSubmit={submitRepairEdit} className="w-full max-w-md rounded-xl sm:rounded-xl bg-white p-5 shadow-2xl space-y-4">
         <div className="flex items-start justify-between"><div><p className="text-xs font-black text-[var(--accent-dark)]">{repairEdit.repairNumber}</p><h3 className="text-xl font-black text-[#000000]">Update Repair</h3></div><button type="button" onClick={() => setRepairEdit(null)}><X size={20} /></button></div>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Charge (₹)"><input type="number" min="0" step="0.01" className={inputClass} value={repairEditForm.charge} onChange={(e) => setRepairEditForm((f) => ({ ...f, charge: e.target.value }))} /></Field>

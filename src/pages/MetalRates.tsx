@@ -189,21 +189,21 @@ export default function MetalRates() {
 
     {/* Current rates */}
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-      <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm md:row-span-2">
+      <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm md:row-span-2">
         <div className="flex items-center justify-between mb-1">
           <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Gold</p>
           <div className="rounded-xl p-2 text-amber-700 bg-amber-50"><Gem size={18} /></div>
         </div>
         {GOLD_PURITIES.map((purity) => renderRateRow('gold', purity))}
       </div>
-      <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between mb-1">
           <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Silver</p>
           <div className="rounded-xl p-2 text-slate-600 bg-slate-100"><Gem size={18} /></div>
         </div>
         {renderRateRow('silver', STANDARD_PURITY)}
       </div>
-      <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between mb-1">
           <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Platinum</p>
           <div className="rounded-xl p-2 text-sky-700 bg-sky-50"><Gem size={18} /></div>
@@ -213,7 +213,7 @@ export default function MetalRates() {
     </div>
 
     {/* Rate history */}
-    <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
         <h3 className="flex items-center gap-2 text-sm font-black text-[#000000]"><History size={16} className="text-[var(--accent)]" /> Rate History</h3>
         <button onClick={exportHistory} disabled={!history.length} className="flex items-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-200 disabled:opacity-40 cursor-pointer">
@@ -246,13 +246,13 @@ export default function MetalRates() {
       </div>
     </div>
 
-    <div className="rounded-2xl border border-black/10 bg-white shadow-sm flex flex-col">
-      <div className="overflow-x-auto overscroll-x-contain">
-        <table className="w-full text-left text-sm whitespace-nowrap">
-          <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
+    <div className="rounded-xl border border-black/10 bg-white shadow-sm flex flex-col">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs">
+          <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
             <tr>
               {['Date & Time', 'Metal', 'Purity', 'Rate / g', 'Change', 'Updated By', 'Note'].map((h) => (
-                <th key={h} className="px-4 py-3.5 whitespace-nowrap">{h}</th>
+                <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>
               ))}
             </tr>
           </thead>
@@ -280,7 +280,7 @@ export default function MetalRates() {
     </div>
 
     {updateOpen && <ModalPortal><div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/55 p-3 sm:p-4">
-      <form onSubmit={reviewChanges} className="flex w-full max-w-lg max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
+      <form onSubmit={reviewChanges} className="flex w-full max-w-lg max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-xl sm:rounded-xl bg-white shadow-2xl">
         <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
           <div>
             <p className="text-xs font-black uppercase tracking-wider text-emerald-600">{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</p>

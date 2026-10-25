@@ -1407,9 +1407,9 @@ export default function Dashboard() {
 
   if (!isAdmin) return (
     <div className="min-h-screen bg-bgMain flex items-center justify-center p-4">
-      <div className="bg-white p-8 rounded-3xl shadow-xl text-center max-w-sm">
+      <div className="bg-white p-8 rounded-xl shadow-xl text-center max-w-sm">
         <AlertCircle className="mx-auto text-red-400 mb-4" size={48} />
-        <h2 className="text-2xl font-black mb-2">{l('Unauthorized', 'அன� மதி இல� லை')}</h2>
+        <h2 className="text-[28px] font-black text-[#000000] tracking-tight mb-2">{l('Unauthorized', 'அன� மதி இல� லை')}</h2>
         <Link to="/" className="px-6 py-3 bg-sageDark text-white rounded-xl font-bold inline-block mt-4">{l('Go Home', 'ம� கப� பிற� க� ')}</Link>
       </div>
     </div>
@@ -1547,6 +1547,7 @@ export default function Dashboard() {
             )}
             <h1 className="text-lg font-black text-[#000000] tracking-tight">{shopName}</h1>
           </div>
+          <div id="dashboard-header-actions" className={tab === 'billing' ? '' : 'hidden'} />
         </header>
         <div className="flex-1 w-full max-w-[1400px] mx-auto min-w-0">
 
@@ -1557,7 +1558,7 @@ export default function Dashboard() {
         {tab === 'overview' && (() => {
           const latestPOS = searchResults.slice(0, 10)
           return (
-          <div className="space-y-6 rounded-[28px] bg-[#0A0A0A] p-5 sm:p-6 lg:p-7 shadow-2xl border border-white/10 text-white">
+          <div className="space-y-6 rounded-xl bg-[#0A0A0A] p-5 sm:p-6 lg:p-7 shadow-2xl border border-white/10 text-white">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-black text-[#000000]">{l('Analytics Dashboard', 'பகுப்பாய்வு தட்டு')}</h2>
               <div className="flex items-center gap-2">
@@ -1623,7 +1624,7 @@ export default function Dashboard() {
             </div>
 
             {/* Latest POS Bills */}
-            <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+            <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-base font-black text-[#000000]">{l('Latest POS Bills', 'POS பில்கள்')}</h3>
                 <button onClick={() => setTab('billing')} className="text-[12px] font-bold text-[#10B981] hover:underline">{l('View All →', 'அனைத்தும் →')}</button>
@@ -1637,13 +1638,13 @@ export default function Dashboard() {
                       <div key={o.id} className="px-3 py-2.5">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="font-semibold text-[#000000] text-[12px] break-words">{o.customer_name}</p>
+                            <p className="font-semibold text-[#000000] text-xs break-words">{o.customer_name}</p>
                             <p className="text-[11px] text-[#000000] mt-0.5 break-words">
                               {formatInvoiceNo(o.invoice_no)}{' · '}{btLabel}{' · '}{new Date(o.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                             </p>
                           </div>
                           <div className="shrink-0 text-right">
-                            <p className="font-black text-[#000000] text-[12px]">{formatCurrency(getOrderTotal(o))}</p>
+                            <p className="font-black text-[#000000] text-xs">{formatCurrency(getOrderTotal(o))}</p>
                             <span className={`inline-block mt-1 text-[10px] font-black px-2 py-0.5 rounded-lg ${normalizeStatus(o.status) === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                               {normalizeStatus(o.status)}
                             </span>
@@ -1654,15 +1655,15 @@ export default function Dashboard() {
                   })}
                 </div>
                 <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
-                  <table className="w-full min-w-[480px] text-[12px]">
-                    <thead className="bg-white text-[10px] uppercase tracking-wider text-[#000000]">
+                  <table className="w-full text-xs">
+                    <thead className="text-[10px] uppercase tracking-wider text-[#000000] bg-[#F9FAFB]">
                       <tr>
-                        <th className="px-3 py-2.5 font-black text-left">{l('Invoice', 'பில்')}</th>
-                        <th className="px-3 py-2.5 font-black text-left">{l('Customer', 'வாடிக்கையாளர்')}</th>
-                        <th className="px-3 py-2.5 font-black text-left">{l('Total', 'மொத்தம்')}</th>
-                        <th className="px-3 py-2.5 font-black text-left">{l('Date', 'தேதி')}</th>
-                        <th className="px-3 py-2.5 font-black text-left">{l('Type', 'வகை')}</th>
-                        <th className="px-3 py-2.5 font-black text-left">{l('Status', 'நிலை')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Invoice', 'பில்')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Customer', 'வாடிக்கையாளர்')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Total', 'மொத்தம்')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Date', 'தேதி')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Type', 'வகை')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Status', 'நிலை')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-black/5">
@@ -1671,12 +1672,12 @@ export default function Dashboard() {
                         const btClass = normalizeOrderType(o.order_type) === 'manual_sale' ? 'bg-purple-100 text-purple-700' : normalizeOrderMode(o.order_mode) === 'online' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
                         return (
                           <tr key={o.id} className="hover:bg-black/[0.03]">
-                            <td className="px-3 py-2.5 font-bold text-[#10B981] text-[11px]">{formatInvoiceNo(o.invoice_no)}</td>
-                            <td className="px-3 py-2.5 font-semibold text-[#000000] max-w-[100px] break-words">{o.customer_name}</td>
-                            <td className="px-3 py-2.5 font-black text-[#000000]">{formatCurrency(getOrderTotal(o))}</td>
-                            <td className="px-3 py-2.5 text-[#000000] whitespace-nowrap">{new Date(o.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
-                            <td className="px-3 py-2.5"><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${btClass}`}>{btLabel}</span></td>
-                            <td className="px-3 py-2.5">
+                            <td className="px-4 py-2.5 font-bold text-[#10B981] text-[11px]">{formatInvoiceNo(o.invoice_no)}</td>
+                            <td className="px-4 py-2.5 font-semibold text-[#000000] max-w-[100px] break-words">{o.customer_name}</td>
+                            <td className="px-4 py-2.5 font-black text-[#000000]">{formatCurrency(getOrderTotal(o))}</td>
+                            <td className="px-4 py-2.5 text-[#000000]">{new Date(o.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</td>
+                            <td className="px-4 py-2.5"><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${btClass}`}>{btLabel}</span></td>
+                            <td className="px-4 py-2.5">
                               <span className={`text-[11px] font-black px-2 py-0.5 rounded-lg ${normalizeStatus(o.status) === 'completed' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                                 {normalizeStatus(o.status)}
                               </span>
@@ -1689,7 +1690,7 @@ export default function Dashboard() {
                 </div>
                 </>
               ) : (
-                <p className="text-[13px] text-[#000000] text-center py-4">{l('No bills yet', 'பில்கள் இல்லை')}</p>
+                <p className="text-xs text-[#000000] text-center py-4">{l('No bills yet', 'பில்கள் இல்லை')}</p>
               )}
             </div>
             </>
@@ -1697,33 +1698,33 @@ export default function Dashboard() {
 
             {analyticsTab === 'product' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm">
                   <h3 className="text-base font-black text-[#000000] mb-4">Top Products by Volume</h3>
                   <div className="space-y-3">
                     {analytics.topProducts.slice(0, 10).map((p, i) => (
                       <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl">
                         <div>
-                          <p className="text-[13px] font-bold text-[#000000]">{p.name}</p>
+                          <p className="text-xs font-bold text-[#000000]">{p.name}</p>
                           <p className="text-[11px] text-[#000000]">{p.billCount} bills</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-[14px] font-black text-[#000000]">{p.qty}</p>
+                          <p className="text-sm font-black text-[#000000]">{p.qty}</p>
                           <p className="text-[11px] font-bold text-[#10B981]">{formatCurrency(p.revenue)}</p>
                         </div>
                       </div>
                     ))}
                   </div>
                 </div>
-                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm">
                   <h3 className="text-base font-black text-[#000000] mb-4">Top Categories by Revenue</h3>
                   <div className="space-y-3">
                     {analytics.topCategories.slice(0, 10).map((c, i) => (
                       <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl">
                         <div>
-                          <p className="text-[13px] font-bold text-[#000000]">{c.name}</p>
+                          <p className="text-xs font-bold text-[#000000]">{c.name}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-[14px] font-black text-[#000000]">{formatCurrency(c.revenue)}</p>
+                          <p className="text-sm font-black text-[#000000]">{formatCurrency(c.revenue)}</p>
                           <p className="text-[11px] text-[#000000]">{c.qty} sold</p>
                         </div>
                       </div>
@@ -1735,21 +1736,21 @@ export default function Dashboard() {
 
             {analyticsTab === 'inventory' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm">
                   <h3 className="text-base font-black text-[#000000] mb-4">Low Stock Alerts</h3>
                   <div className="space-y-3">
                     {products.filter(p => p.stock <= lowStockLimit(p.lowStockAlert)).slice(0, 10).map((p, i) => (
                       <div key={i} className="flex justify-between items-center bg-red-50 border border-red-100 p-3 rounded-xl">
-                        <p className="text-[13px] font-bold text-red-900">{p.name}</p>
-                        <p className="text-[14px] font-black text-red-700">{p.stock} left</p>
+                        <p className="text-xs font-bold text-red-900">{p.name}</p>
+                        <p className="text-sm font-black text-red-700">{p.stock} left</p>
                       </div>
                     ))}
                     {products.filter(p => p.stock <= lowStockLimit(p.lowStockAlert)).length === 0 && (
-                      <p className="text-[13px] text-[#000000]">No low stock alerts.</p>
+                      <p className="text-xs text-[#000000]">No low stock alerts.</p>
                     )}
                   </div>
                 </div>
-                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm">
                   <h3 className="text-base font-black text-[#000000] mb-4">Total Inventory Value</h3>
                   <div className="bg-white p-5 rounded-xl">
                     <p className="text-[11px] uppercase tracking-wider font-bold text-[#000000] mb-1">Selling Value (MRP)</p>
@@ -1763,7 +1764,7 @@ export default function Dashboard() {
 
             {analyticsTab === 'customer' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm">
                   <h3 className="text-base font-black text-[#000000] mb-4">Customer Insights</h3>
                   <div className="bg-blue-50 border border-blue-100 p-5 rounded-xl mb-4">
                     <p className="text-[11px] uppercase tracking-wider font-bold text-blue-800 mb-1">Unique Customers</p>
@@ -1783,31 +1784,31 @@ export default function Dashboard() {
 
             {analyticsTab === 'billing' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm">
                   <h3 className="text-base font-black text-[#000000] mb-4">Billing Metrics</h3>
                   <div className="space-y-4">
                     <div className="bg-white p-4 rounded-xl flex justify-between items-center">
-                      <span className="text-[13px] font-bold text-[#000000]">Total Invoices Generated</span>
+                      <span className="text-xs font-bold text-[#000000]">Total Invoices Generated</span>
                       <span className="text-[16px] font-black text-[#000000]">{searchResults.length}</span>
                     </div>
                     <div className="bg-white p-4 rounded-xl flex justify-between items-center">
-                      <span className="text-[13px] font-bold text-[#000000]">Discounts Applied</span>
+                      <span className="text-xs font-bold text-[#000000]">Discounts Applied</span>
                       <span className="text-[16px] font-black text-[#10B981]">
                         {formatCurrency(searchResults.reduce((acc, o) => acc + (toNumber(o.discount_amount, 0)), 0))}
                       </span>
                     </div>
                   </div>
                 </div>
-                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm">
                   <h3 className="text-base font-black text-[#000000] mb-4">Top Coupons</h3>
                   <div className="space-y-3">
                     {analytics.topCoupons.slice(0, 5).map((c, i) => (
                       <div key={i} className="flex justify-between items-center bg-white p-3 rounded-xl">
-                        <span className="text-[13px] font-bold text-[#000000]">{c.code}</span>
-                        <span className="text-[12px] font-bold text-[#10B981]">{c.usage} uses</span>
+                        <span className="text-xs font-bold text-[#000000]">{c.code}</span>
+                        <span className="text-xs font-bold text-[#10B981]">{c.usage} uses</span>
                       </div>
                     ))}
-                    {analytics.topCoupons.length === 0 && <p className="text-[13px] text-[#000000]">No coupons used yet.</p>}
+                    {analytics.topCoupons.length === 0 && <p className="text-xs text-[#000000]">No coupons used yet.</p>}
                   </div>
                 </div>
               </div>
@@ -1824,7 +1825,7 @@ export default function Dashboard() {
               <div className="flex items-center gap-3">
                 <h2 className="text-xl font-black text-[#000000]">{l('WhatsApp Center', 'வாட்ஸ் அப் மையம்')}</h2>
                 {analytics.waPending > 0 && (
-                  <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[12px] font-black animate-pulse">
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-black animate-pulse">
                     {analytics.waPending} {l('pending', 'நிலுவை')}
                   </span>
                 )}
@@ -1862,14 +1863,14 @@ export default function Dashboard() {
             </div>
 
             {/* ═══ CUSTOMER REQUEST MANAGEMENT - PRIMARY SECTION ═══ */}
-            <div className="bg-white rounded-2xl border border-blue-200 shadow-sm">
+            <div className="bg-white rounded-xl border border-blue-200 shadow-sm">
               <div className="flex items-center justify-between px-5 py-4 border-b border-blue-100">
                 <div className="flex items-center gap-2">
                   <MessageCircle size={17} className="text-blue-600" />
                   <h3 className="text-base font-black text-[#000000]">{l('Customer Requests', 'வாடிக்கையாளர் கோரிக்கைகள்')}</h3>
                   <span className="text-[10px] font-bold text-[#9BAB9A] bg-white px-2 py-0.5 rounded-full">{l('RM0 revenue - status updates only', 'RM0 வருவாய் - நிலை மட்டும்')}</span>
                 </div>
-                <span className="text-[12px] text-[#000000] font-bold">{analytics.onlineRequestOrders.length} {l('requests', 'கோரிக்கைகள்')}</span>
+                <span className="text-xs text-[#000000] font-bold">{analytics.onlineRequestOrders.length} {l('requests', 'கோரிக்கைகள்')}</span>
               </div>
 
               {analytics.onlineRequestOrders.length > 0 ? (
@@ -1903,13 +1904,13 @@ export default function Dashboard() {
                       <div key={order.id} className={`p-3 space-y-2.5 ${isExpanded ? 'bg-blue-50/30' : ''}`}>
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="font-bold text-[#000000] text-[13px] break-words">{order.customer_name || '-'}</p>
+                            <p className="font-bold text-[#000000] text-xs break-words">{order.customer_name || '-'}</p>
                             <p className="text-[11px] text-[#000000] mt-0.5 break-words">
                               {[order.phone, order.address, new Date(order.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })].filter(Boolean).join(' · ')}
                             </p>
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="font-black text-[#000000] text-[13px]">{formatCurrency(getOrderTotal(order))}</p>
+                            <p className="font-black text-[#000000] text-xs">{formatCurrency(getOrderTotal(order))}</p>
                             <p className="text-[10px] text-[#000000] font-bold">{its.length} {l('items', 'பொருட்கள்')}</p>
                           </div>
                         </div>
@@ -1971,10 +1972,10 @@ export default function Dashboard() {
                                   return (
                                     <div key={idx} className="px-3 py-2 flex items-center justify-between gap-2">
                                       <div className="min-w-0">
-                                        <p className="font-bold text-[#000000] text-[12px] break-words">{prodName}</p>
+                                        <p className="font-bold text-[#000000] text-xs break-words">{prodName}</p>
                                         <p className="text-[10px] text-[#000000] mt-0.5">{[variant, sizeLabel, formatCurrency(basePrice)].filter(Boolean).join(' · ')}</p>
                                       </div>
-                                      <p className="font-black text-[#000000] text-[12px] shrink-0">{formatCurrency(lineTotal)}</p>
+                                      <p className="font-black text-[#000000] text-xs shrink-0">{formatCurrency(lineTotal)}</p>
                                     </div>
                                   )
                                 })}
@@ -2004,17 +2005,17 @@ export default function Dashboard() {
                   })}
                 </div>
                 <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full text-[12px] min-w-[820px]">
-                    <thead className="bg-blue-50 border-b border-blue-100 sticky top-0 z-10">
+                  <table className="w-full text-xs">
+                    <thead className="border-b border-blue-100 sticky top-0 z-10 bg-[#F9FAFB]">
                       <tr className="text-left text-[#000000] font-black text-[10px] uppercase tracking-wider">
-                        <th className="px-4 py-3">{l('Customer', 'வாடிக்கையாளர்')}</th>
-                        <th className="px-4 py-3">{l('Phone', 'தொலைபேசி')}</th>
-                        <th className="px-4 py-3">{l('Address', 'முகவரி')}</th>
-                        <th className="px-4 py-3 text-center">{l('Products', 'பொருட்கள்')}</th>
-                        <th className="px-4 py-3">{l('Est. Total', 'மதிப்பீடு')}</th>
-                        <th className="px-4 py-3">{l('Date & Time', 'தேதி & நேரம்')}</th>
-                        <th className="px-4 py-3">{l('Status', 'நிலை')}</th>
-                        <th className="px-4 py-3 text-center">{l('Details', 'விவரம்')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Customer', 'வாடிக்கையாளர்')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Phone', 'தொலைபேசி')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Address', 'முகவரி')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center">{l('Products', 'பொருட்கள்')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Est. Total', 'மதிப்பீடு')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Date & Time', 'தேதி & நேரம்')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Status', 'நிலை')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center">{l('Details', 'விவரம்')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-blue-50">
@@ -2046,8 +2047,8 @@ export default function Dashboard() {
                         return (
                           <React.Fragment key={order.id}>
                             <tr className={`hover:bg-blue-50/40 align-middle ${isExpanded ? 'bg-blue-50/30' : ''}`}>
-                              <td className="px-4 py-3 font-bold text-[#000000] whitespace-nowrap">{order.customer_name || '-'}</td>
-                              <td className="px-4 py-3 text-[#000000] whitespace-nowrap text-[12px]">
+                              <td className="px-4 py-3 font-bold text-[#000000]">{order.customer_name || '-'}</td>
+                              <td className="px-4 py-3 text-[#000000] text-xs">
                                 <span className="font-semibold text-[#000000]">{formatPhoneWithCountryCode(order.phone).code}</span>
                                 <span className="ml-1">{formatPhoneWithCountryCode(order.phone).number}</span>
                               </td>
@@ -2056,7 +2057,7 @@ export default function Dashboard() {
                                 <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-blue-100 text-blue-700 text-[11px] font-black">{its.length}</span>
                               </td>
                               <td className="px-4 py-3 font-black text-[#000000]">{formatCurrency(getOrderTotal(order))}</td>
-                              <td className="px-4 py-3 text-[#000000] whitespace-nowrap text-[11px]">
+                              <td className="px-4 py-3 text-[#000000] text-[11px]">
                                 <div>{new Date(order.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</div>
                                 <div className="text-[10px]">{new Date(order.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</div>
                               </td>
@@ -2099,7 +2100,7 @@ export default function Dashboard() {
                                 <td colSpan={8} className="px-4 pb-5 pt-2 bg-blue-50/40">
                                   <div className="space-y-4">
                                     {/* Customer info bar */}
-                                    <div className="flex flex-wrap gap-4 text-[12px] bg-white rounded-xl p-3 border border-blue-100">
+                                    <div className="flex flex-wrap gap-4 text-xs bg-white rounded-xl p-3 border border-blue-100">
                                       <div><span className="font-black text-[#000000]">{l('Name', 'பெயர்')}: </span><span className="font-bold text-[#000000]">{order.customer_name || '-'}</span></div>
                                       <div><span className="font-black text-[#000000]">{l('Phone', 'தொலைபேசி')}: </span><span className="font-bold text-[#000000]">{order.phone || '-'}</span></div>
                                       <div className="flex-1"><span className="font-black text-[#000000]">{l('Address', 'முகவரி')}: </span><span className="text-[#000000]">{order.address || '-'}</span></div>
@@ -2114,15 +2115,15 @@ export default function Dashboard() {
                                     {/* Items table */}
                                     {its.length > 0 && (
                                       <div className="overflow-x-auto">
-                                        <table className="w-full text-[12px] min-w-[540px] bg-white rounded-xl overflow-hidden border border-blue-100">
-                                          <thead className="bg-white">
+                                        <table className="w-full bg-white rounded-xl overflow-hidden border border-blue-100 text-xs">
+                                          <thead className="bg-[#F9FAFB]">
                                             <tr className="text-left text-[#000000] font-black text-[10px] uppercase tracking-wider">
-                                              <th className="px-4 py-2.5">{l('Product', 'பொருள்')}</th>
-                                              <th className="px-4 py-2.5">{l('Variant', 'வகைப்படி')}</th>
-                                              <th className="px-4 py-2.5">{l('Size / Weight', 'அளவு / எடை')}</th>
-                                              <th className="px-4 py-2.5 text-center">{l('Qty', 'அளவு')}</th>
-                                              <th className="px-4 py-2.5">{l('Unit Price', 'ஒரு விலை')}</th>
-                                              <th className="px-4 py-2.5 text-right">{l('Line Total', 'வரி மொத்தம்')}</th>
+                                              <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Product', 'பொருள்')}</th>
+                                              <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Variant', 'வகைப்படி')}</th>
+                                              <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Size / Weight', 'அளவு / எடை')}</th>
+                                              <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center">{l('Qty', 'அளவு')}</th>
+                                              <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Unit Price', 'ஒரு விலை')}</th>
+                                              <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-right">{l('Line Total', 'வரி மொத்தம்')}</th>
                                             </tr>
                                           </thead>
                                           <tbody className="divide-y divide-black/5">
@@ -2192,7 +2193,7 @@ export default function Dashboard() {
               ) : (
                 <div className="px-5 py-12 text-center">
                   <MessageCircle size={40} className="mx-auto text-blue-200 mb-3" />
-                  <p className="text-[14px] font-bold text-[#000000]">{l('No WhatsApp requests in selected period', 'தேர்ந்த காலத்தில் WA கோரிக்கை இல்லை')}</p>
+                  <p className="text-sm font-bold text-[#000000]">{l('No WhatsApp requests in selected period', 'தேர்ந்த காலத்தில் WA கோரிக்கை இல்லை')}</p>
                 </div>
               )}
             </div>
@@ -2200,8 +2201,8 @@ export default function Dashboard() {
             {/* ——— ANALYTICS - secondary, compact, bottom ——— */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* Top Requested Products */}
-              <div className="bg-white rounded-2xl border border-black/10 p-4 shadow-sm">
-                <h3 className="text-[13px] font-black text-[#000000] mb-3">{l('Top Requested Products', 'அதிக தேவை')}</h3>
+              <div className="bg-white rounded-xl border border-black/10 p-4 shadow-sm">
+                <h3 className="text-xs font-black text-[#000000] mb-3">{l('Top Requested Products', 'அதிக தேவை')}</h3>
                 {analytics.topWAProducts.length > 0 ? (
                   <div className="space-y-1.5">
                     {analytics.topWAProducts.slice(0, 6).map((item, i) => (
@@ -2213,13 +2214,13 @@ export default function Dashboard() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-[12px] text-[#9BAB9A] text-center py-3">{l('No data', 'தரவு இல்லை')}</p>
+                  <p className="text-xs text-[#9BAB9A] text-center py-3">{l('No data', 'தரவு இல்லை')}</p>
                 )}
               </div>
 
               {/* Top Requested Categories */}
-              <div className="bg-white rounded-2xl border border-black/10 p-4 shadow-sm">
-                <h3 className="text-[13px] font-black text-[#000000] mb-3">{l('Top Categories', 'வகைகள்')}</h3>
+              <div className="bg-white rounded-xl border border-black/10 p-4 shadow-sm">
+                <h3 className="text-xs font-black text-[#000000] mb-3">{l('Top Categories', 'வகைகள்')}</h3>
                 {analytics.topWACategories.length > 0 ? (
                   <div className="space-y-1.5">
                     {analytics.topWACategories.slice(0, 6).map((cat, i) => (
@@ -2231,13 +2232,13 @@ export default function Dashboard() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-[12px] text-[#9BAB9A] text-center py-3">{l('No data', 'தரவு இல்லை')}</p>
+                  <p className="text-xs text-[#9BAB9A] text-center py-3">{l('No data', 'தரவு இல்லை')}</p>
                 )}
               </div>
 
               {/* Status Distribution - compact bar */}
-              <div className="bg-white rounded-2xl border border-black/10 p-4 shadow-sm">
-                <h3 className="text-[13px] font-black text-[#000000] mb-3">{l('Status Distribution', 'நிலை விளக்கம்')}</h3>
+              <div className="bg-white rounded-xl border border-black/10 p-4 shadow-sm">
+                <h3 className="text-xs font-black text-[#000000] mb-3">{l('Status Distribution', 'நிலை விளக்கம்')}</h3>
                 <div className="h-[144px] w-full min-w-0 relative">
                   <ResponsiveContainer width="100%" height={144} minWidth={0} minHeight={0}>
                     <BarChart data={analytics.statusDistribution} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
@@ -2263,8 +2264,8 @@ export default function Dashboard() {
           <div className="space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h2 className="text-[24px] font-black text-[#000000] tracking-tight">POS Analytics</h2>
-                <p className="text-[13px] text-[#000000]">Real time store & channel intelligence</p>
+                <h2 className="text-[28px] font-black text-[#000000] tracking-tight">POS Analytics</h2>
+                <p className="text-xs text-[#000000]">Real time store & channel intelligence</p>
               </div>
 
               {/* Export Actions */}
@@ -2449,7 +2450,7 @@ export default function Dashboard() {
                       bg: 'bg-pink-50',
                     },
                   ].map((card, index) => (
-                    <div key={index} className="bg-white rounded-card border border-borderLight p-5 sm:p-5 shadow-soft flex flex-col justify-between hover:shadow-md transition-shadow">
+                    <div key={index} className="bg-white rounded-xl border border-black/10 p-5 sm:p-5 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
                       <div>
                         <div className="flex items-start justify-between gap-2 mb-3">
                           <p className="text-[11px] font-bold text-[#000000]">{card.label}</p>
@@ -2466,7 +2467,7 @@ export default function Dashboard() {
                           )}
                         </div>
                       </div>
-                      <p className="text-[12px] text-[#000000] leading-snug" title={card.helper}>{card.helper}</p>
+                      <p className="text-xs text-[#000000] leading-snug" title={card.helper}>{card.helper}</p>
                     </div>
                   ))}
                 </div>
@@ -2519,11 +2520,11 @@ export default function Dashboard() {
                     })()}
                   </div>
                   <div className="space-y-6">
-                    <div className="bg-white rounded-card border border-borderLight p-6 shadow-soft">
+                    <div className="bg-white rounded-xl border border-black/10 p-6 shadow-sm">
                       <h3 className="text-[16px] font-bold text-[#000000] mb-6">Order Source</h3>
                       <div className="space-y-4">
                         <div>
-                          <div className="flex justify-between text-[12px] font-bold mb-2">
+                          <div className="flex justify-between text-xs font-bold mb-2">
                             <span className="text-[#000000] uppercase">Offline</span>
                             <span className="text-[#000000]">{analytics.completedOrders}</span>
                           </div>
@@ -2532,7 +2533,7 @@ export default function Dashboard() {
                           </div>
                         </div>
                         <div>
-                          <div className="flex justify-between text-[12px] font-bold mb-2">
+                          <div className="flex justify-between text-xs font-bold mb-2">
                             <span className="text-[#000000] uppercase">Online</span>
                             <span className="text-[#000000]">0</span>
                           </div>
@@ -2543,11 +2544,11 @@ export default function Dashboard() {
                       </div>
                     </div>
 
-                    <div className="bg-white rounded-card border border-borderLight p-6 shadow-soft">
+                    <div className="bg-white rounded-xl border border-black/10 p-6 shadow-sm">
                       <h3 className="text-[16px] font-bold text-[#000000] mb-4">Top Items by Revenue</h3>
                       <div className="space-y-3">
                         {analytics.topProducts.slice(0, 3).map((p, i) => (
-                          <div key={i} className="flex items-center justify-between gap-3 text-[13px]">
+                          <div key={i} className="flex items-center justify-between gap-3 text-xs">
                             <div className="flex items-center gap-3 min-w-0 flex-1">
                               <span className="font-bold text-[#000000] w-4 shrink-0">{i + 1}</span>
                               <span className="font-bold text-[#000000] truncate" title={p.name}>{p.name}</span>
@@ -2601,28 +2602,28 @@ export default function Dashboard() {
                     })()}
                   </div>
 
-                  <div className="bg-white rounded-card border border-borderLight p-6 shadow-soft">
+                  <div className="bg-white rounded-xl border border-black/10 p-6 shadow-sm">
                     <h3 className="text-[16px] font-bold text-[#000000] mb-4">Top Products This Week</h3>
                     {analytics.topProducts.length === 0 ? (
-                      <p className="text-[13px] text-[#000000]">No completed product sales yet.</p>
+                      <p className="text-xs text-[#000000]">No completed product sales yet.</p>
                     ) : (
                       <div className="overflow-x-auto rounded-xl border border-[#F0EEE9]">
-                        <table className="w-full text-left text-sm">
-                          <thead className="bg-white text-[10px] font-bold uppercase tracking-widest text-[#000000]">
+                        <table className="w-full text-left text-xs">
+                          <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
                             <tr>
-                              <th className="px-3 py-2.5">Product</th>
-                              <th className="px-3 py-2.5 text-right">Bills</th>
-                              <th className="px-3 py-2.5 text-right">Qty</th>
-                              <th className="px-3 py-2.5 text-right">Amount</th>
+                              <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Product</th>
+                              <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-right">Bills</th>
+                              <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-right">Qty</th>
+                              <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-right">Amount</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-black/5">
                             {analytics.topProducts.slice(0, 5).map((p, i) => (
                               <tr key={`${p.name}-${i}`}>
-                                <td className="max-w-[160px] whitespace-normal break-words px-3 py-2.5 text-[13px] font-bold text-[#000000]">{p.name}</td>
-                                <td className="px-3 py-2.5 text-right text-[12px] text-[#000000]">{p.billCount}</td>
-                                <td className="px-3 py-2.5 text-right text-[13px] font-black text-[#000000]">{Math.round(p.qty)}</td>
-                                <td className="px-3 py-2.5 text-right text-[12px] font-bold text-[#10B981]">{formatCurrency(p.revenue)}</td>
+                                <td className="max-w-[160px] whitespace-normal break-words px-4 py-2.5 text-xs font-bold text-[#000000]">{p.name}</td>
+                                <td className="px-4 py-2.5 text-right text-xs text-[#000000]">{p.billCount}</td>
+                                <td className="px-4 py-2.5 text-right text-xs font-black text-[#000000]">{Math.round(p.qty)}</td>
+                                <td className="px-4 py-2.5 text-right text-xs font-bold text-[#10B981]">{formatCurrency(p.revenue)}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -2645,10 +2646,10 @@ export default function Dashboard() {
                     { label: "ITEMS SOLD", value: String(Math.round(analytics.todayItemsSold)), icon: <Package size={20} className="text-purple-700" />, bg: 'bg-purple-50', border: 'border-purple-100' },
                     { label: "AVG ORDER VALUE", value: formatCurrency(analytics.todayAvgOrderValue), icon: <Trophy size={20} className="text-amber-700" />, bg: 'bg-amber-50', border: 'border-amber-100' },
                   ].map((card, i) => (
-                    <div key={i} className="bg-white rounded-2xl border border-gray-200/80 p-4 sm:p-5 shadow-sm hover:shadow-md transition-shadow flex items-center justify-between gap-4">
+                    <div key={i} className="bg-white rounded-xl border border-gray-200/80 p-4 sm:p-5 shadow-sm hover:shadow-md transition-shadow flex items-center justify-between gap-4">
                       <div className="min-w-0 flex-1">
                         <p className="text-[11px] font-extrabold uppercase tracking-wider text-gray-500 mb-1">{card.label}</p>
-                        <p className="text-[15px] sm:text-[24px] font-black text-[#000000] leading-tight break-words">{card.value}</p>
+                        <p className="text-sm sm:text-[24px] font-black text-[#000000] leading-tight break-words">{card.value}</p>
                       </div>
                       <div className={`w-11 h-11 rounded-2xl ${card.bg} border ${card.border} flex items-center justify-center shrink-0 shadow-xs`}>
                         {card.icon}
@@ -2658,28 +2659,28 @@ export default function Dashboard() {
                 </div>
 
                 {/* Top products today */}
-                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
-                  <h3 className="text-[15px] font-bold text-[#000000] mb-4">Top Products Today</h3>
+                <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm">
+                  <h3 className="text-sm font-bold text-[#000000] mb-4">Top Products Today</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     {analytics.todayTopProducts.map((p, i) => (
                       <div key={i} className="flex items-center justify-between bg-white p-3 rounded-xl border border-black/10">
                         <div className="min-w-0 flex-1">
-                          <p className="text-[13px] font-bold text-[#000000] break-words">{p.name}</p>
+                          <p className="text-xs font-bold text-[#000000] break-words">{p.name}</p>
                           <p className="text-[11px] text-[#000000]">{Math.round(p.qty)} sold</p>
                         </div>
-                        <p className="text-[13px] font-black text-[#10B981] ml-2">{formatCurrency(p.revenue)}</p>
+                        <p className="text-xs font-black text-[#10B981] ml-2">{formatCurrency(p.revenue)}</p>
                       </div>
                     ))}
                     {analytics.todayTopProducts.length === 0 && (
-                      <p className="col-span-full text-center text-[13px] text-[#000000] py-6">No products sold yet today.</p>
+                      <p className="col-span-full text-center text-xs text-[#000000] py-6">No products sold yet today.</p>
                     )}
                   </div>
                 </div>
 
                 {/* Today's latest bills */}
-                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm">
                   <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-[15px] font-bold text-[#000000]">Today's Bills</h3>
+                    <h3 className="text-sm font-bold text-[#000000]">Today's Bills</h3>
                     <span className="text-[11px] font-bold text-[#10B981]">{analytics.todayCompletedOrdersCount} orders</span>
                   </div>
                   <div className="mb-3">
@@ -2702,12 +2703,12 @@ export default function Dashboard() {
                           <div key={o.id} className="px-3 py-2.5">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="font-semibold text-[#000000] text-[12px] break-words">{o.customer_name}</p>
+                                <p className="font-semibold text-[#000000] text-xs break-words">{o.customer_name}</p>
                                 <p className="text-[11px] text-[#000000] mt-0.5 break-words">
                                   {formatInvoiceNo(o.invoice_no)}{' · '}{btLabel}{' · '}{new Date(o.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                                 </p>
                               </div>
-                              <p className="shrink-0 font-black text-[#000000] text-[12px]">{formatCurrency(getOrderTotal(o))}</p>
+                              <p className="shrink-0 font-black text-[#000000] text-xs">{formatCurrency(getOrderTotal(o))}</p>
                             </div>
                             <button onClick={() => void openOrderInvoice(o, 'view')} className="mt-2 inline-flex items-center gap-1 rounded-lg border border-black/10 px-2.5 py-1.5 text-[11px] font-black text-[#000000] hover:bg-black/[0.03]" title="View Invoice">
                               <Eye size={13} /> View Invoice
@@ -2717,15 +2718,15 @@ export default function Dashboard() {
                       })}
                     </div>
                     <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
-                      <table className="w-full min-w-[480px] text-[12px]">
-                        <thead className="bg-white text-[10px] uppercase tracking-wider text-[#000000]">
+                      <table className="w-full text-xs">
+                        <thead className="text-[10px] uppercase tracking-wider text-[#000000] bg-[#F9FAFB]">
                           <tr>
-                            <th className="px-3 py-2.5 font-black text-left">Invoice</th>
-                            <th className="px-3 py-2.5 font-black text-left">Customer</th>
-                            <th className="px-3 py-2.5 font-black text-left">Total</th>
-                            <th className="px-3 py-2.5 font-black text-left">Time</th>
-                            <th className="px-3 py-2.5 font-black text-left">Type</th>
-                            <th className="px-3 py-2.5 font-black text-left">Actions</th>
+                            <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Invoice</th>
+                            <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Customer</th>
+                            <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Total</th>
+                            <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Time</th>
+                            <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Type</th>
+                            <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Actions</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-black/5">
@@ -2734,12 +2735,12 @@ export default function Dashboard() {
                             const btClass = normalizeOrderType(o.order_type) === 'manual_sale' ? 'bg-purple-100 text-purple-700' : normalizeOrderMode(o.order_mode) === 'online' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'
                             return (
                               <tr key={o.id} className="hover:bg-black/[0.03]">
-                                <td className="px-3 py-2.5 font-bold text-[#10B981] text-[11px]">{formatInvoiceNo(o.invoice_no)}</td>
-                                <td className="px-3 py-2.5 font-semibold text-[#000000] max-w-[100px] break-words">{o.customer_name}</td>
-                                <td className="px-3 py-2.5 font-black text-[#000000]">{formatCurrency(getOrderTotal(o))}</td>
-                                <td className="px-3 py-2.5 text-[#000000] whitespace-nowrap">{new Date(o.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td>
-                                <td className="px-3 py-2.5"><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${btClass}`}>{btLabel}</span></td>
-                                <td className="px-3 py-2.5">
+                                <td className="px-4 py-2.5 font-bold text-[#10B981] text-[11px]">{formatInvoiceNo(o.invoice_no)}</td>
+                                <td className="px-4 py-2.5 font-semibold text-[#000000] max-w-[100px] break-words">{o.customer_name}</td>
+                                <td className="px-4 py-2.5 font-black text-[#000000]">{formatCurrency(getOrderTotal(o))}</td>
+                                <td className="px-4 py-2.5 text-[#000000]">{new Date(o.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</td>
+                                <td className="px-4 py-2.5"><span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${btClass}`}>{btLabel}</span></td>
+                                <td className="px-4 py-2.5">
                                   <button onClick={() => void openOrderInvoice(o, 'view')} className="inline-flex items-center gap-1 rounded-lg border border-black/10 px-2 py-1.5 text-[11px] font-black text-[#000000] hover:bg-black/[0.03]" title="View Invoice">
                                     <Eye size={13} /> View Invoice
                                   </button>
@@ -2752,7 +2753,7 @@ export default function Dashboard() {
                     </div>
                     </>
                   ) : (
-                    <p className="text-[13px] text-[#000000] text-center py-4">{todayBillsSearch ? 'No bills match your search.' : 'No bills yet today.'}</p>
+                    <p className="text-xs text-[#000000] text-center py-4">{todayBillsSearch ? 'No bills match your search.' : 'No bills yet today.'}</p>
                   )})()}
                 </div>
               </div>
@@ -2773,21 +2774,21 @@ export default function Dashboard() {
                       <div className="absolute inset-0 bg-gradient-to-tl from-white/30 via-white/10 to-transparent" />
                       <div className="relative z-10">
                         <div className="flex items-center justify-between mb-3">
-                          <p className="text-[10px] uppercase font-black text-white/80 tracking-wider">{card.label}</p>
+                          <p className="text-[10px] uppercase font-bold text-white/80 tracking-wider">{card.label}</p>
                           <div className="w-9 h-9 rounded-xl bg-white/25 backdrop-blur-sm flex items-center justify-center text-white shadow-sm">{card.icon}</div>
                         </div>
-                        <p className="text-[15px] sm:text-[22px] font-extrabold text-white drop-shadow-sm break-words">{card.value}</p>
+                        <p className="text-sm sm:text-[22px] font-extrabold text-white drop-shadow-sm break-words">{card.value}</p>
                       </div>
                     </div>
                   ))}
                 </div>
 
                 {/* Full product table with Search by Name, SKU, Category */}
-                <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                     <div>
-                      <h3 className="text-[15px] font-bold text-[#000000]">All Products Analytics</h3>
-                      <p className="text-[12px] text-[#000000]">Search by Product Name, SKU, or Category for instant statistics</p>
+                      <h3 className="text-sm font-bold text-[#000000]">All Products Analytics</h3>
+                      <p className="text-xs text-[#000000]">Search by Product Name, SKU, or Category for instant statistics</p>
                     </div>
                     <span className="text-[11px] font-bold text-[#10B981] bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 self-start sm:self-auto">{analytics.topProducts.length} products</span>
                   </div>
@@ -2813,27 +2814,27 @@ export default function Dashboard() {
                           <div key={`${p.name}-${p.variant || i}`} className="px-3 py-2.5">
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
-                                <p className="text-[13px] font-bold text-[#000000] break-words">#{i + 1} {p.name}</p>
+                                <p className="text-xs font-bold text-[#000000] break-words">#{i + 1} {p.name}</p>
                                 <p className="text-[11px] text-[#000000] mt-0.5 break-words">
                                   {p.variant || 'No variant'}{' · '}Qty {Math.round(p.qty)}{' · '}{p.billCount} bills{' · '}Avg {formatCurrency(p.billCount > 0 ? p.revenue / p.billCount : 0)}
                                 </p>
                               </div>
-                              <p className="shrink-0 text-[13px] font-black text-emerald-700">{formatCurrency(p.revenue)}</p>
+                              <p className="shrink-0 text-xs font-black text-emerald-700">{formatCurrency(p.revenue)}</p>
                             </div>
                           </div>
                         ))}
                       </div>
                       <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
-                        <table className="w-full min-w-[580px] text-left text-[12px]">
-                          <thead className="bg-white text-[10px] uppercase tracking-wider text-[#000000]">
+                        <table className="w-full text-left text-xs">
+                          <thead className="text-[10px] uppercase tracking-wider text-[#000000] bg-[#F9FAFB]">
                             <tr>
-                              <th className="px-4 py-2.5 font-black">#</th>
-                              <th className="px-4 py-2.5 font-black">Product</th>
-                              <th className="px-4 py-2.5 font-black">Variant / SKU</th>
-                              <th className="px-4 py-2.5 font-black">Qty Sold</th>
-                              <th className="px-4 py-2.5 font-black">Revenue</th>
-                              <th className="px-4 py-2.5 font-black">Bills</th>
-                              <th className="px-4 py-2.5 font-black">Avg Revenue/Bill</th>
+                              <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">#</th>
+                              <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Product</th>
+                              <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Variant / SKU</th>
+                              <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Qty Sold</th>
+                              <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Revenue</th>
+                              <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Bills</th>
+                              <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Avg Revenue/Bill</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-black/5">
@@ -2853,7 +2854,7 @@ export default function Dashboard() {
                       </div>
                       </>
                     ) : (
-                      <p className="text-center text-[13px] text-[#000000] py-6">{productAnalyticsSearch ? 'No products match your search query.' : 'No product sales in selected period'}</p>
+                      <p className="text-center text-xs text-[#000000] py-6">{productAnalyticsSearch ? 'No products match your search query.' : 'No product sales in selected period'}</p>
                     )
                   })()}
                 </div>
@@ -2862,7 +2863,7 @@ export default function Dashboard() {
 
             {/* Categories sub-tab */}
             {posAnalyticsTab === 'categories' && (
-              <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+              <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm">
                 <h3 className="text-base font-black text-[#000000] mb-4">{l('Category Analytics', 'வகை பகுப்பாய்வு')}</h3>
                 {analytics.topCategories.length > 0 ? (
                   <>
@@ -2871,22 +2872,22 @@ export default function Dashboard() {
                       <div key={c.name} className="px-3 py-2.5">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="text-[13px] font-bold text-[#000000] break-words">#{i + 1} {c.name}</p>
+                            <p className="text-xs font-bold text-[#000000] break-words">#{i + 1} {c.name}</p>
                             <p className="text-[11px] text-[#000000] mt-0.5">Qty Sold {Math.round(c.qty)}</p>
                           </div>
-                          <p className="shrink-0 text-[13px] font-black text-emerald-700">{formatCurrency(c.revenue)}</p>
+                          <p className="shrink-0 text-xs font-black text-emerald-700">{formatCurrency(c.revenue)}</p>
                         </div>
                       </div>
                     ))}
                   </div>
                   <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
-                    <table className="w-full text-left text-[13px]">
-                      <thead className="bg-white text-[10px] uppercase tracking-wider text-[#000000]">
+                    <table className="w-full text-left text-xs">
+                      <thead className="text-[10px] uppercase tracking-wider text-[#000000] bg-[#F9FAFB]">
                         <tr>
-                          <th className="px-4 py-2.5 font-black">#</th>
-                          <th className="px-4 py-2.5 font-black">{l('Category', 'வகை')}</th>
-                          <th className="px-4 py-2.5 font-black">{l('Revenue', 'வருவாய்')}</th>
-                          <th className="px-4 py-2.5 font-black">{l('Qty Sold', 'விற்ற அளவு')}</th>
+                          <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">#</th>
+                          <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Category', 'வகை')}</th>
+                          <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Revenue', 'வருவாய்')}</th>
+                          <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Qty Sold', 'விற்ற அளவு')}</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-black/5">
@@ -2903,7 +2904,7 @@ export default function Dashboard() {
                   </div>
                   </>
                 ) : (
-                  <p className="text-center text-[13px] text-[#000000] py-6">{l('No data in selected period', 'தேர்ந்த காலத்தில் தரவு இல்லை')}</p>
+                  <p className="text-center text-xs text-[#000000] py-6">{l('No data in selected period', 'தேர்ந்த காலத்தில் தரவு இல்லை')}</p>
                 )}
               </div>
             )}
@@ -2927,10 +2928,10 @@ export default function Dashboard() {
                       <div className="absolute inset-0 bg-gradient-to-tl from-white/30 via-white/10 to-transparent" />
                       <div className="relative z-10">
                         <div className="flex items-center justify-between mb-3">
-                          <p className="text-[10px] uppercase font-black text-white/80 tracking-wider">{card.label}</p>
+                          <p className="text-[10px] uppercase font-bold text-white/80 tracking-wider">{card.label}</p>
                           <div className="w-9 h-9 rounded-xl bg-white/25 backdrop-blur-sm flex items-center justify-center text-white shadow-sm">{card.icon}</div>
                         </div>
-                        <p className="text-[15px] sm:text-[22px] font-extrabold text-white drop-shadow-sm break-words">{card.value}</p>
+                        <p className="text-sm sm:text-[22px] font-extrabold text-white drop-shadow-sm break-words">{card.value}</p>
                       </div>
                     </div>
                   ))}
@@ -2938,8 +2939,8 @@ export default function Dashboard() {
 
                 {/* Coupon daily trend + Top coupons */}
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                  <div className="xl:col-span-2 bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
-                    <h3 className="text-[15px] font-bold text-[#000000] mb-4">Coupon Usage (Last 7 Days)</h3>
+                  <div className="xl:col-span-2 bg-white rounded-xl border border-black/10 p-5 shadow-sm">
+                    <h3 className="text-sm font-bold text-[#000000] mb-4">Coupon Usage (Last 7 Days)</h3>
                     {analytics.couponDailyTrend.some(d => d.orders > 0) ? (
                       <div className="h-[256px] w-full min-w-0 relative">
                         <ResponsiveContainer width="100%" height={256} minWidth={0} minHeight={0}>
@@ -2959,30 +2960,30 @@ export default function Dashboard() {
                         </ResponsiveContainer>
                       </div>
                     ) : (
-                      <p className="text-center text-[13px] text-[#000000] py-12">No coupon usage in the last 7 days.</p>
+                      <p className="text-center text-xs text-[#000000] py-12">No coupon usage in the last 7 days.</p>
                     )}
                   </div>
 
-                  <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
-                    <h3 className="text-[15px] font-bold text-[#000000] mb-4">Top Coupons</h3>
+                  <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm">
+                    <h3 className="text-sm font-bold text-[#000000] mb-4">Top Coupons</h3>
                     <div className="space-y-3">
                       {analytics.topCoupons.slice(0, 8).map((coupon, i) => (
                         <div key={coupon.code} className="flex items-center justify-between gap-2 p-3 bg-white rounded-xl">
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                               <span className="text-[10px] font-black text-[#9BAB9A]">{i + 1}</span>
-                              <p className="text-[13px] font-bold text-[#000000] break-words">{coupon.code}</p>
+                              <p className="text-xs font-bold text-[#000000] break-words">{coupon.code}</p>
                             </div>
                             <p className="text-[11px] text-[#000000] ml-5">{coupon.usage} order{coupon.usage > 1 ? 's' : ''}</p>
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="text-[13px] font-black text-emerald-700">{formatCurrency(coupon.discounts)}</p>
+                            <p className="text-xs font-black text-emerald-700">{formatCurrency(coupon.discounts)}</p>
                             <p className="text-[10px] text-[#000000]">discounted</p>
                           </div>
                         </div>
                       ))}
                       {analytics.topCoupons.length === 0 && (
-                        <p className="text-center text-[13px] text-[#000000] py-6">No coupon usage yet</p>
+                        <p className="text-center text-xs text-[#000000] py-6">No coupon usage yet</p>
                       )}
                     </div>
                   </div>
@@ -2990,9 +2991,9 @@ export default function Dashboard() {
 
                 {/* Coupon detail table */}
                 {analytics.topCoupons.length > 0 && (
-                  <div className="bg-white rounded-2xl border border-black/10 p-5 shadow-sm">
+                  <div className="bg-white rounded-xl border border-black/10 p-5 shadow-sm">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-[15px] font-bold text-[#000000]">All Coupons Performance</h3>
+                      <h3 className="text-sm font-bold text-[#000000]">All Coupons Performance</h3>
                       <span className="text-[11px] font-bold text-[#10B981]">{analytics.topCoupons.length} coupons</span>
                     </div>
                     <div className="md:hidden rounded-xl border border-black/10 divide-y divide-black/5 overflow-hidden bg-white">
@@ -3000,25 +3001,25 @@ export default function Dashboard() {
                         <div key={coupon.code} className="px-3 py-2.5">
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
-                              <p className="text-[13px] font-bold text-[#000000] break-words">#{i + 1} {coupon.code}</p>
+                              <p className="text-xs font-bold text-[#000000] break-words">#{i + 1} {coupon.code}</p>
                               <p className="text-[11px] text-[#000000] mt-0.5">
                                 {coupon.usage} orders{' · '}Avg discount {coupon.usage > 0 ? formatCurrency(coupon.discounts / coupon.usage) : '-'}
                               </p>
                             </div>
-                            <p className="shrink-0 text-[13px] font-black text-emerald-700">{formatCurrency(coupon.discounts)}</p>
+                            <p className="shrink-0 text-xs font-black text-emerald-700">{formatCurrency(coupon.discounts)}</p>
                           </div>
                         </div>
                       ))}
                     </div>
                     <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
-                      <table className="w-full min-w-[400px] text-left text-[12px]">
-                        <thead className="bg-white text-[10px] uppercase tracking-wider text-[#000000]">
+                      <table className="w-full text-left text-xs">
+                        <thead className="text-[10px] uppercase tracking-wider text-[#000000] bg-[#F9FAFB]">
                           <tr>
-                            <th className="px-4 py-2.5 font-black">#</th>
-                            <th className="px-4 py-2.5 font-black">Code</th>
-                            <th className="px-4 py-2.5 font-black">Orders</th>
-                            <th className="px-4 py-2.5 font-black">Total Discount</th>
-                            <th className="px-4 py-2.5 font-black">Avg Discount</th>
+                            <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">#</th>
+                            <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Code</th>
+                            <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Orders</th>
+                            <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Total Discount</th>
+                            <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Avg Discount</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-black/5">
@@ -3043,7 +3044,7 @@ export default function Dashboard() {
 
         {/* ── BILLING PANEL ── */}
         {tab === 'billing' && (
-          <div className="-m-4 sm:-m-6 lg:-m-8">
+          <div>
             <Pos
               isEmbedded
               externalScannedCode={cartItemToInject}
@@ -3054,7 +3055,7 @@ export default function Dashboard() {
 
         {/* ── INVENTORY & BARCODES TAB ── */}
         {tab === 'inventory' && (
-          <div className="p-2 sm:p-4">
+          <div>
             <InventoryTable />
           </div>
         )}
@@ -3080,7 +3081,7 @@ export default function Dashboard() {
             {/* Header panel */}
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
               <div className="shrink-0">
-                <h2 className="text-[28px] font-black text-[#000000] tracking-tight whitespace-nowrap">{l('Order History', 'ஆர்டர் வரலாறு')}</h2>
+                <h2 className="text-[28px] font-black text-[#000000] tracking-tight">{l('Order History', 'ஆர்டர் வரலாறு')}</h2>
                 <p className="text-xs text-[#000000] font-semibold mt-1">{l('Manage and track past invoices', 'பழைய பில்களை நிர்வகிக்கவும்')}</p>
               </div>
               <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
@@ -3153,7 +3154,7 @@ export default function Dashboard() {
                     <div key={o.id} className="p-3 sm:p-4 space-y-2.5 bg-white">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-[13px] font-bold text-[#000000] break-words flex items-center gap-1.5 flex-wrap">
+                          <p className="text-xs font-bold text-[#000000] break-words flex items-center gap-1.5 flex-wrap">
                             {o.customer_name || '—'}
                             {o.credit_status === 'paid' && (
                               <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-700 border border-amber-200">Credit Bill</span>
@@ -3171,7 +3172,7 @@ export default function Dashboard() {
                           </p>
                         </div>
                         <div className="shrink-0 text-right">
-                          <p className="text-[13px] font-black text-[#000000]">{formatCurrency(getOrderTotal(o))}</p>
+                          <p className="text-xs font-black text-[#000000]">{formatCurrency(getOrderTotal(o))}</p>
                           <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${billTypeClass}`}>{billTypeLabel}</span>
                         </div>
                       </div>
@@ -3208,15 +3209,15 @@ export default function Dashboard() {
                   )
                 })}
                 {filteredSearchResults.length === 0 && (
-                  <div className="rounded-2xl border border-black/10 bg-white px-4 py-8 text-center text-[#000000]">{l('No matching bills', 'பில்கள் இல்லை')}</div>
+                  <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-[#000000]">{l('No matching bills', 'பில்கள் இல்லை')}</div>
                 )}
               </div>
               <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10 bg-white">
-                <table className="w-full text-left text-[13px]">
+                <table className="w-full text-left text-xs">
                   <thead>
                     <tr className="bg-white border-b border-black/10 select-none">
                       {['Order ID', 'Customer Name', 'Mobile Number', 'Source', 'Coupon', 'Discount', 'Delivery', 'Total Due', 'Date & Time', 'Status', 'Actions'].map(h => (
-                        <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center whitespace-nowrap">{h}</th>
+                        <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -3227,28 +3228,28 @@ export default function Dashboard() {
                       return (
                         <React.Fragment key={o.id}>
                         <tr key={o.id} className="hover:bg-black/[0.03] text-center">
-                          <td className="whitespace-nowrap px-2 py-3 text-[11px] font-bold text-[#000000]">{formatInvoiceNo(o.invoice_no)}</td>
-                          <td className="max-w-[100px] break-words px-2 py-3 text-[11px] font-semibold text-[#000000]">
+                          <td className="px-4 py-3 text-[11px] font-bold text-[#000000]">{formatInvoiceNo(o.invoice_no)}</td>
+                          <td className="max-w-[100px] break-words px-4 py-3 text-[11px] font-semibold text-[#000000]">
                             {o.customer_name}
                             {o.credit_status === 'paid' && (
                               <span className="mt-1 block w-fit rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-700 border border-amber-200">Credit Bill</span>
                             )}
                           </td>
-                          <td className="whitespace-nowrap px-2 py-3 text-[11px] text-[#000000]">
+                          <td className="px-4 py-3 text-[11px] text-[#000000]">
                             <span className="font-semibold text-[#000000]">{formatPhoneWithCountryCode(o.phone).code}</span>
                             <span className="ml-1">{formatPhoneWithCountryCode(o.phone).number}</span>
                           </td>
-                          <td className="px-2 py-3"><span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase ${billTypeClass}`}>{billTypeLabel}</span></td>
-                          <td className="px-2 py-3 text-[11px]">
+                          <td className="px-4 py-3"><span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase ${billTypeClass}`}>{billTypeLabel}</span></td>
+                          <td className="px-4 py-3 text-[11px]">
                             {o.coupon_code ? <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">{o.coupon_code}</span> : <span className="text-[#9BAB9A]">—</span>}
                           </td>
-                          <td className="px-2 py-3 text-[11px]">
+                          <td className="px-4 py-3 text-[11px]">
                             {o.discount_amount > 0 ? <span className="font-bold text-emerald-700">-{formatCurrency(o.discount_amount)}</span> : <span className="text-[#9BAB9A]">—</span>}
                           </td>
-                          <td className="px-2 py-3 text-[11px]">
+                          <td className="px-4 py-3 text-[11px]">
                             {o.delivery_charge > 0 ? <span className="font-bold text-[#000000]">{formatCurrency(o.delivery_charge)}</span> : <span className="text-[#9BAB9A]">—</span>}
                           </td>
-                          <td className="whitespace-nowrap px-2 py-3 text-[11px] font-bold text-[#000000]">
+                          <td className="px-4 py-3 text-[11px] font-bold text-[#000000]">
                             {formatCurrency(getOrderTotal(o))}
                             {o.credit_status === 'outstanding' && (
                               <span className="mt-1 block rounded-full bg-red-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-red-700">Credit Due</span>
@@ -3259,8 +3260,8 @@ export default function Dashboard() {
                               </span>
                             )}
                           </td>
-                          <td className="whitespace-nowrap px-2 py-3 text-[11px] text-[#000000]">{new Date(o.created_at).toLocaleDateString('en-IN')}</td>
-                          <td className="px-2 py-3">
+                          <td className="px-4 py-3 text-[11px] text-[#000000]">{new Date(o.created_at).toLocaleDateString('en-IN')}</td>
+                          <td className="px-4 py-3">
                             <div className="flex items-center justify-center gap-1.5">
                               {role === 'admin' ? (
                                 <select value={normalizeStatus(o.status)} disabled={normalizeStatus(o.status) === 'cancelled'} onChange={e => void updateOrderStatus(o.id, e.target.value)}
@@ -3276,7 +3277,7 @@ export default function Dashboard() {
                               )}
                             </div>
                           </td>
-                          <td className="px-2 py-3">
+                          <td className="px-4 py-3">
                             <div className="flex flex-row items-center justify-end gap-1.5">
                               <button onClick={() => handleShareViaWhatsApp(o)} title="Send on WhatsApp" aria-label="Send on WhatsApp" className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`}>
                                 <WhatsAppIcon className="w-4 h-4" />
@@ -3299,21 +3300,21 @@ export default function Dashboard() {
                         {historyExpandedId === o.id && (
                           <tr className="bg-white border-b border-black/10">
                             <td colSpan={11} className="px-4 py-4">
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-[12px]">
+                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                                 <div>
-                                  <p className="text-[10px] font-black uppercase text-[#9BAB9A] tracking-wider mb-1">Reference No</p>
+                                  <p className="text-[10px] font-bold uppercase text-[#9BAB9A] tracking-wider mb-1">Reference No</p>
                                   <p className="font-semibold text-[#000000]">{(o as unknown as Record<string,unknown>).reference_number as string || '—'}</p>
                                 </div>
                                 <div>
-                                  <p className="text-[10px] font-black uppercase text-[#9BAB9A] tracking-wider mb-1">Remarks</p>
+                                  <p className="text-[10px] font-bold uppercase text-[#9BAB9A] tracking-wider mb-1">Remarks</p>
                                   <p className="font-semibold text-[#000000] break-words">{(o as unknown as Record<string,unknown>).remarks as string || '—'}</p>
                                 </div>
                                 <div>
-                                  <p className="text-[10px] font-black uppercase text-[#9BAB9A] tracking-wider mb-1">Customer</p>
+                                  <p className="text-[10px] font-bold uppercase text-[#9BAB9A] tracking-wider mb-1">Customer</p>
                                   <p className="font-semibold text-[#000000]">{o.customer_name}</p>
                                 </div>
                                 <div>
-                                  <p className="text-[10px] font-black uppercase text-[#9BAB9A] tracking-wider mb-1">Address</p>
+                                  <p className="text-[10px] font-bold uppercase text-[#9BAB9A] tracking-wider mb-1">Address</p>
                                   <p className="font-semibold text-[#000000] break-words">{o.address || '—'}</p>
                                 </div>
                               </div>
@@ -3394,12 +3395,12 @@ export default function Dashboard() {
                 </div>
 
                 {couponSaveError && (
-                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-[12px] font-bold text-red-700">
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">
                     {couponSaveError}
                   </div>
                 )}
                 {couponSaveSuccess && (
-                  <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-[12px] font-bold text-green-700">
+                  <div className="rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs font-bold text-green-700">
                     {couponSaveSuccess}
                   </div>
                 )}
@@ -3516,7 +3517,7 @@ export default function Dashboard() {
                         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                           <div className="min-w-0 space-y-1.5">
                             <div className="flex flex-wrap items-center gap-1.5">
-                              <p className="break-words text-[15px] font-black uppercase tracking-[0.14em] text-[#000000]">{coupon.code}</p>
+                              <p className="break-words text-sm font-black uppercase tracking-[0.14em] text-[#000000]">{coupon.code}</p>
                               <span className={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.14em] ${coupon.is_active ? 'bg-[#FCE7EA] text-[var(--accent)]' : 'bg-[#F8EDD9] text-[#9A6700]'}`}>
                                 {coupon.is_active ? l('Active', 'செயலில்') : l('Inactive', 'செயலற்ற')}
                               </span>
@@ -3532,7 +3533,7 @@ export default function Dashboard() {
                               )}
                             </div>
 
-                            <p className="text-[12px] font-semibold text-[var(--accent)]">
+                            <p className="text-xs font-semibold text-[var(--accent)]">
                               {coupon.percentage}% off
                               {coupon.min_order_value > 0 && ` • min RM${coupon.min_order_value}`}
                             </p>
@@ -3571,7 +3572,7 @@ export default function Dashboard() {
                   })}
 
                   {coupons.length === 0 && (
-                    <div className="rounded-xl border border-dashed border-black/10 bg-[#F9FAFB] py-12 text-center text-[14px] font-bold text-[var(--accent)]">
+                    <div className="rounded-xl border border-dashed border-black/10 bg-[#F9FAFB] py-12 text-center text-sm font-bold text-[var(--accent)]">
                       {l('No coupons yet. Create your first coupon!', 'இன்னும் கூப்பன் இல்லை. முதல் கூப்பனை உருவாக்குங்கள்!')}
                     </div>
                   )}
@@ -3601,14 +3602,14 @@ export default function Dashboard() {
             </div>
 
             {usersError && (
-              <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl text-[13px] text-red-700 font-bold shadow-sm">
+              <div className="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-bold shadow-sm">
                 <AlertCircle size={15} /> {usersError}
               </div>
             )}
 
             <div className="bg-white border border-black/10 rounded-xl shadow-sm overflow-hidden">
               {usersLoading ? (
-                <div className="p-10 text-center text-[13px] font-bold text-[#000000]">{l('Loading users...', 'பயனர்கள் ஏற்றுகிறது...')}</div>
+                <div className="p-10 text-center text-xs font-bold text-[#000000]">{l('Loading users...', 'பயனர்கள் ஏற்றுகிறது...')}</div>
               ) : (
                 <>
                 <div className="md:hidden divide-y divide-black/5">
@@ -3622,7 +3623,7 @@ export default function Dashboard() {
                       <div key={u.id} className="px-4 py-3 space-y-2.5">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
-                            <p className="font-bold text-[#000000] text-[13px] break-words">{u.name || '-'}</p>
+                            <p className="font-bold text-[#000000] text-xs break-words">{u.name || '-'}</p>
                             <p className="text-[11px] text-[#000000] mt-0.5 break-words">
                               {[u.email, u.mobile, u.created_at ? new Date(u.created_at).toLocaleDateString('en-IN') : null].filter(Boolean).join(' · ')}
                             </p>
@@ -3638,7 +3639,7 @@ export default function Dashboard() {
                         </div>
                         <div>
                           {u.id === user?.id ? (
-                            <span className="text-[12px] text-[#000000] font-bold uppercase tracking-wider">{l('You', 'நீங்கள்')}</span>
+                            <span className="text-xs text-[#000000] font-bold uppercase tracking-wider">{l('You', 'நீங்கள்')}</span>
                           ) : (
                             <button
                               onClick={() => void toggleUserRole(u)}
@@ -3656,19 +3657,19 @@ export default function Dashboard() {
                       </div>
                     ))}
                   {allUsers.length === 0 && !usersLoading && (
-                    <p className="p-10 text-center text-[14px] font-bold text-[#000000] bg-white">{l('No users found.', 'பயனர் இல்லை.')}</p>
+                    <p className="p-10 text-center text-sm font-bold text-[#000000] bg-white">{l('No users found.', 'பயனர் இல்லை.')}</p>
                   )}
                 </div>
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="bg-white border-b border-black/10 uppercase tracking-widest text-[10px] text-[#000000]">
-                        <th className="text-left p-4 font-bold">{l('Name', 'பெயர்')}</th>
-                        <th className="text-left p-4 font-bold">{l('Email', 'மின்னஞ்சல்')}</th>
-                        <th className="text-left p-4 font-bold">{l('Mobile', 'மொபைல்')}</th>
-                        <th className="text-left p-4 font-bold">{l('Joined', 'சேர்ந்த தேதி')}</th>
-                        <th className="text-center p-4 font-bold">{l('Role', 'பங்கு')}</th>
-                        <th className="text-center p-4 font-bold">{l('Action', 'நடவடிக்கை')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Name', 'பெயர்')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Email', 'மின்னஞ்சல்')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Mobile', 'மொபைல்')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Joined', 'சேர்ந்த தேதி')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center">{l('Role', 'பங்கு')}</th>
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center">{l('Action', 'நடவடிக்கை')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-black/5">
@@ -3680,13 +3681,13 @@ export default function Dashboard() {
                         })
                         .map(u => (
                           <tr key={u.id} className="hover:bg-black/[0.03] transition-colors">
-                            <td className="px-6 py-4 font-bold text-[#000000]">{u.name || '-'}</td>
-                            <td className="px-6 py-4 text-[#000000]">{u.email || '-'}</td>
-                            <td className="px-6 py-4 text-[#000000]">{u.mobile || '-'}</td>
-                            <td className="px-6 py-4 text-[#000000] text-[12px]">
+                            <td className="px-4 py-4 font-bold text-[#000000]">{u.name || '-'}</td>
+                            <td className="px-4 py-4 text-[#000000]">{u.email || '-'}</td>
+                            <td className="px-4 py-4 text-[#000000]">{u.mobile || '-'}</td>
+                            <td className="px-4 py-4 text-[#000000] text-xs">
                               {u.created_at ? new Date(u.created_at).toLocaleDateString('en-IN') : '-'}
                             </td>
-                            <td className="px-6 py-4 text-center">
+                            <td className="px-4 py-4 text-center">
                               <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider ${
                                 u.role === 'admin'
                                   ? 'bg-green-100 text-green-700'
@@ -3696,9 +3697,9 @@ export default function Dashboard() {
                                 {u.role === 'admin' ? l('Admin', 'நிர்வாகி') : l('Customer', 'வாடிக்கையாளர்')}
                               </span>
                             </td>
-                            <td className="px-6 py-4 text-center">
+                            <td className="px-4 py-4 text-center">
                               {u.id === user?.id ? (
-                                <span className="text-[12px] text-[#000000] font-bold uppercase tracking-wider">{l('You', 'நீங்கள்')}</span>
+                                <span className="text-xs text-[#000000] font-bold uppercase tracking-wider">{l('You', 'நீங்கள்')}</span>
                               ) : (
                                 <button
                                   onClick={() => void toggleUserRole(u)}
@@ -3718,14 +3719,14 @@ export default function Dashboard() {
                     </tbody>
                   </table>
                   {allUsers.length === 0 && !usersLoading && (
-                    <p className="p-10 text-center text-[14px] font-bold text-[#000000] bg-white">{l('No users found.', 'பயனர் இல்லை.')}</p>
+                    <p className="p-10 text-center text-sm font-bold text-[#000000] bg-white">{l('No users found.', 'பயனர் இல்லை.')}</p>
                   )}
                 </div>
                 </>
               )}
             </div>
 
-            <p className="text-[12px] text-[#000000] font-bold">
+            <p className="text-xs text-[#000000] font-bold">
               - {l('Role changes take effect upon next login.', 'பங்கு மாற்றம் அடுத்த முறை உள்நுழைந்தால் நடைமுறைக்கு வரும்.')}
             </p>
           </div>
@@ -3801,7 +3802,7 @@ export default function Dashboard() {
               if (event.target === event.currentTarget) setInvoicePreviewOrder(null)
             }}
           >
-            <div className="flex max-h-[95vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex max-h-[95vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
               <div className="flex shrink-0 items-center justify-between border-b border-black/10 bg-white px-4 py-3 sm:px-6">
                 <div>
                   <h2 className="text-base font-black text-[#000000]">Invoice Preview</h2>

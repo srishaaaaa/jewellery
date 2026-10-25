@@ -676,11 +676,11 @@ export default function Schemes() {
 
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {cards.map(([label, value, Icon, color]) => (
-        <div key={label} className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+        <div key={label} className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">{label}</p>
-              <p className="mt-2 text-[17px] sm:text-2xl font-black text-[#000000] break-words">{value}</p>
+              <p className="mt-2 text-base sm:text-2xl font-black text-[#000000] break-words">{value}</p>
             </div>
             <div className={`rounded-xl p-3 ${color}`}><Icon size={21} /></div>
           </div>
@@ -698,7 +698,7 @@ export default function Schemes() {
     </div>
 
     {view === 'schemes' ? <>
-      <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
         <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
           <label className="relative"><Search className="absolute left-3 top-3 text-[#9CA3AF]" size={17} /><input className={`${inputClass} pl-10`} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search scheme ID, customer, phone or scheme name" /></label>
           <div className="flex flex-wrap gap-2">
@@ -714,13 +714,13 @@ export default function Schemes() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-black/10 bg-white shadow-sm flex flex-col">
-        <div className="overflow-x-auto overscroll-x-contain">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
+      <div className="rounded-xl border border-black/10 bg-white shadow-sm flex flex-col">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
               <tr>
                 {['Scheme ID / Start', 'Customer', 'Installment / Paid', 'Paid / Remaining', 'Next Due / Maturity', 'Benefit', 'Status', 'Actions'].map((h) => (
-                  <th key={h} className="px-4 py-3.5 whitespace-nowrap">{h}</th>
+                  <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -782,7 +782,7 @@ export default function Schemes() {
         </div>
       </div>
     </> : <>
-      <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+      <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
         <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
           <input type="date" className={inputClass} value={paymentsFrom} onChange={(e) => setPaymentsFrom(e.target.value)} aria-label="From date" />
           <input type="date" className={inputClass} value={paymentsTo} onChange={(e) => setPaymentsTo(e.target.value)} aria-label="To date" />
@@ -791,11 +791,11 @@ export default function Schemes() {
           </button>
         </div>
       </div>
-      <div className="rounded-2xl border border-black/10 bg-white shadow-sm flex flex-col">
-        <div className="overflow-x-auto overscroll-x-contain">
-          <table className="w-full text-left text-sm whitespace-nowrap">
-            <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
-              <tr>{['Date', 'Receipt No', 'Scheme / Customer', 'Installment', 'Amount', 'Gold', 'Method', 'Received By', 'Notes', 'Receipt'].map((h) => <th key={h} className="px-4 py-3.5 whitespace-nowrap">{h}</th>)}</tr>
+      <div className="rounded-xl border border-black/10 bg-white shadow-sm flex flex-col">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
+              <tr>{['Date', 'Receipt No', 'Scheme / Customer', 'Installment', 'Amount', 'Gold', 'Method', 'Received By', 'Notes', 'Receipt'].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y divide-black/5">
               {paymentsLoading ? (
@@ -832,7 +832,7 @@ export default function Schemes() {
 
     {/* ── Create scheme ── */}
     {createOpen && form && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
-      <form onSubmit={submitCreate} className="flex w-full max-w-3xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
+      <form onSubmit={submitCreate} className="flex w-full max-w-3xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-xl sm:rounded-xl bg-white shadow-2xl">
         <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
           <div><h3 className="text-xl font-black text-[#000000]">Create Scheme</h3><p className="text-xs text-[#000000]">Installment rows are created automatically — collect each payment from the scheme list.</p></div>
           <button type="button" onClick={() => setCreateOpen(false)} className="shrink-0 text-[#000000] hover:text-black"><X size={20} /></button>
@@ -928,7 +928,7 @@ export default function Schemes() {
 
     {/* ── Collect installment ── */}
     {collectScheme && <ModalPortal><div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/55 p-3 sm:p-4">
-      <form onSubmit={submitCollect} className="flex w-full max-w-md max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
+      <form onSubmit={submitCollect} className="flex w-full max-w-md max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-xl sm:rounded-xl bg-white shadow-2xl">
         <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
           <div><p className="text-xs font-black uppercase tracking-wider text-emerald-600">{collectScheme.schemeNumber} • {collectScheme.customerName || collectScheme.phone}</p><h3 className="text-xl font-black text-[#000000]">Collect Installment</h3></div>
           <button type="button" onClick={() => setCollectScheme(null)} className="shrink-0 text-[#000000] hover:text-black"><X size={20} /></button>
@@ -938,7 +938,7 @@ export default function Schemes() {
           {!nextInstallment ? (
             <p className="text-sm text-[#000000]">{collectInstallments.length ? 'All installments are paid.' : 'Loading installments…'}</p>
           ) : <>
-            <div className="rounded-2xl bg-emerald-50 py-4 text-center">
+            <div className="rounded-xl bg-emerald-50 py-4 text-center">
               <p className="text-[11px] font-black uppercase tracking-widest text-emerald-600">Installment {nextInstallment.installmentNumber} of {collectScheme.totalInstallments}</p>
               <p className="mt-1 text-3xl font-black text-emerald-800">{formatCurrency(nextInstallment.amountDue)}</p>
               <p className={`mt-1 text-xs font-bold ${nextInstallment.dueDate < today ? 'text-red-600' : 'text-emerald-700'}`}>Due {fmtDate(nextInstallment.dueDate)}{nextInstallment.dueDate < today ? ' (overdue)' : ''}</p>
@@ -948,7 +948,7 @@ export default function Schemes() {
                 <div key={k} className="rounded-xl bg-black/[0.03] p-2.5"><p className="text-[9px] font-black uppercase text-[#000000]">{k}</p><p className="mt-0.5 text-sm font-black text-[#000000] break-words">{v}</p></div>
               ))}
             </div>
-            <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
+            <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Gold purity">
                   {collectScheme.installmentsPaid === 0
@@ -999,7 +999,7 @@ export default function Schemes() {
 
     {/* ── Receipt after payment ── */}
     {receipt && <ModalPortal><div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/55 p-4">
-      <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-3xl bg-white p-6 text-center shadow-2xl">
+      <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 text-center shadow-2xl">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl">✓</div>
         <p className="mt-4 text-[11px] font-black uppercase tracking-[.16em] text-emerald-600">Installment received</p>
         <h3 className="mt-1 text-2xl font-black text-[#000000]">{receipt.installment.receiptNumber}</h3>
@@ -1039,14 +1039,14 @@ export default function Schemes() {
             ['Gold Saved', `${detail.totalGrams.toFixed(3)} g (${detail.goldPurity})${detail.gramsRedeemed > 0 ? ` • ${schemeGramsLeft(detail).toFixed(3)} g left` : ''}`],
             ['Redeem By', gramRedemptionAllowed(detail, rules, today).allowed ? 'Value or grams (admin)' : `Value only${detail.totalGrams > 0 ? ` (${gramRedemptionAllowed(detail, rules, today).reason.replace(/^Value only:? ?/, '').replace(/\.$/, '') || 'no grams'})` : ''}`],
             ['Gift', detail.giftGiven ? `Given${detail.giftGivenAt ? ` ${fmtDate(detail.giftGivenAt)}` : ''}` : 'Not given'],
-          ].map(([k, v]) => <div key={k} className="rounded-xl bg-black/[0.03] p-3"><p className="text-[10px] font-black uppercase text-[#000000]">{k}</p><p className="mt-1 break-words text-sm font-bold">{v}</p></div>)}
+          ].map(([k, v]) => <div key={k} className="rounded-xl bg-black/[0.03] p-3"><p className="text-[10px] font-bold uppercase text-[#000000]">{k}</p><p className="mt-1 break-words text-sm font-bold">{v}</p></div>)}
         </div>
         {detail.cancelReason && <div className="mt-3 rounded-xl border border-black/10 bg-gray-50 p-3 text-sm"><b>Cancelled:</b> {detail.cancelReason}</div>}
         {detail.closedEarlyAt && <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm"><b>Closed early</b> on {fmtDate(detail.closedEarlyAt)}.{detail.benefitForfeited ? ' Benefit does not apply.' : ''} {gramRedemptionAllowed(detail, rules, today).allowed ? 'Can be redeemed by value or grams.' : 'Redeemed by value.'}</div>}
 
         {/* Gift handed to the customer */}
         <div className="mt-3 rounded-xl border border-black/10 p-3">
-          <p className="text-[10px] font-black uppercase text-[#000000]">Scheme Gift</p>
+          <p className="text-[10px] font-bold uppercase text-[#000000]">Scheme Gift</p>
           {detail.giftGiven ? (
             <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-sm">
               <span><b>🎁 {detail.giftDetails || 'Gift given'}</b> <span className="text-xs text-[#000000]">• {fmtDate(detail.giftGivenAt)}{detail.giftGivenBy ? ` by ${detail.giftGivenBy}` : ''}</span></span>
@@ -1073,30 +1073,30 @@ export default function Schemes() {
             </div>
           </div>
         )}
-        {detail.notes && <div className="mt-3 rounded-xl border p-3"><p className="text-[10px] font-black uppercase text-[#000000]">Notes</p><p className="text-sm">{detail.notes}</p></div>}
+        {detail.notes && <div className="mt-3 rounded-xl border p-3"><p className="text-[10px] font-bold uppercase text-[#000000]">Notes</p><p className="text-sm">{detail.notes}</p></div>}
 
         <div className="mt-6">
           <h4 className="font-black">Installments</h4>
           <div className="mt-2 overflow-x-auto rounded-xl border border-black/10">
-            <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]"><tr>{['#', 'Due', 'Amount', 'Status', 'Paid On', 'Method', 'Gold Rate', 'Gold (g)', 'Receipt', ''].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr></thead>
+            <table className="w-full text-left text-xs">
+              <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]"><tr>{['#', 'Due', 'Amount', 'Status', 'Paid On', 'Method', 'Gold Rate', 'Gold (g)', 'Receipt', ''].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr></thead>
               <tbody className="divide-y divide-black/5">
                 {detailInstallments.map((i) => (
                   <tr key={i.id}>
-                    <td className="px-3 py-2 font-bold">{i.installmentNumber}</td>
+                    <td className="px-4 py-2 font-bold">{i.installmentNumber}</td>
                     <td className={`px-3 py-2 ${installmentDisplayStatus(i, detail.status, today) === 'overdue' ? 'text-red-600 font-bold' : ''}`}>{fmtDate(i.dueDate)}</td>
-                    <td className="px-3 py-2 font-bold">{formatCurrency(i.status === 'paid' ? i.amountPaid : i.amountDue)}</td>
-                    <td className="px-3 py-2">{(() => {
+                    <td className="px-4 py-2 font-bold">{formatCurrency(i.status === 'paid' ? i.amountPaid : i.amountDue)}</td>
+                    <td className="px-4 py-2">{(() => {
                       const st = installmentDisplayStatus(i, detail.status, today)
                       const cls = { paid: 'bg-emerald-50 text-emerald-700', due: 'bg-amber-50 text-amber-800', overdue: 'bg-red-50 text-red-700', upcoming: 'bg-gray-100 text-gray-600', cancelled: 'bg-gray-50 text-gray-400', closed: 'bg-gray-50 text-gray-400' }[st]
                       return <span className={`rounded-lg px-2 py-0.5 text-[10px] font-black ${cls}`}>{INSTALLMENT_STATUS_LABELS[st]}</span>
                     })()}</td>
-                    <td className="px-3 py-2">{fmtDate(i.paymentDate)}</td>
-                    <td className="px-3 py-2">{i.status === 'paid' ? paymentMethodLabel(i.paymentMethod) : '—'}</td>
-                    <td className="px-3 py-2">{i.goldRate ? `${formatCurrency(i.goldRate)}/g` : '—'}</td>
-                    <td className="px-3 py-2 font-bold text-amber-700">{i.goldGrams != null ? i.goldGrams.toFixed(3) : '—'}</td>
-                    <td className="px-3 py-2 font-bold text-emerald-700">{i.receiptNumber || '—'}</td>
-                    <td className="px-3 py-2">{i.status === 'paid' && (
+                    <td className="px-4 py-2">{fmtDate(i.paymentDate)}</td>
+                    <td className="px-4 py-2">{i.status === 'paid' ? paymentMethodLabel(i.paymentMethod) : '—'}</td>
+                    <td className="px-4 py-2">{i.goldRate ? `${formatCurrency(i.goldRate)}/g` : '—'}</td>
+                    <td className="px-4 py-2 font-bold text-amber-700">{i.goldGrams != null ? i.goldGrams.toFixed(3) : '—'}</td>
+                    <td className="px-4 py-2 font-bold text-emerald-700">{i.receiptNumber || '—'}</td>
+                    <td className="px-4 py-2">{i.status === 'paid' && (
                       <div className="flex gap-1">
                         <button onClick={() => printSchemeReceipt(detail, i, totalsAfterInstallment(detail, detailInstallments, i))} className="w-7 h-7 rounded-lg bg-amber-50 text-amber-700 flex items-center justify-center" title="Print Receipt"><Printer size={13} /></button>
                         <button onClick={() => whatsappReceipt(detail, i, totalsAfterInstallment(detail, detailInstallments, i))} className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center" title="WhatsApp Receipt"><MessageCircle size={13} /></button>
@@ -1146,7 +1146,7 @@ export default function Schemes() {
         )}
 
         {isAdmin && detail.status === 'cancelled' && (
-          <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-4">
+          <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50/40 p-4">
             <h4 className="font-black">Resume Scheme</h4>
             <p className="mt-1 text-xs text-[#000000]">Re-opens the scheme so installments can be collected again. Payments already made stay as they are.</p>
             <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] items-end">
@@ -1161,14 +1161,14 @@ export default function Schemes() {
         )}
 
         {isAdmin && detail.installmentsPaid === 0 && detail.totalPaid === 0 && detail.amountRedeemed === 0 && !detail.benefitUsed && (
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50/50 p-4">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50/50 p-4">
             <p className="text-xs font-semibold text-red-700">No payments yet — this scheme can be deleted if it was created by mistake.</p>
             <button onClick={() => void deleteScheme()} disabled={saving} className="rounded-lg bg-red-600 px-3 py-2 text-xs font-black text-white disabled:opacity-50">Delete scheme</button>
           </div>
         )}
 
         {isAdmin && detail.status !== 'cancelled' && detail.status !== 'redeemed' && (
-          <div className="mt-6 rounded-2xl border border-black/10 p-4 space-y-2">
+          <div className="mt-6 rounded-xl border border-black/10 p-4 space-y-2">
             <h4 className="font-black">Redemption Terms <span className="text-xs font-semibold text-[#000000]">(admin)</span></h4>
             <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] items-end">
               <Field label="Redeem by grams">
@@ -1187,7 +1187,7 @@ export default function Schemes() {
         )}
 
         {isAdmin && detail.status !== 'cancelled' && detail.status !== 'redeemed' && (rules.allowCancellation || rules.allowTransfer || detail.status === 'active') && (
-          <div className="mt-6 rounded-2xl border border-black/10 p-4">
+          <div className="mt-6 rounded-xl border border-black/10 p-4">
             <h4 className="font-black">Admin Actions</h4>
             <div className="mt-2 flex flex-wrap gap-2">
               {rules.allowTransfer && <button onClick={() => { setDetailAction('transfer'); setTransferForm({ phone: '', name: '' }); setModalError('') }} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-black text-emerald-700">Transfer to another customer</button>}
@@ -1244,14 +1244,14 @@ export default function Schemes() {
 
     {/* ── Rules (admin) ── */}
     {rulesOpen && <ModalPortal><div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/55 p-3 sm:p-4">
-      <form onSubmit={saveRules} className="flex w-full max-w-2xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
+      <form onSubmit={saveRules} className="flex w-full max-w-2xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-xl sm:rounded-xl bg-white shadow-2xl">
         <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
           <div><h3 className="text-xl font-black text-[#000000] flex items-center gap-2"><Gem size={18} className="text-[var(--accent)]" /> Scheme Rules</h3><p className="text-xs text-[#000000]">Applied to new schemes and to redemptions at billing.</p></div>
           <button type="button" onClick={() => setRulesOpen(false)} className="shrink-0 text-[#000000] hover:text-black"><X size={20} /></button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6 space-y-4">
           {modalError && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
-          <div className="rounded-2xl border border-black/10 p-3 space-y-3">
+          <div className="rounded-xl border border-black/10 p-3 space-y-3">
             <div className="flex items-center justify-between gap-2">
               <div><p className="text-sm font-black text-[#000000]">Scheme Types</p><p className="text-[11px] text-[#000000]">Plans offered to customers. Changing a type never changes schemes already created.</p></div>
               <button type="button" onClick={() => setRulesForm((r) => ({ ...r, types: [...r.types, { id: `type-${Date.now()}`, name: 'Monthly Gold Savings', frequency: 'monthly', amount: 5000, installments: 11, durationMonths: 11, benefitType: r.defaultBenefitType, makingBenefitValue: r.defaultMakingBenefitValue, makingBenefitUnit: r.defaultMakingBenefitUnit, wastageBenefitValue: r.defaultWastageBenefitValue, wastageBenefitUnit: r.defaultWastageBenefitUnit, active: true }] }))}

@@ -1049,7 +1049,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
   return (
     <div className="h-[calc(100dvh-210px)] min-h-[480px] flex flex-col gap-3 lg:gap-5 overflow-hidden">
       {/* Mobile-only: switch between browsing the catalog and the add/edit form */}
-      <div className="lg:hidden flex items-center gap-2 rounded-2xl border border-black/10 bg-white p-1.5 shrink-0">
+      <div className="lg:hidden flex items-center gap-2 rounded-xl border border-black/10 bg-white p-1.5 shrink-0">
         <button
           type="button"
           onClick={() => setMobileView('catalog')}
@@ -1116,7 +1116,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                     }`}
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="text-[13px] font-black uppercase text-gray-900 break-words leading-snug">{p.name}</div>
+                      <div className="text-xs font-black uppercase text-gray-900 break-words leading-snug">{p.name}</div>
                       <div className="mt-0.5 text-[11px] font-semibold uppercase text-gray-500 truncate">
                         {p.category || 'General'}{p.hasVariants ? ' • Multiple pack sizes' : ''}
                       </div>
@@ -2041,7 +2041,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                     )}
 
                     {/* Special Offer / Free Gift */}
-                    <div className="border border-black/10 rounded-2xl p-4 bg-white space-y-3">
+                    <div className="border border-black/10 rounded-xl p-4 bg-white space-y-3">
                       <div className="flex items-center justify-between">
                         <div>
                           <span className="text-xs font-black text-black flex items-center gap-1.5">

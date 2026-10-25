@@ -65,7 +65,7 @@ export function CustomerFormModal({ customer, onClose, onSaved }: {
   return (
     <ModalPortal>
       <div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
-        <form onSubmit={submit} className="flex w-full max-w-2xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
+        <form onSubmit={submit} className="flex w-full max-w-2xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-xl sm:rounded-xl bg-white shadow-2xl">
           <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
             <div>
               <h3 className="text-xl font-black text-[#000000]">{customer ? 'Edit Customer' : 'Add Customer'}</h3>
@@ -87,7 +87,7 @@ export function CustomerFormModal({ customer, onClose, onSaved }: {
             <label className="sm:col-span-2 flex items-start gap-2.5 cursor-pointer">
               <input type="checkbox" checked={form.allowOffers} onChange={(e) => set({ allowOffers: e.target.checked })} className="mt-0.5 w-4 h-4 accent-[var(--accent)]" />
               <span>
-                <span className="block text-[13px] font-bold text-[#000000]">Send reminders and offers</span>
+                <span className="block text-xs font-bold text-[#000000]">Send reminders and offers</span>
                 <span className="block text-[11px] text-[#000000]">Untick if the customer does not want to be contacted.</span>
               </span>
             </label>

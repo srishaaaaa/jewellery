@@ -175,7 +175,7 @@ export default function AnniversaryView() {
         <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
           {/* Left Sidebar - Calendar & Filter */}
           <div className="space-y-4">
-            <div className="rounded-2xl border border-black/10 bg-white p-3">
+            <div className="rounded-xl border border-black/10 bg-white p-3">
               <div className="flex items-center justify-between gap-2 mb-3">
                 <div className="flex gap-1">
                   <select value={currentMonth} onChange={(e) => setCurrentMonth(parseInt(e.target.value))} className="rounded-lg border border-black/10 bg-white px-2 py-1.5 text-xs font-bold">
@@ -206,7 +206,7 @@ export default function AnniversaryView() {
               <p className="mt-2 text-[9px] text-[#000000]">🔴 Dot = anniversary</p>
             </div>
 
-            <div className="rounded-2xl border border-black/10 bg-white p-3">
+            <div className="rounded-xl border border-black/10 bg-white p-3">
               <h3 className="mb-2 font-bold text-xs text-[#000000]">Filter by date</h3>
               {presetButtons}
               <div className="space-y-2">
@@ -231,7 +231,7 @@ export default function AnniversaryView() {
       {/* Customers Page */}
       {currentPage === 'customers' && (
         <div className="space-y-4">
-          <div className="rounded-2xl border border-black/10 bg-white p-4">
+          <div className="rounded-xl border border-black/10 bg-white p-4">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-bold text-[#000000] text-sm">Filter by upcoming anniversary</h3>
               {filtered.length > 0 && (
@@ -256,16 +256,16 @@ export default function AnniversaryView() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-black/10 bg-white p-4 overflow-hidden">
+          <div className="rounded-xl border border-black/10 bg-white p-4 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
-                <thead className="bg-black/[0.03] border-b border-black/10">
+                <thead className="border-b border-black/10 bg-[#F9FAFB]">
                   <tr>
-                    <th className="px-4 py-3 font-black">CUSTOMER</th>
-                    <th className="px-4 py-3 font-black">MOBILE</th>
-                    <th className="px-4 py-3 font-black">ANNIVERSARY DATE</th>
-                    <th className="px-4 py-3 font-black">SPENT</th>
-                    <th className="px-4 py-3 font-black">OFFER</th>
+                    <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">CUSTOMER</th>
+                    <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">MOBILE</th>
+                    <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">ANNIVERSARY DATE</th>
+                    <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">SPENT</th>
+                    <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">OFFER</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-black/5">

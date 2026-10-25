@@ -139,7 +139,7 @@ export const StockHistoryDrawer: React.FC<StockHistoryDrawerProps> = ({
               return (
                 <div
                   key={m.id}
-                  className="bg-white border border-black/10 hover:border-[var(--accent-a40)] rounded-2xl p-3.5 space-y-2 transition-all shadow-xs"
+                  className="bg-white border border-black/10 hover:border-[var(--accent-a40)] rounded-xl p-3.5 space-y-2 transition-all shadow-xs"
                 >
                   <div className="flex items-center justify-between">
                     <span

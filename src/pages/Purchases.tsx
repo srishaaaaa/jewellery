@@ -17,7 +17,7 @@ const inputClass = 'w-full bg-white border border-black/10 focus:border-[var(--a
 const cellInput = 'w-full rounded-lg border border-black/10 bg-white px-2 py-1.5 text-xs text-[#000000] outline-none focus:border-[var(--accent-dark)]'
 const TH = 'px-4 py-3.5 whitespace-nowrap'
 const thead = (cols: string[]) => (
-  <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
+  <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
     <tr>{cols.map((h) => <th key={h} className={TH}>{h}</th>)}</tr>
   </thead>
 )
@@ -226,7 +226,7 @@ export default function Purchases() {
 
     <div className="grid gap-3 sm:grid-cols-3">
       {[['Total Purchased', totals.total], ['Paid to Suppliers', totals.paid], ['Still Owed', totals.due]].map(([label, value]) => (
-        <div key={label} className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+        <div key={label} className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
           <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">{label}</p>
           <p className={`mt-2 text-[17px] sm:text-2xl font-black break-words ${label === 'Still Owed' && Number(value) > 0 ? 'text-red-600' : 'text-[#000000]'}`}>{formatCurrency(Number(value))}</p>
         </div>
@@ -245,16 +245,16 @@ export default function Purchases() {
     {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
     {notice && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</div>}
 
-    <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+    <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
       <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
         <label className="relative"><Search className="absolute left-3 top-3 text-[#9CA3AF]" size={17} /><input className={`${inputClass} pl-10`} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tab === 'purchases' ? 'Search purchase, supplier, bill or item' : 'Search supplier, phone or GSTIN'} /></label>
         <button onClick={exportCsv} className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-200 cursor-pointer"><Download size={13} /> Export CSV</button>
       </div>
     </div>
 
-    <div className="rounded-2xl border border-black/10 bg-white shadow-sm flex flex-col">
-      <div className="overflow-x-auto overscroll-x-contain">
-        <table className="w-full text-left text-sm whitespace-nowrap">
+    <div className="rounded-xl border border-black/10 bg-white shadow-sm flex flex-col">
+      <div className="overflow-x-auto">
+        <table className="w-full text-left text-xs">
           {tab === 'purchases' ? <>
             {thead(['Purchase', 'Supplier', 'Items', 'Weight', 'Total', 'Paid / Owed', 'Actions'])}
             <tbody className="divide-y divide-black/5">
@@ -301,7 +301,7 @@ export default function Purchases() {
 
     {/* ── Supplier form ── */}
     {supplierEdit && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
-      <form onSubmit={submitSupplier} className="flex w-full max-w-lg max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
+      <form onSubmit={submitSupplier} className="flex w-full max-w-lg max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-xl sm:rounded-xl bg-white shadow-2xl">
         <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
           <h3 className="text-xl font-black text-[#000000]">{supplierEdit.id ? 'Edit Supplier' : 'New Supplier'}</h3>
           <button type="button" onClick={() => setSupplierEdit(null)} className="shrink-0 text-[#000000] hover:text-black"><X size={20} /></button>
@@ -323,7 +323,7 @@ export default function Purchases() {
 
     {/* ── New purchase ── */}
     {purchaseOpen && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">
-      <form onSubmit={submitPurchase} className="flex w-full max-w-5xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl">
+      <form onSubmit={submitPurchase} className="flex w-full max-w-5xl max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-xl sm:rounded-xl bg-white shadow-2xl">
         <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5">
           <div><h3 className="text-xl font-black text-[#000000]">New Purchase</h3><p className="text-xs text-[#000000]">Weighed metal is costed as net weight × rate + making + other. Linked catalogue items get the stock.</p></div>
           <button type="button" onClick={() => setPurchaseOpen(false)} className="shrink-0 text-[#000000] hover:text-black"><X size={20} /></button>
@@ -343,39 +343,39 @@ export default function Purchases() {
 
           <div className="space-y-3">
             {lines.map((l, idx) => (
-              <div key={idx} className="rounded-2xl border border-black/10 bg-white p-3 space-y-2">
+              <div key={idx} className="rounded-xl border border-black/10 bg-white p-3 space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Line {idx + 1}</p>
                   {lines.length > 1 && <button type="button" onClick={() => setLines((cur) => cur.filter((_, i) => i !== idx))} className="text-xs font-black text-red-600">Remove</button>}
                 </div>
                 <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
-                  <label className="col-span-2"><span className="mb-1 block text-[10px] font-black uppercase text-[#000000]">Catalogue item (adds stock)</span>
+                  <label className="col-span-2"><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Catalogue item (adds stock)</span>
                     <select className={cellInput} value={l.productId} onChange={(e) => pickProduct(idx, e.target.value)}>
                       <option value="">Not linked</option>
                       {products.filter((p) => p.category !== 'Unregistered').map((p) => <option key={p.id} value={String(p.id)}>{p.name}{p.huid ? ` (${p.huid})` : p.sku ? ` (${p.sku})` : ''}</option>)}
                     </select>
                   </label>
-                  <label className="col-span-2"><span className="mb-1 block text-[10px] font-black uppercase text-[#000000]">Description</span><input className={cellInput} value={l.description} onChange={(e) => setLine(idx, { description: e.target.value })} placeholder="e.g. 22K chains, 24K bar" /></label>
-                  <label><span className="mb-1 block text-[10px] font-black uppercase text-[#000000]">Metal</span>
+                  <label className="col-span-2"><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Description</span><input className={cellInput} value={l.description} onChange={(e) => setLine(idx, { description: e.target.value })} placeholder="e.g. 22K chains, 24K bar" /></label>
+                  <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Metal</span>
                     <select className={cellInput} value={l.metalType} onChange={(e) => setLine(idx, { metalType: e.target.value, purity: e.target.value === 'gold' ? '22K' : '' })}>
                       <option value="gold">Gold</option><option value="silver">Silver</option><option value="platinum">Platinum</option><option value="other">Other</option>
                     </select>
                   </label>
-                  <label><span className="mb-1 block text-[10px] font-black uppercase text-[#000000]">Purity</span>
+                  <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Purity</span>
                     {l.metalType === 'gold'
                       ? <select className={cellInput} value={l.purity} onChange={(e) => setLine(idx, { purity: e.target.value })}>{GOLD_PURITIES.map((p) => <option key={p} value={p}>{p}</option>)}</select>
                       : <input className={cellInput} value={l.purity} onChange={(e) => setLine(idx, { purity: e.target.value })} placeholder="e.g. 925" />}
                   </label>
-                  <label><span className="mb-1 block text-[10px] font-black uppercase text-[#000000]">Gross (g)</span><input type="number" min="0" step="0.001" className={cellInput} value={l.gross} onChange={(e) => setLine(idx, { gross: e.target.value })} /></label>
-                  <label><span className="mb-1 block text-[10px] font-black uppercase text-[#000000]">Stone (g)</span><input type="number" min="0" step="0.001" className={cellInput} value={l.stone} onChange={(e) => setLine(idx, { stone: e.target.value })} /></label>
-                  <label><span className="mb-1 block text-[10px] font-black uppercase text-[#000000]">Rate ₹/g (net)</span><input type="number" min="0" step="0.01" className={cellInput} value={l.rate} onChange={(e) => setLine(idx, { rate: e.target.value })} /></label>
-                  <label><span className="mb-1 block text-[10px] font-black uppercase text-[#000000]">Making ₹</span><input type="number" min="0" step="0.01" className={cellInput} value={l.making} onChange={(e) => setLine(idx, { making: e.target.value })} /></label>
-                  <label><span className="mb-1 block text-[10px] font-black uppercase text-[#000000]">Other cost ₹</span><input type="number" min="0" step="0.01" className={cellInput} value={l.other} onChange={(e) => setLine(idx, { other: e.target.value })} /></label>
-                  <label><span className="mb-1 block text-[10px] font-black uppercase text-[#000000]">Pieces</span><input type="number" min="1" step="1" className={cellInput} value={l.qty} onChange={(e) => setLine(idx, { qty: e.target.value })} /></label>
-                  <label className="col-span-2"><span className="mb-1 block text-[10px] font-black uppercase text-[#000000]">Stone details</span><input className={cellInput} value={l.stones} onChange={(e) => setLine(idx, { stones: e.target.value })} placeholder="e.g. 12 CZ, 0.30 ct diamond, cert. no." /></label>
+                  <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Gross (g)</span><input type="number" min="0" step="0.001" className={cellInput} value={l.gross} onChange={(e) => setLine(idx, { gross: e.target.value })} /></label>
+                  <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Stone (g)</span><input type="number" min="0" step="0.001" className={cellInput} value={l.stone} onChange={(e) => setLine(idx, { stone: e.target.value })} /></label>
+                  <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Rate ₹/g (net)</span><input type="number" min="0" step="0.01" className={cellInput} value={l.rate} onChange={(e) => setLine(idx, { rate: e.target.value })} /></label>
+                  <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Making ₹</span><input type="number" min="0" step="0.01" className={cellInput} value={l.making} onChange={(e) => setLine(idx, { making: e.target.value })} /></label>
+                  <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Other cost ₹</span><input type="number" min="0" step="0.01" className={cellInput} value={l.other} onChange={(e) => setLine(idx, { other: e.target.value })} /></label>
+                  <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Pieces</span><input type="number" min="1" step="1" className={cellInput} value={l.qty} onChange={(e) => setLine(idx, { qty: e.target.value })} /></label>
+                  <label className="col-span-2"><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Stone details</span><input className={cellInput} value={l.stones} onChange={(e) => setLine(idx, { stones: e.target.value })} placeholder="e.g. 12 CZ, 0.30 ct diamond, cert. no." /></label>
                   {lineNet(l) > 0 && n(l.rate) > 0
                     ? <div className="col-span-2 self-end rounded-lg bg-white border px-2 py-1.5 text-xs font-bold text-[#000000]">Net {lineNet(l).toFixed(3)} g → <b>{formatCurrency(lineAmount(l))}</b></div>
-                    : <label className="col-span-2"><span className="mb-1 block text-[10px] font-black uppercase text-[#000000]">Amount ₹ (no weight/rate)</span><input type="number" min="0" step="0.01" className={cellInput} value={l.amount} onChange={(e) => setLine(idx, { amount: e.target.value })} /></label>}
+                    : <label className="col-span-2"><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Amount ₹ (no weight/rate)</span><input type="number" min="0" step="0.01" className={cellInput} value={l.amount} onChange={(e) => setLine(idx, { amount: e.target.value })} /></label>}
                 </div>
               </div>
             ))}
@@ -383,7 +383,7 @@ export default function Purchases() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-4 items-end">
-            <div className="rounded-2xl bg-[var(--accent-a10)] p-3"><p className="text-[10px] font-black uppercase text-[#000000]">Purchase total</p><p className="text-xl font-black text-[#000000]">{formatCurrency(purchaseTotal)}</p></div>
+            <div className="rounded-xl bg-[var(--accent-a10)] p-3"><p className="text-[10px] font-bold uppercase text-[#000000]">Purchase total</p><p className="text-xl font-black text-[#000000]">{formatCurrency(purchaseTotal)}</p></div>
             <Field label="Paid now ₹"><input type="number" min="0" step="0.01" className={inputClass} value={pForm.paid} onChange={(e) => setPForm((f) => ({ ...f, paid: e.target.value }))} placeholder="0" /></Field>
             <Field label="Paid by">
               <select className={inputClass} value={pForm.method} onChange={(e) => setPForm((f) => ({ ...f, method: e.target.value }))}>{COUNTER_PAYMENT_METHODS.map((m) => <option key={m} value={m}>{formatPaymentMode(m)}</option>)}</select>
@@ -408,30 +408,30 @@ export default function Purchases() {
         </div>
         {modalError && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
         <div className="mt-4 overflow-x-auto rounded-xl border border-black/10">
-          <table className="w-full text-left text-xs whitespace-nowrap">
-            <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]"><tr>{['Item', 'Metal', 'Gross / Stone / Net', 'Rate', 'Making + Other', 'Pcs', 'Amount'].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr></thead>
+          <table className="w-full text-left text-xs">
+            <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]"><tr>{['Item', 'Metal', 'Gross / Stone / Net', 'Rate', 'Making + Other', 'Pcs', 'Amount'].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr></thead>
             <tbody className="divide-y divide-black/5">
               {detail.items.map((i, k) => (
                 <tr key={k}>
-                  <td className="px-3 py-2"><p className="font-bold">{i.description || '—'}</p>{i.product_id && <p className="text-[10px] text-emerald-700">Stock added</p>}{i.stone_details && <p className="text-[10px] text-[#000000] whitespace-normal">{i.stone_details}</p>}</td>
-                  <td className="px-3 py-2">{normalizeMetalType(i.metal_type) ? metalLabel(normalizeMetalType(i.metal_type), i.purity) : i.metal_type}</td>
-                  <td className="px-3 py-2">{formatWeight(i.gross_weight)} / {formatWeight(i.stone_weight)} / <b>{formatWeight(i.net_weight)}</b></td>
-                  <td className="px-3 py-2">{i.rate ? `${formatCurrency(i.rate)}/g` : '—'}</td>
-                  <td className="px-3 py-2">{formatCurrency(i.making_cost + i.other_cost)}</td>
-                  <td className="px-3 py-2">{i.quantity}</td>
-                  <td className="px-3 py-2 font-black">{formatCurrency(i.amount)}</td>
+                  <td className="px-4 py-2"><p className="font-bold">{i.description || '—'}</p>{i.product_id && <p className="text-[10px] text-emerald-700">Stock added</p>}{i.stone_details && <p className="text-[10px] text-[#000000] whitespace-normal">{i.stone_details}</p>}</td>
+                  <td className="px-4 py-2">{normalizeMetalType(i.metal_type) ? metalLabel(normalizeMetalType(i.metal_type), i.purity) : i.metal_type}</td>
+                  <td className="px-4 py-2">{formatWeight(i.gross_weight)} / {formatWeight(i.stone_weight)} / <b>{formatWeight(i.net_weight)}</b></td>
+                  <td className="px-4 py-2">{i.rate ? `${formatCurrency(i.rate)}/g` : '—'}</td>
+                  <td className="px-4 py-2">{formatCurrency(i.making_cost + i.other_cost)}</td>
+                  <td className="px-4 py-2">{i.quantity}</td>
+                  <td className="px-4 py-2 font-black">{formatCurrency(i.amount)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         <div className="mt-4 grid grid-cols-3 gap-3">
-          {[['Total', detail.totalAmount], ['Paid', detail.amountPaid], ['Owed', detail.due]].map(([k, v]) => <div key={k} className="rounded-xl bg-black/[0.03] p-3"><p className="text-[10px] font-black uppercase text-[#000000]">{k}</p><p className={`mt-1 text-sm font-black ${k === 'Owed' && Number(v) > 0 ? 'text-red-600' : ''}`}>{formatCurrency(Number(v))}</p></div>)}
+          {[['Total', detail.totalAmount], ['Paid', detail.amountPaid], ['Owed', detail.due]].map(([k, v]) => <div key={k} className="rounded-xl bg-black/[0.03] p-3"><p className="text-[10px] font-bold uppercase text-[#000000]">{k}</p><p className={`mt-1 text-sm font-black ${k === 'Owed' && Number(v) > 0 ? 'text-red-600' : ''}`}>{formatCurrency(Number(v))}</p></div>)}
         </div>
         {detail.notes && <p className="mt-3 rounded-xl border p-3 text-sm">{detail.notes}</p>}
 
         {detail.due > 0 && (
-          <form onSubmit={submitPay} className="mt-5 rounded-2xl border border-black/10 p-4 space-y-3">
+          <form onSubmit={submitPay} className="mt-5 rounded-xl border border-black/10 p-4 space-y-3">
             <h4 className="font-black">Pay Supplier</h4>
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label="Amount ₹"><input type="number" min="0" step="0.01" className={inputClass} value={payForm.amount} onChange={(e) => setPayForm((f) => ({ ...f, amount: e.target.value }))} /></Field>

@@ -161,7 +161,7 @@ export default function JewelleryCustomerProfile() {
   return (
     <div className="grid gap-4 lg:grid-cols-[320px_1fr]">
       {formCustomer !== undefined && <CustomerFormModal customer={formCustomer} onClose={() => setFormCustomer(undefined)} onSaved={onCustomerSaved} />}
-      <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm space-y-3 h-fit">
+      <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm space-y-3 h-fit">
         <button type="button" onClick={() => setFormCustomer(null)}
           className="w-full flex items-center justify-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:opacity-90 cursor-pointer">
           <Plus size={16} /> Add Customer
@@ -190,11 +190,11 @@ export default function JewelleryCustomerProfile() {
 
       <div className="space-y-4 min-w-0">
         {!selected ? (
-          <div className="rounded-2xl border border-black/10 bg-white p-10 text-center text-sm font-semibold text-[#000000] shadow-sm">
+          <div className="rounded-xl border border-black/10 bg-white p-10 text-center text-sm font-semibold text-[#000000] shadow-sm">
             Select a customer to see their jewellery purchases and savings schemes.
           </div>
         ) : <>
-          <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+          <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
             <div className="flex items-start justify-between gap-3">
               <div className="flex gap-1.5">
               <button type="button" onClick={() => setFormCustomer(selected)} title="Edit customer"
@@ -223,15 +223,15 @@ export default function JewelleryCustomerProfile() {
           </div>
           {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
           {loading ? (
-            <div className="rounded-2xl border border-black/10 bg-white p-10 text-center text-sm text-[#000000] shadow-sm">Loading profile…</div>
+            <div className="rounded-xl border border-black/10 bg-white p-10 text-center text-sm text-[#000000] shadow-sm">Loading profile…</div>
           ) : <>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {cards.map(([label, value, Icon, color]) => (
-                <div key={label} className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+                <div key={label} className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0">
                       <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">{label}</p>
-                      <p className="mt-2 text-[17px] font-black text-[#000000] break-words">{value}</p>
+                      <p className="mt-2 text-base font-black text-[#000000] break-words">{value}</p>
                     </div>
                     <div className={`rounded-xl p-3 shrink-0 ${color}`}><Icon size={20} /></div>
                   </div>
@@ -239,24 +239,24 @@ export default function JewelleryCustomerProfile() {
               ))}
             </div>
 
-            <div className="rounded-2xl border border-black/10 bg-white shadow-sm">
+            <div className="rounded-xl border border-black/10 bg-white shadow-sm">
               <h4 className="px-4 pt-4 text-sm font-black text-[#000000]">Savings Schemes</h4>
               <div className="overflow-x-auto p-4 pt-3">
-                <table className="w-full text-left text-xs whitespace-nowrap">
-                  <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
-                    <tr>{['Scheme', 'Status', 'Paid', 'Remaining', 'Balance Available', 'Next Due'].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr>
+                <table className="w-full text-left text-xs">
+                  <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
+                    <tr>{['Scheme', 'Status', 'Paid', 'Remaining', 'Balance Available', 'Next Due'].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr>
                   </thead>
                   <tbody className="divide-y divide-black/5">
                     {schemes.length === 0 ? (
-                      <tr><td colSpan={6} className="px-3 py-6 text-center text-[#000000]">No savings schemes.</td></tr>
+                      <tr><td colSpan={6} className="px-4 py-6 text-center text-[#000000]">No savings schemes.</td></tr>
                     ) : schemes.map((s) => (
                       <tr key={s.id}>
-                        <td className="px-3 py-2.5"><p className="font-black text-emerald-700">{s.schemeNumber}</p><p className="text-[#000000]">{s.schemeName}</p></td>
-                        <td className="px-3 py-2.5 font-bold">{SCHEME_STATUS_LABELS[deriveSchemeStatus(s)]}</td>
-                        <td className="px-3 py-2.5">{s.installmentsPaid}/{s.totalInstallments} • {formatCurrency(s.totalPaid)}</td>
-                        <td className="px-3 py-2.5">{formatCurrency(schemeRemaining(s))}</td>
-                        <td className="px-3 py-2.5 font-black">{formatCurrency(schemeBalance(s))}</td>
-                        <td className="px-3 py-2.5">{fmtDate(s.nextDueDate)}</td>
+                        <td className="px-4 py-2.5"><p className="font-black text-emerald-700">{s.schemeNumber}</p><p className="text-[#000000]">{s.schemeName}</p></td>
+                        <td className="px-4 py-2.5 font-bold">{SCHEME_STATUS_LABELS[deriveSchemeStatus(s)]}</td>
+                        <td className="px-4 py-2.5">{s.installmentsPaid}/{s.totalInstallments} • {formatCurrency(s.totalPaid)}</td>
+                        <td className="px-4 py-2.5">{formatCurrency(schemeRemaining(s))}</td>
+                        <td className="px-4 py-2.5 font-black">{formatCurrency(schemeBalance(s))}</td>
+                        <td className="px-4 py-2.5">{fmtDate(s.nextDueDate)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -264,21 +264,21 @@ export default function JewelleryCustomerProfile() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-black/10 bg-white shadow-sm">
+            <div className="rounded-xl border border-black/10 bg-white shadow-sm">
               <h4 className="px-4 pt-4 text-sm font-black text-[#000000]">Jewellery Purchases</h4>
               <div className="overflow-x-auto p-4 pt-3">
-                <table className="w-full text-left text-xs whitespace-nowrap">
-                  <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
-                    <tr>{['Date', 'Invoice', 'Items', 'Total'].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr>
+                <table className="w-full text-left text-xs">
+                  <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
+                    <tr>{['Date', 'Invoice', 'Items', 'Total'].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr>
                   </thead>
                   <tbody className="divide-y divide-black/5">
                     {profile.jewelleryOrders.length === 0 ? (
-                      <tr><td colSpan={4} className="px-3 py-6 text-center text-[#000000]">No jewellery purchases yet.</td></tr>
+                      <tr><td colSpan={4} className="px-4 py-6 text-center text-[#000000]">No jewellery purchases yet.</td></tr>
                     ) : profile.jewelleryOrders.map((o) => (
                       <tr key={o.id} className="align-top">
-                        <td className="px-3 py-2.5">{fmtDate(o.createdAt)}</td>
-                        <td className="px-3 py-2.5 font-bold text-emerald-700">{formatInvoiceNo(o.invoiceNo)}</td>
-                        <td className="px-3 py-2.5 whitespace-normal min-w-[220px]">
+                        <td className="px-4 py-2.5">{fmtDate(o.createdAt)}</td>
+                        <td className="px-4 py-2.5 font-bold text-emerald-700">{formatInvoiceNo(o.invoiceNo)}</td>
+                        <td className="px-4 py-2.5 whitespace-normal min-w-[220px]">
                           {o.items.map((i, idx) => (
                             <p key={idx} className="text-[#000000]">
                               <span className="font-bold">{i.name}</span>
@@ -286,7 +286,7 @@ export default function JewelleryCustomerProfile() {
                             </p>
                           ))}
                         </td>
-                        <td className="px-3 py-2.5 font-black">{formatCurrency(o.total)}</td>
+                        <td className="px-4 py-2.5 font-black">{formatCurrency(o.total)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -294,24 +294,24 @@ export default function JewelleryCustomerProfile() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-black/10 bg-white shadow-sm">
+            <div className="rounded-xl border border-black/10 bg-white shadow-sm">
               <h4 className="px-4 pt-4 text-sm font-black text-[#000000]">Advances</h4>
               <div className="overflow-x-auto p-4 pt-3">
-                <table className="w-full text-left text-xs whitespace-nowrap">
-                  <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
-                    <tr>{['Receipt', 'Date', 'Purpose', 'Amount', 'Balance', 'Status'].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr>
+                <table className="w-full text-left text-xs">
+                  <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
+                    <tr>{['Receipt', 'Date', 'Purpose', 'Amount', 'Balance', 'Status'].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr>
                   </thead>
                   <tbody className="divide-y divide-black/5">
                     {advances.length === 0 ? (
-                      <tr><td colSpan={6} className="px-3 py-6 text-center text-[#000000]">No advances.</td></tr>
+                      <tr><td colSpan={6} className="px-4 py-6 text-center text-[#000000]">No advances.</td></tr>
                     ) : advances.map((a) => (
                       <tr key={a.id}>
-                        <td className="px-3 py-2.5 font-bold text-[var(--accent-dark)]">{a.receiptNumber}</td>
-                        <td className="px-3 py-2.5">{fmtDate(a.createdAt)}</td>
-                        <td className="px-3 py-2.5">{a.purpose || (a.source === 'exchange' ? 'Exchange credit' : '—')}</td>
-                        <td className="px-3 py-2.5">{formatCurrency(a.amount)}</td>
-                        <td className="px-3 py-2.5 font-black">{formatCurrency(a.balance)}</td>
-                        <td className="px-3 py-2.5">{a.status === 'active' ? 'Available' : a.status === 'used' ? 'Used' : 'Cancelled'}</td>
+                        <td className="px-4 py-2.5 font-bold text-[var(--accent-dark)]">{a.receiptNumber}</td>
+                        <td className="px-4 py-2.5">{fmtDate(a.createdAt)}</td>
+                        <td className="px-4 py-2.5">{a.purpose || (a.source === 'exchange' ? 'Exchange credit' : '—')}</td>
+                        <td className="px-4 py-2.5">{formatCurrency(a.amount)}</td>
+                        <td className="px-4 py-2.5 font-black">{formatCurrency(a.balance)}</td>
+                        <td className="px-4 py-2.5">{a.status === 'active' ? 'Available' : a.status === 'used' ? 'Used' : 'Cancelled'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -319,33 +319,33 @@ export default function JewelleryCustomerProfile() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-black/10 bg-white shadow-sm">
+            <div className="rounded-xl border border-black/10 bg-white shadow-sm">
               <h4 className="px-4 pt-4 text-sm font-black text-[#000000]">Exchanges & Returns</h4>
               <div className="overflow-x-auto p-4 pt-3">
-                <table className="w-full text-left text-xs whitespace-nowrap">
-                  <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
-                    <tr>{['No', 'Date', 'Invoice', 'Details', 'Value'].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr>
+                <table className="w-full text-left text-xs">
+                  <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
+                    <tr>{['No', 'Date', 'Invoice', 'Details', 'Value'].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr>
                   </thead>
                   <tbody className="divide-y divide-black/5">
                     {oldGold.length + returns.length === 0 ? (
-                      <tr><td colSpan={5} className="px-3 py-6 text-center text-[#000000]">No exchanges or returns.</td></tr>
+                      <tr><td colSpan={5} className="px-4 py-6 text-center text-[#000000]">No exchanges or returns.</td></tr>
                     ) : <>
                       {oldGold.map((g) => (
                         <tr key={g.id}>
-                          <td className="px-3 py-2.5 font-bold text-[var(--accent-dark)]">{g.exchangeNumber}</td>
-                          <td className="px-3 py-2.5">{fmtDate(g.createdAt)}</td>
-                          <td className="px-3 py-2.5">{g.invoiceNo ? formatInvoiceNo(g.invoiceNo) : '—'}</td>
-                          <td className="px-3 py-2.5">Old {g.metalType} {g.purity} • Net {formatWeight(g.netWeight)}</td>
-                          <td className="px-3 py-2.5 font-black">{formatCurrency(g.netValue)}</td>
+                          <td className="px-4 py-2.5 font-bold text-[var(--accent-dark)]">{g.exchangeNumber}</td>
+                          <td className="px-4 py-2.5">{fmtDate(g.createdAt)}</td>
+                          <td className="px-4 py-2.5">{g.invoiceNo ? formatInvoiceNo(g.invoiceNo) : '—'}</td>
+                          <td className="px-4 py-2.5">Old {g.metalType} {g.purity} • Net {formatWeight(g.netWeight)}</td>
+                          <td className="px-4 py-2.5 font-black">{formatCurrency(g.netValue)}</td>
                         </tr>
                       ))}
                       {returns.map((r) => (
                         <tr key={r.id}>
-                          <td className="px-3 py-2.5 font-bold text-[var(--accent-dark)]">{r.returnNumber}</td>
-                          <td className="px-3 py-2.5">{fmtDate(r.createdAt)}</td>
-                          <td className="px-3 py-2.5">{formatInvoiceNo(r.invoiceNo)}</td>
-                          <td className="px-3 py-2.5">{r.returnType === 'exchange' ? 'Exchange' : 'Return'} • {r.items.map((l) => `${l.name} × ${l.quantity}`).join(', ')} • {r.status}</td>
-                          <td className="px-3 py-2.5 font-black">{formatCurrency(r.refundAmount)}</td>
+                          <td className="px-4 py-2.5 font-bold text-[var(--accent-dark)]">{r.returnNumber}</td>
+                          <td className="px-4 py-2.5">{fmtDate(r.createdAt)}</td>
+                          <td className="px-4 py-2.5">{formatInvoiceNo(r.invoiceNo)}</td>
+                          <td className="px-4 py-2.5">{r.returnType === 'exchange' ? 'Exchange' : 'Return'} • {r.items.map((l) => `${l.name} × ${l.quantity}`).join(', ')} • {r.status}</td>
+                          <td className="px-4 py-2.5 font-black">{formatCurrency(r.refundAmount)}</td>
                         </tr>
                       ))}
                     </>}
@@ -354,24 +354,24 @@ export default function JewelleryCustomerProfile() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-black/10 bg-white shadow-sm">
+            <div className="rounded-xl border border-black/10 bg-white shadow-sm">
               <h4 className="px-4 pt-4 text-sm font-black text-[#000000]">Repairs</h4>
               <div className="overflow-x-auto p-4 pt-3">
-                <table className="w-full text-left text-xs whitespace-nowrap">
-                  <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
-                    <tr>{['Repair', 'Received', 'Item', 'Expected', 'Balance', 'Status'].map((h) => <th key={h} className="px-3 py-2.5">{h}</th>)}</tr>
+                <table className="w-full text-left text-xs">
+                  <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
+                    <tr>{['Repair', 'Received', 'Item', 'Expected', 'Balance', 'Status'].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr>
                   </thead>
                   <tbody className="divide-y divide-black/5">
                     {repairs.length === 0 ? (
-                      <tr><td colSpan={6} className="px-3 py-6 text-center text-[#000000]">No repairs.</td></tr>
+                      <tr><td colSpan={6} className="px-4 py-6 text-center text-[#000000]">No repairs.</td></tr>
                     ) : repairs.map((r) => (
                       <tr key={r.id}>
-                        <td className="px-3 py-2.5 font-bold text-[var(--accent-dark)]">{r.repairNumber}</td>
-                        <td className="px-3 py-2.5">{fmtDate(r.receivedDate)}</td>
-                        <td className="px-3 py-2.5">{r.itemName}</td>
-                        <td className="px-3 py-2.5">{fmtDate(r.expectedDate)}</td>
-                        <td className="px-3 py-2.5 font-black">{formatCurrency(r.balance)}</td>
-                        <td className="px-3 py-2.5">{REPAIR_STATUS_LABELS[r.status]}</td>
+                        <td className="px-4 py-2.5 font-bold text-[var(--accent-dark)]">{r.repairNumber}</td>
+                        <td className="px-4 py-2.5">{fmtDate(r.receivedDate)}</td>
+                        <td className="px-4 py-2.5">{r.itemName}</td>
+                        <td className="px-4 py-2.5">{fmtDate(r.expectedDate)}</td>
+                        <td className="px-4 py-2.5 font-black">{formatCurrency(r.balance)}</td>
+                        <td className="px-4 py-2.5">{REPAIR_STATUS_LABELS[r.status]}</td>
                       </tr>
                     ))}
                   </tbody>

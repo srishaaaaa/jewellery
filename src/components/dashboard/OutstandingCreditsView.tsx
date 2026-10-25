@@ -152,44 +152,44 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
     <div className="space-y-6 animate-in fade-in duration-150">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-[#0A0A0A] text-[var(--accent)] flex items-center justify-center font-black shrink-0">
             <Wallet size={20} />
           </div>
           <div className="min-w-0">
             <div className="text-[10px] font-bold text-gray-500">Outstanding Invoices</div>
-            <div className="text-[15px] sm:text-xl font-black text-black break-words">{items.length}</div>
+            <div className="text-sm sm:text-xl font-black text-black break-words">{items.length}</div>
           </div>
         </div>
 
-        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-black shrink-0">
             <IndianRupee size={20} />
           </div>
           <div className="min-w-0">
             <div className="text-[10px] font-bold text-gray-500">Total Outstanding</div>
-            <div className="text-[14px] sm:text-lg font-black text-emerald-700 break-words">{formatCurrency(totalOutstanding)}</div>
+            <div className="text-sm sm:text-lg font-black text-emerald-700 break-words">{formatCurrency(totalOutstanding)}</div>
           </div>
         </div>
 
-        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3 col-span-2 sm:col-span-1">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3 col-span-2 sm:col-span-1">
           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-red-50 text-red-700 border border-red-200 flex items-center justify-center font-black shrink-0">
             <AlertTriangle size={20} />
           </div>
           <div className="min-w-0">
             <div className="text-[10px] font-bold text-gray-500">Overdue ({overdueItems.length})</div>
-            <div className="text-[14px] sm:text-lg font-black text-red-700 break-words">{formatCurrency(totalOverdue)}</div>
+            <div className="text-sm sm:text-lg font-black text-red-700 break-words">{formatCurrency(totalOverdue)}</div>
           </div>
         </div>
 
         {/* Paid Credits Summary Card */}
-        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-green-50 text-green-700 border border-green-200 flex items-center justify-center font-black shrink-0">
             <CheckCircle2 size={20} />
           </div>
           <div className="min-w-0">
             <div className="text-[10px] font-bold text-gray-500">Paid Credits</div>
-            <div className="text-[14px] sm:text-lg font-black text-green-700 break-words">
+            <div className="text-sm sm:text-lg font-black text-green-700 break-words">
               {/* Count from history tab - paid orders */}
               {filteredHistory.filter((o) => o.credit_status === 'paid').length}
             </div>
@@ -275,7 +275,7 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
 
       {/* Outstanding Table */}
       {activeTab === 'outstanding' && (
-      <div className="bg-white border border-black/10 rounded-2xl overflow-hidden shadow-sm">
+      <div className="bg-white border border-black/10 rounded-xl overflow-hidden shadow-sm">
         {items.length === 0 ? (
           <div className="p-16 text-center text-gray-400 font-bold text-xs">
             {search ? 'No outstanding credit sales match your search.' : "No outstanding credit sales. Everything's settled!"}
@@ -291,10 +291,10 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
                 <div key={order.id} className="p-3.5 space-y-2.5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-black text-gray-900 text-[13px]">{order.customer_name}</p>
+                      <p className="font-black text-gray-900 text-xs">{order.customer_name}</p>
                       <p className="text-[11px] text-gray-400 font-medium mt-0.5">{formatInvoiceNo(order.invoice_no)} · {order.phone}</p>
                     </div>
-                    <p className="font-black text-gray-900 text-[13px] shrink-0">{formatCurrency(order.total)}</p>
+                    <p className="font-black text-gray-900 text-xs shrink-0">{formatCurrency(order.total)}</p>
                   </div>
                   <div className="flex items-center flex-wrap gap-2">
                     <span className="text-[10px] font-bold text-gray-500">Sale: {formatDateDDMMYYYY(order.created_at)}</span>
@@ -334,15 +334,15 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
           </div>
           {/* Desktop table */}
           <div className="hidden md:block overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-xs whitespace-nowrap">
-              <thead className="bg-white border-b border-black/10 text-xs font-bold text-gray-700">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-black/10 text-xs font-bold text-gray-700 bg-[#F9FAFB]">
                 <tr>
-                  <th className="p-3.5">Invoice</th>
-                  <th className="p-3.5">Customer</th>
-                  <th className="p-3.5">Sale Date</th>
-                  <th className="p-3.5">Due Date</th>
-                  <th className="p-3.5 text-right">Amount</th>
-                  <th className="p-3.5 text-center">Actions</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Invoice</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Customer</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Sale Date</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Due Date</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-right">Amount</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -408,7 +408,7 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
 
       {/* Credit Bills History */}
       {activeTab === 'history' && (
-      <div className="bg-white border border-black/10 rounded-2xl overflow-hidden shadow-sm">
+      <div className="bg-white border border-black/10 rounded-xl overflow-hidden shadow-sm">
         <div className="flex items-center gap-2 px-4 py-3.5 border-b border-black/10 bg-white">
           <History size={15} className="text-gray-500" />
           <div>
@@ -428,10 +428,10 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
               <div key={order.id} className="p-3.5 space-y-2.5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-black text-gray-900 text-[13px]">{order.customer_name}</p>
+                    <p className="font-black text-gray-900 text-xs">{order.customer_name}</p>
                     <p className="text-[11px] text-gray-400 font-medium mt-0.5">{formatInvoiceNo(order.invoice_no)} · {order.phone}</p>
                   </div>
-                  <p className="font-black text-gray-900 text-[13px] shrink-0">{formatCurrency(order.total)}</p>
+                  <p className="font-black text-gray-900 text-xs shrink-0">{formatCurrency(order.total)}</p>
                 </div>
                 <div className="flex items-center flex-wrap gap-2">
                   <span className="text-[10px] font-bold text-gray-500">Sale: {formatDateDDMMYYYY(order.created_at)}</span>
@@ -447,15 +447,15 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
           </div>
           {/* Desktop table */}
           <div className="hidden md:block overflow-x-auto">
-            <table className="w-full min-w-[680px] text-left text-xs whitespace-nowrap">
-              <thead className="bg-white border-b border-black/10 text-xs font-bold text-gray-700">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-black/10 text-xs font-bold text-gray-700 bg-[#F9FAFB]">
                 <tr>
-                  <th className="p-3.5">Invoice</th>
-                  <th className="p-3.5">Customer</th>
-                  <th className="p-3.5">Sale Date</th>
-                  <th className="p-3.5">Paid On</th>
-                  <th className="p-3.5 text-right">Amount</th>
-                  <th className="p-3.5 text-center">Actions</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Invoice</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Customer</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Sale Date</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Paid On</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-right">Amount</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">

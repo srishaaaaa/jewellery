@@ -26,10 +26,13 @@
     --accent-a50: rgba(202, 138, 4, 0.5);
   }
 
-  /* One font everywhere, as in IGMOLS: Poppins, browser-default 16px base size. */
+  /* Same font as the live IGMOLS app: its screens use Tailwind's font-sans, the system stack
+     (Segoe UI on Windows), at the browser-default 16px base size. Monospace / serif classes still work. */
   *, *::before, *::after {
     box-sizing: border-box;
-    font-family: 'Poppins', system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  html, body, button, input, select, textarea {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   }
 
   html {

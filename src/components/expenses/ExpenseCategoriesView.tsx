@@ -75,7 +75,7 @@ export const ExpenseCategoriesView: React.FC<ExpenseCategoriesViewProps> = ({
       {/* 2-Column Grid matching reference UI */}
       <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr] gap-6 items-start">
         {/* LEFT COLUMN: Add Category Card */}
-        <div className="bg-white border border-black/10 rounded-3xl p-6 shadow-xs space-y-4">
+        <div className="bg-white border border-black/10 rounded-xl p-6 shadow-xs space-y-4">
           <div className="flex items-center gap-2 border-b border-black/10 pb-3">
             <Tag size={16} className="text-[var(--accent)]" />
             <h4 className="text-xs font-bold text-gray-800">
@@ -109,7 +109,7 @@ export const ExpenseCategoriesView: React.FC<ExpenseCategoriesViewProps> = ({
         </div>
 
         {/* RIGHT COLUMN: Categories Table Card */}
-        <div className="bg-white border border-black/10 rounded-3xl overflow-hidden shadow-xs">
+        <div className="bg-white border border-black/10 rounded-xl overflow-hidden shadow-xs">
           <div className="p-5 border-b border-black/10 bg-white flex items-center justify-between">
             <h4 className="text-xs font-bold text-gray-800">
               Expense Categories ({categories.length})
@@ -125,7 +125,7 @@ export const ExpenseCategoriesView: React.FC<ExpenseCategoriesViewProps> = ({
               categories.map((cat) => (
                 <div key={cat.id} className="px-4 py-3 flex items-center justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-bold text-gray-900 text-[13px] break-words">{cat.name}</p>
+                    <p className="font-bold text-gray-900 text-xs break-words">{cat.name}</p>
                     <p className="text-[11px] text-gray-500 mt-0.5">Active</p>
                   </div>
                   <button
@@ -141,16 +141,16 @@ export const ExpenseCategoriesView: React.FC<ExpenseCategoriesViewProps> = ({
             )}
           </div>
           <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-black/10 bg-white">
-                  <th className="px-5 py-3.5 text-[11px] font-bold text-gray-600">
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">
                     Category Name
                   </th>
-                  <th className="px-5 py-3.5 text-[11px] font-bold text-gray-600">
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">
                     Status
                   </th>
-                  <th className="px-5 py-3.5 text-[11px] font-bold text-gray-600 text-right">
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-right">
                     Actions
                   </th>
                 </tr>
@@ -158,22 +158,22 @@ export const ExpenseCategoriesView: React.FC<ExpenseCategoriesViewProps> = ({
               <tbody className="divide-y divide-gray-100 text-xs">
                 {categories.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="px-5 py-8 text-center text-gray-400 font-bold">
+                    <td colSpan={3} className="px-4 py-8 text-center text-gray-400 font-bold">
                       No expense categories configured.
                     </td>
                   </tr>
                 ) : (
                   categories.map((cat) => (
                     <tr key={cat.id} className="hover:bg-gray-50/70 transition-colors">
-                      <td className="px-5 py-3.5 font-bold text-gray-900">
+                      <td className="px-4 py-3.5 font-bold text-gray-900">
                         {cat.name}
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-4 py-3.5">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                           Active
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-right">
+                      <td className="px-4 py-3.5 text-right">
                         <button
                           type="button"
                           onClick={() => handleDeleteCategory(cat)}

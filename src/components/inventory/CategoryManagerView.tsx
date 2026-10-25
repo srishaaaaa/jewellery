@@ -128,7 +128,7 @@ export const CategoryManagerView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Banner & Search */}
-      <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      <div className="bg-white border border-[var(--accent-a40)] rounded-xl p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-[#0A0A0A] text-[var(--accent)] flex items-center justify-center font-black">
             <Layers size={18} />
@@ -189,7 +189,7 @@ export const CategoryManagerView: React.FC = () => {
       {/* Main 2-Column Grid: Left (Add/Edit Form) | Right (Category List) */}
       <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6 items-start">
         {/* Form Card */}
-        <div className="bg-white border border-black/10 rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="bg-white border border-black/10 rounded-xl p-5 shadow-sm space-y-4">
           <div className="flex items-center justify-between border-b border-black/10 pb-3">
             <h4 className="text-xs font-black uppercase tracking-wider text-black flex items-center gap-1.5">
               <Tag size={14} className="text-[var(--accent)]" />
@@ -276,7 +276,7 @@ export const CategoryManagerView: React.FC = () => {
         </div>
 
         {/* Categories List Table */}
-        <div className="bg-white border border-black/10 rounded-2xl overflow-hidden shadow-sm flex flex-col">
+        <div className="bg-white border border-black/10 rounded-xl overflow-hidden shadow-sm flex flex-col">
           <div className="p-4 border-b border-black/10 bg-white flex items-center justify-between">
             <h4 className="text-xs font-black uppercase tracking-wider text-gray-800">
               All Categories ({filtered.length})
@@ -294,7 +294,7 @@ export const CategoryManagerView: React.FC = () => {
                 <div key={cat.id} className="p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-bold text-gray-900 text-[13px] break-words">{cat.name_en}</p>
+                      <p className="font-bold text-gray-900 text-xs break-words">{cat.name_en}</p>
                       <p className="text-[11px] text-gray-500 mt-0.5 break-words">
                         {cat.name_ta || 'No Tamil name'}
                         {' · '}{cat.product_count ?? 0} SKUs
@@ -324,15 +324,15 @@ export const CategoryManagerView: React.FC = () => {
               ))}
             </div>
             <div className="hidden md:block overflow-x-auto">
-              <table className="w-full min-w-[560px] text-left text-xs">
-                <thead className="bg-white border-b border-black/10 text-[10px] font-bold uppercase tracking-widest text-gray-600">
+              <table className="w-full text-left text-xs">
+                <thead className="border-b border-black/10 text-[10px] font-bold uppercase tracking-widest text-gray-600 bg-[#F9FAFB]">
                   <tr>
-                    <th className="p-3 w-16 text-center">Order</th>
-                    <th className="p-3">Category Name</th>
-                    <th className="p-3">Tamil Name</th>
-                    <th className="p-3 text-center">Products</th>
-                    <th className="p-3 text-center">Status</th>
-                    <th className="p-3 text-right">Actions</th>
+                    <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center">Order</th>
+                    <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Category Name</th>
+                    <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Tamil Name</th>
+                    <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center">Products</th>
+                    <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center">Status</th>
+                    <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">

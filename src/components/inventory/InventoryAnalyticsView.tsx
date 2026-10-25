@@ -192,7 +192,7 @@ export const InventoryAnalyticsView: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* Top Controls & Date Filters */}
-      <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+      <div className="bg-white border border-[var(--accent-a40)] rounded-xl p-4 shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         {/* Date Range Selector Pills */}
         <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 p-1 bg-white border border-black/10 rounded-xl">
           <button
@@ -285,7 +285,7 @@ export const InventoryAnalyticsView: React.FC = () => {
       {/* KPI Cards (Exact Stock Math) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         {/* Incoming / Restocked Stock */}
-        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-black">
             <PackagePlus size={20} />
           </div>
@@ -293,14 +293,14 @@ export const InventoryAnalyticsView: React.FC = () => {
             <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
               Incoming Stock
             </div>
-            <div className="text-[15px] sm:text-xl font-black text-emerald-700 break-words">
+            <div className="text-sm sm:text-xl font-black text-emerald-700 break-words">
               +{data.incomingStock} Units
             </div>
           </div>
         </div>
 
         {/* Units Sold */}
-        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-purple-50 text-purple-700 border border-purple-200 flex items-center justify-center font-black">
             <ShoppingCart size={20} />
           </div>
@@ -308,14 +308,14 @@ export const InventoryAnalyticsView: React.FC = () => {
             <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
               Units Sold (POS)
             </div>
-            <div className="text-[15px] sm:text-xl font-black text-purple-700 break-words">
+            <div className="text-sm sm:text-xl font-black text-purple-700 break-words">
               {data.unitsSold} Units
             </div>
           </div>
         </div>
 
         {/* Units Damaged / Lost */}
-        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-red-50 text-red-700 border border-red-200 flex items-center justify-center font-black">
             <AlertOctagon size={20} />
           </div>
@@ -323,14 +323,14 @@ export const InventoryAnalyticsView: React.FC = () => {
             <div className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
               Lost / Damaged
             </div>
-            <div className="text-[15px] sm:text-xl font-black text-red-700 break-words">
+            <div className="text-sm sm:text-xl font-black text-red-700 break-words">
               {data.unitsDamaged} Units
             </div>
           </div>
         </div>
 
         {/* Net Movement Delta */}
-        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
+        <div className="bg-white border border-[var(--accent-a40)] rounded-xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
           <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-[#0A0A0A] text-[var(--accent)] flex items-center justify-center font-black">
             {data.netDelta >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
           </div>
@@ -346,7 +346,7 @@ export const InventoryAnalyticsView: React.FC = () => {
       </div>
 
       {/* Movement Ledger Table Section */}
-      <div className="bg-white border border-black/10 rounded-2xl overflow-hidden shadow-sm flex flex-col">
+      <div className="bg-white border border-black/10 rounded-xl overflow-hidden shadow-sm flex flex-col">
         {/* Table Filter Bar */}
         <div className="p-4 border-b border-black/10 bg-white flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -392,23 +392,23 @@ export const InventoryAnalyticsView: React.FC = () => {
         ) : (
           <>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs whitespace-nowrap">
-              <thead className="bg-white border-b border-black/10 text-[10px] font-bold uppercase tracking-widest text-gray-600">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-black/10 text-[10px] font-bold uppercase tracking-widest text-gray-600 bg-[#F9FAFB]">
                 <tr>
-                  <th className="p-3">Date &amp; Time</th>
-                  <th className="p-3">Type</th>
-                  <th className="p-3">Product / Variant</th>
-                  <th className="p-3 whitespace-nowrap">Barcode</th>
-                  <th className="p-3 text-center">Qty Delta</th>
-                  <th className="p-3 text-center">Before → After</th>
-                  <th className="p-3">User</th>
-                  <th className="p-3">Notes</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Date &amp; Time</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Type</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Product / Variant</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Barcode</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center">Qty Delta</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center">Before → After</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">User</th>
+                  <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Notes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredMovements.map((m) => (
                   <tr key={m.id} className="hover:bg-black/[0.03] transition-colors">
-                    <td className="p-3 font-mono text-[11px] text-gray-500 whitespace-nowrap">
+                    <td className="p-3 font-mono text-[11px] text-gray-500">
                       {new Date(m.created_at).toLocaleString('en-IN', {
                         day: '2-digit',
                         month: 'short',
@@ -416,7 +416,7 @@ export const InventoryAnalyticsView: React.FC = () => {
                         minute: '2-digit',
                       })}
                     </td>
-                    <td className="p-3 whitespace-nowrap">
+                    <td className="p-3">
                       {getMovementBadge(m.movement_type)}
                     </td>
                     <td className="p-3">
@@ -445,7 +445,7 @@ export const InventoryAnalyticsView: React.FC = () => {
                         {m.quantity_delta > 0 ? `+${m.quantity_delta}` : m.quantity_delta}
                       </span>
                     </td>
-                    <td className="p-3 text-center font-mono text-xs text-gray-600 whitespace-nowrap">
+                    <td className="p-3 text-center font-mono text-xs text-gray-600">
                       {m.quantity_before} → <strong className="text-black">{m.quantity_after}</strong>
                     </td>
                     <td className="p-3 text-gray-600 font-semibold text-[11px]">

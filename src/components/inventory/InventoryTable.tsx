@@ -10,7 +10,9 @@ import {
   RefreshCw,
   BarChart3,
   Tag,
-  Box,
+  Boxes,
+  Coins,
+  Plus,
   Edit2,
   Trash2,
   MapPin,
@@ -225,208 +227,121 @@ export const InventoryTable: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* NAVIGATION / HEADER */}
-      {role === 'admin' ? (
-        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-2 sm:p-2.5 shadow-sm flex items-center justify-between gap-3 overflow-x-auto hide-scrollbar">
-          <div className="flex items-center gap-1.5 p-1 bg-white border border-black/10 rounded-xl shrink-0">
+      {/* NAVIGATION */}
+      {role === 'admin' && (
+        <div className="bg-white border border-black/10 rounded-xl p-2 flex flex-wrap items-center gap-1 w-full sm:w-fit">
             <button
               type="button"
               onClick={() => setActiveTab('stock')}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                activeTab === 'stock'
-                  ? 'bg-[#0A0A0A] text-[var(--accent)] shadow-sm'
-                  : 'text-gray-600 hover:text-black hover:bg-gray-100'
-              }`}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${activeTab === 'stock' ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[#000000]/70 hover:bg-[var(--accent-a10)] hover:text-[#000000]'}`}
             >
-              <Box size={14} /> Stock Management
+              <Boxes className="w-4 h-4" /> Products &amp; Stock
             </button>
-
             <button
               type="button"
               onClick={() => setActiveTab('products')}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                activeTab === 'products'
-                  ? 'bg-[#0A0A0A] text-[var(--accent)] shadow-sm'
-                  : 'text-gray-600 hover:text-black hover:bg-gray-100'
-              }`}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${activeTab === 'products' ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[#000000]/70 hover:bg-[var(--accent-a10)] hover:text-[#000000]'}`}
             >
-              <Package size={14} /> Add / Edit Items
+              <Package className="w-4 h-4" /> Add / Edit Items
             </button>
-
             <button
               type="button"
               onClick={() => setActiveTab('categories')}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                activeTab === 'categories'
-                  ? 'bg-[#0A0A0A] text-[var(--accent)] shadow-sm'
-                  : 'text-gray-600 hover:text-black hover:bg-gray-100'
-              }`}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${activeTab === 'categories' ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[#000000]/70 hover:bg-[var(--accent-a10)] hover:text-[#000000]'}`}
             >
-              <Tag size={14} /> Categories
+              <Tag className="w-4 h-4" /> Categories
             </button>
-
             <button
               type="button"
               onClick={() => setActiveTab('analytics')}
-              className={`px-3.5 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 cursor-pointer whitespace-nowrap ${
-                activeTab === 'analytics'
-                  ? 'bg-[#0A0A0A] text-[var(--accent)] shadow-sm'
-                  : 'text-gray-600 hover:text-black hover:bg-gray-100'
-              }`}
+              className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${activeTab === 'analytics' ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[#000000]/70 hover:bg-[var(--accent-a10)] hover:text-[#000000]'}`}
             >
-              <BarChart3 size={14} /> Analytics &amp; Reports
+              <BarChart3 className="w-4 h-4" /> Analytics &amp; Reports
             </button>
-          </div>
-
-          {/* Global Add Barcode CTA */}
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedForReceive(null)
-              setShowReceiveModal(true)
-            }}
-            className="px-4 py-2.5 rounded-xl bg-[#0A0A0A] border border-[var(--accent)] text-[var(--accent)] text-xs font-black hover:bg-[#1A1A1A] transition-all shadow-md flex items-center gap-2 cursor-pointer shrink-0 whitespace-nowrap"
-            title="Generate & print barcodes for items"
-          >
-            <Printer size={15} /> Add Barcode
-          </button>
-        </div>
-      ) : (
-        <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-4 shadow-sm flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#0A0A0A] text-[var(--accent)] flex items-center justify-center font-black">
-              <Box size={18} />
-            </div>
-            <div>
-              <h2 className="text-base font-black text-[#000000]">Stock Management</h2>
-              <p className="text-xs font-semibold text-gray-500">Live jewellery stock, weights and stock levels</p>
-            </div>
-          </div>
         </div>
       )}
 
       {/* TAB 1: STOCK MANAGEMENT VIEW */}
       {activeTab === 'stock' && (
         <div className="space-y-6 animate-in fade-in duration-150">
-          {/* Top KPI Metrics Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
-              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-[#0A0A0A] text-[var(--accent)] flex items-center justify-center font-black shrink-0">
-                <Layers size={20} />
-              </div>
-              <div className="min-w-0">
-                <div className="text-[10px] font-bold text-gray-500">Total SKUs</div>
-                <div className="text-[15px] sm:text-xl font-black text-black break-words">{totalSkus}</div>
-              </div>
+          {/* Title */}
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div>
+              <h2 className="text-[28px] font-black text-[#000000] tracking-tight flex items-center gap-3">
+                <Boxes className="w-7 h-7 text-[var(--accent)]" />
+                Inventory
+              </h2>
+              <p className="text-xs text-[#000000] font-semibold mt-1">Jewellery stock, weights, barcodes and stock levels — add, edit and delete.</p>
             </div>
-
-            <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
-              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-black shrink-0">
-                <Package size={20} />
+            <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+              <div className="relative flex-1 lg:flex-none">
+                <Search className="w-3.5 h-3.5 text-[#000000]/40 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  placeholder="Search item, HUID, barcode…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 pr-3 py-2 bg-white border border-black/10 rounded-lg text-xs font-semibold focus:outline-none focus:border-[var(--accent)] w-full lg:w-56"
+                />
               </div>
-              <div className="min-w-0">
-                <div className="text-[10px] font-bold text-gray-500">Total Stock</div>
-                <div className="text-[15px] sm:text-xl font-black text-emerald-700 break-words">{totalUnits} Units</div>
-              </div>
-            </div>
-
-            <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
-              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center font-black shrink-0">
-                <AlertTriangle size={20} />
-              </div>
-              <div className="min-w-0">
-                <div className="text-[10px] font-bold text-gray-500">Low Stock Items</div>
-                <div className="text-[15px] sm:text-xl font-black text-amber-700 break-words">{lowStockCount}</div>
-              </div>
-            </div>
-
-            <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
-              <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-white text-[#000000] border border-[var(--accent-a40)] flex items-center justify-center font-black text-sm shrink-0">
-                ₹
-              </div>
-              <div className="min-w-0">
-                <div className="text-[10px] font-bold text-gray-500">Stock Valuation</div>
-                <div className="text-[14px] sm:text-lg font-black text-[#000000] break-words">{formatCurrency(totalValuation)}</div>
-              </div>
+              {role === 'admin' && (
+                <>
+                  <button type="button" onClick={() => setActiveTab('categories')} className="text-[10px] font-bold px-3 py-2 rounded-lg uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer text-[var(--accent)] bg-white border border-[var(--accent-a40)] hover:bg-[var(--accent-a10)]">
+                    <Tag className="w-3.5 h-3.5" /> Manage Categories
+                  </button>
+                  <button type="button" onClick={() => { setSelectedForReceive(null); setShowReceiveModal(true) }} title="Generate & print barcodes for items" className="text-[10px] font-bold px-3 py-2 rounded-lg uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer text-[#000000] bg-white border border-black/10 hover:bg-[#FAFAFA]">
+                    <Printer className="w-3.5 h-3.5 text-[var(--accent)]" /> Add Barcode
+                  </button>
+                  <button type="button" onClick={() => setActiveTab('products')} className="text-[10px] font-bold px-3 py-2 rounded-lg uppercase tracking-wider flex items-center gap-1.5 transition-colors cursor-pointer text-white bg-[var(--accent)] hover:bg-[#27272A]">
+                    <Plus className="w-3.5 h-3.5" /> Add Product
+                  </button>
+                </>
+              )}
             </div>
           </div>
 
-          {/* Toolbar & Filter Chips */}
-          <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            {/* Search */}
-            <div className="relative flex-1 max-w-md">
-              <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search item, HUID, barcode, category, location..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A] focus:bg-white"
-              />
-            </div>
-
-            {/* Filter Chips & Refresh */}
-            <div className="flex items-stretch sm:items-center gap-2">
-              <div className="grid grid-cols-2 sm:flex gap-2 flex-1 sm:flex-none min-w-0">
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
-                    filterStatus === 'all'
-                      ? 'bg-[#0A0A0A] text-[var(--accent)] shadow-xs'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                  }`}
-                >
-                  All ({items.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('in_stock')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
-                    filterStatus === 'in_stock'
-                      ? 'bg-emerald-800 text-white shadow-xs'
-                      : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
-                  }`}
-                >
-                  In Stock ({items.filter((i) => i.stock > 0).length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('low')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
-                    filterStatus === 'low'
-                      ? 'bg-amber-800 text-white shadow-xs'
-                      : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
-                  }`}
-                >
-                  Low Stock ({lowStockCount})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterStatus('out')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer text-center ${
-                    filterStatus === 'out'
-                      ? 'bg-red-800 text-white shadow-xs'
-                      : 'bg-red-50 text-red-800 border border-red-200 hover:bg-red-100'
-                  }`}
-                >
-                  Out of Stock ({outOfStockCount})
-                </button>
+          {/* Summary cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {([
+              ['Total SKUs', String(totalSkus), <Layers key="l" className="w-5 h-5 text-[#000000]" />, 'bg-black/5'],
+              ['Total Stock', `${totalUnits} Units`, <Package key="p" className="w-5 h-5 text-[#16A34A]" />, 'bg-[#DCFCE7]'],
+              ['Low Stock Items', String(lowStockCount), <AlertTriangle key="a" className="w-5 h-5 text-[#D97706]" />, 'bg-[#FEF3C7]'],
+              ['Stock Valuation', formatCurrency(totalValuation), <Coins key="c" className="w-5 h-5 text-[var(--accent)]" />, 'bg-[var(--accent-a10)]'],
+            ] as const).map(([label, value, icon, bg]) => (
+              <div key={label} className="bg-white border border-black/10 rounded-xl p-4 shadow-xs flex justify-between items-center">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold text-[var(--accent-dark)] uppercase tracking-wider">{label}</p>
+                  <p className="text-xl font-black text-black break-words">{value}</p>
+                </div>
+                <div className={`w-10 h-10 rounded-lg ${bg} flex items-center justify-center shrink-0`}>{icon}</div>
               </div>
-              <button
-                type="button"
-                onClick={loadData}
-                className="shrink-0 p-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition-colors cursor-pointer"
-                title="Refresh stock list"
-              >
-                <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            ))}
+          </div>
+
+          {/* Status filter */}
+          <div className="bg-white border border-black/10 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex gap-1.5 flex-wrap">
+              <button type="button" onClick={() => setFilterStatus('all')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${filterStatus === 'all' ? 'bg-[var(--accent)] text-white' : 'bg-[#F4F4F5] text-black hover:bg-black/10'}`}>
+                All ({items.length})
+              </button>
+              <button type="button" onClick={() => setFilterStatus('in_stock')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${filterStatus === 'in_stock' ? 'bg-[var(--accent)] text-white' : 'bg-[#F4F4F5] text-black hover:bg-black/10'}`}>
+                In Stock ({items.filter((i) => i.stock > 0).length})
+              </button>
+              <button type="button" onClick={() => setFilterStatus('low')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${filterStatus === 'low' ? 'bg-[var(--accent)] text-white' : 'bg-[#F4F4F5] text-black hover:bg-black/10'}`}>
+                Low Stock ({lowStockCount})
+              </button>
+              <button type="button" onClick={() => setFilterStatus('out')} className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${filterStatus === 'out' ? 'bg-[var(--accent)] text-white' : 'bg-[#F4F4F5] text-black hover:bg-black/10'}`}>
+                Out of Stock ({outOfStockCount})
               </button>
             </div>
+            <button type="button" onClick={loadData} className="flex items-center justify-center w-8 h-8 bg-black/5 hover:bg-black/10 text-[#000000] rounded-md transition-colors cursor-pointer" title="Refresh stock list">
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
           </div>
 
           {/* Bulk Selection Action Bar (Admin Only) */}
           {role === 'admin' && selectedIds.size > 0 && (
-            <div className="bg-[#0A0A0A] border border-[var(--accent)] rounded-2xl p-3.5 shadow-sm flex items-center justify-between gap-3 flex-wrap">
+            <div className="bg-[#0A0A0A] border border-[var(--accent)] rounded-xl p-3.5 shadow-sm flex items-center justify-between gap-3 flex-wrap">
               <span className="text-xs font-black text-[var(--accent)]">
                 {selectedProductIds.length} product{selectedProductIds.length === 1 ? '' : 's'} selected
               </span>
@@ -450,7 +365,7 @@ export const InventoryTable: React.FC = () => {
           )}
 
           {/* Stock Table */}
-          <div className="bg-white border border-black/10 rounded-2xl overflow-hidden shadow-sm">
+          <div className="bg-white border border-black/10 rounded-xl overflow-hidden shadow-sm">
             {loading ? (
               <div className="p-16 text-center text-gray-400 font-bold text-xs flex flex-col items-center justify-center">
                 <RefreshCw size={24} className="animate-spin text-[var(--accent)] mb-2" />
@@ -463,11 +378,11 @@ export const InventoryTable: React.FC = () => {
             ) : (
               <>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left text-xs whitespace-nowrap">
-                  <thead className="bg-white border-b border-black/10 text-xs font-bold text-gray-700">
+                <table className="w-full text-left text-xs">
+                  <thead className="border-b border-black/10 text-xs font-bold text-gray-700 bg-[#F9FAFB]">
                     <tr>
                       {role === 'admin' && (
-                        <th className="p-3.5 w-10">
+                        <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">
                           <input
                             type="checkbox"
                             checked={filtered.length > 0 && filtered.every((item) => selectedIds.has(item.id))}
@@ -477,13 +392,13 @@ export const InventoryTable: React.FC = () => {
                           />
                         </th>
                       )}
-                      <th className="p-3.5">Item &amp; Jewellery Details</th>
-                      <th className="p-3.5">Barcode</th>
-                      <th className="p-3.5">Location</th>
-                      <th className="p-3.5">Category</th>
-                      <th className="p-3.5 text-center">Stock Level</th>
-                      <th className="p-3.5 text-right">Price / Current Value</th>
-                      <th className="p-3.5 text-right">Actions</th>
+                      <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Item &amp; Jewellery Details</th>
+                      <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Barcode</th>
+                      <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Location</th>
+                      <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Category</th>
+                      <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center">Stock Level</th>
+                      <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-right">Price / Current Value</th>
+                      <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -597,11 +512,11 @@ export const InventoryTable: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => openAdjust(item)}
-                                className="px-2.5 py-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 text-[11px] font-bold transition-colors cursor-pointer"
+                                className="text-[10px] font-bold px-2.5 py-1.5 rounded uppercase tracking-wider transition-colors cursor-pointer inline-flex items-center gap-1 text-black/70 hover:text-[var(--accent)] hover:bg-[var(--accent-a10)] border border-black/15"
                                 title="Adjust Stock"
                               >
-                                <SlidersHorizontal size={13} className="inline mr-1" />
-                                Adjust
+                                <SlidersHorizontal className="w-3 h-3" />
+                                Stock
                               </button>
                             )}
 
@@ -609,10 +524,11 @@ export const InventoryTable: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setHistoryDrawerItem(item)}
-                              className="p-1.5 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100 transition-colors cursor-pointer"
+                              className="text-[10px] font-bold px-2.5 py-1.5 rounded uppercase tracking-wider transition-colors cursor-pointer inline-flex items-center gap-1 text-[var(--accent)] hover:text-white hover:bg-[var(--accent)] border border-[var(--accent-a30)]"
                               title="Stock History"
                             >
-                              <History size={14} />
+                              <History className="w-3 h-3" />
+                              History
                             </button>
 
                             {/* Print Barcode (reserves identical spacing when item has no barcode) */}
@@ -620,15 +536,16 @@ export const InventoryTable: React.FC = () => {
                               type="button"
                               disabled={!item.barcode}
                               onClick={() => item.barcode && setPrintModalItem(item)}
-                              className={`p-1.5 rounded-lg border transition-colors ${
+                              className={`text-[10px] font-bold px-2.5 py-1.5 rounded uppercase tracking-wider transition-colors cursor-pointer inline-flex items-center gap-1 border ${
                                 item.barcode
-                                  ? 'bg-[#0A0A0A] text-[var(--accent)] border-[var(--accent)] hover:bg-[#1A1A1A] cursor-pointer'
+                                  ? 'text-black/70 hover:text-[var(--accent)] hover:bg-[var(--accent-a10)] border-black/15'
                                   : 'invisible pointer-events-none border-transparent'
                               }`}
                               title={item.barcode ? 'Print Barcode Labels' : undefined}
                               aria-hidden={!item.barcode}
                             >
-                              <Printer size={14} />
+                              <Printer className="w-3 h-3" />
+                              Barcode
                             </button>
 
                             {/* Delete Product / Variant (Admin Only) */}
@@ -636,10 +553,11 @@ export const InventoryTable: React.FC = () => {
                               <button
                                 type="button"
                                 onClick={() => handleDeleteItem(item)}
-                                className="p-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors cursor-pointer"
+                                className="text-[10px] font-bold px-2.5 py-1.5 rounded uppercase tracking-wider transition-colors cursor-pointer inline-flex items-center gap-1 text-[#DC2626] hover:text-white hover:bg-[#DC2626] border border-[#DC2626]/30"
                                 title={`Delete "${item.variant_name ? `${item.name} (${item.variant_name})` : item.name}"`}
                               >
-                                <Trash2 size={14} />
+                                <Trash2 className="w-3 h-3" />
+                                Delete
                               </button>
                             )}
                           </div>

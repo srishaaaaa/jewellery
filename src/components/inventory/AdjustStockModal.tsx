@@ -257,7 +257,7 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
     <ModalPortal>
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/75 backdrop-blur-sm p-3 sm:p-4 overflow-hidden">
       {/* Fixed height so the box does not grow or shrink when switching adjustment type */}
-      <div className="bg-white rounded-2xl sm:rounded-3xl max-w-lg w-full h-[min(660px,calc(100dvh-24px))] shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+      <div className="bg-white rounded-xl sm:rounded-xl max-w-lg w-full h-[min(660px,calc(100dvh-24px))] shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="shrink-0 bg-[#0A0A0A] px-4 sm:px-5 py-3.5 flex items-center justify-between gap-3 text-white">
           <div className="flex items-center gap-3 min-w-0">
@@ -293,7 +293,7 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
             )}
 
             {/* Product card */}
-            <div className="bg-white border border-[var(--accent-a40)] rounded-2xl p-3">
+            <div className="bg-white border border-[var(--accent-a40)] rounded-xl p-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--accent-dark)] flex items-center gap-1">
