@@ -4,7 +4,9 @@ import { ArrowLeft, Check, Copy, FileDown, MessageCircle, Printer } from 'lucide
 import { listAdvanceOrders, type AdvanceOrder } from '../services/advanceOrderService'
 import { AdvanceReceiptSheet } from '../components/invoice/AdvanceReceiptSheet'
 import { toolbarBtn, toolbarBtnDark } from '../components/invoice/invoiceStyle'
-import { advanceReceiptPdf, downloadFile } from '../lib/advanceReceipt'
+import { PrintSettingsModal } from '../components/invoice/PrintSettingsModal'
+import { printSheet, thermalWidth } from '../lib/printPrefs'
+import { advanceReceiptPdf, downloadFile, printAdvanceReceipt } from '../lib/advanceReceipt'
 import { buildAdvanceDepositWhatsAppMessage } from '../lib/whatsappMessage'
 import { toWhatsAppUrl } from '../lib/phone'
 import { getErrorMessage } from '../lib/errorMessage'
@@ -16,6 +18,14 @@ export default function AdvanceReceiptPage() {
   const [order, setOrder] = useState<AdvanceOrder | null>(null)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [printOpen, setPrintOpen] = useState(false)
+  // ?print=a4 / a5: sheet print chosen in Print Settings on the Advance Orders page
+  const autoPrint = new URLSearchParams(window.location.search).get('print')
+  useEffect(() => {
+    if (!order || (autoPrint !== 'a4' && autoPrint !== 'a5')) return
+    const t = window.setTimeout(() => printSheet(autoPrint), 600)
+    return () => window.clearTimeout(t)
+  }, [order, autoPrint])
 
   useEffect(() => {
     let alive = true
@@ -66,9 +76,16 @@ export default function AdvanceReceiptPage() {
               {copied ? <><Check className="w-4 h-4" /> Copied</> : <><Copy className="w-4 h-4" /> Copy Link</>}
             </button>
             <button type="button" onClick={() => order && downloadFile(advanceReceiptPdf(order))} disabled={!order} className={toolbarBtn}><FileDown className="w-4 h-4" /> PDF</button>
-            <button type="button" onClick={() => window.print()} disabled={!order} className={toolbarBtnDark}><Printer className="w-4 h-4" /> Print</button>
+            <button type="button" onClick={() => setPrintOpen(true)} disabled={!order} className={toolbarBtnDark}><Printer className="w-4 h-4" /> Print</button>
           </div>
         </div>
+
+        {printOpen && order && (
+          <PrintSettingsModal
+            onClose={() => setPrintOpen(false)}
+            onPrint={(prefs) => prefs.paper === 'thermal' ? printAdvanceReceipt(order, thermalWidth(prefs)) : printSheet(prefs.size === 'a5' ? 'a5' : 'a4')}
+          />
+        )}
 
         <div className="rounded-xl border border-black/10 bg-white shadow-sm print:rounded-none print:border-none print:shadow-none">
           {order ? (

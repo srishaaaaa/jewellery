@@ -48,6 +48,8 @@ export interface ThermalReceiptData {
   splitDetails?: unknown
   schemeGramsUsed?: number | null
   schemeGoldRate?: number | null
+  /** Roll width chosen in Print Settings (default 80 mm) */
+  paperWidth?: 58 | 80
 }
 
 const jewelleryReceiptLines = (raw: unknown) => {
@@ -63,6 +65,7 @@ const jewelleryReceiptLines = (raw: unknown) => {
 }
 
 export function printThermalReceipt(data: ThermalReceiptData) {
+  const rollWidth = data.paperWidth === 58 ? 58 : 80
   // Create an iframe to hold the print document
   const iframe = document.createElement('iframe')
   iframe.style.position = 'fixed'
@@ -112,16 +115,16 @@ export function printThermalReceipt(data: ThermalReceiptData) {
         <style>
           @page {
             margin: 0;
-            size: 80mm auto;
+            size: ${rollWidth}mm auto;
           }
           body {
             font-family: 'Poppins', system-ui, sans-serif;
-            font-size: 12px;
+            font-size: ${rollWidth === 58 ? 10.5 : 12}px;
             font-weight: 600;
             color: #000;
             margin: 0;
-            padding: 4mm;
-            width: 80mm;
+            padding: ${rollWidth === 58 ? 2 : 4}mm;
+            width: ${rollWidth}mm;
             box-sizing: border-box;
             -webkit-print-color-adjust: exact;
             print-color-adjust: exact;

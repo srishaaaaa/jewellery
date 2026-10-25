@@ -351,8 +351,8 @@ export default function CustomerEvents() {
             {tracked.filter(c => c.birthday).length === 0 ? 'No birthdays saved yet.' : 'No birthdays match these filters.'}
           </div>
         ) : (
-          <div className="overflow-x-auto lg:overflow-x-visible">
-            <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
               <thead className="border-t border-black/10 text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
                 <tr>
                   <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">#</th>
@@ -440,8 +440,8 @@ export default function CustomerEvents() {
             {tracked.filter(c => c.anniversary).length === 0 ? 'No anniversaries saved yet.' : 'No anniversaries match these filters.'}
           </div>
         ) : (
-          <div className="overflow-x-auto lg:overflow-x-visible">
-            <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
               <thead className="border-t border-black/10 text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
                 <tr>
                   <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">#</th>

@@ -7,6 +7,8 @@ import {
   X, ChevronDown, Power, Calculator, Check, Clock, Loader2, ArrowLeft, Copy
 } from 'lucide-react'
 import { toolbarBtn, toolbarBtnDark } from '../components/invoice/invoiceStyle'
+import { PrintSettingsModal } from '../components/invoice/PrintSettingsModal'
+import { printSheet, thermalWidth } from '../lib/printPrefs'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { getErrorMessage } from '../lib/errorMessage'
 import { useProductStore, useVariantStore, useAdminAuthStore, type Product } from '../store/store'
@@ -299,6 +301,7 @@ export default function Pos(props: PosProps = {}) {
   // Slot in the dashboard top bar that holds the online / offline toggle (IGMOLS layout).
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [printOpen, setPrintOpen] = useState(false)
   useEffect(() => { setHeaderSlot(document.getElementById('dashboard-header-actions')) }, [])
   const { products, fetchProducts } = useProductStore()
   const { getVariants, fetchVariants } = useVariantStore()
@@ -1576,9 +1579,10 @@ export default function Pos(props: PosProps = {}) {
     }
   }
 
-  const printReceipt = (inv: InvoiceSnap) => {
+  const printReceipt = (inv: InvoiceSnap, paperWidth: 58 | 80 = 80) => {
     // Print a Bluetooth/thermal receipt directly
     printThermalReceipt({
+      paperWidth,
       paymentMode: inv.paymentMode,
       invoiceNo: inv.invoiceNo,
       date: inv.date,
@@ -1647,11 +1651,17 @@ export default function Pos(props: PosProps = {}) {
               <button type="button" onClick={() => void copyInvoiceLink(invoice.invoiceNo)} className={toolbarBtn}>
                 {linkCopied ? <><Check className="w-4 h-4" /> Copied</> : <><Copy className="w-4 h-4" /> Copy Link</>}
               </button>
-              <button type="button" onClick={() => printReceipt(invoice)} className={toolbarBtn} title="Print the thermal receipt"><Receipt className="w-4 h-4" /> Receipt</button>
-              <button type="button" onClick={() => window.print()} className={toolbarBtnDark}><Printer className="w-4 h-4" /> Print</button>
+              <button type="button" onClick={() => setPrintOpen(true)} className={toolbarBtnDark}><Printer className="w-4 h-4" /> Print</button>
             </div>
           </div>
         </div>
+
+        {printOpen && (
+          <PrintSettingsModal
+            onClose={() => setPrintOpen(false)}
+            onPrint={(prefs) => prefs.paper === 'thermal' ? printReceipt(invoice, thermalWidth(prefs)) : printSheet(prefs.size === 'a5' ? 'a5' : 'a4')}
+          />
+        )}
 
         {/* Full A4 invoice — on screen and in print */}
         <div className="mx-auto max-w-[776px] px-3 sm:px-0 pb-8 print:p-0 print:max-w-full">

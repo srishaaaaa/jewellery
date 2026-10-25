@@ -82,6 +82,8 @@ import {
 } from 'recharts'
 import { DocIcon, EyeIcon, WhatsAppIcon, actionBtn } from '../components/ActionIcons'
 import { DocumentPreviewModal } from '../components/invoice/InvoiceParts'
+import { PrintSettingsModal } from '../components/invoice/PrintSettingsModal'
+import { thermalWidth } from '../lib/printPrefs'
 import { getPresetRange, startOfWeekMonday, toLocalDateStr } from '../lib/dateRanges'
 import { csvDate, csvPhone, toCsv } from '../lib/csv'
 import { lowStockLimit } from '../lib/stockLevels'
@@ -275,6 +277,7 @@ export default function Dashboard() {
   const [analyticsTab, setAnalyticsTab] = useState('revenue')
 
   const [invoicePreviewOrder, setInvoicePreviewOrder] = useState<DashboardOrder | null>(null)
+  const [printOrder, setPrintOrder] = useState<DashboardOrder | null>(null)
 
   // WA detail expansion
   const [waExpandedId, setWaExpandedId] = useState<string | null>(null)
@@ -992,12 +995,13 @@ export default function Dashboard() {
     window.open(toWhatsAppUrl(order.phone, preview.message), '_blank', 'noopener,noreferrer')
   }
 
-  const handlePrintReceipt = (order: DashboardOrder) => {
+  const handlePrintReceipt = (order: DashboardOrder, paperWidth: 58 | 80 = 80) => {
     const preview = getOrderWhatsAppPreview(order)
     if (!preview) { alert('This order has no invoice details available.'); return }
     const subtotal = order.total - (order.delivery_charge || 0) + (order.discount_amount || 0)
 
     printThermalReceipt({
+      paperWidth,
       paymentMode: formatPaymentMode(order.payment_mode || order.payment_method, order.split_details) || undefined,
       invoiceNo: order.invoice_no || order.id,
       date: order.created_at,
@@ -1654,8 +1658,8 @@ export default function Dashboard() {
                     )
                   })}
                 </div>
-                <div className="hidden md:block overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10">
-                  <table className="w-full text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+                <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
+                  <table className="w-full text-xs">
                     <thead className="text-[10px] uppercase tracking-wider text-[#000000] bg-[#F9FAFB]">
                       <tr>
                         <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Invoice', 'பில்')}</th>
@@ -2004,8 +2008,8 @@ export default function Dashboard() {
                     )
                   })}
                 </div>
-                <div className="hidden md:block overflow-x-auto lg:overflow-x-visible">
-                  <table className="w-full text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-xs">
                     <thead className="border-b border-blue-100 sticky top-0 z-10 bg-[#F9FAFB]">
                       <tr className="text-left text-[#000000] font-black text-[10px] uppercase tracking-wider">
                         <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Customer', 'வாடிக்கையாளர்')}</th>
@@ -2114,8 +2118,8 @@ export default function Dashboard() {
 
                                     {/* Items table */}
                                     {its.length > 0 && (
-                                      <div className="overflow-x-auto lg:overflow-x-visible">
-                                        <table className="w-full bg-white rounded-xl overflow-hidden border border-blue-100 text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+                                      <div className="overflow-x-auto">
+                                        <table className="w-full bg-white rounded-xl overflow-hidden border border-blue-100 text-xs">
                                           <thead className="bg-[#F9FAFB]">
                                             <tr className="text-left text-[#000000] font-black text-[10px] uppercase tracking-wider">
                                               <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Product', 'பொருள்')}</th>
@@ -2607,8 +2611,8 @@ export default function Dashboard() {
                     {analytics.topProducts.length === 0 ? (
                       <p className="text-xs text-[#000000]">No completed product sales yet.</p>
                     ) : (
-                      <div className="overflow-x-auto lg:overflow-x-visible rounded-xl border border-[#F0EEE9]">
-                        <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+                      <div className="overflow-x-auto rounded-xl border border-[#F0EEE9]">
+                        <table className="w-full text-left text-xs">
                           <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
                             <tr>
                               <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Product</th>
@@ -2717,8 +2721,8 @@ export default function Dashboard() {
                         )
                       })}
                     </div>
-                    <div className="hidden md:block overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10">
-                      <table className="w-full text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+                    <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
+                      <table className="w-full text-xs">
                         <thead className="text-[10px] uppercase tracking-wider text-[#000000] bg-[#F9FAFB]">
                           <tr>
                             <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Invoice</th>
@@ -2824,8 +2828,8 @@ export default function Dashboard() {
                           </div>
                         ))}
                       </div>
-                      <div className="hidden md:block overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10">
-                        <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+                      <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
+                        <table className="w-full text-left text-xs">
                           <thead className="text-[10px] uppercase tracking-wider text-[#000000] bg-[#F9FAFB]">
                             <tr>
                               <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">#</th>
@@ -2880,8 +2884,8 @@ export default function Dashboard() {
                       </div>
                     ))}
                   </div>
-                  <div className="hidden md:block overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10">
-                    <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+                  <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
+                    <table className="w-full text-left text-xs">
                       <thead className="text-[10px] uppercase tracking-wider text-[#000000] bg-[#F9FAFB]">
                         <tr>
                           <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">#</th>
@@ -3011,8 +3015,8 @@ export default function Dashboard() {
                         </div>
                       ))}
                     </div>
-                    <div className="hidden md:block overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10">
-                      <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+                    <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
+                      <table className="w-full text-left text-xs">
                         <thead className="text-[10px] uppercase tracking-wider text-[#000000] bg-[#F9FAFB]">
                           <tr>
                             <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">#</th>
@@ -3212,11 +3216,11 @@ export default function Dashboard() {
                   <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-[#000000]">{l('No matching bills', 'பில்கள் இல்லை')}</div>
                 )}
               </div>
-              <div className="hidden md:block overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10 bg-white">
-                <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+              <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10 bg-white">
+                <table className="w-full text-left text-xs">
                   <thead>
                     <tr className="bg-white border-b border-black/10 select-none">
-                      {['Order ID', 'Customer Name', 'Mobile Number', 'Source', 'Coupon', 'Discount', 'Delivery', 'Total Due', 'Date & Time', 'Status', 'Actions'].map(h => (
+                      {['Order ID', 'Customer Name', 'Mobile Number', 'Source', 'Offers', 'Total Due', 'Date & Time', 'Status', 'Actions'].map(h => (
                         <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center">{h}</th>
                       ))}
                     </tr>
@@ -3228,28 +3232,28 @@ export default function Dashboard() {
                       return (
                         <React.Fragment key={o.id}>
                         <tr key={o.id} className="hover:bg-black/[0.03] text-center">
-                          <td className="px-4 py-3 text-[11px] font-bold text-[#000000]">{formatInvoiceNo(o.invoice_no)}</td>
+                          <td className="whitespace-nowrap px-4 py-3 text-[11px] font-bold text-[#000000]">{formatInvoiceNo(o.invoice_no)}</td>
                           <td className="max-w-[100px] break-words px-4 py-3 text-[11px] font-semibold text-[#000000]">
                             {o.customer_name}
                             {o.credit_status === 'paid' && (
                               <span className="mt-1 block w-fit rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-700 border border-amber-200">Credit Bill</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-[11px] text-[#000000]">
+                          <td className="whitespace-nowrap px-4 py-3 text-[11px] text-[#000000]">
                             <span className="font-semibold text-[#000000]">{formatPhoneWithCountryCode(o.phone).code}</span>
                             <span className="ml-1">{formatPhoneWithCountryCode(o.phone).number}</span>
                           </td>
                           <td className="px-4 py-3"><span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase ${billTypeClass}`}>{billTypeLabel}</span></td>
-                          <td className="px-4 py-3 text-[11px]">
-                            {o.coupon_code ? <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">{o.coupon_code}</span> : <span className="text-[#9BAB9A]">—</span>}
+                          <td className="px-4 py-3 text-[10px] leading-relaxed">
+                            {o.coupon_code || o.discount_amount > 0 || o.delivery_charge > 0 ? (
+                              <div className="flex flex-col items-center gap-0.5">
+                                {o.coupon_code && <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-700">{o.coupon_code}</span>}
+                                {o.discount_amount > 0 && <span className="whitespace-nowrap font-bold text-emerald-700">−{formatCurrency(o.discount_amount)}</span>}
+                                {o.delivery_charge > 0 && <span className="whitespace-nowrap font-semibold text-[#000000]">+{formatCurrency(o.delivery_charge)} delivery</span>}
+                              </div>
+                            ) : <span className="text-[#9BAB9A]">—</span>}
                           </td>
-                          <td className="px-4 py-3 text-[11px]">
-                            {o.discount_amount > 0 ? <span className="font-bold text-emerald-700">-{formatCurrency(o.discount_amount)}</span> : <span className="text-[#9BAB9A]">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-[11px]">
-                            {o.delivery_charge > 0 ? <span className="font-bold text-[#000000]">{formatCurrency(o.delivery_charge)}</span> : <span className="text-[#9BAB9A]">—</span>}
-                          </td>
-                          <td className="px-4 py-3 text-[11px] font-bold text-[#000000]">
+                          <td className="whitespace-nowrap px-4 py-3 text-[11px] font-bold text-[#000000]">
                             {formatCurrency(getOrderTotal(o))}
                             {o.credit_status === 'outstanding' && (
                               <span className="mt-1 block rounded-full bg-red-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-red-700">Credit Due</span>
@@ -3260,8 +3264,8 @@ export default function Dashboard() {
                               </span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-[11px] text-[#000000]">{new Date(o.created_at).toLocaleDateString('en-IN')}</td>
-                          <td className="px-4 py-3">
+                          <td className="whitespace-nowrap px-4 py-3 text-[11px] text-[#000000]">{new Date(o.created_at).toLocaleDateString('en-IN')}</td>
+                          <td className="whitespace-nowrap px-4 py-3">
                             <div className="flex items-center justify-center gap-1.5">
                               {role === 'admin' ? (
                                 <select value={normalizeStatus(o.status)} disabled={normalizeStatus(o.status) === 'cancelled'} onChange={e => void updateOrderStatus(o.id, e.target.value)}
@@ -3277,7 +3281,7 @@ export default function Dashboard() {
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="whitespace-nowrap px-4 py-3">
                             <div className="flex flex-row items-center justify-end gap-1.5">
                               <button onClick={() => handleShareViaWhatsApp(o)} title="Send on WhatsApp" aria-label="Send on WhatsApp" className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`}>
                                 <WhatsAppIcon className="w-4 h-4" />
@@ -3299,7 +3303,7 @@ export default function Dashboard() {
                         </tr>
                         {historyExpandedId === o.id && (
                           <tr className="bg-white border-b border-black/10">
-                            <td colSpan={11} className="px-4 py-4">
+                            <td colSpan={9} className="px-4 py-4">
                               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
                                 <div>
                                   <p className="text-[10px] font-bold uppercase text-[#9BAB9A] tracking-wider mb-1">Reference No</p>
@@ -3325,7 +3329,7 @@ export default function Dashboard() {
                       )
                     })}
                     {filteredSearchResults.length === 0 && (
-                      <tr><td colSpan={11} className="px-4 py-8 text-center text-[#000000]">{l('No matching bills', 'பில்கள் இல்லை')}</td></tr>
+                      <tr><td colSpan={9} className="px-4 py-8 text-center text-[#000000]">{l('No matching bills', 'பில்கள் இல்லை')}</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -3662,8 +3666,8 @@ export default function Dashboard() {
                     <p className="p-10 text-center text-sm font-bold text-[#000000] bg-white">{l('No users found.', 'பயனர் இல்லை.')}</p>
                   )}
                 </div>
-                <div className="hidden md:block overflow-x-auto lg:overflow-x-visible">
-                  <table className="w-full text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full text-xs">
                     <thead>
                       <tr className="bg-white border-b border-black/10 uppercase tracking-widest text-[10px] text-[#000000]">
                         <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Name', 'பெயர்')}</th>
@@ -3746,7 +3750,7 @@ export default function Dashboard() {
             onSettled={handleCreditSettled}
             onDueDateChanged={handleCreditDueDateChanged}
             onView={(o) => setInvoicePreviewOrder(o)}
-            onPrint={(o) => handlePrintReceipt(o)}
+            onPrint={(o) => setPrintOrder(o)}
             onDownload={(o) => void openOrderInvoice(o, 'download')}
             onShare={(o) => {
               // Settled bills get a "payment received, thank you" message, not a payment reminder
@@ -3835,6 +3839,15 @@ export default function Dashboard() {
           </DocumentPreviewModal>
         )
       })()}
+
+      {printOrder && (
+        <PrintSettingsModal
+          onClose={() => setPrintOrder(null)}
+          onPrint={(prefs) => prefs.paper === 'thermal'
+            ? handlePrintReceipt(printOrder, thermalWidth(prefs))
+            : navigate(`/invoice/${encodeURIComponent(formatInvoiceNo(printOrder.invoice_no || printOrder.id))}?print=${prefs.size}`)}
+        />
+      )}
 
       {/* Global Barcode Navigation Dialog */}
       <BarcodeRedirectDialog onNavigateToBilling={handleNavigateToBillingFromDialog} />

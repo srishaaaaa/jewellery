@@ -232,8 +232,8 @@ export default function JewelleryReports({ orders, dateFrom, dateTo }: { orders:
         </div>
         {exportButton(onExport, !list.length)}
       </div>
-      <div className="overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10 max-h-[340px] overflow-y-auto">
-        <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+      <div className="overflow-x-auto rounded-xl border border-black/10 max-h-[340px] overflow-y-auto">
+        <table className="w-full text-left text-xs">
           <thead className="sticky top-0 bg-[#F9FAFB]"><tr>{[keyHeader, countHeader, 'Amount'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
           <tbody className="divide-y divide-black/5">
             {list.length === 0 ? (
@@ -286,8 +286,8 @@ export default function JewelleryReports({ orders, dateFrom, dateTo }: { orders:
             </div>
             {exportButton(() => exportBuckets('metal_sales', 'Metal', sales.byMetal, true), !sales.byMetal.length)}
           </div>
-          <div className="overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10">
-            <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+          <div className="overflow-x-auto rounded-xl border border-black/10">
+            <table className="w-full text-left text-xs">
               <thead className="bg-[#F9FAFB]"><tr>{['Metal', 'Pieces', 'Gross Wt', 'Net Wt', 'Amount'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
               <tbody className="divide-y divide-black/5">
                 {sales.byMetal.length === 0 ? (
@@ -335,8 +335,8 @@ export default function JewelleryReports({ orders, dateFrom, dateTo }: { orders:
           </div>
           {exportButton(exportInventory, !inventory.list.length)}
         </div>
-        <div className="overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10">
-          <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+        <div className="overflow-x-auto rounded-xl border border-black/10">
+          <table className="w-full text-left text-xs">
             <thead className="bg-[#F9FAFB]"><tr>{['Metal / Purity', 'Items', 'Pieces', 'Gross Wt', 'Net Wt', 'Estimated Value'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
             <tbody className="divide-y divide-black/5">
               {inventory.list.length === 0 ? (
@@ -374,8 +374,8 @@ export default function JewelleryReports({ orders, dateFrom, dateTo }: { orders:
           </div>
           {exportButton(exportSales, !sales.rows.length)}
         </div>
-        <div className="overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10">
-          <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+        <div className="overflow-x-auto rounded-xl border border-black/10">
+          <table className="w-full text-left text-xs">
             <thead className="bg-[#F9FAFB]"><tr>{['Date', 'Invoice', 'Item', 'Metal', 'Weight', 'Rate', 'Making', 'Wastage', 'Final Amount'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
             <tbody className="divide-y divide-black/5">
               {sales.rows.length === 0 ? (
@@ -407,8 +407,8 @@ export default function JewelleryReports({ orders, dateFrom, dateTo }: { orders:
             </div>
             {exportButton(exportRates, !rates.length)}
           </div>
-          <div className="overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10 max-h-[420px] overflow-y-auto">
-            <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+          <div className="overflow-x-auto rounded-xl border border-black/10 max-h-[420px] overflow-y-auto">
+            <table className="w-full text-left text-xs">
               <thead className="sticky top-0 bg-[#F9FAFB]"><tr>{['Date', 'Metal', 'Purity', 'Rate / g'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
               <tbody className="divide-y divide-black/5">
                 {rates.length === 0 ? (
@@ -434,8 +434,8 @@ export default function JewelleryReports({ orders, dateFrom, dateTo }: { orders:
             </div>
             {exportButton(exportSchemes, !schemes.length)}
           </div>
-          <div className="overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10 max-h-[420px] overflow-y-auto">
-            <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
+          <div className="overflow-x-auto rounded-xl border border-black/10 max-h-[420px] overflow-y-auto">
+            <table className="w-full text-left text-xs">
               <thead className="sticky top-0 bg-[#F9FAFB]"><tr>{['Customer', 'Scheme', 'Amount', 'Paid', 'Pending', 'Status'].map((h) => <th key={h} className={th}>{h}</th>)}</tr></thead>
               <tbody className="divide-y divide-black/5">
                 {schemes.length === 0 ? (

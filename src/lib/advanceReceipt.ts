@@ -164,7 +164,7 @@ export function advanceReceiptPdf(order: AdvanceOrder) {
   return new File([doc.output('blob')], `Advance-Receipt-${order.deposit_id}.pdf`, { type: 'application/pdf' })
 }
 
-export function printAdvanceReceipt(order: AdvanceOrder) {
+export function printAdvanceReceipt(order: AdvanceOrder, paperWidth: 58 | 80 = 80) {
   const shop = getShopInfo()
   const frame = document.createElement('iframe')
   frame.style.cssText = 'position:fixed;width:0;height:0;border:0;right:0;bottom:0'
@@ -181,15 +181,15 @@ export function printAdvanceReceipt(order: AdvanceOrder) {
   const html = `<!doctype html><html><head><title>Advance Receipt ${esc(order.deposit_id)}</title>
 <meta charset="utf-8"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-  @page { size: 80mm auto; margin: 0; }
-  @media print { @page { size: 80mm auto; margin: 0; } }
+  @page { size: ${paperWidth}mm auto; margin: 0; }
+  @media print { @page { size: ${paperWidth}mm auto; margin: 0; } }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: 'Poppins', system-ui, sans-serif;
-    font-size: 12px;
+    font-size: ${paperWidth === 58 ? 10.5 : 12}px;
     font-weight: 600;
-    width: 72mm;
-    padding: 4mm;
+    width: ${paperWidth - 8}mm;
+    padding: ${paperWidth === 58 ? 2 : 4}mm;
     color: #000;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;

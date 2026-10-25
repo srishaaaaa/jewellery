@@ -10,6 +10,8 @@ import { useNavigate } from 'react-router-dom'
 import { ModalPortal } from '../components/ModalPortal'
 import { DocumentPreviewModal } from '../components/invoice/InvoiceParts'
 import { AdvanceReceiptSheet } from '../components/invoice/AdvanceReceiptSheet'
+import { PrintSettingsModal } from '../components/invoice/PrintSettingsModal'
+import { thermalWidth, type PrintPrefs } from '../lib/printPrefs'
 import { DocIcon, WhatsAppIcon, actionBtn } from '../components/ActionIcons'
 import { printAdvanceReceipt } from '../lib/advanceReceipt'
 import { useAdminAuthStore, useProductStore } from '../store/store'
@@ -63,6 +65,7 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
   const [toDate, setToDate] = useState('')
   const [selected, setSelected] = useState<AdvanceOrder | null>(null)
   const [previewOrder, setPreviewOrder] = useState<AdvanceOrder | null>(null)
+  const [printFor, setPrintFor] = useState<AdvanceOrder | null>(null)
   const navigate = useNavigate()
   const [paymentOrder, setPaymentOrder] = useState<AdvanceOrder | null>(null)
   const [paymentForm, setPaymentForm] = useState({ method: 'cash' as AdvancePaymentMethod, remarks: '' })
@@ -197,7 +200,7 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
   }
 
   const productRows = (order: AdvanceOrder) => order.products.length ? order.products : [{ name: order.product_name, quantity: 1, base_price: order.total_amount, line_total: order.total_amount, unit: 'piece', unit_type: 'unit' }]
-  const printFinal = (order: AdvanceOrder) => printThermalReceipt({ invoiceNo: order.invoice_number || order.deposit_id, date: order.completed_at || new Date().toISOString(), customerName: order.customer_name, phone: order.phone, items: productRows(order).map(item => ({ name: String(item.name || 'Product'), qty: Number(item.quantity || 1), unit: String(item.unit || 'piece'), price: Number(item.base_price || 0), line_total: Number(item.line_total || 0) })), subtotal: order.total_amount, shipping: 0, total: order.total_amount })
+  const printFinal = (order: AdvanceOrder, paperWidth: 58 | 80 = 80) => printThermalReceipt({ paperWidth, invoiceNo: order.invoice_number || order.deposit_id, date: order.completed_at || new Date().toISOString(), customerName: order.customer_name, phone: order.phone, items: productRows(order).map(item => ({ name: String(item.name || 'Product'), qty: Number(item.quantity || 1), unit: String(item.unit || 'piece'), price: Number(item.base_price || 0), line_total: Number(item.line_total || 0) })), subtotal: order.total_amount, shipping: 0, total: order.total_amount })
   
   const whatsappDepositReceipt = (order: AdvanceOrder) => {
     const message = buildAdvanceDepositWhatsAppMessage({
@@ -250,7 +253,12 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
     if (!window.confirm(`Cancel advance order ${order.deposit_id} for ${order.customer_name}?`)) return
     void changeStatus(order, 'cancelled')
   }
-  const printReceipt = (order: AdvanceOrder) => order.status === 'completed' ? printFinal(order) : printAdvanceReceipt(order)
+  const printReceipt = (order: AdvanceOrder, prefs: PrintPrefs) => {
+    if (prefs.paper === 'sheet') { navigate(`/advance/${encodeURIComponent(order.id)}?print=${prefs.size}`); return }
+    const width = thermalWidth(prefs)
+    if (order.status === 'completed') printFinal(order, width)
+    else printAdvanceReceipt(order, width)
+  }
   const shareReceipt = (order: AdvanceOrder) => order.status === 'completed' ? whatsappInvoice(order) : whatsappDepositReceipt(order)
 
   const columns = 'md:grid-cols-[1.1fr_1.3fr_1.5fr_1.5fr_0.9fr_1.1fr_1.4fr]'
@@ -409,6 +417,10 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
 
     {paymentOrder && <ModalPortal><div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/55 p-3 sm:p-4"><form onSubmit={receivePayment} className="flex w-full max-w-md max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-xl sm:rounded-xl bg-white shadow-2xl"><div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5"><div><p className="text-xs font-black uppercase tracking-wider text-emerald-600">{paymentOrder.deposit_id}</p><h3 className="text-xl font-black text-[#000000]">Receive Remaining Payment</h3></div><button type="button" onClick={()=>setPaymentOrder(null)} className="shrink-0 text-[#000000] hover:text-black"><X size={20}/></button></div><div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6"><div className="mb-4 rounded-xl bg-emerald-50 py-3 sm:py-5 text-center">{(() => { const couponDisc = appliedCoupon ? Math.round(paymentOrder.remaining_balance * (appliedCoupon.percentage / 100) * 100) / 100 : 0; const manualNum = Math.max(0, Number(manualDiscount) || 0); const manualDisc = manualDiscountType === '%' ? Math.round(paymentOrder.remaining_balance * (manualNum / 100) * 100) / 100 : manualNum; const finalAmt = Math.max(0, paymentOrder.remaining_balance - couponDisc - manualDisc); return (<><p className="text-[11px] font-black uppercase tracking-widest text-emerald-600">Remaining Amount</p><p className={`mt-1 font-black text-emerald-800 ${(couponDisc > 0 || manualDisc > 0) ? 'text-xl line-through opacity-60' : 'text-3xl sm:text-4xl'}`}>{formatCurrency(paymentOrder.remaining_balance)}</p>{(couponDisc > 0 || manualDisc > 0) && (<><div className="mt-2 space-y-0.5 text-xs text-emerald-700">{couponDisc > 0 && <p>Coupon {appliedCoupon!.code} ({appliedCoupon!.percentage}%): -{formatCurrency(couponDisc)}</p>}{manualDisc > 0 && <p>Manual Discount: -{formatCurrency(manualDisc)}</p>}</div><p className="mt-2 text-2xl sm:text-3xl font-black text-emerald-950">You Pay: {formatCurrency(finalAmt)}</p></>)}</>)})()}</div><div className="space-y-3 sm:space-y-4"><Field label="Coupon Code (Optional)"><div className="flex gap-2">{appliedCoupon ? (<div className="flex flex-1 items-center justify-between rounded-xl bg-emerald-50 px-3 py-2.5 text-sm font-black text-emerald-700"><span>{appliedCoupon.code} — {appliedCoupon.percentage}% OFF</span><button type="button" onClick={removeCoupon} className="ml-2 text-red-500 hover:text-red-700"><X size={14}/></button></div>) : (<><input list="adv-coupon-list" className={`${inputClass} flex-1`} value={couponInput} onChange={e=>{setCouponInput(e.target.value.toUpperCase());setCouponError('')}} placeholder="Enter code" /><datalist id="adv-coupon-list">{availableCoupons.map(c=><option key={c.code} value={c.code}/>)}</datalist><button type="button" onClick={applyCoupon} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white hover:bg-emerald-700">Apply</button></>)}</div>{couponError && <p className="mt-1 text-xs font-semibold text-red-600">{couponError}</p>}</Field><Field label="Manual Discount"><div className="flex gap-2 items-center"><select value={manualDiscountType} onChange={e=>setManualDiscountType(e.target.value as 'rm'|'%')} className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-black text-[#000000] outline-none focus:border-[var(--accent-dark)] focus:ring-2 focus:ring-emerald-100"><option value="rm">₹</option><option value="%">%</option></select><input type="number" min="0" step="0.01" className={`${inputClass} flex-1`} value={manualDiscount} onChange={e=>setManualDiscount(e.target.value)} placeholder="0" /></div></Field><Field label="Payment Method"><select className={inputClass} value={paymentForm.method} onChange={e=>setPaymentForm({...paymentForm,method:e.target.value as AdvancePaymentMethod})}><option value="cash">Cash</option><option value="upi">QR</option><option value="card">Card</option></select></Field><Field label="Payment Notes"><textarea className={inputClass} value={paymentForm.remarks} onChange={e=>setPaymentForm({...paymentForm,remarks:e.target.value})} rows={2} placeholder="Notes about this payment (optional)"/></Field><p className="mt-2 rounded-xl bg-amber-50 p-3 text-[11px] font-semibold text-amber-800">Confirmation marks the order Completed, creates one official invoice, and recognizes the full {formatCurrency(paymentOrder.total_amount)} as revenue.</p></div></div><div className="shrink-0 border-t border-black/10 bg-white px-4 py-3 sm:px-6"><button disabled={saving} className="w-full rounded-xl bg-emerald-600 py-3 sm:py-3.5 font-black text-white shadow-lg shadow-emerald-600/30 transition-transform active:scale-95 disabled:opacity-50">{saving?'Processing...':'Confirm Final Payment'}</button></div></form></div></ModalPortal>}
 
+    {printFor && (
+      <PrintSettingsModal onClose={() => setPrintFor(null)} onPrint={(prefs) => printReceipt(printFor, prefs)} />
+    )}
+
     {previewOrder && (
       <DocumentPreviewModal
         title={`${previewOrder.status === 'completed' ? 'Advance Bill' : 'Receipt'} Preview • #${previewOrder.deposit_id}`}
@@ -484,7 +496,7 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
             )}
 
             <div className="pt-3 border-t border-black/10 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => printReceipt(selected)}
+              <button type="button" onClick={() => setPrintFor(selected)}
                 className="bg-white border border-gray-300 hover:bg-gray-50 text-black py-2.5 px-3 rounded-lg font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer">
                 <Printer className="w-3.5 h-3.5 text-[var(--accent)]" />
                 Print Receipt

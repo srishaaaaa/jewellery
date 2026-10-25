@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { Invoice } from '../components/Invoice'
-import { Printer, ArrowLeft, MessageCircle, Check, Copy, FileDown, Receipt } from 'lucide-react'
+import { Printer, ArrowLeft, MessageCircle, Check, Copy, FileDown } from 'lucide-react'
 import { toolbarBtn, toolbarBtnDark } from '../components/invoice/invoiceStyle'
+import { PrintSettingsModal } from '../components/invoice/PrintSettingsModal'
+import { printSheet, thermalWidth } from '../lib/printPrefs'
 import { printThermalReceipt } from '../lib/thermalPrint'
 import { invoicePdfFile } from '../lib/invoicePdf'
 import { uploadInvoicePdf } from '../lib/storage'
@@ -21,6 +23,14 @@ export default function DigitalInvoice() {
   const [error, setError] = useState('')
   const invoiceElementRef = useRef<HTMLDivElement>(null)
   const [copied, setCopied] = useState(false)
+  const [printOpen, setPrintOpen] = useState(false)
+  // ?print=a4 / a5: sheet print chosen in Print Settings elsewhere — print once the invoice has loaded
+  const autoPrint = new URLSearchParams(window.location.search).get('print')
+  useEffect(() => {
+    if (!invoice || (autoPrint !== 'a4' && autoPrint !== 'a5')) return
+    const t = window.setTimeout(() => printSheet(autoPrint), 600)
+    return () => window.clearTimeout(t)
+  }, [invoice, autoPrint])
   const copyLink = async () => {
     try {
       await navigator.clipboard.writeText(window.location.href)
@@ -304,8 +314,9 @@ export default function DigitalInvoice() {
     else window.open(waUrl, '_blank', 'noopener,noreferrer')
   }
 
-  const printReceipt = () => {
+  const printReceipt = (paperWidth: 58 | 80 = 80) => {
     printThermalReceipt({
+      paperWidth,
       paymentMode: formatPaymentMode(invoice.payment_mode || invoice.payment_method, invoice.split_details) || undefined,
       invoiceNo: invoice.invoice_no,
       date: invoice.created_at,
@@ -344,10 +355,16 @@ export default function DigitalInvoice() {
               {copied ? <><Check className="w-4 h-4" /> Copied</> : <><Copy className="w-4 h-4" /> Copy Link</>}
             </button>
             <button type="button" onClick={() => void downloadPdf()} className={toolbarBtn}><FileDown className="w-4 h-4" /> PDF</button>
-            <button type="button" onClick={printReceipt} className={toolbarBtn} title="Print the thermal receipt"><Receipt className="w-4 h-4" /> Receipt</button>
-            <button type="button" onClick={() => window.print()} className={toolbarBtnDark}><Printer className="w-4 h-4" /> Print</button>
+            <button type="button" onClick={() => setPrintOpen(true)} className={toolbarBtnDark}><Printer className="w-4 h-4" /> Print</button>
           </div>
         </div>
+
+        {printOpen && (
+          <PrintSettingsModal
+            onClose={() => setPrintOpen(false)}
+            onPrint={(prefs) => prefs.paper === 'thermal' ? printReceipt(thermalWidth(prefs)) : printSheet(prefs.size === 'a5' ? 'a5' : 'a4')}
+          />
+        )}
 
         <div ref={invoiceElementRef} className="rounded-xl border border-black/10 bg-white shadow-sm print:rounded-none print:border-none print:shadow-none">
           <Invoice
