@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { CalendarDays, CheckCircle2, Clock3, Download, Eye, FileText, MessageCircle, PackageCheck, Printer, RefreshCw, Search, Trash2, X } from 'lucide-react'
+import { Calendar, Check, Eye, IndianRupee, Package, Printer, Search, Trash2, X } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { getErrorMessage } from '../lib/errorMessage'
 import { formatCurrency } from '../lib/retail'
@@ -8,32 +8,21 @@ import { printThermalReceipt } from '../lib/thermalPrint'
 import { buildAdvanceDepositWhatsAppMessage, buildProfessionalWhatsAppMessage, publicInvoiceUrl } from '../lib/whatsappMessage'
 import { toWhatsAppUrl } from '../lib/phone'
 import { ModalPortal } from '../components/ModalPortal'
+import { DocIcon, WhatsAppIcon, actionBtn } from '../components/ActionIcons'
 import { advanceReceiptPdf, downloadFile, printAdvanceReceipt } from '../lib/advanceReceipt'
 import { useAdminAuthStore, useProductStore } from '../store/store'
 import { auditService } from '../services/auditService'
 import {
-  addAdvanceEvent, completeAdvanceOrder, createAdvanceOrder, deleteAdvanceOrder, getAdvanceOrderHistory, listAdvanceOrders, updateAdvanceStatus,
-  type AdvanceOrder, type AdvancePayment, type AdvancePaymentMethod, type AdvanceStatus, type AdvanceTimeline,
+  completeAdvanceOrder, createAdvanceOrder, deleteAdvanceOrder, listAdvanceOrders, updateAdvanceStatus,
+  type AdvanceOrder, type AdvancePaymentMethod, type AdvanceStatus,
 } from '../services/advanceOrderService'
-import { isInPreset } from '../lib/dateRanges'
+import { isInPreset, toLocalDateStr } from '../lib/dateRanges'
 
-// Custom Malaysian Ringgit icon
-const RMIcon = ({ size = 20, className = '' }: { size?: number; className?: string }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className} aria-label="Malaysian Ringgit">
-    <rect x="2" y="2" width="20" height="20" rx="4" />
-    <text x="12" y="16" textAnchor="middle" fontSize="9" fontWeight="bold" stroke="none" fill="currentColor" fontFamily="Poppins, sans-serif">₹</text>
-  </svg>
-)
-
-type DateFilter = 'all' | 'today' | 'week' | 'month'
+type DateFilter = 'all' | 'today' | 'week' | 'month' | 'year' | 'custom'
 type StatusFilter = 'all' | 'pending' | 'ready' | 'completed' | 'cancelled'
 
 const STATUS_LABELS: Record<AdvanceStatus, string> = {
   pending_deposit: 'Pending Deposit', ready_for_delivery: 'Ready for Delivery', waiting_final_payment: 'Waiting for Final Payment', completed: 'Completed', cancelled: 'Cancelled',
-}
-const STATUS_STYLES: Record<AdvanceStatus, string> = {
-  pending_deposit: 'bg-amber-50 text-amber-700 border-amber-200', ready_for_delivery: 'bg-blue-50 text-blue-700 border-blue-200',
-  waiting_final_payment: 'bg-emerald-50 text-emerald-700 border-emerald-200', completed: 'bg-emerald-50 text-emerald-700 border-emerald-200', cancelled: 'bg-red-50 text-red-700 border-red-200',
 }
 const initialForm = { customerName: '', phone: '', address: '', productName: '', category: '', description: '', totalAmount: '', depositAmount: '', expectedDeliveryDate: '', status: 'pending_deposit' as AdvanceStatus, remarks: '', reference_number: '', paymentMethod: 'cash' as AdvancePaymentMethod }
 
@@ -68,9 +57,9 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [dateFilter, setDateFilter] = useState<DateFilter>('all')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const [selected, setSelected] = useState<AdvanceOrder | null>(null)
-  const [timeline, setTimeline] = useState<AdvanceTimeline[]>([])
-  const [payments, setPayments] = useState<AdvancePayment[]>([])
   const [paymentOrder, setPaymentOrder] = useState<AdvanceOrder | null>(null)
   const [paymentForm, setPaymentForm] = useState({ method: 'cash' as AdvancePaymentMethod, remarks: '' })
   const [couponInput, setCouponInput] = useState('')
@@ -103,11 +92,6 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
 
   const removeCoupon = () => { setAppliedCoupon(null); setCouponInput(''); setCouponError('') }
 
-  const openDetails = async (order: AdvanceOrder) => {
-    setSelected(order); setTimeline([]); setPayments([])
-    try { const history = await getAdvanceOrderHistory(order.id); setTimeline(history.timeline); setPayments(history.payments) } catch (err) { setError(getErrorMessage(err, 'Unable to load order details')) }
-  }
-
   const analytics = useMemo(() => ({
     total: orders.length,
     pending: orders.filter(o => o.status === 'pending_deposit' || o.status === 'waiting_final_payment').length,
@@ -125,12 +109,16 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
     if (statusFilter === 'ready' && order.status !== 'ready_for_delivery') return false
     if (statusFilter === 'completed' && order.status !== 'completed') return false
     if (statusFilter === 'cancelled' && order.status !== 'cancelled') return false
-    if (dateFilter !== 'all') {
+    if (dateFilter === 'custom') {
+      const day = toLocalDateStr(new Date(order.created_at))
+      if (fromDate && day < fromDate) return false
+      if (toDate && day > toDate) return false
+    } else if (dateFilter !== 'all') {
       // Week = Monday–Sunday, Month = 1st–last day (shared ranges)
       if (!isInPreset(order.created_at, dateFilter)) return false
     }
     return true
-  }), [orders, search, statusFilter, dateFilter])
+  }), [orders, search, statusFilter, dateFilter, fromDate, toDate])
 
   const create = async (event: FormEvent) => {
     event.preventDefault(); setSaving(true); setError(''); setNotice('')
@@ -157,7 +145,7 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
 
   const changeStatus = async (order: AdvanceOrder, status: AdvanceStatus) => {
     if (status === 'completed') { setPaymentOrder(order); return }
-    try { const updated = await updateAdvanceStatus(order.id, status); setOrders(rows => rows.map(row => row.id === order.id ? updated : row)); if (selected?.id === order.id) void openDetails(updated) } catch (err) { setError(getErrorMessage(err, 'Unable to update status')) }
+    try { const updated = await updateAdvanceStatus(order.id, status); setOrders(rows => rows.map(row => row.id === order.id ? updated : row)); if (selected?.id === order.id) setSelected(updated) } catch (err) { setError(getErrorMessage(err, 'Unable to update status')) }
   }
 
   const handleDeleteOrder = async (order: AdvanceOrder) => {
@@ -243,149 +231,173 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
     window.open(toWhatsAppUrl(order.phone, message), '_blank', 'noopener,noreferrer')
   }
 
-  const addEvent = async (order: AdvanceOrder, eventType: string, label: string) => {
-    try { await addAdvanceEvent(order.id, eventType, label); await openDetails(order); setNotice(`${label} added to ${order.deposit_id}.`) } catch (err) { setError(getErrorMessage(err, 'Unable to add timeline event')) }
+  const statusGroup = (status: AdvanceStatus): 'PENDING' | 'READY' | 'COMPLETED' | 'CANCELLED' =>
+    status === 'ready_for_delivery' ? 'READY' : status === 'completed' ? 'COMPLETED' : status === 'cancelled' ? 'CANCELLED' : 'PENDING'
+  const groupStyles = {
+    PENDING: 'bg-[#FEF3C7] text-[#78350F] border-[#F59E0B]/30',
+    READY: 'bg-[#DBEAFE] text-[#1E3A8A] border-[#2563EB]/30',
+    COMPLETED: 'bg-[#DCFCE7] text-[#166534] border-[#16A34A]/30',
+    CANCELLED: 'bg-[#FEE2E2] text-[#991B1B] border-[#DC2626]/30',
+  } as const
+  const money = (n: number) => `₹${Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const showDate = (value: string | null | undefined) => value ? new Date(value.length === 10 ? `${value}T00:00:00` : value).toLocaleDateString('en-IN') : '—'
+  const isOpen = (order: AdvanceOrder) => order.status !== 'completed' && order.status !== 'cancelled'
+  const toggleReady = (order: AdvanceOrder) => void changeStatus(order, order.status === 'ready_for_delivery' ? 'pending_deposit' : 'ready_for_delivery')
+  const cancelOrder = (order: AdvanceOrder) => {
+    if (!window.confirm(`Cancel advance order ${order.deposit_id} for ${order.customer_name}?`)) return
+    void changeStatus(order, 'cancelled')
   }
+  const printReceipt = (order: AdvanceOrder) => order.status === 'completed' ? printFinal(order) : printAdvanceReceipt(order)
+  const shareReceipt = (order: AdvanceOrder) => order.status === 'completed' ? whatsappInvoice(order) : whatsappDepositReceipt(order)
 
-  const cards = [
-    ['Total Deposits', analytics.total, FileText, 'text-emerald-700 bg-emerald-50'], ['Pending Deposit Orders', analytics.pending, Clock3, 'text-amber-700 bg-amber-50'],
-    ['Total Deposit Amount', formatCurrency(analytics.deposits), RMIcon, 'text-fuchsia-700 bg-fuchsia-50'], ['Outstanding Balance', formatCurrency(analytics.outstanding), RMIcon, 'text-red-700 bg-red-50'],
-    ['Ready For Collection', analytics.ready, PackageCheck, 'text-blue-700 bg-blue-50'], ['Completed Deposit Orders', analytics.completed, CheckCircle2, 'text-emerald-700 bg-emerald-50'],
-  ] as const
+  const columns = 'md:grid-cols-[1.1fr_1.3fr_1.5fr_1.5fr_0.9fr_1.1fr_1.4fr]'
 
-  return <div className="space-y-5">
-    <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-black uppercase tracking-[.18em] text-emerald-600">Separate from sales</p><h2 className="text-[28px] font-black text-[#000000] tracking-tight">Advance Orders</h2><p className="mt-1 text-xs font-semibold text-[#000000]">Deposits never count as revenue. Full order value is recognized only after final payment.</p></div><div className="flex gap-2"><button onClick={() => void load()} className="rounded-xl border bg-white p-3 text-[#000000]" title="Refresh"><RefreshCw size={18}/></button></div></div>
-    {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
-    {notice && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</div>}
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{cards.map(([label, value, Icon, color]) => <div key={label} className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm"><div className="flex items-center justify-between"><div><p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">{label}</p><p className="mt-2 text-[17px] sm:text-2xl font-black text-[#000000] break-words">{value}</p></div><div className={`rounded-xl p-3 ${color}`}><Icon size={21}/></div></div></div>)}</div>
-    <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm"><div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]"><label className="relative"><Search className="absolute left-3 top-3 text-[#9CA3AF]" size={17}/><input className={`${inputClass} pl-10`} value={search} onChange={e => setSearch(e.target.value)} placeholder="Search Deposit ID, customer, phone, product or status"/></label><div className="flex flex-wrap gap-2">{(['all','pending','ready','completed','cancelled'] as StatusFilter[]).map(value => <button key={value} onClick={() => setStatusFilter(value)} className={`rounded-lg px-3 py-2 text-xs font-black capitalize ${statusFilter === value ? 'bg-[var(--accent-dark)] text-white' : 'bg-black/[0.03] text-[#000000]'}`}>{value}</button>)}</div><select className={inputClass} value={dateFilter} onChange={e => setDateFilter(e.target.value as DateFilter)}><option value="all">All Dates</option><option value="today">Today</option><option value="week">This Week</option><option value="month">This Month</option></select></div></div>
-    <div className="rounded-2xl border border-black/10 bg-white shadow-sm flex flex-col">
-      <div className="overflow-x-auto overscroll-x-contain">
-        <table className="w-full text-left text-sm whitespace-nowrap">
-          <thead className="bg-black/[0.03] text-[10px] font-bold uppercase tracking-widest text-[#000000]">
-            <tr>
-              {['Deposit ID / Created','Customer','Product','Total / Deposit / Balance','Delivery','Status','Actions'].map(h => (
-                <th key={h} className="px-4 py-3.5 whitespace-nowrap">{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-black/5">
-            {loading ? (
-              <tr><td colSpan={7} className="px-4 py-12 text-center text-[#000000]">Loading advance orders...</td></tr>
-            ) : filtered.length === 0 ? (
-              <tr><td colSpan={7} className="px-4 py-12 text-center text-[#000000]">No advance orders match these filters.</td></tr>
-            ) : (
-              filtered.map(order => (
-                <tr key={order.id} className="hover:bg-emerald-50/30 transition-colors">
-                  <td className="px-4 py-3.5 align-middle whitespace-nowrap">
-                    <p className="font-black text-emerald-700">{order.deposit_id}</p>
-                    <p className="text-[11px] text-[#000000]">
-                      {new Date(order.created_at).toLocaleDateString('en-IN')} • {new Date(order.created_at).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}
-                    </p>
-                  </td>
-                  <td className="px-4 py-3.5 align-middle whitespace-nowrap">
-                    <p className="font-bold text-[#000000]">{order.customer_name}</p>
-                    <p className="text-xs text-[#000000]">{order.phone}</p>
-                  </td>
-                  <td className="px-4 py-3.5 align-middle whitespace-nowrap">
-                    <p className="font-semibold text-[#000000]">{order.product_name}</p>
-                    <p className="text-xs text-[#000000]">{order.category || 'Uncategorised'}</p>
-                  </td>
-                  <td className="px-4 py-3.5 text-xs align-middle whitespace-nowrap">
-                    <p className="text-gray-700">Total: <b>{formatCurrency(order.total_amount)}</b></p>
-                    <p className="text-emerald-700">Paid: <b>{formatCurrency(order.deposit_amount)}</b></p>
-                    <p className="text-red-600 font-bold">Balance: <b>{formatCurrency(order.remaining_balance)}</b></p>
-                  </td>
-                  <td className="px-4 py-3.5 align-middle whitespace-nowrap">
-                    <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-700">
-                      <CalendarDays size={14} className="text-gray-400 shrink-0" />
-                      <span>{new Date(`${order.expected_delivery_date}T00:00:00`).toLocaleDateString('en-IN')}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3.5 align-middle whitespace-nowrap">
-                    <select
-                      value={order.status}
-                      onChange={e => void changeStatus(order, e.target.value as AdvanceStatus)}
-                      className={`rounded-xl border px-2.5 py-1.5 text-xs font-black outline-none shadow-xs transition-colors cursor-pointer ${STATUS_STYLES[order.status]}`}
-                    >
-                      <option value="pending_deposit">Pending Deposit</option>
-                      <option value="waiting_final_payment">Waiting for Final Payment</option>
-                      <option value="completed">Completed (receive payment)</option>
-                      <option value="ready_for_delivery">Ready to Collect</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
-                  </td>
-                  <td className="px-4 py-3.5 align-middle whitespace-nowrap">
-                    <div className="flex items-center gap-1.5">
-                      {/* Receive Balance Button (if balance is due) */}
-                      {order.status !== 'completed' && order.status !== 'cancelled' && (
-                        <button
-                          type="button"
-                          onClick={() => setPaymentOrder(order)}
-                          className="flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1.5 text-xs font-black shadow-xs transition-all active:scale-95 cursor-pointer whitespace-nowrap"
-                          title="Receive Remaining Balance"
-                        >
-                          <span>Receive Balance</span>
-                        </button>
-                      )}
-
-                      {/* View Details Icon */}
-                      <button
-                        type="button"
-                        onClick={() => void openDetails(order)}
-                        className="w-8 h-8 rounded-lg bg-black/[0.03] hover:bg-emerald-100 text-emerald-700 flex items-center justify-center transition-colors cursor-pointer shrink-0"
-                        title="View Details"
-                      >
-                        <Eye size={15}/>
-                      </button>
-
-                      {/* Print Receipt / Invoice */}
-                      <button
-                        type="button"
-                        onClick={() => order.status === 'completed' ? printFinal(order) : printAdvanceReceipt(order)}
-                        className="w-8 h-8 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 flex items-center justify-center transition-colors cursor-pointer shrink-0"
-                        title={order.status === 'completed' ? "Print Final Receipt" : "Print Advance Receipt"}
-                      >
-                        <Printer size={15}/>
-                      </button>
-
-                      {/* Download PDF Receipt / Invoice */}
-                      <button
-                        type="button"
-                        onClick={() => downloadFile(order.status === 'completed' ? invoiceFile(order) : advanceReceiptPdf(order))}
-                        className="w-8 h-8 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 flex items-center justify-center transition-colors cursor-pointer shrink-0"
-                        title={order.status === 'completed' ? "Download PDF Invoice" : "Download PDF Receipt"}
-                      >
-                        <Download size={15}/>
-                      </button>
-
-                      {/* WhatsApp Share */}
-                      <button
-                        type="button"
-                        onClick={() => order.status === 'completed' ? whatsappInvoice(order) : whatsappDepositReceipt(order)}
-                        className="w-8 h-8 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 flex items-center justify-center transition-colors cursor-pointer shrink-0"
-                        title={order.status === 'completed' ? "Share Final Invoice via WhatsApp" : "Share Advance Receipt via WhatsApp"}
-                      >
-                        <MessageCircle size={15}/>
-                      </button>
-
-                      {/* Delete Order */}
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteOrder(order)}
-                        className="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 flex items-center justify-center transition-colors cursor-pointer shrink-0"
-                        title="Delete Order"
-                      >
-                        <Trash2 size={15}/>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+  return <div className="flex-1 flex flex-col max-w-[1400px] mx-auto w-full pb-8 animate-in fade-in duration-300">
+    {/* Header */}
+    <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
+      <div>
+        <h2 className="text-[28px] font-black text-[#000000] tracking-tight">Advance Orders</h2>
+        <p className="text-xs text-[#000000] font-semibold mt-1">Partial-payment holds — revenue is recognized only when the balance is collected.</p>
       </div>
+      <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+        <div className="flex flex-wrap items-center bg-[#FFFFFF] border border-black/10 rounded-xl p-1 gap-1 max-w-full">
+          <span className="text-[9px] font-bold text-[#000000] uppercase tracking-wider px-2">Period:</span>
+          {(['all', 'today', 'week', 'month', 'year'] as const).map(p => (
+            <button key={p} type="button" onClick={() => { setDateFilter(p); setFromDate(''); setToDate('') }}
+              className={`px-3 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${dateFilter === p ? 'bg-[var(--accent)] text-[#FFFFFF] shadow-sm' : 'text-[#000000] hover:bg-black/5'}`}>
+              {p === 'all' ? 'All Time' : p === 'today' ? 'Today' : p === 'week' ? 'This Week' : p === 'month' ? 'This Month' : 'This Year'}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-center border rounded-xl px-3 py-1.5 gap-2 shadow-sm bg-white border-black/10 min-w-0">
+          <div className="flex items-center gap-1">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-[#000000]">From:</span>
+            <input type="date" value={fromDate} onChange={e => { setDateFilter('custom'); setFromDate(e.target.value) }}
+              className="text-xs font-bold bg-transparent border-none outline-none focus:ring-0 cursor-pointer text-[#000000] w-[115px]" />
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-[#000000]">To:</span>
+            <input type="date" value={toDate} onChange={e => { setDateFilter('custom'); setToDate(e.target.value) }}
+              className="text-xs font-bold bg-transparent border-none outline-none focus:ring-0 cursor-pointer text-[#000000] w-[115px]" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
+    {notice && <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</div>}
+
+    {/* Summary cards */}
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      {([
+        ['Outstanding Balance', money(analytics.outstanding), <IndianRupee key="r" className="w-5 h-5 text-[#DC2626]" />, 'bg-[#FEE2E2]'],
+        ['Ready For Collection', String(analytics.ready), <Package key="p" className="w-5 h-5 text-[#2563EB]" />, 'bg-[#DBEAFE]'],
+        ['Completed Deposits', String(analytics.completed), <Check key="c" className="w-5 h-5 text-[#16A34A]" />, 'bg-[#DCFCE7]'],
+      ] as const).map(([label, value, icon, bg]) => (
+        <div key={label} className="bg-white border border-black/10 rounded-xl p-4 shadow-xs flex justify-between items-center">
+          <div>
+            <p className="text-[10px] font-bold text-[var(--accent-dark)] uppercase tracking-wider">{label}</p>
+            <p className="text-xl font-black text-black">{value}</p>
+          </div>
+          <div className={`w-10 h-10 rounded-lg ${bg} flex items-center justify-center`}>{icon}</div>
+        </div>
+      ))}
+    </div>
+
+    {/* Search + status filter */}
+    <div className="bg-white border border-black/10 rounded-xl p-3 mb-4 flex flex-col md:flex-row gap-3 items-stretch md:items-center">
+      <div className="flex-1 relative">
+        <Search className="w-4 h-4 text-[var(--accent-dark)] absolute left-3 top-1/2 -translate-y-1/2" />
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by ID, customer, phone, product or status"
+          className="w-full bg-white border border-black/10 rounded-lg pl-9 pr-3 py-2 text-xs font-semibold focus:outline-none focus:border-[var(--accent)]" />
+      </div>
+      <div className="flex gap-1.5 flex-wrap">
+        {(['all', 'pending', 'ready', 'completed', 'cancelled'] as StatusFilter[]).map(s => (
+          <button key={s} type="button" onClick={() => setStatusFilter(s)}
+            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${statusFilter === s ? 'bg-[var(--accent)] text-white' : 'bg-[#F4F4F5] text-black hover:bg-black/10'}`}>
+            {s}
+          </button>
+        ))}
+      </div>
+    </div>
+
+    {/* Rows */}
+    <div className="bg-white border border-black/10 rounded-xl overflow-hidden">
+      <div className={`hidden md:grid ${columns} gap-3 px-4 py-3 border-b border-black/10 text-[10px] font-black uppercase tracking-wider text-[var(--accent-dark)] bg-[#F9FAFB]`}>
+        <span>Deposit ID</span>
+        <span>Customer</span>
+        <span>Product</span>
+        <span>Total / Paid / Balance</span>
+        <span>Delivery</span>
+        <span>Status</span>
+        <span className="text-right">Actions</span>
+      </div>
+      {loading ? (
+        <div className="p-8 text-center text-xs font-bold text-[var(--accent-dark)]">Loading advance orders...</div>
+      ) : filtered.length === 0 ? (
+        <div className="p-8 text-center text-xs font-bold text-[var(--accent-dark)]">No advance orders match the current filters.</div>
+      ) : filtered.map(order => {
+        const group = statusGroup(order.status)
+        const items = productRows(order)
+        return (
+          <div key={order.id} className={`grid grid-cols-1 ${columns} gap-3 px-4 py-3 border-b border-black/5 items-center text-xs hover:bg-[#FAFAFA]`}>
+            <div>
+              <p className="font-mono font-black text-[11px] text-black">{order.deposit_id}</p>
+              <p className="text-[9px] font-bold text-[var(--accent-dark)]">{showDate(order.created_at)}</p>
+            </div>
+            <div>
+              <p className="font-black text-black">{order.customer_name}</p>
+              <p className="text-[10px] text-[var(--accent-dark)]">{order.phone}</p>
+            </div>
+            <div className="text-[11px]">
+              {items.slice(0, 2).map((item, i) => (
+                <p key={i} className="font-bold text-black truncate">{Number(item.quantity || 1)}× {String(item.name || order.product_name)}</p>
+              ))}
+              {items.length > 2 && <p className="text-[10px] text-[var(--accent-dark)]">+{items.length - 2} more</p>}
+            </div>
+            <div className="text-[11px]">
+              <p className="font-bold text-black">Total: {money(order.total_amount)}</p>
+              <p className="text-[#16A34A] font-bold">Paid: {money(order.deposit_amount)}</p>
+              <p className="text-[#DC2626] font-bold">Balance: {money(order.status === 'completed' ? 0 : order.remaining_balance)}</p>
+            </div>
+            <div className="text-[11px] font-bold text-[var(--accent-dark)]">{showDate(order.expected_delivery_date)}</div>
+            <div>
+              <span className={`inline-block px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-wider border ${groupStyles[group]}`}>{group}</span>
+              {isOpen(order) && (
+                <button type="button" onClick={() => toggleReady(order)} className="block mt-1 text-[9px] font-black uppercase tracking-wider text-[#2563EB] hover:underline cursor-pointer">
+                  Mark as {group === 'READY' ? 'Pending' : 'Ready'}
+                </button>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-1.5 flex-nowrap">
+              <button type="button" onClick={() => shareReceipt(order)} title="Send on WhatsApp" className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`}>
+                <WhatsAppIcon className="w-4 h-4" />
+              </button>
+              <button type="button" onClick={() => downloadFile(order.status === 'completed' ? invoiceFile(order) : advanceReceiptPdf(order))} title={order.status === 'completed' ? 'Download Invoice PDF' : 'Download Advance Receipt PDF'} className={`${actionBtn} bg-[var(--accent-a10)] hover:bg-[var(--accent-a20)] text-[var(--accent)]`}>
+                <DocIcon className="w-4 h-4" />
+              </button>
+              <button type="button" onClick={() => setSelected(order)} title="View details" className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`}>
+                <Eye className="w-4 h-4" />
+              </button>
+              {isOpen(order) && (
+                <button type="button" onClick={() => setPaymentOrder(order)} title="Receive balance" className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`}>
+                  <IndianRupee className="w-4 h-4" />
+                </button>
+              )}
+              {isOpen(order) && (
+                <button type="button" onClick={() => cancelOrder(order)} title="Cancel" className={`${actionBtn} bg-[#F59E0B]/10 hover:bg-[#F59E0B]/20 text-[#D97706]`}>
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              {role === 'admin' && (
+                <button type="button" onClick={() => void handleDeleteOrder(order)} title="Delete" className={`${actionBtn} bg-[#DC2626]/10 hover:bg-[#DC2626]/20 text-[#DC2626]`}>
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        )
+      })}
     </div>
 
     {createOpen && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-4"><form onSubmit={create} className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"><div className="mb-5 flex items-center justify-between"><div><h3 className="text-xl font-black">Create Advance Order</h3><p className="text-xs text-amber-700">Creates an advance receipt only - no revenue or final invoice.</p></div><button type="button" onClick={() => setCreateOpen(false)}><X/></button></div><div className="grid gap-4 md:grid-cols-2"><Field label="Customer Name *"><input required className={inputClass} value={form.customerName} onChange={e=>setForm({...form,customerName:e.target.value})}/></Field><Field label="Phone Number *"><input required className={inputClass} value={form.phone} onChange={e=>setForm({...form,phone:e.target.value})}/></Field><Field label="Address"><textarea className={inputClass} value={form.address} onChange={e=>setForm({...form,address:e.target.value})}/></Field><Field label="Product Name *"><input required list="advance-products" className={inputClass} value={form.productName} onChange={e=>{const product=products.find(p=>p.name===e.target.value);setForm({...form,productName:e.target.value,category:product?.category||form.category})}}/><datalist id="advance-products">{products.filter(p=>p.category!=='Unregistered').map(p=><option key={p.id} value={p.name}/>)}</datalist>{form.productName.trim() && (linkedStockItem
@@ -394,6 +406,85 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
 
     {paymentOrder && <ModalPortal><div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/55 p-3 sm:p-4"><form onSubmit={receivePayment} className="flex w-full max-w-md max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl sm:rounded-3xl bg-white shadow-2xl"><div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5"><div><p className="text-xs font-black uppercase tracking-wider text-emerald-600">{paymentOrder.deposit_id}</p><h3 className="text-xl font-black text-[#000000]">Receive Remaining Payment</h3></div><button type="button" onClick={()=>setPaymentOrder(null)} className="shrink-0 text-[#000000] hover:text-black"><X size={20}/></button></div><div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6"><div className="mb-4 rounded-2xl bg-emerald-50 py-3 sm:py-5 text-center">{(() => { const couponDisc = appliedCoupon ? Math.round(paymentOrder.remaining_balance * (appliedCoupon.percentage / 100) * 100) / 100 : 0; const manualNum = Math.max(0, Number(manualDiscount) || 0); const manualDisc = manualDiscountType === '%' ? Math.round(paymentOrder.remaining_balance * (manualNum / 100) * 100) / 100 : manualNum; const finalAmt = Math.max(0, paymentOrder.remaining_balance - couponDisc - manualDisc); return (<><p className="text-[11px] font-black uppercase tracking-widest text-emerald-600">Remaining Amount</p><p className={`mt-1 font-black text-emerald-800 ${(couponDisc > 0 || manualDisc > 0) ? 'text-xl line-through opacity-60' : 'text-3xl sm:text-4xl'}`}>{formatCurrency(paymentOrder.remaining_balance)}</p>{(couponDisc > 0 || manualDisc > 0) && (<><div className="mt-2 space-y-0.5 text-xs text-emerald-700">{couponDisc > 0 && <p>Coupon {appliedCoupon!.code} ({appliedCoupon!.percentage}%): -{formatCurrency(couponDisc)}</p>}{manualDisc > 0 && <p>Manual Discount: -{formatCurrency(manualDisc)}</p>}</div><p className="mt-2 text-2xl sm:text-3xl font-black text-emerald-950">You Pay: {formatCurrency(finalAmt)}</p></>)}</>)})()}</div><div className="space-y-3 sm:space-y-4"><Field label="Coupon Code (Optional)"><div className="flex gap-2">{appliedCoupon ? (<div className="flex flex-1 items-center justify-between rounded-xl bg-emerald-50 px-3 py-2.5 text-sm font-black text-emerald-700"><span>{appliedCoupon.code} — {appliedCoupon.percentage}% OFF</span><button type="button" onClick={removeCoupon} className="ml-2 text-red-500 hover:text-red-700"><X size={14}/></button></div>) : (<><input list="adv-coupon-list" className={`${inputClass} flex-1`} value={couponInput} onChange={e=>{setCouponInput(e.target.value.toUpperCase());setCouponError('')}} placeholder="Enter code" /><datalist id="adv-coupon-list">{availableCoupons.map(c=><option key={c.code} value={c.code}/>)}</datalist><button type="button" onClick={applyCoupon} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white hover:bg-emerald-700">Apply</button></>)}</div>{couponError && <p className="mt-1 text-xs font-semibold text-red-600">{couponError}</p>}</Field><Field label="Manual Discount"><div className="flex gap-2 items-center"><select value={manualDiscountType} onChange={e=>setManualDiscountType(e.target.value as 'rm'|'%')} className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-black text-[#000000] outline-none focus:border-[var(--accent-dark)] focus:ring-2 focus:ring-emerald-100"><option value="rm">₹</option><option value="%">%</option></select><input type="number" min="0" step="0.01" className={`${inputClass} flex-1`} value={manualDiscount} onChange={e=>setManualDiscount(e.target.value)} placeholder="0" /></div></Field><Field label="Payment Method"><select className={inputClass} value={paymentForm.method} onChange={e=>setPaymentForm({...paymentForm,method:e.target.value as AdvancePaymentMethod})}><option value="cash">Cash</option><option value="upi">QR</option><option value="card">Card</option></select></Field><Field label="Payment Notes"><textarea className={inputClass} value={paymentForm.remarks} onChange={e=>setPaymentForm({...paymentForm,remarks:e.target.value})} rows={2} placeholder="Notes about this payment (optional)"/></Field><p className="mt-2 rounded-xl bg-amber-50 p-3 text-[11px] font-semibold text-amber-800">Confirmation marks the order Completed, creates one official invoice, and recognizes the full {formatCurrency(paymentOrder.total_amount)} as revenue.</p></div></div><div className="shrink-0 border-t border-black/10 bg-white px-4 py-3 sm:px-6"><button disabled={saving} className="w-full rounded-xl bg-emerald-600 py-3 sm:py-3.5 font-black text-white shadow-lg shadow-emerald-600/30 transition-transform active:scale-95 disabled:opacity-50">{saving?'Processing...':'Confirm Final Payment'}</button></div></form></div></ModalPortal>}
 
-    {selected && <ModalPortal><div className="fixed inset-0 z-[997] flex justify-end bg-black/45"><div className="h-full w-full max-w-xl overflow-y-auto bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-xs font-black text-emerald-600">{selected.deposit_id}</p><h3 className="text-2xl font-black">Order Details</h3></div><div className="flex items-center gap-2">{role==='admin'&&<button onClick={()=>void handleDeleteOrder(selected)} title="Delete Order" className="w-8 h-8 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 flex items-center justify-center transition-colors cursor-pointer"><Trash2 size={15}/></button>}<button onClick={()=>setSelected(null)}><X/></button></div></div><div className="mt-5 grid grid-cols-2 gap-3">{[['Customer',selected.customer_name],['Phone',selected.phone],['Address',selected.address||'-'],['Product',selected.product_name],['Category',selected.category||'-'],['Total',formatCurrency(selected.total_amount)],['Deposit Paid',formatCurrency(selected.deposit_amount)],['Remaining Balance',formatCurrency(selected.remaining_balance)],['Delivery Date',new Date(`${selected.expected_delivery_date}T00:00:00`).toLocaleDateString('en-IN')],['Created Date',new Date(selected.created_at).toLocaleDateString('en-IN')],['Created Time',new Date(selected.created_at).toLocaleTimeString('en-IN')],['Created By',selected.created_by_name||'-'],['Current Status',STATUS_LABELS[selected.status]],['Invoice Number',selected.invoice_number||'Not generated'],['Reference No',selected.reference_number||'—']].map(([k,v])=><div key={k} className="rounded-xl bg-black/[0.03] p-3"><p className="text-[10px] font-black uppercase text-[#000000]">{k}</p><p className="mt-1 break-words text-sm font-bold">{v}</p></div>)}</div>{selected.remarks&&<div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-3"><p className="text-[10px] font-black uppercase text-emerald-500">Remarks</p><p className="mt-1 text-xs font-semibold text-[#000000]">{selected.remarks}</p></div>}{selected.description&&<div className="mt-3 rounded-xl border p-3"><p className="text-[10px] font-black uppercase text-[#000000]">Description</p><p className="text-sm">{selected.description}</p></div>}<div className="mt-6"><h4 className="font-black">Quick Timeline Updates</h4><div className="mt-2 flex flex-wrap gap-2">{[['tailoring_started','Order Prepared'],['tailoring_completed','Ready for Pickup'],['customer_contacted','Customer Contacted'],['delivered','Delivered']].map(([type,label])=><button key={type} onClick={()=>void addEvent(selected,type,label)} className="rounded-lg border border-emerald-200 px-3 py-2 text-xs font-black text-emerald-700">+ {label}</button>)}</div></div><div className="mt-6"><h4 className="font-black">Payment History</h4><div className="mt-2 space-y-2">{payments.map(payment=><div key={payment.id} className="flex justify-between rounded-xl bg-emerald-50 p-3 text-sm"><span className="font-bold capitalize">{payment.payment_type} - {payment.payment_method}</span><span className="font-black">{formatCurrency(Number(payment.amount))}</span></div>)}</div></div><div className="mt-6"><h4 className="font-black">Order Timeline</h4><div className="mt-3 border-l-2 border-emerald-200 pl-4">{timeline.map(event=><div key={event.id} className="relative pb-5 before:absolute before:-left-[21px] before:top-1 before:h-3 before:w-3 before:rounded-full before:bg-emerald-600"><p className="text-sm font-black">{event.label}</p><p className="text-xs text-[#81887F]">{new Date(event.created_at).toLocaleString('en-IN')}</p>{event.remarks&&<p className="mt-1 text-xs">{event.remarks}</p>}</div>)}</div></div></div></div></ModalPortal>}
+    {selected && <ModalPortal>
+      <div className="fixed inset-0 z-[997] flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setSelected(null)}>
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-5 max-h-[92vh] overflow-y-auto animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+          <div className="flex justify-between items-center pb-3 border-b border-black/10">
+            <div>
+              <p className="text-[11px] font-mono font-bold text-[var(--accent)]">{selected.deposit_id}</p>
+              <h3 className="text-lg font-black text-[#000000] tracking-tight">Advance Order Details</h3>
+            </div>
+            <button type="button" onClick={() => setSelected(null)} className="text-black hover:bg-black/5 w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            <div className="bg-[#F9FAFB] border border-black/10 rounded-lg p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent-dark)]">Customer</p>
+              <p className="text-sm font-black text-black">{selected.customer_name}</p>
+              <p className="text-[11px] font-bold text-[var(--accent-dark)]">{selected.phone}</p>
+              {selected.address && <p className="text-[11px] text-[var(--accent-dark)] mt-0.5">{selected.address}</p>}
+            </div>
+
+            <div className="border border-black/10 rounded-lg divide-y divide-black/5">
+              {productRows(selected).map((item, i) => {
+                const qty = Number(item.quantity || 1)
+                const price = Number(item.base_price || 0)
+                return (
+                  <div key={i} className="flex justify-between items-center p-2.5 text-xs">
+                    <div>
+                      <p className="font-bold text-black">{String(item.name || selected.product_name)}</p>
+                      <p className="text-[10px] text-[var(--accent-dark)]">Qty: {qty} × {money(price)}</p>
+                    </div>
+                    <p className="font-black text-black">{money(Number(item.line_total ?? price * qty))}</p>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="bg-[#F4F4F5] border border-black/10 rounded-lg p-2.5">
+                <p className="text-[9px] font-bold text-[var(--accent-dark)] uppercase tracking-wider">Total</p>
+                <p className="text-sm font-black text-black">{money(selected.total_amount)}</p>
+              </div>
+              <div className="bg-[#DCFCE7] border border-[#16A34A]/30 rounded-lg p-2.5">
+                <p className="text-[9px] font-bold text-[#166534] uppercase tracking-wider">Paid</p>
+                <p className="text-sm font-black text-[#166534]">{money(selected.deposit_amount)}</p>
+              </div>
+              <div className="bg-[#FEE2E2] border border-[#DC2626]/30 rounded-lg p-2.5">
+                <p className="text-[9px] font-bold text-[#991B1B] uppercase tracking-wider">Balance</p>
+                <p className="text-sm font-black text-[#991B1B]">{money(selected.status === 'completed' ? 0 : selected.remaining_balance)}</p>
+              </div>
+            </div>
+
+            {selected.expected_delivery_date && (
+              <p className="text-[11px] font-bold text-[var(--accent-dark)]"><Calendar className="w-3 h-3 inline mr-1" />Delivery: {showDate(selected.expected_delivery_date)}</p>
+            )}
+            {selected.invoice_number && (
+              <p className="text-[11px] font-bold text-[var(--accent-dark)]">Invoice: {selected.invoice_number}</p>
+            )}
+            {selected.remarks && (
+              <div className="bg-[#FEF9C3] border border-[#EAB308]/30 rounded-lg p-2.5 text-[11px] text-[#78350F]">
+                <span className="font-bold">Notes: </span>{selected.remarks}
+              </div>
+            )}
+
+            <div className="pt-3 border-t border-black/10 grid grid-cols-2 gap-2">
+              <button type="button" onClick={() => printReceipt(selected)}
+                className="bg-white border border-gray-300 hover:bg-gray-50 text-black py-2.5 px-3 rounded-lg font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer">
+                <Printer className="w-3.5 h-3.5 text-[var(--accent)]" />
+                Print Receipt
+              </button>
+              <button type="button" onClick={() => shareReceipt(selected)}
+                className="bg-[#10B981] hover:bg-[#059669] text-white py-2.5 px-3 rounded-lg font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer">
+                <WhatsAppIcon className="w-3.5 h-3.5" />
+                Share Receipt
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </ModalPortal>}
   </div>
 }

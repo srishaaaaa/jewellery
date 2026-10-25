@@ -671,7 +671,7 @@ export default function BillingAnalytics() {
         <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div className="admin-logo-lockup min-w-[280px]">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0A0A0A] border border-[var(--accent-a40)] shadow-sm shrink-0">
-              <span className="font-serif text-xl font-black text-[var(--accent)]">C</span>
+              <span className="text-xl font-black text-[var(--accent)]">C</span>
             </div>
             <div className="min-w-0">
               <p className="text-[11px] font-black uppercase tracking-[0.24em] text-[#000000]">Admin Billing</p>

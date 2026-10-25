@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Search, Trash2, Plus, Receipt, Printer,
   RefreshCw, ShoppingBag, MessageCircle,
-  X, ChevronDown, Power, Calculator
+  X, ChevronDown, Power, Calculator, Check, Clock, Loader2
 } from 'lucide-react'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { getErrorMessage } from '../lib/errorMessage'
@@ -2889,25 +2889,30 @@ export default function Pos(props: PosProps = {}) {
               >
                 Save as Quotation
               </button>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <button
-                  type="button"
-                  onClick={openDepositOrder}
-                  disabled={saving || billItems.length === 0}
-                  className="min-h-[44px] rounded-xl border-2 border-[#0A0A0A] bg-white px-3 py-3 text-[12px] font-bold uppercase tracking-[0.15em] text-[#000000] transition-colors hover:bg-[#0A0A0A] hover:text-[var(--accent)] disabled:opacity-40 cursor-pointer"
-                >
-                  Save as Deposit Order
-                </button>
-                <button
-                  type="button"
-                  onClick={generateBill}
-                  disabled={saving}
-                  className="min-h-[44px] rounded-xl bg-emerald-600 px-3 py-3 text-[13px] font-black uppercase tracking-wider text-white transition-colors hover:bg-emerald-700 disabled:opacity-50 cursor-pointer shadow-md"
-                >
-                  {saving ? 'Processing...' : 'Complete Sale'}
-                </button>
-              </div>
-              <p className="mt-2 text-center text-[10px] font-bold text-[#000000]">Deposit orders do not count as revenue until the remaining payment is received.</p>
+              {/* Complete Sale — saves the bill */}
+              <button
+                type="button"
+                onClick={generateBill}
+                disabled={saving}
+                className={`w-full mt-2 bg-[var(--accent)] hover:bg-[#27272A] text-white py-3 rounded-lg font-black text-[11px] uppercase tracking-[0.1em] flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-[0_4px_14px_rgba(63,63,70,0.35)] ${saving ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                {saving ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /><span>Processing Sale...</span></>
+                ) : (
+                  <><Check className="w-4 h-4" /><span>Complete Sale</span></>
+                )}
+              </button>
+
+              {/* Save as Advance Order — partial payment hold, not counted as revenue */}
+              <button
+                type="button"
+                onClick={openDepositOrder}
+                disabled={saving || billItems.length === 0}
+                className={`w-full mt-2 bg-white border-2 border-[#F59E0B] hover:bg-[#FEF3C7] text-[#B45309] py-3 rounded-lg font-black text-[10px] uppercase tracking-[0.1em] flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60 ${saving ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                <Clock className="w-4 h-4" />
+                <span>Save as Advance Order</span>
+              </button>
             </div>
           </div>
         </div>
@@ -2984,7 +2989,7 @@ export default function Pos(props: PosProps = {}) {
             <div className="shrink-0 flex items-start justify-between gap-3 border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5 sm:pb-4">
               <div>
                 <p className="text-[11px] font-black uppercase tracking-[.16em] text-violet-600">Advance payment only</p>
-                <h3 className="text-lg sm:text-xl font-black text-[#000000]">Save as Deposit Order</h3>
+                <h3 className="text-lg sm:text-xl font-black text-[#000000]">Save as Advance Order</h3>
                 <p className="mt-0.5 text-[11px] sm:text-xs font-semibold text-amber-700">No sale or tax invoice will be created now.</p>
               </div>
               <button type="button" onClick={() => { setDepositOpen(false); setError('') }} className="rounded-lg p-1 text-gray-500 hover:bg-gray-100 shrink-0"><X size={20}/></button>
@@ -3005,7 +3010,7 @@ export default function Pos(props: PosProps = {}) {
             </div>
             {error && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-600">{error}</div>}
             </div>
-            <div className="shrink-0 flex gap-3 border-t border-black/10 bg-white px-4 py-3 sm:px-6"><button type="button" onClick={() => { setDepositOpen(false); setError('') }} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button><button disabled={saving} className="flex-[1.5] rounded-xl bg-violet-700 py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Saving…' : 'Confirm Deposit Order'}</button></div>
+            <div className="shrink-0 flex gap-3 border-t border-black/10 bg-white px-4 py-3 sm:px-6"><button type="button" onClick={() => { setDepositOpen(false); setError('') }} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button><button disabled={saving} className="flex-[1.5] py-3 rounded-lg font-black text-[11px] uppercase tracking-[0.1em] flex items-center justify-center gap-2 bg-[#F59E0B] hover:bg-[#D97706] text-white shadow-md transition-all disabled:opacity-60 cursor-pointer">{saving ? <><Loader2 className="w-4 h-4 animate-spin" /><span>Saving...</span></> : <><Clock className="w-4 h-4" /><span>Confirm Advance Order</span></>}</button></div>
           </form>
         </div>
       </ModalPortal>)}

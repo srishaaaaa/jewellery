@@ -124,7 +124,7 @@ export const DateInputDDMMYYYY: React.FC<DateInputDDMMYYYYProps> = ({
 
   return (
     <div className="w-full">
-      {label && <label className="block font-bold text-[#000000] mb-1 text-sm">{label}</label>}
+      {label && <label className="block text-[11px] md:text-[10px] font-bold text-[#000000] mb-1">{label}</label>}
       <div className="relative">
         <input
           type="text"
