@@ -253,8 +253,8 @@ export default function Purchases() {
     </div>
 
     <div className="rounded-xl border border-black/10 bg-white shadow-sm flex flex-col">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
+      <div className="overflow-x-auto lg:overflow-x-visible">
+        <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
           {tab === 'purchases' ? <>
             {thead(['Purchase', 'Supplier', 'Items', 'Weight', 'Total', 'Paid / Owed', 'Actions'])}
             <tbody className="divide-y divide-black/5">
@@ -407,8 +407,8 @@ export default function Purchases() {
           <button onClick={() => setDetail(null)}><X /></button>
         </div>
         {modalError && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
-        <div className="mt-4 overflow-x-auto rounded-xl border border-black/10">
-          <table className="w-full text-left text-xs">
+        <div className="mt-4 overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10">
+          <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
             <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]"><tr>{['Item', 'Metal', 'Gross / Stone / Net', 'Rate', 'Making + Other', 'Pcs', 'Amount'].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr></thead>
             <tbody className="divide-y divide-black/5">
               {detail.items.map((i, k) => (

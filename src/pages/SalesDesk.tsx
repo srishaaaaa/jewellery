@@ -532,8 +532,8 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     </div>
 
     <div className="rounded-xl border border-black/10 bg-white shadow-sm flex flex-col">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
+      <div className="overflow-x-auto lg:overflow-x-visible">
+        <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
           {tab === 'quotations' && <>
             {thead(['Quotation', 'Customer', 'Items', 'Total', 'Valid Until', 'Status', 'Actions'])}
             <tbody className="divide-y divide-black/5">

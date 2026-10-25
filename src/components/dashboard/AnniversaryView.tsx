@@ -257,8 +257,8 @@ export default function AnniversaryView() {
           </div>
 
           <div className="rounded-xl border border-black/10 bg-white p-4 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
+            <div className="overflow-x-auto lg:overflow-x-visible">
+              <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
                 <thead className="border-b border-black/10 bg-[#F9FAFB]">
                   <tr>
                     <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">CUSTOMER</th>

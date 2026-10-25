@@ -247,8 +247,8 @@ export default function MetalRates() {
     </div>
 
     <div className="rounded-xl border border-black/10 bg-white shadow-sm flex flex-col">
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
+      <div className="overflow-x-auto lg:overflow-x-visible">
+        <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
           <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
             <tr>
               {['Date & Time', 'Metal', 'Purity', 'Rate / g', 'Change', 'Updated By', 'Note'].map((h) => (

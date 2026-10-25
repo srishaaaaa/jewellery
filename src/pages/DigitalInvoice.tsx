@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { Invoice } from '../components/Invoice'
-import { Printer, ArrowLeft, MessageCircle } from 'lucide-react'
+import { Printer, ArrowLeft, MessageCircle, Check, Copy, FileDown, Receipt } from 'lucide-react'
+import { toolbarBtn, toolbarBtnDark } from '../components/invoice/invoiceStyle'
 import { printThermalReceipt } from '../lib/thermalPrint'
 import { invoicePdfFile } from '../lib/invoicePdf'
 import { uploadInvoicePdf } from '../lib/storage'
@@ -19,6 +20,14 @@ export default function DigitalInvoice() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const invoiceElementRef = useRef<HTMLDivElement>(null)
+  const [copied, setCopied] = useState(false)
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1800)
+    } catch { /* clipboard blocked */ }
+  }
 
   // navigate(-1) is unreliable inside in-app browsers (e.g. WhatsApp's),
   // since their own navigation stack doesn't map cleanly onto the SPA's
@@ -323,30 +332,24 @@ export default function DigitalInvoice() {
   }
 
   return (
-    <div className="h-full overflow-y-auto bg-[#f9faf6] font-sans pb-12 print:bg-white print:pb-0">
-      {/* Top action bar */}
-      <div className="bg-[#f9faf6] p-3 sm:p-4 sticky top-0 z-50 print:hidden flex flex-wrap items-center justify-between gap-2 max-w-4xl mx-auto">
-        <button onClick={handleBack} className="flex items-center gap-1.5 sm:gap-2 text-[#0A0A0A] hover:text-[var(--accent)] font-semibold text-xs sm:text-sm transition-colors bg-white border border-[var(--accent-a40)] px-3 sm:px-4 py-1.5 sm:py-2 rounded-full shadow-sm cursor-pointer shrink-0">
-          <ArrowLeft size={16} /> Back
-        </button>
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            onClick={downloadPdf}
-            className="flex items-center gap-1.5 sm:gap-2 bg-[#0A0A0A] text-[var(--accent)] border border-[var(--accent)] px-3 sm:px-5 py-1.5 sm:py-2 rounded-full font-bold text-xs sm:text-sm shadow-md hover:bg-[#1A1A1A] transition-colors cursor-pointer"
-          >
-            <Printer size={16} /> <span className="hidden sm:inline">PDF Invoice</span>
+    <div className="h-full overflow-y-auto bg-[#F7F7F7] py-6 px-3 sm:px-6 print:bg-white print:p-0">
+      <div className="mx-auto max-w-[776px]">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-black/10 bg-white p-3 shadow-sm print:hidden">
+          <button type="button" onClick={handleBack} className={toolbarBtn}>
+            <ArrowLeft className="w-4 h-4" /> Return to POS
           </button>
-          <button
-            onClick={shareViaWhatsApp}
-            className="flex items-center gap-1.5 sm:gap-2 bg-emerald-600 text-white px-3 sm:px-5 py-1.5 sm:py-2 rounded-full font-bold text-xs sm:text-sm shadow-md hover:bg-emerald-700 transition-colors cursor-pointer"
-          >
-            <MessageCircle size={16} /> <span className="hidden sm:inline">WhatsApp</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => void shareViaWhatsApp()} className={toolbarBtn}><MessageCircle className="w-4 h-4" /> Share WhatsApp</button>
+            <button type="button" onClick={() => void copyLink()} className={toolbarBtn}>
+              {copied ? <><Check className="w-4 h-4" /> Copied</> : <><Copy className="w-4 h-4" /> Copy Link</>}
+            </button>
+            <button type="button" onClick={() => void downloadPdf()} className={toolbarBtn}><FileDown className="w-4 h-4" /> PDF</button>
+            <button type="button" onClick={printReceipt} className={toolbarBtn} title="Print the thermal receipt"><Receipt className="w-4 h-4" /> Receipt</button>
+            <button type="button" onClick={() => window.print()} className={toolbarBtnDark}><Printer className="w-4 h-4" /> Print</button>
+          </div>
         </div>
-      </div>
 
-      <div className="max-w-[830px] mx-auto mt-4 print:mt-0 px-2 sm:px-0">
-        <div ref={invoiceElementRef} className="overflow-hidden print:shadow-none print:rounded-none print:border-none">
+        <div ref={invoiceElementRef} className="rounded-xl border border-black/10 bg-white shadow-sm print:rounded-none print:border-none print:shadow-none">
           <Invoice
             invoiceNo={invoice.invoice_no}
             date={invoice.created_at}
@@ -377,7 +380,7 @@ export default function DigitalInvoice() {
             splitDetails={schemeInfo.splitDetails}
             schemeGramsUsed={schemeInfo.schemeGramsUsed}
             schemeGoldRate={schemeInfo.schemeGoldRate}
-            onPrintReceipt={printReceipt}
+            channel={invoice.order_mode || undefined}
           />
         </div>
       </div>

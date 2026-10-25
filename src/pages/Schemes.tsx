@@ -715,8 +715,8 @@ export default function Schemes() {
       </div>
 
       <div className="rounded-xl border border-black/10 bg-white shadow-sm flex flex-col">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="overflow-x-auto lg:overflow-x-visible">
+          <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
             <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
               <tr>
                 {['Scheme ID / Start', 'Customer', 'Installment / Paid', 'Paid / Remaining', 'Next Due / Maturity', 'Benefit', 'Status', 'Actions'].map((h) => (
@@ -792,8 +792,8 @@ export default function Schemes() {
         </div>
       </div>
       <div className="rounded-xl border border-black/10 bg-white shadow-sm flex flex-col">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
+        <div className="overflow-x-auto lg:overflow-x-visible">
+          <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
             <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
               <tr>{['Date', 'Receipt No', 'Scheme / Customer', 'Installment', 'Amount', 'Gold', 'Method', 'Received By', 'Notes', 'Receipt'].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr>
             </thead>
@@ -1077,8 +1077,8 @@ export default function Schemes() {
 
         <div className="mt-6">
           <h4 className="font-black">Installments</h4>
-          <div className="mt-2 overflow-x-auto rounded-xl border border-black/10">
-            <table className="w-full text-left text-xs">
+          <div className="mt-2 overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10">
+            <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
               <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]"><tr>{['#', 'Due', 'Amount', 'Status', 'Paid On', 'Method', 'Gold Rate', 'Gold (g)', 'Receipt', ''].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr></thead>
               <tbody className="divide-y divide-black/5">
                 {detailInstallments.map((i) => (

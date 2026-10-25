@@ -1,8 +1,9 @@
 import React from 'react'
-import { BRAND_ADDRESS, BRAND_EMAIL, BRAND_EN, BRAND_INSTAGRAM, BRAND_LOGO, BRAND_PRIMARY_PHONE_DISPLAY } from '../lib/brand'
 import { formatCurrency, formatQuantityDisplay, normalizeStructuredOrderItem, formatInvoiceNo, paymentSplitRows, schemePaidLabel } from '../lib/retail'
 import { formatPhoneDisplay } from '../lib/phone'
-import { useSettingsStore } from '../store/store'
+import { amountInWords } from '../lib/amountInWords'
+import { BilledTo, GrandTotal, Sheet, SheetFooter, SheetHeader, TotalRow } from './invoice/InvoiceParts'
+import { LABEL, MONO, TD, TH, inr, useShopProfile } from './invoice/invoiceStyle'
 import { formatWeight, metalLabel, type JewellerySnapshot } from '../lib/jewellery'
 
 export interface InvoiceItem {
@@ -61,7 +62,13 @@ export interface InvoiceProps {
   /** Scheme redeemed by grams: grams used and the day's rate */
   schemeGramsUsed?: number | null
   schemeGoldRate?: number | null
+  /** Kept for callers; the full-page toolbar now holds the print actions. */
   onPrintReceipt?: () => void
+  /** OFFLINE / ONLINE, shown as "Channel" in the header */
+  channel?: string
+  /** Cash handed over and change given back (shown under the amount in words) */
+  amountReceived?: number
+  changeReturned?: number
 }
 
 /** Jewellery lines as printed under an item: metal/purity, weights and the charges used. */
@@ -104,7 +111,6 @@ export const Invoice: React.FC<InvoiceProps> = ({
   shipping,
   total,
   status = 'Pending',
-  userId,
   deliveryCharge = 0,
   discountAmount = 0,
   couponCode,
@@ -125,303 +131,161 @@ export const Invoice: React.FC<InvoiceProps> = ({
   splitDetails,
   schemeGramsUsed,
   schemeGoldRate,
-  onPrintReceipt,
+  channel,
+  amountReceived = 0,
+  changeReturned = 0,
 }) => {
   const splitRows = paymentSplitRows(splitDetails)
-  const formattedInvoiceNo = formatInvoiceNo(invoiceNo)
-  const dueDateStr = creditDueDate
-    ? (() => {
-        try { return new Date(`${creditDueDate}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
-        catch { return creditDueDate }
-      })()
-    : ''
-  const paidDateStr = creditPaidAt
-    ? (() => {
-        try { return new Date(creditPaidAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
-        catch { return creditPaidAt }
-      })()
-    : ''
+  const shop = useShopProfile()
+  const longDate = (value: string | null | undefined) => {
+    if (!value) return ''
+    const d = new Date(value.length === 10 ? `${value}T00:00:00` : value)
+    return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+  }
+  const billDate = Number.isNaN(new Date(date).getTime()) ? new Date() : new Date(date)
+  const dueDateStr = longDate(creditDueDate)
+  const paidDateStr = longDate(creditPaidAt)
   const isSettledCredit = Boolean(isCredit && creditPaidAt)
   const isUnpaidCredit = Boolean(isCredit && !creditPaidAt)
-  const creditColor = isSettledCredit ? '#047857' : '#B91C1C'
-  const dateStr = (() => {
-    try { return new Date(date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
-    catch { return new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) }
-  })()
-
-  const statusColor = status === 'completed' ? 'var(--accent)' : status === 'cancelled' ? '#dc2626' : '#d97706'
   const effectiveDelivery = deliveryCharge || shipping
-  const storeSettings = useSettingsStore(s => s.settings)
-  const logoUrl = storeSettings?.logoUrl || BRAND_LOGO
-  const shopName = storeSettings?.name || BRAND_EN
-  const shopAddress = storeSettings?.address || BRAND_ADDRESS
-  const shopPhone = storeSettings?.phone || BRAND_PRIMARY_PHONE_DISPLAY
-  const shopEmail = storeSettings?.email || BRAND_EMAIL
-  const shopInstagram = storeSettings?.instagramHandle || BRAND_INSTAGRAM
+  const reductions = schemeAmountUsed + advanceAmountUsed + exchangeAmount
+  const amountPaid = Math.max(0, total - reductions)
+  const halfGst = gstAmount / 2
+
+  const meta: Array<[string, React.ReactNode]> = [
+    ['Date', billDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })],
+    ['Time', billDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })],
+    ['Payment', `${(paymentMode || (isCredit ? 'Credit' : 'Cash')).toUpperCase()} • ${String(status).toUpperCase()}`],
+  ]
+  if (channel) meta.push(['Channel', channel.toUpperCase()])
+  if (isUnpaidCredit && dueDateStr) meta.push(['Due', dueDateStr])
+  if (isSettledCredit && paidDateStr) meta.push(['Paid', paidDateStr])
 
   return (
-    <div
-      id="invoice-print-root"
-      className="w-full max-w-[794px] mx-auto bg-white text-[#111111] box-border flex flex-col p-6 sm:p-[45px] print:p-0 print:max-w-full border border-[var(--accent-a20)] shadow-xl rounded-3xl h-auto"
-      style={{
-        fontFamily: "'Poppins', system-ui, sans-serif",
-      }}
-    >
-      {/* ── HEADER ────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 8 }}>
-        <div style={{ fontSize: 9, fontWeight: 800, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>{isCredit ? 'Credit Invoice' : 'Tax Invoice'}</div>
-        <div style={{ fontSize: 12, fontWeight: 900, color: '#0A0A0A', textTransform: 'uppercase', letterSpacing: 0.5 }}>Invoice: #{formattedInvoiceNo}</div>
-      </div>
-      <div style={{ borderBottom: '1px solid var(--accent-a40)', marginTop: 8, marginBottom: 16 }} />
+    <Sheet id="invoice-print-root">
+      <SheetHeader title={gstAmount > 0 ? 'Tax Invoice' : isCredit ? 'Credit Invoice' : 'Invoice'} number={formatInvoiceNo(invoiceNo)} meta={meta} />
 
       {isCredit && (
-        <div style={{
-          textAlign: 'center', fontWeight: 800, fontSize: 12, padding: '8px 0',
-          border: `1px dashed ${creditColor}`, background: isSettledCredit ? '#D1FAE5' : '#FEE2E2', color: creditColor,
-          borderRadius: 10, marginBottom: 16,
-        }}>
+        <div style={{ marginTop: 16, padding: '8px 12px', fontSize: 11, fontWeight: 600, textAlign: 'center', border: `1px dashed ${isSettledCredit ? '#047857' : '#B91C1C'}`, color: isSettledCredit ? '#047857' : '#B91C1C' }}>
           {isSettledCredit
-            ? `CREDIT BILL — PAID${paidDateStr ? ` ON ${paidDateStr}` : ''} (COMPLETED)`
+            ? `CREDIT BILL — PAID${paidDateStr ? ` ON ${paidDateStr}` : ''}`
             : `CREDIT SALE — ${dueDateStr ? `PAYMENT DUE ON ${dueDateStr}` : 'PAYMENT PENDING'}`}
         </div>
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 20 }}>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', minWidth: 0 }}>
-          <div style={{ width: 44, height: 44, flexShrink: 0, borderRadius: 12, border: '1px solid var(--accent)', overflow: 'hidden', boxShadow: '0 4px 12px var(--accent-a15)' }}>
-            <img src={logoUrl} alt={shopName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 16, fontWeight: 900, color: 'var(--accent)', letterSpacing: 1, textTransform: 'uppercase' }}>
-              {shopName}
-            </div>
-            <div style={{ fontSize: 11, color: '#4b5563', marginTop: 2, maxWidth: 280 }}>
-              {shopAddress}
-            </div>
-            <div style={{ fontSize: 11, color: '#4b5563', marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-              {shopPhone && <span>📞 {shopPhone}</span>}
-              {shopEmail && <span>✉️ {shopEmail}</span>}
-              {shopInstagram && <span>📷 @{shopInstagram}</span>}
-            </div>
-            {(storeSettings?.gstin || storeSettings?.stateName) && (
-              <div style={{ fontSize: 11, color: '#4b5563', marginTop: 4, display: 'flex', gap: 10, flexWrap: 'wrap', fontWeight: 700 }}>
-                {storeSettings?.gstin && <span>GSTIN: {storeSettings.gstin}</span>}
-                {storeSettings?.stateName && <span>State: {storeSettings.stateName}{storeSettings.stateCode ? ` (Code ${storeSettings.stateCode})` : ''}</span>}
-              </div>
-            )}
-          </div>
-        </div>
-        <div style={{ textAlign: 'right', flexShrink: 0 }}>
-          <div style={{ fontSize: 11, color: '#4b5563' }}>Date: {dateStr}</div>
-          {paymentMode && <div style={{ fontSize: 11, color: '#4b5563', marginTop: 2 }}>Payment: {paymentMode}</div>}
-          {isUnpaidCredit && dueDateStr && <div style={{ fontSize: 11, color: '#B91C1C', fontWeight: 700, marginTop: 2 }}>Due: {dueDateStr}</div>}
-          {isSettledCredit && paidDateStr && <div style={{ fontSize: 11, color: '#047857', fontWeight: 700, marginTop: 2 }}>Paid: {paidDateStr}</div>}
-          {userId && <div style={{ fontSize: 9, color: '#999', marginTop: 4, wordBreak: 'break-all', maxWidth: 180 }}>{userId}</div>}
-          <div
-            style={{
-              display: 'inline-block', marginTop: 8, padding: '3px 12px', borderRadius: 99,
-              background: statusColor + '18', color: statusColor,
-              fontSize: 10, fontWeight: 800, letterSpacing: 1, textTransform: 'uppercase', border: `1px solid ${statusColor}40`
-            }}
-          >
-            {status}
-          </div>
-        </div>
-      </div>
+      <BilledTo
+        name={customerName}
+        phone={phone ? formatPhoneDisplay(phone) : ''}
+        extra={(
+          <>
+            {address && <div style={{ fontSize: 11, color: '#4b5563', marginTop: 3, maxWidth: 260 }}>{address}</div>}
+            {customerGstin && <div style={{ fontSize: 11, color: '#4b5563', marginTop: 3 }}>GSTIN: <span style={{ fontFamily: MONO }}>{customerGstin}</span></div>}
+            {customerPan && <div style={{ fontSize: 11, color: '#4b5563', marginTop: 3 }}>PAN: <span style={{ fontFamily: MONO }}>{customerPan}</span></div>}
+          </>
+        )}
+      />
 
-      {/* ── BILL TO ──────────────────────────────────────────────── */}
-      <div style={{ padding: '12px 14px', borderRadius: 12, background: '#FBFAF6', border: '1px solid var(--accent-a40)', overflowWrap: 'anywhere', marginBottom: 20 }}>
-        <div style={{ fontSize: 9, fontWeight: 800, color: '#888', textTransform: 'uppercase', letterSpacing: 1 }}>Bill To</div>
-        <div style={{ fontSize: 13, fontWeight: 800, color: '#0A0A0A', lineHeight: 1.35, wordBreak: 'break-word', marginTop: 6 }}>{customerName || 'Walk-in Customer'}</div>
-        <div style={{ fontSize: 9, fontWeight: 800, color: '#888', textTransform: 'uppercase', letterSpacing: 0.7, marginTop: 6 }}>Mobile Number</div>
-        <div style={{ fontSize: 12, color: '#555', lineHeight: 1.4, wordBreak: 'break-word' }}>{phone ? formatPhoneDisplay(phone) : '—'}</div>
-        {address && <div style={{ fontSize: 11, color: '#777', marginTop: 4, lineHeight: 1.4, wordBreak: 'break-word' }}>Address: {address}</div>}
-        {customerGstin && <div style={{ fontSize: 11, color: '#555', marginTop: 4, fontWeight: 700 }}>GSTIN: {customerGstin}</div>}
-        {customerPan && <div style={{ fontSize: 11, color: '#555', marginTop: 4, fontWeight: 700 }}>PAN: {customerPan}</div>}
-      </div>
-
-      {/* ── ITEMS TABLE ──────────────────────────────────────────── */}
-      <div className="w-full overflow-x-auto">
-        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 320 }}>
-          <thead>
-            <tr style={{ background: '#0A0A0A', borderRadius: 8 }}>
-              <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 0.8, width: 28 }}>#</th>
-              <th style={{ padding: '8px 10px', textAlign: 'left', fontSize: 10, fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 0.8 }}>Item Description</th>
-              <th style={{ padding: '8px 10px', textAlign: 'center', fontSize: 10, fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 0.8, width: 45 }}>Qty</th>
-              <th style={{ padding: '8px 10px', textAlign: 'right', fontSize: 10, fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 0.8, width: 75 }}>Rate</th>
-              <th style={{ padding: '8px 10px', textAlign: 'right', fontSize: 10, fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 0.8, width: 85 }}>Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item, idx) => {
-              const normalized = normalizeStructuredOrderItem(item as unknown as Record<string, unknown>)
-              const giftNote = String(normalized.special_offer_note || item.special_offer_note || '').trim()
-              const giftValue = Number(normalized.special_offer_cost ?? item.special_offer_cost) || 0
-              const jewellery = normalized.jewellery
-              return (
-                <React.Fragment key={idx}>
-                <tr style={{ borderBottom: giftNote ? 'none' : '1px solid #f0f0f0' }}>
-                  <td style={{ padding: '10px 8px', fontSize: 11, color: '#999', verticalAlign: 'top' }}>{idx + 1}</td>
-                  <td style={{ padding: '10px 8px', verticalAlign: 'top' }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#0A0A0A' }}>{normalized.name}</div>
+      {/* Items */}
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 4 }}>
+        <thead>
+          <tr>
+            <th style={{ ...TH, width: 28, textAlign: 'center' }}>#</th>
+            <th style={{ ...TH, textAlign: 'left' }}>Item Description</th>
+            <th style={{ ...TH, width: 56, textAlign: 'center' }}>Qty</th>
+            <th style={{ ...TH, width: 96, textAlign: 'right' }}>Rate (₹)</th>
+            <th style={{ ...TH, width: 108, textAlign: 'right' }}>Amount (₹)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, idx) => {
+            const normalized = normalizeStructuredOrderItem(item as unknown as Record<string, unknown>)
+            const giftNote = String(normalized.special_offer_note || item.special_offer_note || '').trim()
+            const giftValue = Number(normalized.special_offer_cost ?? item.special_offer_cost) || 0
+            return (
+              <React.Fragment key={idx}>
+                <tr>
+                  <td style={{ ...TD, textAlign: 'center', color: '#9ca3af' }}>{idx + 1}</td>
+                  <td style={TD}>
+                    <div style={{ fontWeight: 600 }}>{normalized.name}</div>
                     {item.offerPrice && item.price !== item.offerPrice && (
-                      <div style={{ fontSize: 10, color: '#aaa', textDecoration: 'line-through', marginTop: 2 }}>MRP ₹{item.price}</div>
+                      <div style={{ fontSize: 10, color: '#9ca3af', textDecoration: 'line-through', marginTop: 2 }}>MRP ₹{inr(item.price)}</div>
                     )}
-                    {jewellery ? (
-                      <JewelleryLineDetails j={jewellery} />
-                    ) : (
-                    <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2 }}>
-                      {normalized.unit} · {formatCurrency(normalized.base_price)}
-                    </div>
-                    )}
+                    {normalized.jewellery && <JewelleryLineDetails j={normalized.jewellery} />}
                   </td>
-                  <td style={{ padding: '10px 8px', fontSize: 12, fontWeight: 600, textAlign: 'center', verticalAlign: 'top' }}>{formatQuantityDisplay(normalized.quantity, normalized.unit, normalized.unit_type)}</td>
-                  <td style={{ padding: '10px 8px', fontSize: 12, fontWeight: 600, textAlign: 'right', verticalAlign: 'top', color: '#555' }}>{formatCurrency(normalized.base_price)}</td>
-                  <td style={{ padding: '10px 8px', fontSize: 13, fontWeight: 800, textAlign: 'right', verticalAlign: 'top', color: '#0A0A0A' }}>{formatCurrency(normalized.line_total)}</td>
+                  <td style={{ ...TD, textAlign: 'center', fontWeight: 600 }}>{formatQuantityDisplay(normalized.quantity, normalized.unit, normalized.unit_type)}</td>
+                  <td style={{ ...TD, textAlign: 'right', fontFamily: MONO, color: '#4b5563' }}>{inr(normalized.base_price)}</td>
+                  <td style={{ ...TD, textAlign: 'right', fontFamily: MONO, fontWeight: 700 }}>{inr(normalized.line_total)}</td>
                 </tr>
                 {giftNote && (
-                  <tr style={{ borderBottom: '1px solid #f0f0f0', background: '#FFFBEB' }}>
-                    <td />
-                    <td style={{ padding: '6px 8px', fontSize: 11, fontWeight: 800, color: '#92400E' }}>🎁 FREE GIFT: {giftNote}</td>
-                    <td style={{ padding: '6px 8px', fontSize: 11, fontWeight: 600, textAlign: 'center', color: '#92400E' }}>1</td>
-                    <td style={{ padding: '6px 8px', fontSize: 11, textAlign: 'right', color: '#92400E', textDecoration: giftValue > 0 ? 'line-through' : 'none' }}>{giftValue > 0 ? formatCurrency(giftValue) : '—'}</td>
-                    <td style={{ padding: '6px 8px', fontSize: 12, fontWeight: 900, textAlign: 'right', color: '#92400E' }}>FREE</td>
+                  <tr>
+                    <td style={TD} />
+                    <td style={{ ...TD, fontSize: 11, fontWeight: 600, color: '#92400E' }}>Free gift: {giftNote}</td>
+                    <td style={{ ...TD, textAlign: 'center', fontSize: 11, color: '#92400E' }}>1</td>
+                    <td style={{ ...TD, textAlign: 'right', fontFamily: MONO, fontSize: 11, color: '#92400E', textDecoration: giftValue > 0 ? 'line-through' : 'none' }}>{giftValue > 0 ? inr(giftValue) : '—'}</td>
+                    <td style={{ ...TD, textAlign: 'right', fontWeight: 700, color: '#92400E' }}>FREE</td>
                   </tr>
                 )}
-                </React.Fragment>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+              </React.Fragment>
+            )
+          })}
+        </tbody>
+      </table>
 
-      {/* ── TOTALS ───────────────────────────────────────────────── */}
-      <div style={{ marginTop: 24, borderTop: '2px solid var(--accent)', paddingTop: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <div style={{ minWidth: 240, width: '100%', maxWidth: 300 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 12, color: '#666' }}>Subtotal</span>
-              <span style={{ fontSize: 12, fontWeight: 700 }}>{formatCurrency(subtotal)}</span>
-            </div>
-            {discountAmount > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--accent-dark)' }}>
-                  Coupon{couponCode ? ` (${couponCode})` : ''}
-                </span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-dark)' }}>−{formatCurrency(discountAmount)}</span>
-              </div>
-            )}
-            {manualDiscountAmount > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--accent-dark)' }}>Manual Discount</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-dark)' }}>−{formatCurrency(manualDiscountAmount)}</span>
-              </div>
-            )}
-            {schemeDiscount > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--accent-dark)' }}>Scheme Benefit{schemeNumber ? ` (${schemeNumber})` : ''}</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-dark)' }}>−{formatCurrency(schemeDiscount)}</span>
-              </div>
-            )}
-            {gstAmount > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: '#666' }}>GST</span>
-                <span style={{ fontSize: 12, fontWeight: 700 }}>+{formatCurrency(gstAmount)}</span>
-              </div>
-            )}
-            {effectiveDelivery > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: '#666' }}>Delivery</span>
-                <span style={{ fontSize: 12, fontWeight: 700 }}>{formatCurrency(effectiveDelivery)}</span>
-              </div>
-            )}
-            <div
-              style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                borderTop: `2px solid ${isUnpaidCredit ? '#B91C1C' : 'var(--accent)'}`, paddingTop: 10, marginTop: 4,
-              }}
-            >
-              <span style={{ fontSize: 15, fontWeight: 900, color: isUnpaidCredit ? '#B91C1C' : '#0A0A0A', textTransform: 'uppercase', letterSpacing: 0.5 }}>{isUnpaidCredit ? 'Amount Due' : 'Total'}</span>
-              <span style={{ fontSize: 20, fontWeight: 900, color: isUnpaidCredit ? '#B91C1C' : '#0A0A0A' }}>{formatCurrency(total)}</span>
-            </div>
-            {(schemeAmountUsed > 0 || advanceAmountUsed > 0 || exchangeAmount > 0) && (
-              <>
-                {schemeAmountUsed > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-                    <span style={{ fontSize: 12, color: 'var(--accent-dark)' }}>{schemePaidLabel(schemeNumber, schemeGramsUsed, schemeGoldRate)}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-dark)' }}>−{formatCurrency(schemeAmountUsed)}</span>
-                  </div>
-                )}
-                {advanceAmountUsed > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                    <span style={{ fontSize: 12, color: 'var(--accent-dark)' }}>Advance Adjusted</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-dark)' }}>−{formatCurrency(advanceAmountUsed)}</span>
-                  </div>
-                )}
-                {exchangeAmount > 0 && (
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                    <span style={{ fontSize: 12, color: 'var(--accent-dark)' }}>Old Gold Exchange</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-dark)' }}>−{formatCurrency(exchangeAmount)}</span>
-                  </div>
-                )}
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-                  <span style={{ fontSize: 13, fontWeight: 900, color: '#0A0A0A' }}>Amount Paid</span>
-                  <span style={{ fontSize: 14, fontWeight: 900, color: '#0A0A0A' }}>{formatCurrency(Math.max(0, total - schemeAmountUsed - advanceAmountUsed - exchangeAmount))}</span>
-                </div>
-              </>
-            )}
-            {splitRows.length > 0 && (
-              <div style={{ marginTop: 10, paddingTop: 8, borderTop: '1px dashed #d0d0d0' }}>
-                <div style={{ fontSize: 10, fontWeight: 800, color: '#888', textTransform: 'uppercase', letterSpacing: 0.7, marginBottom: 4 }}>Payment Split</div>
-                {splitRows.map(([label, amount]) => (
-                  <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginTop: 3 }}>
-                    <span style={{ fontSize: 12, color: '#444' }}>{label}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700 }}>{formatCurrency(amount)}</span>
-                  </div>
-                ))}
-              </div>
+      {/* Words + payment on the left, totals on the right */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 32, flexWrap: 'wrap', marginTop: 12, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
+        <div style={{ flex: '1 1 240px', minWidth: 0 }}>
+          <div style={LABEL}>Amount in Words</div>
+          <div style={{ fontSize: 12, fontWeight: 600, fontStyle: 'italic', marginTop: 4 }}>{amountInWords(isUnpaidCredit ? total : amountPaid)}</div>
+          <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 16, lineHeight: 1.8 }}>
+            {splitRows.length > 0
+              ? splitRows.map(([label, amount]) => (
+                <div key={label}>Paid by {label}: <span style={{ fontFamily: MONO, color: '#111111', fontWeight: 600 }}>₹{inr(amount)}</span></div>
+              ))
+              : !isUnpaidCredit && (
+                <div>{paymentMode && !/cash/i.test(paymentMode) ? `Paid via ${paymentMode}` : 'Cash Received'}: <span style={{ fontFamily: MONO, color: '#111111', fontWeight: 600 }}>₹{inr(amountReceived > 0 ? amountReceived : amountPaid)}</span></div>
+              )}
+            {changeReturned > 0 && (
+              <div>Change Returned: <span style={{ fontFamily: MONO, color: '#111111', fontWeight: 600 }}>₹{inr(changeReturned)}</span></div>
             )}
             {schemeNumber && schemeBalanceAfter != null && (
-              <div style={{ fontSize: 10, color: '#6b7280', marginTop: 6, textAlign: 'right' }}>
-                Scheme {schemeNumber} balance remaining: {formatCurrency(schemeBalanceAfter)}
-              </div>
+              <div>Scheme {schemeNumber} balance: <span style={{ fontFamily: MONO, color: '#111111', fontWeight: 600 }}>₹{inr(schemeBalanceAfter)}</span></div>
             )}
           </div>
         </div>
+
+        <div style={{ flex: '0 1 280px', width: '100%', maxWidth: 300, marginLeft: 'auto' }}>
+          <TotalRow label="Subtotal" value={`₹${inr(subtotal)}`} />
+          {discountAmount > 0 && <TotalRow label={`Coupon${couponCode ? ` (${couponCode})` : ''}`} value={`− ₹${inr(discountAmount)}`} />}
+          {manualDiscountAmount > 0 && <TotalRow label="Discount" value={`− ₹${inr(manualDiscountAmount)}`} />}
+          {schemeDiscount > 0 && <TotalRow label={`Scheme Benefit${schemeNumber ? ` (${schemeNumber})` : ''}`} value={`− ₹${inr(schemeDiscount)}`} />}
+          {gstAmount > 0 && (
+            <>
+              <TotalRow label="CGST" value={`₹${inr(halfGst)}`} />
+              <TotalRow label="SGST" value={`₹${inr(halfGst)}`} />
+            </>
+          )}
+          {effectiveDelivery > 0 && <TotalRow label="Delivery" value={`₹${inr(effectiveDelivery)}`} />}
+          <GrandTotal label={isUnpaidCredit ? 'Amount Due' : 'Total'} value={total} color={isUnpaidCredit ? '#B91C1C' : undefined} />
+          {discountAmount + manualDiscountAmount + schemeDiscount > 0 && (
+            <div style={{ textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#15803D', marginTop: 6 }}>
+              You saved ₹{inr(discountAmount + manualDiscountAmount + schemeDiscount)} on this bill
+            </div>
+          )}
+          {reductions > 0 && (
+            <div style={{ marginTop: 12 }}>
+              {schemeAmountUsed > 0 && <TotalRow label={schemePaidLabel(schemeNumber, schemeGramsUsed, schemeGoldRate)} value={`− ₹${inr(schemeAmountUsed)}`} />}
+              {advanceAmountUsed > 0 && <TotalRow label="Advance Adjusted" value={`− ₹${inr(advanceAmountUsed)}`} />}
+              {exchangeAmount > 0 && <TotalRow label="Old Gold Exchange" value={`− ₹${inr(exchangeAmount)}`} />}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 700, borderTop: '1px solid #e5e7eb', paddingTop: 8 }}>
+                <span>Amount Paid</span>
+                <span style={{ fontFamily: MONO }}>₹{inr(amountPaid)}</span>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* ── FOOTER ───────────────────────────────────────────────── */}
-      <div
-        style={{
-          marginTop: 32, paddingTop: 16, borderTop: '1px dashed #d0d0d0',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center',
-        }}
-      >
-        <div style={{ fontSize: 12, fontWeight: 800, color: isUnpaidCredit ? '#B91C1C' : isSettledCredit ? '#047857' : 'var(--accent)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-          {isUnpaidCredit
-            ? `Credit Sale — Kindly Settle${dueDateStr ? ` By ${dueDateStr}` : ''}`
-            : isSettledCredit
-              ? `Credit Bill — Paid In Full${paidDateStr ? ` On ${paidDateStr}` : ''}`
-              : 'Thank You For Shopping With Us'}
-        </div>
-        {shopInstagram && <div style={{ fontSize: 10, color: '#777', marginTop: 4 }}>Follow us on Instagram: @{shopInstagram}</div>}
-        {onPrintReceipt && (
-          <button
-            type="button"
-            onClick={onPrintReceipt}
-            className="print:hidden"
-            data-html2canvas-ignore="true"
-            style={{
-              marginTop: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              border: '1px solid var(--accent)', borderRadius: 999, padding: '9px 20px',
-              background: '#0A0A0A', color: 'var(--accent)', fontSize: 12, fontWeight: 800, cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-            }}
-          >
-            Print Thermal Receipt
-          </button>
-        )}
-      </div>
-    </div>
+      <SheetFooter note={isUnpaidCredit ? `Credit sale — kindly settle${dueDateStr ? ` by ${dueDateStr}` : ''} • ${shop.name}` : undefined} />
+    </Sheet>
   )
 }

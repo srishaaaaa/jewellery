@@ -77,8 +77,8 @@ export default function AuditLogView() {
         <input type="date" className={inputCls} value={to} onChange={(e) => setTo(e.target.value)} aria-label="To date" />
       </div>
       {error && <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">{error}</div>}
-      <div className="overflow-x-auto rounded-xl border border-black/10 max-h-[480px] overflow-y-auto">
-        <table className="w-full text-left text-xs">
+      <div className="overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10 max-h-[480px] overflow-y-auto">
+        <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
           <thead className="sticky top-0 text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
             <tr>{['Date & Time', 'Action', 'Record', 'Old', 'New', 'By'].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr>
           </thead>

@@ -241,8 +241,8 @@ export default function JewelleryCustomerProfile() {
 
             <div className="rounded-xl border border-black/10 bg-white shadow-sm">
               <h4 className="px-4 pt-4 text-sm font-black text-[#000000]">Savings Schemes</h4>
-              <div className="overflow-x-auto p-4 pt-3">
-                <table className="w-full text-left text-xs">
+              <div className="overflow-x-auto lg:overflow-x-visible p-4 pt-3">
+                <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
                   <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
                     <tr>{['Scheme', 'Status', 'Paid', 'Remaining', 'Balance Available', 'Next Due'].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr>
                   </thead>
@@ -266,8 +266,8 @@ export default function JewelleryCustomerProfile() {
 
             <div className="rounded-xl border border-black/10 bg-white shadow-sm">
               <h4 className="px-4 pt-4 text-sm font-black text-[#000000]">Jewellery Purchases</h4>
-              <div className="overflow-x-auto p-4 pt-3">
-                <table className="w-full text-left text-xs">
+              <div className="overflow-x-auto lg:overflow-x-visible p-4 pt-3">
+                <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
                   <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
                     <tr>{['Date', 'Invoice', 'Items', 'Total'].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr>
                   </thead>
@@ -296,8 +296,8 @@ export default function JewelleryCustomerProfile() {
 
             <div className="rounded-xl border border-black/10 bg-white shadow-sm">
               <h4 className="px-4 pt-4 text-sm font-black text-[#000000]">Advances</h4>
-              <div className="overflow-x-auto p-4 pt-3">
-                <table className="w-full text-left text-xs">
+              <div className="overflow-x-auto lg:overflow-x-visible p-4 pt-3">
+                <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
                   <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
                     <tr>{['Receipt', 'Date', 'Purpose', 'Amount', 'Balance', 'Status'].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr>
                   </thead>
@@ -321,8 +321,8 @@ export default function JewelleryCustomerProfile() {
 
             <div className="rounded-xl border border-black/10 bg-white shadow-sm">
               <h4 className="px-4 pt-4 text-sm font-black text-[#000000]">Exchanges & Returns</h4>
-              <div className="overflow-x-auto p-4 pt-3">
-                <table className="w-full text-left text-xs">
+              <div className="overflow-x-auto lg:overflow-x-visible p-4 pt-3">
+                <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
                   <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
                     <tr>{['No', 'Date', 'Invoice', 'Details', 'Value'].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr>
                   </thead>
@@ -356,8 +356,8 @@ export default function JewelleryCustomerProfile() {
 
             <div className="rounded-xl border border-black/10 bg-white shadow-sm">
               <h4 className="px-4 pt-4 text-sm font-black text-[#000000]">Repairs</h4>
-              <div className="overflow-x-auto p-4 pt-3">
-                <table className="w-full text-left text-xs">
+              <div className="overflow-x-auto lg:overflow-x-visible p-4 pt-3">
+                <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
                   <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
                     <tr>{['Repair', 'Received', 'Item', 'Expected', 'Balance', 'Status'].map((h) => <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>)}</tr>
                   </thead>

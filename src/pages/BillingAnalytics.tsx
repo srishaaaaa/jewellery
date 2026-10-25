@@ -881,8 +881,8 @@ export default function BillingAnalytics() {
                 <div className="px-4 py-10 text-center text-[13px] text-[#000000]">No matching bills found.</div>
               )}
             </div>
-            <div className="mt-4 hidden md:block overflow-x-auto rounded-xl border border-black/10">
-              <table className="min-w-[980px] w-full text-left text-[13px]">
+            <div className="mt-4 hidden md:block overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10">
+              <table className="min-w-[980px] w-full text-left text-[13px] lg:table-fixed [&_td]:break-words [&_th]:break-words">
                 <thead className="bg-white text-[10px] uppercase tracking-wider text-[#000000]">
                   <tr>
                     <th className="px-3 py-3 font-black">Invoice</th>

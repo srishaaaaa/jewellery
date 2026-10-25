@@ -12,6 +12,7 @@ import { DropdownEnhancer } from './components/DropdownEnhancer'
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Pos = lazy(() => import('./pages/Pos'))
 const DigitalInvoice = lazy(() => import('./pages/DigitalInvoice'))
+const AdvanceReceiptPage = lazy(() => import('./pages/AdvanceReceiptPage'))
 const Login = lazy(() => import('./pages/Login'))
 const AdminLogin = lazy(() => import('./pages/AdminLogin'))
 
@@ -217,6 +218,16 @@ function AppShell() {
               <Suspense fallback={<LoadingSpinner />}>
                 <DigitalInvoice />
               </Suspense>
+            }
+          />
+          <Route
+            path="/advance/:id"
+            element={
+              <AdminGuard>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <AdvanceReceiptPage />
+                </Suspense>
+              </AdminGuard>
             }
           />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

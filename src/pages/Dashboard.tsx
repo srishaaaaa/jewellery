@@ -3,8 +3,8 @@ import {
   BarChart2, Trash2, Edit2, ShoppingCart, LayoutDashboard,
   Box, AlertCircle, Download, TrendingUp, TrendingDown,
   Package, Search, RefreshCw, ShieldCheck, ShieldOff, Trophy,
-  MessageCircle, Eye, FileText, Printer, X, Receipt, Wallet,
-  Gem, PiggyBank, Briefcase, Truck, LogOut, Menu, Boxes, Clock, History, Banknote, Tag, Settings2, Users,
+  MessageCircle, Eye, FileText, X, Receipt, Wallet,
+  Gem, PiggyBank, Briefcase, Truck, LogOut, Menu, Boxes, Clock, History, Banknote, Tag, Settings2, Users, CheckCircle2, Percent, Info, Sparkles, Ticket,
 } from 'lucide-react'
 
 // Custom Malaysian Ringgit icon — replaces the generic dollar-sign icon
@@ -80,8 +80,8 @@ import {
   BarChart,
   Bar,
 } from 'recharts'
-import { ModalPortal } from '../components/ModalPortal'
 import { DocIcon, EyeIcon, WhatsAppIcon, actionBtn } from '../components/ActionIcons'
+import { DocumentPreviewModal } from '../components/invoice/InvoiceParts'
 import { getPresetRange, startOfWeekMonday, toLocalDateStr } from '../lib/dateRanges'
 import { csvDate, csvPhone, toCsv } from '../lib/csv'
 import { lowStockLimit } from '../lib/stockLevels'
@@ -1654,8 +1654,8 @@ export default function Dashboard() {
                     )
                   })}
                 </div>
-                <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
-                  <table className="w-full text-xs">
+                <div className="hidden md:block overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10">
+                  <table className="w-full text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
                     <thead className="text-[10px] uppercase tracking-wider text-[#000000] bg-[#F9FAFB]">
                       <tr>
                         <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Invoice', 'பில்')}</th>
@@ -2004,8 +2004,8 @@ export default function Dashboard() {
                     )
                   })}
                 </div>
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full text-xs">
+                <div className="hidden md:block overflow-x-auto lg:overflow-x-visible">
+                  <table className="w-full text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
                     <thead className="border-b border-blue-100 sticky top-0 z-10 bg-[#F9FAFB]">
                       <tr className="text-left text-[#000000] font-black text-[10px] uppercase tracking-wider">
                         <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Customer', 'வாடிக்கையாளர்')}</th>
@@ -2114,8 +2114,8 @@ export default function Dashboard() {
 
                                     {/* Items table */}
                                     {its.length > 0 && (
-                                      <div className="overflow-x-auto">
-                                        <table className="w-full bg-white rounded-xl overflow-hidden border border-blue-100 text-xs">
+                                      <div className="overflow-x-auto lg:overflow-x-visible">
+                                        <table className="w-full bg-white rounded-xl overflow-hidden border border-blue-100 text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
                                           <thead className="bg-[#F9FAFB]">
                                             <tr className="text-left text-[#000000] font-black text-[10px] uppercase tracking-wider">
                                               <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Product', 'பொருள்')}</th>
@@ -2607,8 +2607,8 @@ export default function Dashboard() {
                     {analytics.topProducts.length === 0 ? (
                       <p className="text-xs text-[#000000]">No completed product sales yet.</p>
                     ) : (
-                      <div className="overflow-x-auto rounded-xl border border-[#F0EEE9]">
-                        <table className="w-full text-left text-xs">
+                      <div className="overflow-x-auto lg:overflow-x-visible rounded-xl border border-[#F0EEE9]">
+                        <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
                           <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
                             <tr>
                               <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Product</th>
@@ -2717,8 +2717,8 @@ export default function Dashboard() {
                         )
                       })}
                     </div>
-                    <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
-                      <table className="w-full text-xs">
+                    <div className="hidden md:block overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10">
+                      <table className="w-full text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
                         <thead className="text-[10px] uppercase tracking-wider text-[#000000] bg-[#F9FAFB]">
                           <tr>
                             <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Invoice</th>
@@ -2824,8 +2824,8 @@ export default function Dashboard() {
                           </div>
                         ))}
                       </div>
-                      <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
-                        <table className="w-full text-left text-xs">
+                      <div className="hidden md:block overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10">
+                        <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
                           <thead className="text-[10px] uppercase tracking-wider text-[#000000] bg-[#F9FAFB]">
                             <tr>
                               <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">#</th>
@@ -2880,8 +2880,8 @@ export default function Dashboard() {
                       </div>
                     ))}
                   </div>
-                  <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
-                    <table className="w-full text-left text-xs">
+                  <div className="hidden md:block overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10">
+                    <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
                       <thead className="text-[10px] uppercase tracking-wider text-[#000000] bg-[#F9FAFB]">
                         <tr>
                           <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">#</th>
@@ -3011,8 +3011,8 @@ export default function Dashboard() {
                         </div>
                       ))}
                     </div>
-                    <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10">
-                      <table className="w-full text-left text-xs">
+                    <div className="hidden md:block overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10">
+                      <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
                         <thead className="text-[10px] uppercase tracking-wider text-[#000000] bg-[#F9FAFB]">
                           <tr>
                             <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">#</th>
@@ -3212,8 +3212,8 @@ export default function Dashboard() {
                   <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-[#000000]">{l('No matching bills', 'பில்கள் இல்லை')}</div>
                 )}
               </div>
-              <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10 bg-white">
-                <table className="w-full text-left text-xs">
+              <div className="hidden md:block overflow-x-auto lg:overflow-x-visible rounded-xl border border-black/10 bg-white">
+                <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
                   <thead>
                     <tr className="bg-white border-b border-black/10 select-none">
                       {['Order ID', 'Customer Name', 'Mobile Number', 'Source', 'Coupon', 'Discount', 'Delivery', 'Total Due', 'Date & Time', 'Status', 'Actions'].map(h => (
@@ -3340,46 +3340,49 @@ export default function Dashboard() {
             <div className="flex flex-col gap-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="space-y-1">
-                  <h2 className="text-[28px] font-black text-[#000000] tracking-tight">{l('Coupon Management', 'கூப்பன் மேலாண்மை')}</h2>
-                  <p className="max-w-2xl text-xs font-semibold text-[#000000] mt-1">
+                  <h2 className="text-[22px] font-black text-[#000000] tracking-tight">{l('Coupon Management', 'கூப்பன் மேலாண்மை')}</h2>
+                  <p className="max-w-2xl text-xs font-medium text-[#000000]/70">
                     {l('Create and manage discount codes. Applies to product subtotal only.', 'பொருட்களின் subtotal-க்கு மட்டும் கூப்பன் தள்ளுபடி பொருந்தும்.')}
                   </p>
                 </div>
                 <button
                   onClick={() => void loadCoupons()}
-                  className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-2 text-[11px] font-black text-[var(--accent)] shadow-sm transition-colors hover:bg-black/5"
+                  className="inline-flex items-center gap-2 rounded-lg border border-black/10 bg-white px-3.5 py-2 text-xs font-bold text-[#000000] shadow-sm transition-colors hover:bg-black/5 cursor-pointer"
                 >
-                  <RefreshCw size={12} />
+                  <RefreshCw size={13} />
                   Refresh
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <div className="bg-white border border-black/10 rounded-xl p-4 shadow-xs">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent-dark)]">Total Coupons</p>
-                  <p className="text-xl font-black text-[#000000] break-words">{coupons.length}</p>
-                </div>
-                <div className="bg-white border border-black/10 rounded-xl p-4 shadow-xs">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent-dark)]">Active</p>
-                  <p className="text-xl font-black text-[var(--accent)] break-words">{coupons.filter(c => c.is_active).length}</p>
-                </div>
-                <div className="bg-white border border-black/10 rounded-xl p-4 shadow-xs">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent-dark)]">Used</p>
-                  <p className="text-xl font-black text-[#000000] break-words">{coupons.reduce((acc, c) => acc + (c.usage_count || 0), 0)}</p>
-                </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {([
+                  ['Total Coupons', coupons.length, 'Configured promotional codes', <Tag key="t" className="w-3.5 h-3.5 text-[#000000]/60" />, 'bg-black/5', 'text-[#000000]'],
+                  ['Active Coupons', coupons.filter(c => c.is_active).length, 'Live & ready at POS checkout', <CheckCircle2 key="c" className="w-3.5 h-3.5 text-[#059669]" />, 'bg-[#059669]/10', 'text-[#059669]'],
+                  ['Total Redemptions', coupons.reduce((acc, c) => acc + (c.usage_count || 0), 0), 'Total customer discount usages', <Percent key="p" className="w-3.5 h-3.5 text-white" />, 'bg-[#111111]', 'text-[#000000]'],
+                ] as const).map(([label, value, hint, icon, iconBg, valueColor]) => (
+                  <div key={label} className="bg-white border border-black/10 rounded-xl p-5 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#000000]">{label}</p>
+                      <span className={`w-7 h-7 rounded-full ${iconBg} flex items-center justify-center shrink-0`}>{icon}</span>
+                    </div>
+                    <p className={`mt-2 text-2xl font-black ${valueColor}`}>{value}</p>
+                    <p className="mt-1 text-[11px] font-medium text-[#000000]/60">{hint}</p>
+                  </div>
+                ))}
               </div>
 
-              <div className="bg-[#FEF3C7] border border-[#F59E0B]/30 rounded-lg px-3 py-2.5 text-[10px] font-bold text-[#78350F]">
-                {l('Coupon discount applies to product subtotal only - not delivery charge.', 'கூப்பன் தள்ளுபடி பொருட்களின் subtotal-க்கு மட்டும் பொருந்தும்.')}
+              <div className="flex items-center gap-2 bg-[#F9FAFB] border border-black/5 rounded-lg px-4 py-3 text-[11px] font-medium text-[#000000]">
+                <Info className="w-3.5 h-3.5 shrink-0" />
+                {l('Coupon discount applies to product subtotal only — delivery charges are excluded.', 'கூப்பன் தள்ளுபடி பொருட்களின் subtotal-க்கு மட்டும் பொருந்தும்.')}
               </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
               <form onSubmit={saveCoupon} className="bg-white border border-black/10 rounded-xl p-5 shadow-sm space-y-4">
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start justify-between gap-3 pb-4 border-b border-black/5">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent-dark)]">{editingCouponId !== null ? 'Edit mode' : 'New coupon'}</p>
-                    <h3 className="text-lg font-black text-[#000000] tracking-tight">
+                    <span className="inline-block rounded-full bg-[#111111] px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-white">{editingCouponId !== null ? 'Edit mode' : 'New coupon'}</span>
+                    <h3 className="mt-2 text-base font-black text-[#000000] tracking-tight">
                       {editingCouponId !== null ? l('Edit Coupon', 'கூப்பனை திருத்து') : l('Create Coupon', 'புதிய கூப்பன்')}
                     </h3>
                   </div>
@@ -3419,9 +3422,9 @@ export default function Dashboard() {
                       <button
                         type="button"
                         onClick={generateCouponCode}
-                        className="shrink-0 rounded-xl border border-[var(--accent)] bg-[var(--accent)] px-3 py-2.5 text-[11px] font-black text-white transition-colors hover:bg-[var(--accent-dark)]"
+                        className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-[#111111] px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-white transition-colors hover:bg-black cursor-pointer"
                       >
-                        Generate
+                        <Sparkles className="w-3.5 h-3.5 text-white/60" /> Generate
                       </button>
                     )}
                   </div>
@@ -3481,21 +3484,20 @@ export default function Dashboard() {
 
                 <button
                   type="submit"
-                  className="w-full py-3 bg-[var(--accent)] hover:bg-[#27272A] text-white rounded-lg font-black text-[11px] uppercase tracking-[0.1em] transition-all active:scale-[0.98] shadow-[0_4px_14px_rgba(63,63,70,0.35)] cursor-pointer"
+                  className="w-full py-3 bg-[#111111] hover:bg-black text-white rounded-lg font-black text-[11px] uppercase tracking-[0.1em] transition-all active:scale-[0.98] shadow-[0_4px_14px_rgba(0,0,0,0.25)] cursor-pointer inline-flex items-center justify-center gap-2"
                 >
+                  <Ticket className="w-3.5 h-3.5 text-white/60" />
                   {editingCouponId !== null ? l('Update Coupon', 'கூப்பனை புதுப்பி') : l('Create Coupon', 'கூப்பனை உருவாக்கு')}
                 </button>
               </form>
 
               <div className="bg-white border border-black/10 rounded-xl p-5 shadow-sm">
-                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">{l('Coupon List', 'கூப்பன் பட்டியல்')}</p>
-                    <h3 className="text-lg font-black text-[#000000] tracking-tight">
-                      {l('All Coupons', 'அனைத்து கூப்பன்கள்')} <span className="text-[#000000]">({coupons.length})</span>
-                    </h3>
-                  </div>
-                  <span className="rounded-full border border-[var(--accent-a30)] bg-[var(--accent-a10)] px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--accent-dark)]">
+                <div className="mb-4 pb-4 border-b border-black/5 flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="flex items-center gap-2 text-base font-black text-[#000000] tracking-tight">
+                    {l('All Coupons', 'அனைத்து கூப்பன்கள்')}
+                    <span className="inline-flex min-w-[24px] justify-center rounded-full bg-[#111111] px-2 py-0.5 text-[10px] font-black text-white">{coupons.length}</span>
+                  </h3>
+                  <span className="rounded-full border border-black/10 bg-[#F9FAFB] px-2.5 py-0.5 text-[9px] font-black uppercase tracking-wider text-[#000000]">
                     {l('Admin only', 'அட்மின் மட்டும்')}
                   </span>
                 </div>
@@ -3572,7 +3574,7 @@ export default function Dashboard() {
                   })}
 
                   {coupons.length === 0 && (
-                    <div className="rounded-xl border border-dashed border-black/10 bg-[#F9FAFB] py-12 text-center text-sm font-bold text-[var(--accent)]">
+                    <div className="rounded-xl bg-[#F9FAFB] py-12 text-center text-xs font-bold text-[#000000]/70">
                       {l('No coupons yet. Create your first coupon!', 'இன்னும் கூப்பன் இல்லை. முதல் கூப்பனை உருவாக்குங்கள்!')}
                     </div>
                   )}
@@ -3660,8 +3662,8 @@ export default function Dashboard() {
                     <p className="p-10 text-center text-sm font-bold text-[#000000] bg-white">{l('No users found.', 'பயனர் இல்லை.')}</p>
                   )}
                 </div>
-                <div className="hidden md:block overflow-x-auto">
-                  <table className="w-full text-xs">
+                <div className="hidden md:block overflow-x-auto lg:overflow-x-visible">
+                  <table className="w-full text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
                     <thead>
                       <tr className="bg-white border-b border-black/10 uppercase tracking-widest text-[10px] text-[#000000]">
                         <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{l('Name', 'பெயர்')}</th>
@@ -3793,48 +3795,11 @@ export default function Dashboard() {
         if (!preview) return null
 
         return (
-          <ModalPortal><div
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-3 sm:p-6"
-            role="dialog"
-            aria-modal="true"
-            aria-label={`Invoice ${invoicePreviewOrder.invoice_no || invoicePreviewOrder.id}`}
-            onMouseDown={(event) => {
-              if (event.target === event.currentTarget) setInvoicePreviewOrder(null)
-            }}
+          <DocumentPreviewModal
+            title={`Invoice Preview • #${formatInvoiceNo(invoicePreviewOrder.invoice_no || invoicePreviewOrder.id)}`}
+            onClose={() => setInvoicePreviewOrder(null)}
+            onOpenFull={() => navigate(`/invoice/${encodeURIComponent(formatInvoiceNo(invoicePreviewOrder.invoice_no || invoicePreviewOrder.id))}`)}
           >
-            <div className="flex max-h-[95vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
-              <div className="flex shrink-0 items-center justify-between border-b border-black/10 bg-white px-4 py-3 sm:px-6">
-                <div>
-                  <h2 className="text-base font-black text-[#000000]">Invoice Preview</h2>
-                  <p className="text-xs font-semibold text-[#000000]">{formatInvoiceNo(invoicePreviewOrder.invoice_no || invoicePreviewOrder.id)}</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handlePrintReceipt(invoicePreviewOrder)}
-                    className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-black/10 px-3 text-xs font-black text-[#000000] hover:bg-black/[0.03]"
-                  >
-                    <Printer size={15} /> Print
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void openOrderInvoice(invoicePreviewOrder, 'download')}
-                    className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-[#0A0A0A] px-3 text-xs font-black text-white hover:bg-[var(--accent)]"
-                  >
-                    <Download size={15} /> Download
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setInvoicePreviewOrder(null)}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-[#000000] hover:bg-black/[0.03] hover:text-[#000000]"
-                    aria-label="Close invoice preview"
-                  >
-                    <X size={19} />
-                  </button>
-                </div>
-              </div>
-              <div className="overflow-y-auto p-2 sm:p-5">
-                <div className="mx-auto max-w-[830px] overflow-hidden">
                   <Invoice
                     invoiceNo={formatInvoiceNo(invoicePreviewOrder.invoice_no || invoicePreviewOrder.id)}
                     date={invoicePreviewOrder.created_at}
@@ -3865,11 +3830,9 @@ export default function Dashboard() {
                     schemeGoldRate={invoicePreviewOrder.scheme_gold_rate}
                     total={invoicePreviewOrder.total}
                     status={invoicePreviewOrder.status}
+                    channel={normalizeOrderMode(invoicePreviewOrder.order_mode)}
                   />
-                </div>
-              </div>
-            </div>
-          </div></ModalPortal>
+          </DocumentPreviewModal>
         )
       })()}
 

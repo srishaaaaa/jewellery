@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
-import { Wallet, CheckCircle2, AlertTriangle, IndianRupee, Eye, Printer, Download, MessageCircle, Trash2, Search, History } from 'lucide-react'
+import { Banknote, CheckCircle2, AlertTriangle, IndianRupee, Printer, Download, Trash2, Search, History } from 'lucide-react'
+import { DocIcon, WhatsAppIcon, actionBtn } from '../ActionIcons'
 import { creditService, toDaysOverdue } from '../../services/creditService'
 import { formatCurrency, formatInvoiceNo } from '../../lib/retail'
 import { useSound } from '../../context/SoundContext'
@@ -38,21 +39,21 @@ function ActionButtons({ order, onView, onPrint, onDownload, onShare, onDelete }
   onDelete: (order: DashboardOrder) => void
 }) {
   return (
-    <div className="flex items-center justify-center gap-1">
-      <button type="button" onClick={() => onView(order)} className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors" title="View Invoice">
-        <Eye size={14} />
+    <div className="flex items-center justify-center gap-1.5">
+      <button type="button" onClick={() => onShare(order)} className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`} title="Send on WhatsApp">
+        <WhatsAppIcon className="w-4 h-4" />
       </button>
-      <button type="button" onClick={() => onPrint(order)} className="p-1.5 rounded-lg text-amber-600 hover:bg-amber-50 transition-colors" title="Print Receipt">
-        <Printer size={14} />
+      <button type="button" onClick={() => onView(order)} className={`${actionBtn} bg-[var(--accent-a10)] hover:bg-[var(--accent-a20)] text-[var(--accent)]`} title="View invoice">
+        <DocIcon className="w-4 h-4" />
       </button>
-      <button type="button" onClick={() => onDownload(order)} className="p-1.5 rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors" title="Download Invoice">
-        <Download size={14} />
+      <button type="button" onClick={() => onPrint(order)} className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`} title="Print receipt">
+        <Printer className="w-4 h-4" />
       </button>
-      <button type="button" onClick={() => onShare(order)} className="p-1.5 rounded-lg text-green-600 hover:bg-green-50 transition-colors" title="Invoice & Share">
-        <MessageCircle size={14} />
+      <button type="button" onClick={() => onDownload(order)} className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`} title="Download invoice PDF">
+        <Download className="w-4 h-4" />
       </button>
-      <button type="button" onClick={() => onDelete(order)} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors" title="Delete Order">
-        <Trash2 size={14} />
+      <button type="button" onClick={() => onDelete(order)} className={`${actionBtn} bg-[#DC2626]/10 hover:bg-[#DC2626]/20 text-[#DC2626]`} title="Delete order">
+        <Trash2 className="w-4 h-4" />
       </button>
     </div>
   )
@@ -149,127 +150,86 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
   const totalOverdue = overdueItems.reduce((sum, o) => sum + Number(o.total || 0), 0)
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-150">
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-        <div className="bg-white border border-[var(--accent-a40)] rounded-xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
-          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-[#0A0A0A] text-[var(--accent)] flex items-center justify-center font-black shrink-0">
-            <Wallet size={20} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[10px] font-bold text-gray-500">Outstanding Invoices</div>
-            <div className="text-sm sm:text-xl font-black text-black break-words">{items.length}</div>
-          </div>
+    <div className="flex-1 flex flex-col w-full pb-8 space-y-6 animate-in fade-in duration-300">
+      {/* Header */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div>
+          <h2 className="text-[28px] font-black text-[#000000] tracking-tight flex items-center gap-3">
+            <Banknote className="w-7 h-7 text-[var(--accent)]" />
+            Outstanding Credits
+          </h2>
+          <p className="text-xs text-[#000000] font-semibold mt-1">
+            Credit sales still to be collected. Mark a bill paid when the customer settles it.
+          </p>
         </div>
-
-        <div className="bg-white border border-[var(--accent-a40)] rounded-xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
-          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center justify-center font-black shrink-0">
-            <IndianRupee size={20} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[10px] font-bold text-gray-500">Total Outstanding</div>
-            <div className="text-sm sm:text-lg font-black text-emerald-700 break-words">{formatCurrency(totalOutstanding)}</div>
-          </div>
-        </div>
-
-        <div className="bg-white border border-[var(--accent-a40)] rounded-xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3 col-span-2 sm:col-span-1">
-          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-red-50 text-red-700 border border-red-200 flex items-center justify-center font-black shrink-0">
-            <AlertTriangle size={20} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[10px] font-bold text-gray-500">Overdue ({overdueItems.length})</div>
-            <div className="text-sm sm:text-lg font-black text-red-700 break-words">{formatCurrency(totalOverdue)}</div>
-          </div>
-        </div>
-
-        {/* Paid Credits Summary Card */}
-        <div className="bg-white border border-[var(--accent-a40)] rounded-xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
-          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-green-50 text-green-700 border border-green-200 flex items-center justify-center font-black shrink-0">
-            <CheckCircle2 size={20} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-[10px] font-bold text-gray-500">Paid Credits</div>
-            <div className="text-sm sm:text-lg font-black text-green-700 break-words">
-              {/* Count from history tab - paid orders */}
-              {filteredHistory.filter((o) => o.credit_status === 'paid').length}
-            </div>
-          </div>
+        <div className="flex flex-wrap items-center gap-1.5 bg-[#FAFAFA] border border-black/10 rounded-xl p-1">
+          {([['today', 'Today'], ['week', 'Week'], ['month', 'Month'], ['year', 'Year'], ['all', 'All'], ['custom', 'Custom']] as const).map(([value, label]) => (
+            <button key={value} type="button" onClick={() => applyDatePreset(value)}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${datePreset === value ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[#000000] hover:bg-black/5'}`}>
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Tab switcher + Search + Filters */}
-      <div className="space-y-4 border-b border-black/10 pb-4">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex gap-6">
-            {([
-              { id: 'outstanding' as const, label: 'OUTSTANDING', count: items.length },
-              { id: 'history' as const, label: 'HISTORY', count: filteredHistory.length },
-            ]).map(({ id, label, count }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setActiveTab(id)}
-                className={`pb-2 md:pb-4 text-left text-[13px] font-bold tracking-wide transition-colors relative whitespace-nowrap ${
-                  activeTab === id ? 'text-[#000000]' : 'text-[#000000] hover:text-[#000000]'
-                }`}
-              >
-                {label} <span className="text-[11px] font-semibold text-gray-400">({count})</span>
-                {activeTab === id && <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#0A0A0A] rounded-t-md" />}
-              </button>
-            ))}
+      {datePreset === 'custom' && (
+        <div className="flex flex-wrap items-end gap-3 bg-white border border-black/10 rounded-xl p-4">
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#000000] mb-1">From</label>
+            <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="bg-[#FAFAFA] border border-black/10 rounded-lg px-3 py-2 text-sm text-[#000000] focus:outline-none focus:border-[var(--accent)]" />
           </div>
-
-          <div className="relative w-full md:w-64">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search invoice, customer, phone..."
-              className="w-full pl-9 pr-3 py-2 rounded-xl border border-black/10 bg-white text-xs font-semibold text-gray-800 outline-none focus:border-[var(--accent)] transition-colors"
-            />
+          <div>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#000000] mb-1">To</label>
+            <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="bg-[#FAFAFA] border border-black/10 rounded-lg px-3 py-2 text-sm text-[#000000] focus:outline-none focus:border-[var(--accent)]" />
           </div>
         </div>
+      )}
 
-        <div className="space-y-2">
-          <p className="text-xs font-bold text-gray-500">Filter by Sale Date</p>
-          <div className="flex flex-wrap gap-2 mb-2">
-            {([
-              ['today', 'Today'],
-              ['week', 'This Week'],
-              ['month', 'This Month'],
-              ['year', 'This Year'],
-              ['all', 'All'],
-            ] as const).map(([value, label]) => (
-              <button
-                key={value}
-                onClick={() => applyDatePreset(value)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${datePreset === value ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-              >
-                {label}
-              </button>
-            ))}
+      {/* Summary cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="rounded-xl p-5 shadow-sm text-white bg-gradient-to-br from-[var(--accent)] to-[color-mix(in_srgb,var(--accent)_55%,#000000)]">
+          <div className="flex justify-between items-start mb-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-white/90">Total Outstanding</span>
+            <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center"><IndianRupee className="w-4 h-4 text-white" /></div>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            <div>
-              <label className="block text-[10px] font-bold text-gray-500 mb-1">From Date</label>
-              <input
-                type="date"
-                value={fromDate}
-                onChange={e => { setFromDate(e.target.value); setDatePreset('custom') }}
-                className="w-full h-9 rounded-lg border border-black/10 bg-white px-3 text-xs font-semibold text-gray-800 outline-none focus:border-[var(--accent)]"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-gray-500 mb-1">To Date</label>
-              <input
-                type="date"
-                value={toDate}
-                onChange={e => { setToDate(e.target.value); setDatePreset('custom') }}
-                className="w-full h-9 rounded-lg border border-black/10 bg-white px-3 text-xs font-semibold text-gray-800 outline-none focus:border-[var(--accent)]"
-              />
-            </div>
+          <div className="text-2xl font-black">{formatCurrency(totalOutstanding)}</div>
+          <div className="text-[9px] text-white/80 font-semibold mt-1 uppercase tracking-wider">{items.length} invoice{items.length === 1 ? '' : 's'} to collect</div>
+        </div>
+        <div className="bg-white border border-black/10 rounded-xl p-5 shadow-sm">
+          <div className="flex justify-between items-start mb-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#000000]">Overdue</span>
+            <div className="w-8 h-8 rounded-full bg-[#DC2626]/10 flex items-center justify-center"><AlertTriangle className="w-4 h-4 text-[#DC2626]" /></div>
           </div>
+          <div className="text-2xl font-black text-[#DC2626]">{formatCurrency(totalOverdue)}</div>
+          <div className="text-[9px] text-[#000000] font-semibold mt-1">{overdueItems.length} bill{overdueItems.length === 1 ? '' : 's'} past the due date</div>
+        </div>
+        <div className="bg-white border border-black/10 rounded-xl p-5 shadow-sm">
+          <div className="flex justify-between items-start mb-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-[#000000]">Paid Credits</span>
+            <div className="w-8 h-8 rounded-full bg-[#16A34A]/10 flex items-center justify-center"><CheckCircle2 className="w-4 h-4 text-[#16A34A]" /></div>
+          </div>
+          <div className="text-2xl font-black text-[#000000]">{filteredHistory.filter((o) => o.credit_status === 'paid').length}</div>
+          <div className="text-[9px] text-[#000000] font-semibold mt-1">Credit bills settled</div>
+        </div>
+      </div>
+
+      {/* Tabs + search */}
+      <div className="bg-white border border-black/10 rounded-xl p-3 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+        <div className="flex gap-1.5">
+          {([
+            { id: 'outstanding' as const, label: 'Outstanding', count: items.length },
+            { id: 'history' as const, label: 'History', count: filteredHistory.length },
+          ]).map(({ id, label, count }) => (
+            <button key={id} type="button" onClick={() => setActiveTab(id)}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${activeTab === id ? 'bg-[var(--accent)] text-white' : 'bg-[#F4F4F5] text-black hover:bg-black/10'}`}>
+              {label} ({count})
+            </button>
+          ))}
+        </div>
+        <div className="relative w-full sm:w-64">
+          <Search className="w-3.5 h-3.5 text-black/30 absolute left-3 top-1/2 -translate-y-1/2" />
+          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search invoice, customer, phone…"
+            className="w-full bg-[#FAFAFA] border border-black/10 rounded-lg pl-8 pr-3 py-2 text-xs text-[#000000] focus:outline-none focus:border-[var(--accent)] placeholder:text-black/30" />
         </div>
       </div>
 
@@ -333,8 +293,8 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
             })}
           </div>
           {/* Desktop table */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="hidden md:block overflow-x-auto lg:overflow-x-visible">
+            <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
               <thead className="border-b border-black/10 text-xs font-bold text-gray-700 bg-[#F9FAFB]">
                 <tr>
                   <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Invoice</th>
@@ -412,7 +372,7 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
         <div className="flex items-center gap-2 px-4 py-3.5 border-b border-black/10 bg-white">
           <History size={15} className="text-gray-500" />
           <div>
-            <h2 className="text-sm font-black text-[#000000]">Credit Bills History</h2>
+            <h3 className="text-sm font-black text-[#000000] uppercase tracking-wider">Credit Bills History</h3>
             <p className="text-[11px] font-semibold text-gray-500">Credit sales that have already been settled</p>
           </div>
         </div>
@@ -446,8 +406,8 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
             ))}
           </div>
           {/* Desktop table */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-xs">
+          <div className="hidden md:block overflow-x-auto lg:overflow-x-visible">
+            <table className="w-full text-left text-xs lg:table-fixed [&_td]:break-words [&_th]:break-words">
               <thead className="border-b border-black/10 text-xs font-bold text-gray-700 bg-[#F9FAFB]">
                 <tr>
                   <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">Invoice</th>

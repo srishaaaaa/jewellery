@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import {
   Search, Trash2, Plus, Receipt, Printer,
-  RefreshCw, ShoppingBag, MessageCircle,
-  X, ChevronDown, Power, Calculator, Check, Clock, Loader2
+  ShoppingBag, MessageCircle,
+  X, ChevronDown, Power, Calculator, Check, Clock, Loader2, ArrowLeft, Copy
 } from 'lucide-react'
+import { toolbarBtn, toolbarBtnDark } from '../components/invoice/invoiceStyle'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { getErrorMessage } from '../lib/errorMessage'
 import { useProductStore, useVariantStore, useAdminAuthStore, type Product } from '../store/store'
@@ -26,13 +27,11 @@ import { formatPaymentMode,
   normalizeStructuredOrderItem,
   calculateLineTotal,
   formatCurrency,
-  formatQuantityDisplay,
   formatInvoiceNo,
   roundTo,
 } from '../lib/retail'
 import { buildProfessionalWhatsAppMessage, buildAdvanceDepositWhatsAppMessage, publicInvoiceUrl } from '../lib/whatsappMessage'
 import { normalizePhone, toWhatsAppUrl } from '../lib/phone'
-import { useLangStore } from '../store/langStore'
 import { fetchVariantsByProduct, type ProductVariant } from '../services/variantService'
 import { BarcodeScannerInput, type ScannedItemPayload } from '../components/pos/BarcodeScannerInput'
 import { QuickAddScannedProductModal } from '../components/pos/QuickAddScannedProductModal'
@@ -299,11 +298,10 @@ export default function Pos(props: PosProps = {}) {
   const embeddedMode = Boolean(props.isEmbedded)
   // Slot in the dashboard top bar that holds the online / offline toggle (IGMOLS layout).
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null)
+  const [linkCopied, setLinkCopied] = useState(false)
   useEffect(() => { setHeaderSlot(document.getElementById('dashboard-header-actions')) }, [])
   const { products, fetchProducts } = useProductStore()
   const { getVariants, fetchVariants } = useVariantStore()
-  const { lang } = useLangStore()
-  const l = (en: string, ta: string) => lang === 'ta' ? ta : en
   const navigate = useNavigate()
   const { logout, role } = useAdminAuthStore()
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -1609,6 +1607,14 @@ export default function Pos(props: PosProps = {}) {
     })
   }
 
+  const copyInvoiceLink = async (invoiceNo: string) => {
+    try {
+      await navigator.clipboard.writeText(publicInvoiceUrl(invoiceNo))
+      setLinkCopied(true)
+      window.setTimeout(() => setLinkCopied(false), 1800)
+    } catch { /* clipboard blocked */ }
+  }
+
   // ══ INVOICE SCREEN ════════════════════════════════════════════════════
   if (invoice) {
     const invoiceItems = invoice.items.map(item => ({
@@ -1627,118 +1633,29 @@ export default function Pos(props: PosProps = {}) {
       special_offer_cost: item.specialOfferCost,
       jewellery: item.jewellery || null,
     }))
-    const collected = invoice.payable ?? invoice.total
 
     return (
       <div className="mobile-page-shell h-full overflow-y-auto print:bg-white print:min-h-0 print:h-auto print:overflow-visible">
-        {/* Screen UI */}
-        <div className="max-w-2xl mx-auto px-4 py-6 print:hidden space-y-4">
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold text-textMain">{l('Bill Generated', 'பில் உருவாக்கப்பட்டது')}</h1>
-              <p className="text-sm text-textMuted">#{formatInvoiceNo(invoice.invoiceNo)}</p>
-            </div>
-            <button onClick={clearAll}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#111111] hover:bg-[#3d4f3a] text-white font-bold text-sm">
-              <Plus size={15} /> New Sale
+        {/* Toolbar (IGMOLS full-page invoice) */}
+        <div className="mx-auto max-w-[776px] px-3 sm:px-0 pt-2 print:hidden">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-black/10 bg-white p-3 shadow-sm">
+            <button type="button" onClick={clearAll} className={toolbarBtn}>
+              <ArrowLeft className="w-4 h-4" /> Return to POS
             </button>
-          </div>
-
-          {/* Payment receipt */}
-          <div className="surface-panel p-5 rounded-xl border border-black/10 bg-white shadow-sm mb-4">
-            <p className="text-xs font-black uppercase tracking-widest text-textMuted mb-3">{l('Payment Receipt', 'பண ரசீது')}</p>
-            <div className="space-y-2.5">
-              <div className="flex justify-between items-center pb-2.5 border-b border-black/10">
-                <p className="text-sm font-bold text-textMuted">{l('Grand Total', 'மொத்த தொகை')}</p>
-                <p className="text-2xl font-black text-textMain">{formatCurrency(invoice.total)}</p>
-              </div>
-              {(invoice.schemeAmountUsed || 0) > 0 && (
-                <div className="flex justify-between items-center pb-2.5 border-b border-black/10">
-                  <p className="text-sm font-bold text-textMuted">Paid from Scheme {invoice.schemeNumber}</p>
-                  <p className="text-xl font-black text-[var(--accent-dark)]">−{formatCurrency(invoice.schemeAmountUsed || 0)}</p>
-                </div>
-              )}
-              {(invoice.advanceAmountUsed || 0) > 0 && (
-                <div className="flex justify-between items-center pb-2.5 border-b border-black/10">
-                  <p className="text-sm font-bold text-textMuted">Advance Adjusted</p>
-                  <p className="text-xl font-black text-[var(--accent-dark)]">−{formatCurrency(invoice.advanceAmountUsed || 0)}</p>
-                </div>
-              )}
-              {(invoice.exchangeAmount || 0) > 0 && (
-                <div className="flex justify-between items-center pb-2.5 border-b border-black/10">
-                  <p className="text-sm font-bold text-textMuted">Old Gold Exchange</p>
-                  <p className="text-xl font-black text-[var(--accent-dark)]">−{formatCurrency(invoice.exchangeAmount || 0)}</p>
-                </div>
-              )}
-              {((invoice.schemeAmountUsed || 0) + (invoice.advanceAmountUsed || 0) + (invoice.exchangeAmount || 0)) > 0 && (
-                <div className="flex justify-between items-center pb-2.5 border-b border-black/10">
-                  <p className="text-sm font-bold text-textMuted">Amount to Collect</p>
-                  <p className="text-xl font-black text-textMain">{formatCurrency(collected)}</p>
-                </div>
-              )}
-              <div className="flex justify-between items-center">
-                <p className="text-sm font-bold text-textMuted">{l('Amount Received', 'பெற்ற தொகை')}</p>
-                <p className="text-xl font-black text-textMain">{formatCurrency(invoice.amountReceived)}</p>
-              </div>
-              {invoice.balanceReturned > 0 ? (
-                <div className="flex justify-between items-center rounded-xl bg-blue-50 border border-blue-200 px-4 py-3">
-                  <p className="text-sm font-black text-blue-700">{l('Balance Returned', 'திரும்பிய பணம்')}</p>
-                  <p className="text-2xl font-black text-blue-700">{formatCurrency(invoice.balanceReturned)}</p>
-                </div>
-              ) : (
-                <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3 text-center">
-                  <p className="text-sm font-black text-green-700">✅ {l('Exact Amount Received', 'சரியான தொகை')}</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="grid grid-cols-3 gap-3">
-            <button onClick={() => printReceipt(invoice)}
-              className="flex flex-col md:flex-row items-center justify-center gap-2 py-3 px-2 rounded-xl border-2 border-black/10 hover:border-[#111111] text-textMain font-bold text-[12px] md:text-sm transition-colors text-center leading-tight">
-              <Printer size={16} className="shrink-0" /> {l('Print Receipt', 'ரசீது அச்சிடு')}
-            </button>
-            <button onClick={() => sendPosWhatsApp(invoice)}
-              className="flex flex-col md:flex-row items-center justify-center gap-2 py-3 px-2 rounded-xl bg-green-500 hover:bg-green-600 text-white font-bold text-[12px] md:text-sm transition-colors text-center leading-tight">
-              <MessageCircle size={16} className="shrink-0" /> WhatsApp Invoice
-            </button>
-            <button onClick={clearAll}
-              className="flex flex-col md:flex-row items-center justify-center gap-2 py-3 px-2 rounded-xl bg-[#111111] hover:bg-[#3d4f3a] text-white font-bold text-[12px] md:text-sm transition-colors text-center leading-tight">
-              <RefreshCw size={16} className="shrink-0" /> New Sale
-            </button>
-          </div>
-
-          {/* Items summary */}
-          <div className="surface-panel p-4 rounded-xl border border-black/10 bg-white shadow-sm mt-4">
-            <p className="text-xs font-bold text-textMuted uppercase tracking-wide mb-3">{l('Items Sold', 'விற்ற பொருட்கள்')}</p>
-            <div className="space-y-1.5">
-              {invoice.items.map(item => (
-                <div key={item.id}>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-textMain">{item.name} × {formatQuantityDisplay(item.qty, item.selectedUnit, item.unitType)}</span>
-                    <span className="font-bold">{formatCurrency(item.lineTotal)}</span>
-                  </div>
-                  {item.jewellery && (
-                    <p className="mt-0.5 text-[11px] font-semibold text-textMuted break-words">
-                      {metalLabel(item.jewellery.metal_type, item.jewellery.purity)}{item.jewellery.net_weight > 0 ? ` · Net ${formatWeight(item.jewellery.net_weight)}` : ''}{item.jewellery.rate_per_gram > 0 ? ` @ ${formatCurrency(item.jewellery.rate_per_gram)}/g` : ''}
-                    </p>
-                  )}
-                  {item.specialOfferNote && (
-                    <p className="mt-0.5 text-[11px] font-bold text-amber-800 break-words">
-                      🎁 FREE GIFT: {item.specialOfferNote}
-                      {item.specialOfferCost != null && item.specialOfferCost > 0 ? <> — <s>₹{item.specialOfferCost}</s></> : ''} FREE
-                    </p>
-                  )}
-                </div>
-              ))}
+            <div className="flex flex-wrap items-center gap-2">
+              <button type="button" onClick={() => sendPosWhatsApp(invoice)} className={toolbarBtn}><MessageCircle className="w-4 h-4" /> Share WhatsApp</button>
+              <button type="button" onClick={() => void copyInvoiceLink(invoice.invoiceNo)} className={toolbarBtn}>
+                {linkCopied ? <><Check className="w-4 h-4" /> Copied</> : <><Copy className="w-4 h-4" /> Copy Link</>}
+              </button>
+              <button type="button" onClick={() => printReceipt(invoice)} className={toolbarBtn} title="Print the thermal receipt"><Receipt className="w-4 h-4" /> Receipt</button>
+              <button type="button" onClick={() => window.print()} className={toolbarBtnDark}><Printer className="w-4 h-4" /> Print</button>
             </div>
           </div>
         </div>
 
-        {/* Print view — full A4 invoice */}
-        <div className="hidden print:block">
+        {/* Full A4 invoice — on screen and in print */}
+        <div className="mx-auto max-w-[776px] px-3 sm:px-0 pb-8 print:p-0 print:max-w-full">
+        <div className="rounded-xl border border-black/10 bg-white shadow-sm print:rounded-none print:border-none print:shadow-none">
           <Invoice
             invoiceNo={invoice.invoiceNo}
             date={invoice.date}
@@ -1767,7 +1684,12 @@ export default function Pos(props: PosProps = {}) {
             splitDetails={invoice.splitDetails}
             schemeGramsUsed={invoice.schemeGramsUsed}
             schemeGoldRate={invoice.schemeGoldRate}
+            paymentMode={invoice.paymentMode || undefined}
+            amountReceived={invoice.amountReceived}
+            changeReturned={invoice.balanceReturned}
+            channel={ordermode}
           />
+        </div>
         </div>
       </div>
     )
