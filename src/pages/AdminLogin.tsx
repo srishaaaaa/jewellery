@@ -42,36 +42,36 @@ export default function AdminLogin() {
     }
   }
 
-  const inputClass = 'w-full bg-[#FAFAFA] border border-black/10 hover:border-[var(--accent-a50)] focus:border-[var(--accent)] focus:bg-white rounded-2xl pl-12 pr-12 py-3.5 text-[var(--accent)] focus:outline-none transition-all placeholder:text-black/20 disabled:opacity-60'
+  const inputClass = 'w-full bg-[#FAFAFA] border border-black/10 hover:border-black/30 focus:border-[#111111] focus:bg-white rounded-xl pl-11 pr-11 py-3 text-[#111111] focus:outline-none transition-all placeholder:text-black/20 disabled:opacity-60'
 
   return (
     <div className="min-h-dvh bg-white flex flex-col items-center justify-center p-4 relative overflow-hidden">
       {/* Fine accent grid */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,var(--accent-a5)_1px,transparent_1px),linear-gradient(to_bottom,var(--accent-a5)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.035)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.035)_1px,transparent_1px)] bg-[size:4rem_4rem]" />
       {/* Soft background orbs */}
-      <div className="absolute top-[-20%] left-[-20%] w-[600px] h-[600px] bg-[var(--accent-a10)] rounded-full blur-[150px] animate-pulse" />
-      <div className="absolute bottom-[-20%] right-[-20%] w-[600px] h-[600px] bg-[var(--accent-a10)] rounded-full blur-[150px] animate-pulse" style={{ animationDelay: '2s' }} />
+      <div className="absolute top-[-20%] left-[-20%] w-[600px] h-[600px] bg-black/[0.04] rounded-full blur-[150px] animate-pulse" />
+      <div className="absolute bottom-[-20%] right-[-20%] w-[600px] h-[600px] bg-black/[0.04] rounded-full blur-[150px] animate-pulse" style={{ animationDelay: '2s' }} />
 
       {/* Card */}
-      <div className="relative z-10 w-full max-w-md bg-white border border-[var(--accent-a30)] rounded-[2.5rem] p-8 md:p-10 shadow-[0_30px_70px_rgba(63,63,70,0.1)] overflow-hidden group flex flex-col items-center text-center">
-        <div className="absolute top-0 left-0 right-0 h-1.5 bg-[var(--accent)]" />
+      <div className="relative z-10 w-full max-w-[360px] bg-white border border-black/10 rounded-[2rem] px-7 py-8 shadow-[0_24px_60px_rgba(0,0,0,0.08)] overflow-hidden group flex flex-col items-center text-center">
+        <div className="absolute top-0 left-0 right-0 h-1 bg-[#111111]" />
 
         {/* Logo with glow */}
-        <div className="relative group mb-6">
-          <div className="absolute -inset-1.5 bg-[var(--accent)] rounded-2xl blur opacity-30 group-hover:opacity-50 transition duration-1000 group-hover:duration-200" />
-          <div className="relative w-24 h-24 bg-white rounded-2xl border border-[var(--accent-a30)] shadow-lg overflow-hidden flex items-center justify-center">
+        <div className="relative group mb-5">
+          <div className="absolute -inset-1 bg-black rounded-2xl blur opacity-15 group-hover:opacity-25 transition duration-1000 group-hover:duration-200" />
+          <div className="relative w-20 h-20 bg-white rounded-2xl border border-black/10 shadow-md overflow-hidden flex items-center justify-center">
             <img src={logoUrl} alt={`${shopName} Logo`} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500" />
           </div>
         </div>
 
-        <h1 className="text-3xl font-serif text-[var(--accent)] tracking-tight leading-tight mb-2">{shopName}</h1>
-        <p className="text-[#1C1917]/50 text-xs font-bold uppercase tracking-[0.2em] mb-8">POS Terminal</p>
+        <h1 className="text-2xl font-serif text-[#111111] tracking-tight leading-tight mb-1.5">{shopName}</h1>
+        <p className="text-[#111111]/50 text-[11px] font-bold uppercase tracking-[0.2em] mb-7">POS Terminal</p>
 
-        <form onSubmit={handleSubmit} noValidate className="w-full space-y-6 text-left">
-          <div className="space-y-3">
-            <label htmlFor="login-id" className="text-[9px] font-bold text-[var(--accent)] uppercase tracking-[0.25em] ml-1">Login ID</label>
+        <form onSubmit={handleSubmit} noValidate className="w-full space-y-5 text-left">
+          <div className="space-y-2">
+            <label htmlFor="login-id" className="block text-[9px] font-bold text-[#111111] uppercase tracking-[0.25em] ml-1">Login ID</label>
             <div className="relative">
-              <div className="absolute left-5 top-1/2 -translate-y-1/2 text-[var(--accent)]"><User className="w-4 h-4" /></div>
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#111111]"><User className="w-4 h-4" /></div>
               <input
                 id="login-id"
                 type="text"
@@ -86,16 +86,16 @@ export default function AdminLogin() {
             </div>
           </div>
 
-          <div className="space-y-3">
-            <label htmlFor="login-passcode" className="text-[9px] font-bold text-[var(--accent)] uppercase tracking-[0.25em] ml-1">Security Passcode</label>
+          <div className="space-y-2">
+            <label htmlFor="login-passcode" className="block text-[9px] font-bold text-[#111111] uppercase tracking-[0.25em] ml-1">Security Passcode</label>
             <div className="relative">
-              <div className="absolute left-5 top-1/2 -translate-y-1/2 text-[var(--accent)]"><Lock className="w-4 h-4" /></div>
+              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[#111111]"><Lock className="w-4 h-4" /></div>
               <input
                 id="login-passcode"
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 placeholder="••••••••"
-                className={`${inputClass} font-mono tracking-widest text-lg`}
+                className={`${inputClass} font-mono tracking-widest text-base`}
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setError('') }}
                 disabled={loading}
@@ -103,19 +103,19 @@ export default function AdminLogin() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-5 top-1/2 -translate-y-1/2 text-black/30 hover:text-[var(--accent)] transition-colors cursor-pointer"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-black/40 hover:text-[#111111] transition-colors cursor-pointer"
                 aria-label={showPassword ? 'Hide passcode' : 'Show passcode'}
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
-            {error && <p className="text-xs text-[#27272A] font-bold mt-2 ml-1" role="alert">{error}</p>}
+            {error && <p className="text-xs text-[#DC2626] font-bold mt-2 ml-1" role="alert">{error}</p>}
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-4 bg-[var(--accent)] hover:brightness-105 active:scale-[0.98] text-white rounded-2xl font-bold text-xs uppercase tracking-[0.2em] transition-all shadow-[0_10px_30px_rgba(63,63,70,0.2)] flex items-center justify-center gap-3 mt-4 group cursor-pointer border border-[var(--accent-a30)] disabled:opacity-70"
+            className="w-full py-3.5 bg-[var(--accent)] hover:brightness-105 active:scale-[0.98] text-white rounded-xl font-bold text-xs uppercase tracking-[0.2em] transition-all shadow-[0_10px_24px_var(--accent-a30)] flex items-center justify-center gap-3 mt-2 group cursor-pointer disabled:opacity-70"
           >
             {loading ? (
               <><span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin inline-block" /> Authenticating</>
@@ -125,13 +125,13 @@ export default function AdminLogin() {
           </button>
         </form>
 
-        <div className="mt-8 inline-flex items-center gap-2 px-3 py-1 bg-[var(--accent-a10)] border border-[var(--accent-a30)] rounded-full shadow-sm">
-          <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-pulse" />
-          <span className="text-[8px] font-bold text-[var(--accent)] tracking-[0.15em] uppercase">System Online • Encrypted</span>
+        <div className="mt-7 inline-flex items-center gap-2 px-3 py-1 bg-black/[0.04] border border-black/10 rounded-full">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#111111] animate-pulse" />
+          <span className="text-[8px] font-bold text-[#111111] tracking-[0.15em] uppercase">System Online • Encrypted</span>
         </div>
       </div>
 
-      <div className="relative z-10 mt-6 text-[#1C1917]/30 text-[9px] font-bold tracking-widest uppercase">{shopName} Terminal v1.0</div>
+      <div className="relative z-10 mt-5 text-[#111111]/40 text-[9px] font-bold tracking-widest uppercase">{shopName} Terminal v1.0</div>
 
       {/* Install banner: login page only */}
       <InstallBanner shopName={shopName} logo={logoUrl} />
