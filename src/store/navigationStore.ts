@@ -17,6 +17,7 @@ export type DashboardTab =
   | 'overview'
   | 'settings'
   | 'outstanding_credits'
+  | 'customers'
   | 'customer_events'
   | 'metal_rates'
   | 'schemes'

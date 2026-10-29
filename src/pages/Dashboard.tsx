@@ -4,7 +4,7 @@ import {
   Box, AlertCircle, Download, TrendingUp, TrendingDown,
   Package, Search, RefreshCw, ShieldCheck, ShieldOff, Trophy,
   MessageCircle, Eye, FileText, X, Receipt, Wallet,
-  Gem, PiggyBank, Briefcase, Truck, LogOut, Menu, Boxes, Clock, History, Banknote, Tag, Settings2, Users, CheckCircle2, Percent, Info, Sparkles, Ticket,
+  Gem, PiggyBank, Briefcase, Truck, LogOut, Menu, Boxes, Clock, History, Banknote, Tag, Settings2, Users, Cake, CheckCircle2, Percent, Info, Sparkles, Ticket,
 } from 'lucide-react'
 
 // Custom Malaysian Ringgit icon — replaces the generic dollar-sign icon
@@ -55,6 +55,7 @@ import Purchases from './Purchases'
 import JewelleryReports from '../components/dashboard/JewelleryReports'
 import { auditService } from '../services/auditService'
 import BirthdayDashboard from '../components/dashboard/BirthdayDashboard'
+import CustomersView from '../components/dashboard/CustomersView'
 import type { AdvanceOrder } from '../services/advanceOrderService'
 import { InventoryTable } from '../components/inventory/InventoryTable'
 import { ExpensesView } from '../components/expenses/ExpensesView'
@@ -142,7 +143,7 @@ type DashboardCoupon = {
   usage_count: number
   min_order_value: number
 }
-type TabKey = 'overview' | 'whatsapp' | 'pos_analytics' | 'billing' | 'advance_orders' | 'inventory' | 'expenses' | 'coupons' | 'users' | 'history' | 'settings' | 'outstanding_credits' | 'customer_events' | 'metal_rates' | 'schemes' | 'sales_desk' | 'purchases'
+type TabKey = 'overview' | 'whatsapp' | 'pos_analytics' | 'billing' | 'advance_orders' | 'inventory' | 'expenses' | 'coupons' | 'users' | 'history' | 'settings' | 'outstanding_credits' | 'customers' | 'customer_events' | 'metal_rates' | 'schemes' | 'sales_desk' | 'purchases'
 type PosAnalyticsTab = 'revenue' | 'today' | 'products' | 'categories' | 'coupons' | 'jewellery'
 type ProfileUser = { id: string; email: string; name: string; mobile: string; role: string; created_at: string }
 
@@ -323,7 +324,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (role === 'staff') {
-      const staffAllowedTabs: TabKey[] = ['billing', 'inventory', 'metal_rates', 'schemes', 'sales_desk', 'advance_orders', 'history', 'customer_events']
+      const staffAllowedTabs: TabKey[] = ['billing', 'inventory', 'metal_rates', 'schemes', 'sales_desk', 'advance_orders', 'history', 'customers', 'customer_events']
       if (!staffAllowedTabs.includes(tab)) {
         setTab('billing')
         navigate('/dashboard', { replace: true })
@@ -333,7 +334,7 @@ export default function Dashboard() {
 
   const handleTabClick = (tabKey: TabKey) => {
     if (role === 'staff') {
-      const staffAllowedTabs: TabKey[] = ['billing', 'inventory', 'metal_rates', 'schemes', 'sales_desk', 'advance_orders', 'history', 'customer_events']
+      const staffAllowedTabs: TabKey[] = ['billing', 'inventory', 'metal_rates', 'schemes', 'sales_desk', 'advance_orders', 'history', 'customers', 'customer_events']
       if (!staffAllowedTabs.includes(tabKey)) return
     }
     setTab(tabKey)
@@ -344,7 +345,7 @@ export default function Dashboard() {
       navigate('/dashboard?tab=expenses', { replace: true })
     } else if (tabKey === 'advance_orders') {
       navigate('/dashboard?tab=advance_orders', { replace: true })
-    } else if (tabKey === 'metal_rates' || tabKey === 'schemes' || tabKey === 'sales_desk') {
+    } else if (tabKey === 'metal_rates' || tabKey === 'schemes' || tabKey === 'sales_desk' || tabKey === 'customers' || tabKey === 'customer_events') {
       navigate(`/dashboard?tab=${tabKey}`, { replace: true })
     } else {
       navigate('/dashboard', { replace: true })
@@ -1427,7 +1428,8 @@ export default function Dashboard() {
         { id: 'schemes',        icon: <PiggyBank size={20} />,    label: 'Schema' },
         { id: 'sales_desk',     icon: <Briefcase size={20} />,    label: 'Sales Desk' },
         { id: 'advance_orders', icon: <Clock size={20} />,        label: 'Advance Orders' },
-        { id: 'customer_events', icon: <Users size={20} />,        label: 'Customers' },
+        { id: 'customers',      icon: <Users size={20} />,        label: 'Customers' },
+        { id: 'customer_events', icon: <Cake size={20} />,        label: 'Birthdays & Anniversaries' },
         { id: 'history',        icon: <History size={20} />,      label: 'Order History' },
       ]
     : [
@@ -1438,7 +1440,8 @@ export default function Dashboard() {
         { id: 'schemes',        icon: <PiggyBank size={20} />,    label: 'Schema' },
         { id: 'sales_desk',     icon: <Briefcase size={20} />,    label: 'Sales Desk' },
         { id: 'advance_orders', icon: <Clock size={20} />,        label: 'Advance Orders' },
-        { id: 'customer_events', icon: <Users size={20} />,        label: 'Customers' },
+        { id: 'customers',      icon: <Users size={20} />,        label: 'Customers' },
+        { id: 'customer_events', icon: <Cake size={20} />,        label: 'Birthdays & Anniversaries' },
         { id: 'expenses',       icon: <Wallet size={20} />,       label: 'Expense Tracker' },
         { id: 'outstanding_credits', icon: <Banknote size={20} />, label: 'Outstanding Credits', badge: outstandingCreditCount },
         { id: 'history',        icon: <History size={20} />,      label: 'Order History' },
@@ -3073,6 +3076,7 @@ export default function Dashboard() {
           />
         )}
 
+        {tab === 'customers' && <CustomersView />}
         {tab === 'customer_events' && <BirthdayDashboard />}
         {tab === 'metal_rates' && <MetalRates />}
         {tab === 'purchases' && role === 'admin' && <Purchases />}
