@@ -69,7 +69,7 @@ import { advanceService, oldGoldService, quotationService, type CustomerAdvance,
 import { auditService } from '../services/auditService'
 import { cashLimitCheck, useSettingsStore } from '../store/store'
 import { COUNTER_PAYMENT_METHODS, PAYMENT_REFERENCE_KEY, type CounterPaymentMethod } from '../lib/retail'
-import { calculateNetWeight, calculateOldGoldValue, normalizeMetalType, suggestOldGoldRate, STANDARD_PURITY, GOLD_PURITIES, ITEM_STATUS_LABELS } from '../lib/jewellery'
+import { calculateNetWeight, calculateOldGoldValue, normalizeMetalType, suggestOldGoldRate, STANDARD_PURITY, GOLD_PURITIES, ITEM_STATUS_LABELS, pieceLabel, samePiece, type JewelleryPiece } from '../lib/jewellery'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type PosItem = Product & {
@@ -86,6 +86,10 @@ type PosItem = Product & {
   jewellery?: JewellerySnapshot | null
   /** Set when a jewellery item cannot be priced (e.g. today's rate is missing). */
   jewelleryError?: string | null
+  /** The numbered piece this line sells (serial / HUID); the line is always 1 piece */
+  piece?: JewelleryPiece | null
+  /** Given free: on the bill at ₹0, still taken out of stock */
+  isFree?: boolean
 }
 
 type InvoiceSnap = {
@@ -191,6 +195,36 @@ const pieceSaleBlock = (p: Product, qty: number): string | null => {
   return null
 }
 
+/** How many of this product are on the bill, across its normal, piece and free lines. */
+const qtyOnBill = (items: PosItem[], productId: string | number) =>
+  items.filter(i => !i.variantId && (String(i.id) === String(productId) || String(i.parentProductId) === String(productId)))
+    .reduce((s, i) => s + i.qty, 0)
+
+/** Numbered pieces of a product that are not on the bill yet. */
+const piecesLeft = (items: PosItem[], p: Product) =>
+  (p.pieces || []).filter(pc => !items.some(i => i.piece && String(i.parentProductId) === String(p.id) && samePiece(i.piece, pc)))
+
+/** A bill line for one numbered piece: its own HUID and serial go on the bill. */
+const makePieceItem = (p: Product, pc: JewelleryPiece): PosItem => ({
+  ...makePosItem({ ...p, huid: pc.huid || '', serialNo: pc.serial || '' }, 1),
+  id: `${p.id}__pc__${pc.huid || pc.serial}`,
+  parentProductId: String(p.id),
+  piece: pc,
+})
+
+/** Turns a line into a free one: ₹0 on the bill, still taken out of stock. */
+const makeFreeItem = (item: PosItem): PosItem => ({
+  ...item,
+  id: `${item.id}__free`,
+  parentProductId: item.parentProductId ?? String(item.id),
+  name: `${item.name}${item.piece ? ` (${pieceLabel(item.piece)})` : ''} (Free)`,
+  isFree: true,
+  basePrice: 0,
+  lineTotal: 0,
+  jewellery: null,
+  jewelleryError: null,
+})
+
 const MANUAL_JEWELLERY_ID = 'manual-jewellery-entry'
 const roundMoney = (n: number) => Math.round(Math.max(0, n) * 100) / 100
 
@@ -224,7 +258,7 @@ const buildManualJewelleryItem = (gold: number, making: number, stone: number): 
 }
 
 const repriceJewelleryItem = (item: PosItem, rates: CurrentRates): PosItem => {
-  if (!item.metalType) return item
+  if (!item.metalType || item.isFree) return item
   const pricing = priceJewellery(item, rates)
   if (!pricing) return item
   return {
@@ -237,7 +271,7 @@ const repriceJewelleryItem = (item: PosItem, rates: CurrentRates): PosItem => {
 }
 
 const recalc = (item: PosItem, nextQty: number): PosItem => {
-  const q = normalizeQty(nextQty, item.allowDecimalQuantity)
+  const q = item.piece ? 1 : normalizeQty(nextQty, item.allowDecimalQuantity)
   return { ...item, qty: q, lineTotal: calculateLineTotal(q, item.unitType, item.baseQuantity, item.basePrice) }
 }
 
@@ -274,7 +308,7 @@ function JewelleryCartDetails({ item, expanded, onToggle, className = '' }: {
         className="w-full text-left px-2.5 py-1 rounded-md bg-[var(--accent-a10)] border border-[var(--accent-a30)] text-[11px] font-bold text-[var(--accent-dark)] break-words flex items-center gap-1.5"
       >
         <span className="min-w-0 flex-1">
-          {metalLabel(j.metal_type, j.purity)} · Net {formatWeight(j.net_weight)}{j.rate_per_gram > 0 ? ` @ ${formatCurrency(j.rate_per_gram)}/g` : ''}{j.huid ? ` · HUID ${j.huid}` : ''}
+          {metalLabel(j.metal_type, j.purity)} · Net {formatWeight(j.net_weight)}{j.rate_per_gram > 0 ? ` @ ${formatCurrency(j.rate_per_gram)}/g` : ''}{j.huid ? ` · HUID ${j.huid}` : ''}{j.serial_no ? ` · Sr ${j.serial_no}` : ''}
         </span>
         <ChevronDown size={12} className={`shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
       </button>
@@ -411,6 +445,8 @@ export default function Pos(props: PosProps = {}) {
   const [mobilePanelView, setMobilePanelView] = useState<'catalogue' | 'bill'>('catalogue')
   const [ordermode, setOrdermode] = useState<'online' | 'offline'>('offline')
   const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null)
+  /** Choosing which numbered piece is sold (and whether it is free) */
+  const [piecePicker, setPiecePicker] = useState<{ product: Product; free: boolean } | null>(null)
   const [availableVariants, setAvailableVariants] = useState<ProductVariant[]>([])
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null)
   const [variantPickerQty, setVariantPickerQty] = useState(1)
@@ -598,9 +634,65 @@ export default function Pos(props: PosProps = {}) {
   }, [items])
 
   // ── Cart actions ──────────────────────────────────────────────────────
+  /** Takes the pieces just sold off their items, so they cannot be picked again. */
+  const removeSoldPieces = async (sold: PosItem[]) => {
+    const byProduct = new Map<string, JewelleryPiece[]>()
+    for (const it of sold) {
+      if (!it.piece || !it.parentProductId) continue
+      byProduct.set(it.parentProductId, [...(byProduct.get(it.parentProductId) || []), it.piece])
+    }
+    for (const [productId, gone] of byProduct) {
+      const product = useProductStore.getState().products.find(p => String(p.id) === productId)
+      if (!product?.pieces?.length) continue
+      const remaining = product.pieces.filter(pc => !gone.some(g => samePiece(g, pc)))
+      const { error: pieceErr } = await supabase.from('products')
+        .update({ pieces: remaining, huid: remaining.find(pc => pc.huid)?.huid || null })
+        .eq('id', productId)
+      if (pieceErr) console.error('Bill saved, but the sold piece was not removed from the item:', pieceErr)
+    }
+  }
+
+  /** Adds one numbered piece (normal or free). */
+  const addPiece = (product: Product, pc: JewelleryPiece, free: boolean) => {
+    setError('')
+    const blocked = pieceSaleBlock(product, qtyOnBill(itemsRef.current, product.id) + 1)
+    if (blocked) { setError(blocked); return }
+    const line = makePieceItem(product, pc)
+    setItems(cur => [free ? makeFreeItem(line) : line, ...cur])
+  }
+
+  /** Adds a catalogue item at ₹0 (a free gift). It still leaves stock. */
+  const addFreeItem = (product: Product) => {
+    setError('')
+    setMobilePanelView('catalogue')
+    if (product.hasVariants) { setError(`${product.name} has sizes. Add the size you are giving, then use its free gift note.`); return }
+    if (product.metalType && piecesLeft(itemsRef.current, product).length) {
+      const left = piecesLeft(itemsRef.current, product)
+      if (left.length === 1) addPiece(product, left[0], true)
+      else setPiecePicker({ product, free: true })
+      return
+    }
+    const blocked = pieceSaleBlock(product, qtyOnBill(itemsRef.current, product.id) + 1)
+    if (blocked) { setError(blocked); return }
+    const freeId = `${product.id}__free`
+    setItems(cur => {
+      const ex = cur.find(i => String(i.id) === freeId)
+      if (ex) return cur.map(i => String(i.id) === freeId ? recalc(i, i.qty + 1) : i)
+      return [makeFreeItem(makePosItem(product)), ...cur]
+    })
+  }
+
   const addItem = async (product: Product, specificVariant?: ProductVariant) => {
     setError('')
     setMobilePanelView('catalogue')
+
+    // Pieces with their own serial / HUID: pick which one is sold.
+    if (!specificVariant && product.metalType && piecesLeft(itemsRef.current, product).length) {
+      const left = piecesLeft(itemsRef.current, product)
+      if (left.length === 1) addPiece(product, left[0], false)
+      else setPiecePicker({ product, free: false })
+      return
+    }
 
     if (specificVariant) {
       const variantProduct: Product = {
@@ -657,7 +749,7 @@ export default function Pos(props: PosProps = {}) {
     }
 
     // Standard non-variant product
-    const blocked = pieceSaleBlock(product, (itemsRef.current.find(i => String(i.id) === String(product.id))?.qty || 0) + 1)
+    const blocked = pieceSaleBlock(product, qtyOnBill(itemsRef.current, product.id) + 1)
     if (blocked) { setError(blocked); return }
     setItems(cur => {
       const ex = cur.find(i => String(i.id) === String(product.id))
@@ -712,8 +804,19 @@ export default function Pos(props: PosProps = {}) {
     const catalogueProduct = !scanned.variant_id
       ? useProductStore.getState().products.find((p) => String(p.id) === String(scanned.product_id))
       : undefined
+    const scannedPieces = catalogueProduct?.metalType ? piecesLeft(itemsRef.current, catalogueProduct) : []
+    if (catalogueProduct && scannedPieces.length > 1) {
+      setPiecePicker({ product: catalogueProduct, free: false })
+      return
+    }
+    if (catalogueProduct && scannedPieces.length === 1) {
+      const blocked = pieceSaleBlock(catalogueProduct, qtyOnBill(itemsRef.current, catalogueProduct.id) + 1)
+      if (blocked) { setError(blocked); return }
+      setItems(cur => [makePieceItem(catalogueProduct, scannedPieces[0]), ...cur])
+      return
+    }
     if (catalogueProduct?.metalType) {
-      const blocked = pieceSaleBlock(catalogueProduct, (itemsRef.current.find(i => !i.variantId && String(i.id) === String(catalogueProduct.id))?.qty || 0) + 1)
+      const blocked = pieceSaleBlock(catalogueProduct, qtyOnBill(itemsRef.current, catalogueProduct.id) + 1)
       if (blocked) { setError(blocked); return }
       setItems(cur => {
         const ex = cur.find(i => !i.variantId && String(i.id) === String(catalogueProduct.id))
@@ -1480,7 +1583,7 @@ export default function Pos(props: PosProps = {}) {
         setQuoteSaved('')
       }
       setMixedParts([{ method: 'cash', amount: '' }, { method: 'qr', amount: '' }])
-      void fetchProducts()
+      void removeSoldPieces(billItems).finally(() => void fetchProducts())
       if (oldGoldWarning) {
         setError(oldGoldWarning)
         window.alert(oldGoldWarning)
@@ -3024,7 +3127,35 @@ export default function Pos(props: PosProps = {}) {
             void addItem(p)
             setCatalogOpen(false)
           }}
+          onAddFree={(p) => {
+            addFreeItem(p)
+            setCatalogOpen(false)
+          }}
         />
+      )}
+
+      {piecePicker && (
+        <ModalPortal><div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4" onClick={() => setPiecePicker(null)}>
+          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="text-base font-black text-[#000000] break-words">Which piece{piecePicker.free ? ' is given free' : ' is sold'}?</h3>
+                <p className="text-xs font-semibold text-[#000000]/70 break-words">{piecePicker.product.name}</p>
+              </div>
+              <button type="button" onClick={() => setPiecePicker(null)} aria-label="Close" className="rounded-xl border border-black/10 p-2 hover:bg-black/5 cursor-pointer"><X size={16} /></button>
+            </div>
+            <div className="mt-4 max-h-80 overflow-y-auto space-y-2">
+              {piecesLeft(items, piecePicker.product).map((pc) => (
+                <button key={`${pc.huid}|${pc.serial}`} type="button"
+                  onClick={() => { addPiece(piecePicker.product, pc, piecePicker.free); setPiecePicker(null) }}
+                  className="w-full flex flex-wrap items-center justify-between gap-2 rounded-xl border border-black/10 px-4 py-3 text-left hover:border-[var(--accent)] hover:bg-black/[0.02] cursor-pointer">
+                  <span className="text-sm font-black text-[#000000]">{pc.huid ? `HUID ${pc.huid}` : 'No HUID'}</span>
+                  <span className="text-xs font-bold text-[#000000]/70">{pc.serial ? `Serial ${pc.serial}` : ''}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div></ModalPortal>
       )}
 
       {addUnregisteredOpen && (

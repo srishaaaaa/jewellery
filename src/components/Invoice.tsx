@@ -74,7 +74,7 @@ export interface InvoiceProps {
 
 /** Jewellery lines as printed under an item: metal/purity, weights and the charges used. */
 const JewelleryLineDetails: React.FC<{ j: JewellerySnapshot }> = ({ j }) => {
-  const idParts = [metalLabel(j.metal_type, j.purity), j.huid ? `HUID ${j.huid}` : '', j.sku ? `SKU ${j.sku}` : '', j.barcode ? `Barcode ${j.barcode}` : '', j.design_number ? `Design ${j.design_number}` : ''].filter(Boolean)
+  const idParts = [metalLabel(j.metal_type, j.purity), j.huid ? `HUID ${j.huid}` : '', j.serial_no ? `Sr ${j.serial_no}` : '', j.sku ? `SKU ${j.sku}` : '', j.barcode ? `Barcode ${j.barcode}` : '', j.design_number ? `Design ${j.design_number}` : ''].filter(Boolean)
   const weightParts = [
     j.gross_weight > 0 ? `Gross ${formatWeight(j.gross_weight)}` : '',
     j.stone_weight > 0 ? `Stone ${formatWeight(j.stone_weight)}` : '',

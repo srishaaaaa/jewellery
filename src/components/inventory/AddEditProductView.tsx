@@ -75,6 +75,8 @@ import {
   type CertificateStatus,
   type HallmarkStatus,
   type StoneDetails,
+  type JewelleryPiece,
+  normalizePieces,
 } from '../../lib/jewellery'
 
 
@@ -141,6 +143,8 @@ async function isBarcodeConflict(
   return !(data.variant_id === null && data.product_id === owner.productId)
 }
 
+const EMPTY_PIECE: JewelleryPiece = { serial: '', huid: '' }
+
 export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ onStockUpdated }) => {
   const { products, fetchProducts } = useProductStore()
   const { play } = useSound()
@@ -189,7 +193,10 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
   const [wastageType, setWastageType] = useState<WastageType>('percentage')
   const [stoneCharge, setStoneCharge] = useState<string>('')
   const [otherCharge, setOtherCharge] = useState<string>('')
-  const [huid, setHuid] = useState<string>('')
+  /** Serial and HUID of every piece; row i is piece i+1 */
+  const [pieces, setPieces] = useState<JewelleryPiece[]>([])
+  /** The item had a saved piece list when the form opened (so clearing it is saved too) */
+  const [loadedHadPieces, setLoadedHadPieces] = useState(false)
   const [designNumber, setDesignNumber] = useState<string>('')
   const [sku, setSku] = useState<string>('')
   const [brand, setBrand] = useState<string>('')
@@ -201,6 +208,8 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
   const [loadedItemStatus, setLoadedItemStatus] = useState<ItemStatus>('available')
   const [stones, setStones] = useState<StoneDetails[]>([EMPTY_STONE_DETAILS])
   const [showStones, setShowStones] = useState(false)
+  /** One stone, or several stones each with their own details and value */
+  const [stoneMode, setStoneMode] = useState<'single' | 'multiple'>('single')
   const [imageUrl, setImageUrl] = useState<string>('')
   const [imageUploading, setImageUploading] = useState(false)
 
@@ -263,7 +272,8 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     setWastageType('percentage')
     setStoneCharge('')
     setOtherCharge('')
-    setHuid('')
+    setPieces([])
+    setLoadedHadPieces(false)
     setDesignNumber('')
     setSku('')
     setBrand('')
@@ -272,6 +282,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     setHallmarkStatus('')
     setStones([EMPTY_STONE_DETAILS])
     setShowStones(false)
+    setStoneMode('single')
     setImageUrl('')
   }
 
@@ -326,7 +337,8 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     setWastageType(p.wastageType || 'percentage')
     setStoneCharge(p.stoneCharge ? String(p.stoneCharge) : '')
     setOtherCharge(p.otherCharge ? String(p.otherCharge) : '')
-    setHuid(p.huid || '')
+    setPieces(p.pieces?.length ? p.pieces : p.huid ? [{ serial: '', huid: p.huid }] : [])
+    setLoadedHadPieces(Boolean(p.pieces?.length))
     setDesignNumber(p.designNumber || '')
     setSku(p.sku || '')
     setBrand(p.brand || '')
@@ -337,6 +349,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     setLoadedItemStatus(p.itemStatus || 'available')
     setStones(p.stoneDetails?.length ? p.stoneDetails : [EMPTY_STONE_DETAILS])
     setShowStones(Boolean(p.stoneDetails?.length))
+    setStoneMode((p.stoneDetails?.length ?? 0) > 1 ? 'multiple' : 'single')
     setImageUrl(p.imageUrl && !p.imageUrl.includes('placeholder') ? p.imageUrl : '')
 
     if (p.hasVariants) {
@@ -427,7 +440,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
       ? customPurity.trim().toUpperCase()
       : purityChoice
   const computedNetWeight = calculateNetWeight(parseFloat(grossWeight) || 0, parseFloat(stoneWeight) || 0, parseFloat(otherWeight) || 0)
-  const cleanStoneDetails = showStones ? normalizeStoneDetails(stones) : null
+  const cleanStoneDetails = showStones ? normalizeStoneDetails(stoneMode === 'single' ? stones.slice(0, 1) : stones) : null
   const stoneTotal = stoneTotals(stones)
   /** Changing a stone's value refills Stone Charge with the new total. */
   const applyStones = (next: StoneDetails[]) => {
@@ -442,7 +455,31 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     else setStones(next)
   }
   const addStone = () => setStones([...stones, EMPTY_STONE_DETAILS])
+  const chooseStoneMode = (mode: 'single' | 'multiple') => {
+    if (mode === stoneMode) return
+    if (mode === 'multiple') {
+      // Start with two stones to fill in
+      if (stones.length < 2) setStones([...stones, EMPTY_STONE_DETAILS])
+    } else if (stones.length > 1) {
+      const filled = normalizeStoneDetails(stones.slice(1))?.length ?? 0
+      if (filled && !window.confirm(`Keep only Stone 1? The other ${filled} stone${filled === 1 ? '' : 's'} will be removed.`)) return
+      applyStones(stones.slice(0, 1))
+    }
+    setStoneMode(mode)
+  }
   const removeStone = (idx: number) => applyStones(stones.filter((_, i) => i !== idx))
+  /** One row per piece in stock (at least one) */
+  const pieceCount = Math.min(200, Math.max(1, Math.floor(parseFloat(stockQuantity) || 0)))
+  const updatePiece = (idx: number, patch: Partial<JewelleryPiece>) =>
+    setPieces((cur) => {
+      const next = Array.from({ length: Math.max(cur.length, idx + 1) }, (_, i) => cur[i] || EMPTY_PIECE)
+      next[idx] = { ...next[idx], ...patch }
+      return next
+    })
+  /** Pieces that are saved: only rows within the stock quantity, blank rows dropped */
+  const savedPieces = normalizePieces(pieces.slice(0, pieceCount))
+  /** The first piece's HUID also goes in the item's HUID column (search, tags) */
+  const huid = savedPieces.find((pc) => pc.huid)?.huid || ''
   const effectiveNetWeight = netWeightEdited ? Math.max(0, parseFloat(netWeight) || 0) : computedNetWeight
   const jewelleryPreview = metalType
     ? priceJewelleryItem({
@@ -457,7 +494,8 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
         wastageType,
         stoneCharge: parseFloat(stoneCharge) || 0,
         otherCharge: parseFloat(otherCharge) || 0,
-        huid: huid.trim(),
+        huid,
+        serialNo: savedPieces[0]?.serial || '',
         designNumber: designNumber.trim(),
         subcategory: subcategory.trim(),
         otherWeight: parseFloat(otherWeight) || 0,
@@ -483,6 +521,21 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
   /** Validates jewellery fields; returns an error message or null. */
   const validateJewellery = (): string | null => {
     if (!metalType) return null
+    const seenHuid = new Map<string, number>()
+    const seenSerial = new Map<string, number>()
+    for (const [i, pc] of savedPieces.entries()) {
+      const serialKey = pc.serial.toLowerCase()
+      if (pc.huid && seenHuid.has(pc.huid)) return `Pieces #${(seenHuid.get(pc.huid) ?? 0) + 1} and #${i + 1} have the same HUID ${pc.huid}. Every piece has its own hallmark number.`
+      if (pc.serial && seenSerial.has(serialKey)) return `Pieces #${(seenSerial.get(serialKey) ?? 0) + 1} and #${i + 1} have the same serial number ${pc.serial}.`
+      if (pc.huid) seenHuid.set(pc.huid, i)
+      if (pc.serial) seenSerial.set(serialKey, i)
+    }
+    for (const other of products) {
+      if (Number(other.id) === selectedProductId) continue
+      const otherHuids = new Set([other.huid || '', ...(other.pieces || []).map((x) => x.huid)].filter(Boolean).map((x) => x.toUpperCase()))
+      const clash = savedPieces.find((pc) => pc.huid && otherHuids.has(pc.huid))
+      if (clash) return `HUID ${clash.huid} is already on "${other.name}". Every piece has its own hallmark number.`
+    }
     const gross = parseFloat(grossWeight) || 0
     const stone = parseFloat(stoneWeight) || 0
     if (gross < 0 || stone < 0 || effectiveNetWeight < 0) return 'Weights cannot be negative.'
@@ -529,7 +582,9 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
       wastage_type: wastageType,
       stone_charge: roundTo(parseFloat(stoneCharge) || 0, 2),
       other_charge: roundTo(parseFloat(otherCharge) || 0, 2),
-      huid: huid.trim().toUpperCase() || null,
+      huid: huid || null,
+      // Only sent when there is a piece list to save, so items still save before the database update.
+      ...(savedPieces.length > 1 || savedPieces.some((pc) => pc.serial) || loadedHadPieces ? { pieces: savedPieces } : {}),
       design_number: designNumber.trim() || null,
       subcategory: subcategory.trim() || null,
       other_weight: roundTo(parseFloat(otherWeight) || 0, 3),
@@ -1073,7 +1128,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     } catch (err: unknown) {
       let msg = getErrorMessage(err, 'An error occurred while saving')
       if (isMissingSchemaError(err)) {
-        msg = 'Jewellery fields need the database update. Apply supabase/migrations/jewellery_pos.sql in Supabase, then save again.'
+        msg = 'Jewellery fields need the database update. Apply supabase/migrations/jewellery_pos.sql and jewellery_pieces.sql in Supabase, then save again.'
       } else if (msg.includes('barcode_registry_barcode_value_key') || (msg.includes('barcode') && msg.includes('duplicate key value violates unique constraint'))) {
         msg = 'This barcode is already registered to another item.'
       }
@@ -1534,22 +1589,49 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-start">
-                  <div>
-                    <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">
-                      HUID / Hallmark No. <span className="text-gray-400 font-normal ml-1">(Optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="e.g. AB12CD"
-                      value={huid}
-                      onChange={(e) => setHuid(e.target.value.toUpperCase())}
-                      autoCapitalize="characters"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]"
-                    />
+                <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-3 space-y-2">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <p className="text-[11px] font-bold text-gray-700">
+                      Serial No. &amp; Hallmark (HUID) No. <span className="text-gray-400 font-normal ml-1">(Optional, one per piece)</span>
+                    </p>
+                    <p className="text-[10px] font-semibold text-gray-500">
+                      {pieceCount === 1 ? 'Every piece has its own hallmark number.' : `${pieceCount} pieces, from the stock quantity`}
+                    </p>
                   </div>
+                  <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+                    {Array.from({ length: pieceCount }, (_, i) => {
+                      const pc = pieces[i] || EMPTY_PIECE
+                      return (
+                        <div key={i} className="grid grid-cols-[2.25rem_1fr_1fr] gap-2 items-center">
+                          <span className="text-[11px] font-black text-gray-500 text-center">#{i + 1}</span>
+                          <input
+                            type="text"
+                            placeholder="Serial No."
+                            value={pc.serial}
+                            onChange={(e) => updatePiece(i, { serial: e.target.value })}
+                            autoCorrect="off"
+                            spellCheck={false}
+                            className="w-full h-10 px-3 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]"
+                          />
+                          <input
+                            type="text"
+                            placeholder="HUID, e.g. AB12CD"
+                            value={pc.huid}
+                            onChange={(e) => updatePiece(i, { huid: e.target.value.toUpperCase().replace(/\s/g, '') })}
+                            autoCapitalize="characters"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            maxLength={20}
+                            className="w-full h-10 px-3 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]"
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                  {pieceCount > 1 && <p className="text-[10px] font-semibold text-gray-500">At billing you pick which piece is sold, so the bill shows that piece's numbers.</p>}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-start">
                   <div>
                     <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Hallmark Status</label>
                     <select
@@ -1608,7 +1690,20 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                   </label>
                   {showStones && (
                     <div className="mt-3 space-y-3">
-                      {stones.map((d, idx) => {
+                      <div className="grid grid-cols-2 gap-1 rounded-full border border-black/10 bg-gray-100 p-1 max-w-sm">
+                        {([['single', 'Single stone'], ['multiple', 'Multiple stones']] as const).map(([mode, text]) => (
+                          <button key={mode} type="button" onClick={() => chooseStoneMode(mode)}
+                            className={`rounded-full px-3 py-2 text-[11px] font-black transition-colors cursor-pointer ${stoneMode === mode ? 'bg-[#0A0A0A] text-white shadow-sm' : 'text-gray-700 hover:bg-white'}`}>
+                            {text}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="text-[10px] font-semibold text-gray-500">
+                        {stoneMode === 'single'
+                          ? 'One stone (or one group of identical stones) with one price.'
+                          : 'Each stone gets its own kind, weight, grade and price. The values are added up into Stone Charge.'}
+                      </p>
+                      {(stoneMode === 'single' ? stones.slice(0, 1) : stones).map((d, idx) => {
                         const field = 'w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]'
                         const lbl = 'block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center whitespace-nowrap'
                         const set = (patch: Partial<StoneDetails>) => updateStone(idx, patch)
@@ -1626,9 +1721,9 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                           <div key={idx} className="rounded-xl border border-black/10 bg-gray-50/60 p-3">
                             <div className="mb-2 flex items-center justify-between gap-2">
                               <p className="text-[11px] font-black uppercase tracking-wider text-gray-700">
-                                Stone {idx + 1}{d.kind ? ` · ${STONE_KIND_LABELS[d.kind]}` : ''}
+                                {stoneMode === 'single' ? 'Stone' : `Stone ${idx + 1}`}{d.kind ? ` · ${STONE_KIND_LABELS[d.kind]}` : ''}
                               </p>
-                              {stones.length > 1 && (
+                              {stoneMode === 'multiple' && stones.length > 2 && (
                                 <button type="button" onClick={() => removeStone(idx)} className="flex items-center gap-1 text-[11px] font-bold text-red-600 hover:underline cursor-pointer">
                                   <Trash2 size={13} /> Remove
                                 </button>
@@ -1705,12 +1800,34 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                           </div>
                         )
                       })}
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <button type="button" onClick={addStone}
-                          className="flex items-center gap-1.5 rounded-xl border border-dashed border-gray-400 px-3 py-2 text-[11px] font-black text-gray-800 hover:bg-gray-50 cursor-pointer">
-                          <Plus size={14} /> Add another stone
-                        </button>
-                      </div>
+                      {stoneMode === 'multiple' && (
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <button type="button" onClick={addStone}
+                            className="flex items-center gap-1.5 rounded-xl border border-dashed border-gray-400 px-3 py-2 text-[11px] font-black text-gray-800 hover:bg-gray-50 cursor-pointer">
+                            <Plus size={14} /> Add another stone
+                          </button>
+                        </div>
+                      )}
+                      {stoneMode === 'multiple' && stones.length > 1 && (
+                        <div className="rounded-xl border border-black/10 bg-white overflow-hidden">
+                          <p className="px-3 py-2 text-[11px] font-black uppercase tracking-wider text-gray-700 border-b border-black/10">Value of each stone</p>
+                          <div className="divide-y divide-black/5">
+                            {stones.map((d, idx) => (
+                              <div key={idx} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-[11px]">
+                                <span className="font-bold text-gray-800 break-words">
+                                  Stone {idx + 1} · {d.type && !isDiamondKind(d.kind) ? d.type : STONE_KIND_LABELS[d.kind]}
+                                  {d.count ? ` × ${d.count}` : ''}{d.carat ? ` · ${d.carat} ct` : ''}
+                                </span>
+                                <span className="font-black text-gray-900">₹{stoneLineValue(d).toLocaleString('en-IN')}</span>
+                              </div>
+                            ))}
+                            <div className="flex items-center justify-between gap-2 px-3 py-2 text-[11px] bg-gray-50">
+                              <span className="font-black text-gray-800">Total stone value</span>
+                              <span className="font-black text-gray-900">₹{stoneTotal.value.toLocaleString('en-IN')}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       {(stoneTotal.carat > 0 || stoneTotal.value > 0) && (
                         <div className="rounded-xl border border-black/10 bg-white p-3 grid grid-cols-2 lg:grid-cols-4 gap-3 text-[11px] text-gray-800">
                           <div><p className="font-bold text-gray-600">Diamonds</p><p className="font-black">{stoneTotal.diamondCarat} ct · ₹{stoneTotal.diamondValue.toLocaleString('en-IN')}</p>

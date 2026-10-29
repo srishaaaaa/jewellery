@@ -226,12 +226,36 @@ export interface JewelleryAttributes {
   stoneCharge: number
   otherCharge: number
   huid: string
+  /** Serial number of the piece being sold (optional) */
+  serialNo?: string
   designNumber: string
   subcategory: string
   otherWeight?: number
   hallmarkStatus?: HallmarkStatus | null
   stoneDetails?: StoneDetails[] | null
 }
+
+/** One physical piece of an item. Every piece has its own serial and hallmark (HUID) number; both are optional. */
+export interface JewelleryPiece {
+  serial: string
+  huid: string
+}
+
+/** Pieces as saved on the product: trimmed, HUID in capitals, blank rows dropped. */
+export const normalizePieces = (raw: unknown): JewelleryPiece[] =>
+  (Array.isArray(raw) ? raw : [])
+    .map((r) => {
+      const o = (r && typeof r === 'object' ? r : {}) as Record<string, unknown>
+      return { serial: String(o.serial ?? '').trim(), huid: String(o.huid ?? '').trim().toUpperCase() }
+    })
+    .filter((p) => p.serial || p.huid)
+
+/** "Sr 12 · HUID AB12CD" */
+export const pieceLabel = (p: JewelleryPiece) => [p.serial ? `Sr ${p.serial}` : '', p.huid ? `HUID ${p.huid}` : ''].filter(Boolean).join(' · ')
+
+/** Same piece? Matched on HUID first, then serial. */
+export const samePiece = (a: JewelleryPiece, b: JewelleryPiece) =>
+  a.huid || b.huid ? a.huid === b.huid && a.serial === b.serial : a.serial === b.serial
 
 /** Net metal weight = gross - stone - other (non-metal) weight, never below zero. */
 export const calculateNetWeight = (gross: number, stone: number, other = 0) =>
@@ -546,6 +570,7 @@ export interface JewellerySnapshot {
   design_number: string | null
   priced_at: string
   /** Optional extras (newer bills) */
+  serial_no?: string | null
   other_weight?: number
   hallmark_status?: HallmarkStatus | null
   stone_summary?: string | null
@@ -633,6 +658,7 @@ export const priceJewelleryItem = (
       metal_value: fixedMetalValue,
       unit_price: unitPrice,
       huid: attrs.huid || null,
+      ...(attrs.serialNo ? { serial_no: attrs.serialNo } : {}),
       sku: ids.sku || null,
       barcode: ids.barcode || null,
       design_number: attrs.designNumber || null,
@@ -683,6 +709,7 @@ export const readJewellerySnapshot = (raw: unknown): JewellerySnapshot | null =>
     metal_value: toNumber(r.metal_value, 0),
     unit_price: toNumber(r.unit_price, 0),
     huid: text(r.huid),
+    serial_no: text(r.serial_no),
     sku: text(r.sku),
     barcode: text(r.barcode),
     design_number: text(r.design_number),

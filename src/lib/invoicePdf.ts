@@ -220,7 +220,7 @@ export function createInvoicePdf(data: InvoicePdfData): Blob {
     const j = item.jewellery
     if (j) {
       const detailLines = [
-        [metalLabel(j.metal_type, j.purity), j.huid ? `HUID ${j.huid}` : '', j.sku ? `SKU ${j.sku}` : '', j.barcode ? `Barcode ${j.barcode}` : ''].filter(Boolean).join(' | '),
+        [metalLabel(j.metal_type, j.purity), j.huid ? `HUID ${j.huid}` : '', j.serial_no ? `Sr ${j.serial_no}` : '', j.sku ? `SKU ${j.sku}` : '', j.barcode ? `Barcode ${j.barcode}` : ''].filter(Boolean).join(' | '),
         [j.gross_weight > 0 ? `Gross ${formatWeight(j.gross_weight)}` : '', j.stone_weight > 0 ? `Stone ${formatWeight(j.stone_weight)}` : '', j.net_weight > 0 ? `Net ${formatWeight(j.net_weight)}` : '', j.rate_per_gram > 0 ? `Rate ${money(j.rate_per_gram)}/g` : ''].filter(Boolean).join(' | '),
         j.stone_summary ? `Stones: ${j.stone_summary}` : '',
         [j.metal_value > 0 ? `Metal ${money(j.metal_value)}` : '', j.making_amount > 0 ? `Making ${money(j.making_amount)}` : '', j.wastage_amount > 0 ? `Wastage ${money(j.wastage_amount)}` : '', j.stone_charge > 0 ? `Stone ${money(j.stone_charge)}` : '', j.other_charge > 0 ? `Other ${money(j.other_charge)}` : ''].filter(Boolean).join(' | '),

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { X, Search, ShoppingBag, Edit2, Trash2, MapPin, Package } from 'lucide-react'
+import { X, Search, ShoppingBag, Edit2, Trash2, MapPin, Package, Gift } from 'lucide-react'
 import { useProductStore, type Product } from '../store/store'
 import { supabase } from '../lib/supabase'
 import { useSound } from '../context/SoundContext'
@@ -12,11 +12,13 @@ interface CatalogModalProps {
   isOpen: boolean
   onClose: () => void
   onAdd: (product: Product) => void
+  /** Adds the item at ₹0 as a free gift (it still leaves stock) */
+  onAddFree?: (product: Product) => void
 }
 
 type CategoryOption = { id: string | number; name_en: string; is_active?: boolean; sort_order?: number }
 
-export default function CatalogModal({ isOpen, onClose, onAdd }: CatalogModalProps) {
+export default function CatalogModal({ isOpen, onClose, onAdd, onAddFree }: CatalogModalProps) {
   const { fetchProducts, products, loading, error } = useProductStore()
   const { play } = useSound()
   const [search, setSearch] = useState('')
@@ -83,7 +85,8 @@ export default function CatalogModal({ isOpen, onClose, onAdd }: CatalogModalPro
     if (activeCategory !== 'All') src = src.filter(p => p.category === activeCategory)
     // Name, category, location, HUID, SKU, barcode, design number, subcategory, metal or purity ("22k", "silver").
     if (q) src = src.filter(p =>
-      [p.name, p.category, p.location, p.huid, p.sku, p.barcode, p.designNumber, p.subcategory, p.purity, p.metalType]
+      [p.name, p.category, p.location, p.huid, p.sku, p.barcode, p.designNumber, p.subcategory, p.purity, p.metalType,
+        ...(p.pieces || []).flatMap((pc) => [pc.huid, pc.serial])]
         .some((v) => String(v || '').toLowerCase().includes(q))
     )
     return src
@@ -245,7 +248,7 @@ export default function CatalogModal({ isOpen, onClose, onAdd }: CatalogModalPro
                           </span>
                           {product.metalType && (product.netWeight || product.huid) ? (
                             <p className="text-[11px] font-bold text-[#000000] mt-1">
-                              {product.netWeight ? `Net ${formatWeight(product.netWeight)}` : ''}{product.netWeight && product.huid ? ' • ' : ''}{product.huid ? `HUID ${product.huid}` : ''}
+                              {product.netWeight ? `Net ${formatWeight(product.netWeight)}` : ''}{product.netWeight && product.huid ? ' • ' : ''}{(product.pieces?.length ?? 0) > 1 ? `${product.pieces!.length} numbered pieces` : product.huid ? `HUID ${product.huid}` : ''}
                             </p>
                           ) : null}
                         </div>
@@ -272,7 +275,16 @@ export default function CatalogModal({ isOpen, onClose, onAdd }: CatalogModalPro
                             <p className="text-[11px] font-semibold text-[#9CA3AF] mt-0.5">Cost: ₹{product.purchasePrice}</p>
                           )}
                         </div>
-                        <span className="text-[10px] font-black text-[#000000] uppercase tracking-wider bg-white px-2.5 py-1.5 rounded-lg border border-black/10">{product.category}</span>
+                        <div className="flex flex-wrap items-center justify-end gap-1.5">
+                          {onAddFree && (
+                            <button type="button" onClick={(e) => { e.stopPropagation(); onAddFree(product) }}
+                              title="Add at ₹0 as a free gift. It still comes out of stock."
+                              className="flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 hover:bg-emerald-100 cursor-pointer">
+                              <Gift size={12} /> Free
+                            </button>
+                          )}
+                          <span className="text-[10px] font-black text-[#000000] uppercase tracking-wider bg-white px-2.5 py-1.5 rounded-lg border border-black/10">{product.category}</span>
+                        </div>
                       </div>
                     </div>
                   ))}

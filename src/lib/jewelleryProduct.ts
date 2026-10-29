@@ -11,7 +11,7 @@ import {
 export const getJewelleryAttributes = (product: Pick<Product,
   'metalType' | 'purity' | 'grossWeight' | 'stoneWeight' | 'netWeight' | 'makingCharge' | 'makingChargeType'
   | 'wastage' | 'wastageType' | 'stoneCharge' | 'otherCharge' | 'huid' | 'designNumber' | 'subcategory'
-  | 'otherWeight' | 'hallmarkStatus' | 'stoneDetails'>,
+  | 'otherWeight' | 'hallmarkStatus' | 'stoneDetails' | 'serialNo'>,
 ): JewelleryAttributes | null => {
   if (!product.metalType) return null
   const gross = Number(product.grossWeight) || 0
@@ -31,6 +31,7 @@ export const getJewelleryAttributes = (product: Pick<Product,
     stoneCharge: Number(product.stoneCharge) || 0,
     otherCharge: Number(product.otherCharge) || 0,
     huid: product.huid || '',
+    serialNo: product.serialNo || '',
     designNumber: product.designNumber || '',
     subcategory: product.subcategory || '',
     otherWeight: other,

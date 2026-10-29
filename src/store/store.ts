@@ -18,10 +18,12 @@ import {
   normalizeMakingChargeType,
   normalizeMetalType,
   normalizeStoneDetails,
+  normalizePieces,
   normalizeWastageType,
   type HallmarkStatus,
   type ItemStatus,
   type StoneDetails,
+  type JewelleryPiece,
   type MakingChargeType,
   type MetalType,
   type WastageType,
@@ -100,6 +102,10 @@ export interface Product {
   stoneCharge?: number
   otherCharge?: number
   huid?: string
+  /** Serial number. On a bill line it is the piece being sold. */
+  serialNo?: string
+  /** Every piece in stock with its own serial and HUID */
+  pieces?: JewelleryPiece[]
   designNumber?: string
   subcategory?: string
   otherWeight?: number
@@ -374,6 +380,7 @@ const mapDbProduct = (input: unknown, categoriesById: Record<string, string> = {
     stoneCharge: toNumber(p.stone_charge, 0),
     otherCharge: toNumber(p.other_charge, 0),
     huid: readString(p.huid),
+    pieces: normalizePieces(p.pieces),
     designNumber: readString(p.design_number),
     subcategory: readString(p.subcategory),
     otherWeight: toNumber(p.other_weight, 0),

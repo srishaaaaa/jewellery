@@ -29,6 +29,9 @@ const JEWELLERY_EXTRA_COLUMNS = ['other_weight', 'hallmark_status', 'stone_detai
 /** Piece status (reserved, under repair...), added with the inventory update. */
 const ITEM_STATUS_COLUMN = 'item_status'
 
+/** Serial and HUID of every piece (supabase/migrations/jewellery_pieces.sql). */
+const PIECES_COLUMN = 'pieces'
+
 /** True when an error is Postgres/PostgREST saying a column or table doesn't exist yet. */
 export const isMissingSchemaError = (error: unknown) => {
   const e = (error || {}) as { code?: string; message?: string }
@@ -43,6 +46,11 @@ export function fetchAllCategories() {
 }
 
 export async function fetchAllProducts() {
+  const withPieces = await supabase
+    .from('products')
+    .select(`${PRODUCT_COLUMNS}, ${JEWELLERY_COLUMNS}, ${JEWELLERY_EXTRA_COLUMNS}, ${ITEM_STATUS_COLUMN}, ${PIECES_COLUMN}`)
+    .order('sort_order', { ascending: true })
+  if (!withPieces.error || !isMissingSchemaError(withPieces.error)) return withPieces
   const withStatus = await supabase
     .from('products')
     .select(`${PRODUCT_COLUMNS}, ${JEWELLERY_COLUMNS}, ${JEWELLERY_EXTRA_COLUMNS}, ${ITEM_STATUS_COLUMN}`)

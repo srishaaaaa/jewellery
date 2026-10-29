@@ -57,7 +57,7 @@ const jewelleryReceiptLines = (raw: unknown) => {
   const j = readJewellerySnapshot(raw)
   if (!j) return ''
   const lines = [
-    [metalLabel(j.metal_type, j.purity), j.huid ? `HUID ${j.huid}` : ''].filter(Boolean).join(' | '),
+    [metalLabel(j.metal_type, j.purity), j.huid ? `HUID ${j.huid}` : '', j.serial_no ? `Sr ${j.serial_no}` : ''].filter(Boolean).join(' | '),
     [j.gross_weight > 0 ? `Gr ${formatWeight(j.gross_weight)}` : '', j.stone_weight > 0 ? `St ${formatWeight(j.stone_weight)}` : '', j.net_weight > 0 ? `Net ${formatWeight(j.net_weight)}` : ''].filter(Boolean).join(' '),
     j.rate_per_gram > 0 ? `Rate ${formatCurrency(j.rate_per_gram)}/g` : '',
     [j.making_amount > 0 ? `Mk ${formatCurrency(j.making_amount)}` : '', j.wastage_amount > 0 ? `Wst ${formatCurrency(j.wastage_amount)}` : '', j.stone_charge > 0 ? `Stn ${formatCurrency(j.stone_charge)}` : ''].filter(Boolean).join(' '),

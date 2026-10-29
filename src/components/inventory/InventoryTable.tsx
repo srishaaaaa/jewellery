@@ -136,7 +136,8 @@ export const InventoryTable: React.FC = () => {
       (item.sku && item.sku.toLowerCase().includes(q)) ||
       (item.category && item.category.toLowerCase().includes(q)) ||
       (item.location && item.location.toLowerCase().includes(q)) ||
-      Boolean(jewelleryOf(item)?.huid?.toLowerCase().includes(q))
+      Boolean(jewelleryOf(item)?.huid?.toLowerCase().includes(q)) ||
+      Boolean(jewelleryOf(item)?.pieces?.some((pc) => pc.huid.toLowerCase().includes(q) || pc.serial.toLowerCase().includes(q)))
 
     if (!matchesSearch) return false
 
