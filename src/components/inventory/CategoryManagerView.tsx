@@ -130,7 +130,7 @@ export const CategoryManagerView: React.FC = () => {
       {/* Top Banner & Search */}
       <div className="bg-white border border-[var(--accent-a40)] rounded-xl p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#0A0A0A] text-[var(--accent)] flex items-center justify-center font-black">
+          <div className="w-10 h-10 rounded-xl bg-[#0A0A0A] text-white flex items-center justify-center font-black">
             <Layers size={18} />
           </div>
           <div>
@@ -254,7 +254,7 @@ export const CategoryManagerView: React.FC = () => {
               <button
                 type="submit"
                 disabled={saving}
-                className="w-full py-2.5 rounded-xl bg-[#0A0A0A] border border-[var(--accent)] text-[var(--accent)] text-xs font-black uppercase tracking-wider hover:bg-[#1A1A1A] transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                className="w-full py-2.5 rounded-xl bg-[#0A0A0A] border border-[var(--accent)] text-white text-xs font-black uppercase tracking-wider hover:bg-[#1A1A1A] transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {saving ? (
                   <>

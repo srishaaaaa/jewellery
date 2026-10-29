@@ -16,7 +16,7 @@ import {
   ImagePlus,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { useProductStore, type Product } from '../../store/store'
+import { useAdminAuthStore, useProductStore, type Product } from '../../store/store'
 import { fetchVariantsByProduct } from '../../services/variantService'
 import { inventoryService, type CategoryRecord } from '../../services/inventoryService'
 import { useSound } from '../../context/SoundContext'
@@ -55,6 +55,24 @@ import {
   type ItemStatus,
   normalizeStoneDetails,
   stoneTotals,
+  stoneLineValue,
+  caratToGrams,
+  isDiamondKind,
+  STONE_KIND_LABELS,
+  STONE_ROLE_LABELS,
+  STONE_PRICE_BASIS_LABELS,
+  CERTIFICATE_STATUS_LABELS,
+  DIAMOND_SHAPES,
+  CUT_GRADES,
+  FINISH_GRADES,
+  COLOUR_GRADES,
+  CLARITY_GRADES,
+  FLUORESCENCE_GRADES,
+  GRADING_LABS,
+  type StoneKind,
+  type StoneRole,
+  type StonePriceBasis,
+  type CertificateStatus,
   type HallmarkStatus,
   type StoneDetails,
 } from '../../lib/jewellery'
@@ -155,6 +173,9 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
 
   // Jewellery details
   const rates = useMetalRateStore((s) => s.rates)
+  /** Only the admin sees and edits stone purchase cost and certificate verification. */
+  const isAdminUser = useAdminAuthStore((s) => s.role) === 'admin'
+  const [openStoneExtras, setOpenStoneExtras] = useState<Record<number, boolean>>({})
   const [metalType, setMetalType] = useState<MetalType | ''>('')
   const [purityChoice, setPurityChoice] = useState<string>('22K')
   const [customPurity, setCustomPurity] = useState<string>('')
@@ -416,7 +437,8 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
   }
   const updateStone = (idx: number, patch: Partial<StoneDetails>) => {
     const next = stones.map((d, i) => (i === idx ? { ...d, ...patch } : d))
-    if ('value' in patch) applyStones(next)
+    // Anything that changes a line's price refills Stone Charge.
+    if (['value', 'rate', 'carat', 'count', 'priceBasis'].some((k) => k in patch)) applyStones(next)
     else setStones(next)
   }
   const addStone = () => setStones([...stones, EMPTY_STONE_DETAILS])
@@ -470,6 +492,15 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     if (isRatePriced && effectiveNetWeight <= 0) return 'Enter the gross weight (and stone weight) so the net weight is greater than zero.'
     if (metalType === 'gold' && purityChoice === CUSTOM_PURITY && !purityToKarat(effectivePurity)) {
       return 'Custom gold purity must be a karat like 19K or a fineness like 916.'
+    }
+    if (showStones) {
+      for (const [i, d] of stones.entries()) {
+        if (d.priceBasis === 'per_carat' && d.rate > 0 && d.carat <= 0) return `Stone ${i + 1}: enter the carat weight to price it per carat.`
+        if (d.priceBasis === 'per_stone' && d.rate > 0 && d.count <= 0) return `Stone ${i + 1}: enter the number of stones to price it per stone.`
+        if (d.certificateStatus === 'verified' && !d.certificate.trim()) return `Stone ${i + 1}: a certificate can only be marked verified when its number is entered.`
+      }
+      const stoneGrams = stoneTotals(stones).grams
+      if (stoneGrams > 0 && gross > 0 && stoneGrams > gross) return 'The stones weigh more than the gross weight. Check the carat weights.'
     }
     if (makingChargeType === 'percentage' && (parseFloat(makingCharge) || 0) > 100) return 'Making charge percentage cannot exceed 100%.'
     if (wastageType === 'percentage' && (parseFloat(wastage) || 0) > 100) return 'Wastage percentage cannot exceed 100%.'
@@ -1581,10 +1612,22 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                         const field = 'w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]'
                         const lbl = 'block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center whitespace-nowrap'
                         const set = (patch: Partial<StoneDetails>) => updateStone(idx, patch)
+                        const diamond = isDiamondKind(d.kind)
+                        const extrasOpen = Boolean(openStoneExtras[idx])
+                        const pick = (value: string, options: readonly string[], onChange: (v: string) => void, placeholder = 'Select') => (
+                          <select className={field} value={value} onChange={(e) => onChange(e.target.value)}>
+                            <option value="">{placeholder}</option>
+                            {value && !options.includes(value) && <option value={value}>{value}</option>}
+                            {options.map((o) => <option key={o} value={o}>{o}</option>)}
+                          </select>
+                        )
+                        const lineValue = stoneLineValue(d)
                         return (
                           <div key={idx} className="rounded-xl border border-black/10 bg-gray-50/60 p-3">
                             <div className="mb-2 flex items-center justify-between gap-2">
-                              <p className="text-[11px] font-black uppercase tracking-wider text-gray-700">Stone {idx + 1}</p>
+                              <p className="text-[11px] font-black uppercase tracking-wider text-gray-700">
+                                Stone {idx + 1}{d.kind ? ` · ${STONE_KIND_LABELS[d.kind]}` : ''}
+                              </p>
                               {stones.length > 1 && (
                                 <button type="button" onClick={() => removeStone(idx)} className="flex items-center gap-1 text-[11px] font-bold text-red-600 hover:underline cursor-pointer">
                                   <Trash2 size={13} /> Remove
@@ -1592,15 +1635,73 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                               )}
                             </div>
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                              <div><label className={lbl}>Stone type</label><input className={field} placeholder="e.g. Diamond, Ruby" value={d.type} onChange={(e) => set({ type: e.target.value })} /></div>
-                              <div><label className={lbl}>No. of stones</label><input type="number" min="0" step="1" className={field} placeholder="0" value={d.count || ''} onChange={(e) => set({ count: Number(e.target.value) || 0 })} /></div>
-                              <div><label className={lbl}>Carat (total)</label><input type="number" min="0" step="0.001" className={field} placeholder="0.00" value={d.carat || ''} onChange={(e) => set({ carat: Number(e.target.value) || 0 })} /></div>
-                              <div><label className={lbl}>Value (₹)</label><input type="number" min="0" step="0.01" className={field} placeholder="0" value={d.value || ''} onChange={(e) => set({ value: Number(e.target.value) || 0 })} /></div>
-                              <div><label className={lbl}>Clarity</label><input className={field} placeholder="e.g. VS1" value={d.clarity} onChange={(e) => set({ clarity: e.target.value })} /></div>
-                              <div><label className={lbl}>Colour</label><input className={field} placeholder="e.g. F" value={d.colour} onChange={(e) => set({ colour: e.target.value })} /></div>
-                              <div><label className={lbl}>Cut</label><input className={field} placeholder="e.g. Excellent" value={d.cut} onChange={(e) => set({ cut: e.target.value })} /></div>
-                              <div><label className={lbl}>Certificate No.</label><input className={field} placeholder="e.g. IGI 123456" value={d.certificate} onChange={(e) => set({ certificate: e.target.value })} /></div>
+                              <div>
+                                <label className={lbl}>Stone kind</label>
+                                <select className={field} value={d.kind} onChange={(e) => set({ kind: e.target.value as StoneKind })}>
+                                  {(Object.keys(STONE_KIND_LABELS) as StoneKind[]).map((k) => <option key={k} value={k}>{STONE_KIND_LABELS[k]}</option>)}
+                                </select>
+                              </div>
+                              <div>
+                                <label className={lbl}>Position</label>
+                                <select className={field} value={d.role} onChange={(e) => set({ role: e.target.value as StoneRole })}>
+                                  <option value="">Not set</option>
+                                  {(Object.keys(STONE_ROLE_LABELS) as Array<Exclude<StoneRole, ''>>).map((r) => <option key={r} value={r}>{STONE_ROLE_LABELS[r]}</option>)}
+                                </select>
+                              </div>
+                              <div><label className={lbl}>{diamond ? 'Name (optional)' : 'Stone name'}</label><input className={field} placeholder={diamond ? 'e.g. Solitaire' : 'e.g. Ruby, Emerald'} value={d.type} onChange={(e) => set({ type: e.target.value })} /></div>
+                              <div><label className={lbl}>Shape</label>{pick(d.shape, DIAMOND_SHAPES, (v) => set({ shape: v }))}</div>
+                              <div><label className={lbl}>No. of stones</label><input type="number" min="0" step="1" className={field} placeholder="0" value={d.count || ''} onChange={(e) => set({ count: Math.max(0, Math.round(Number(e.target.value) || 0)) })} /></div>
+                              <div><label className={lbl}>Carat (total of this row)</label><input type="number" min="0" step="0.001" className={field} placeholder="0.000" value={d.carat || ''} onChange={(e) => set({ carat: Math.max(0, Number(e.target.value) || 0) })} /></div>
+                              <div><label className={lbl}>Colour</label>{pick(d.colour, COLOUR_GRADES, (v) => set({ colour: v }))}</div>
+                              <div><label className={lbl}>Clarity</label>{pick(d.clarity, CLARITY_GRADES, (v) => set({ clarity: v }))}</div>
+                              <div><label className={lbl}>Cut grade</label>{pick(d.cut, CUT_GRADES, (v) => set({ cut: v }))}</div>
+                              <div>
+                                <label className={lbl}>Price method</label>
+                                <select className={field} value={d.priceBasis} onChange={(e) => set({ priceBasis: e.target.value as StonePriceBasis, ...(e.target.value === 'total' ? { value: lineValue } : {}) })}>
+                                  {(Object.keys(STONE_PRICE_BASIS_LABELS) as StonePriceBasis[]).map((b) => <option key={b} value={b}>{STONE_PRICE_BASIS_LABELS[b]}</option>)}
+                                </select>
+                              </div>
+                              {d.priceBasis === 'total' ? (
+                                <div><label className={lbl}>Value of this row (₹)</label><input type="number" min="0" step="0.01" className={field} placeholder="0" value={d.value || ''} onChange={(e) => set({ value: Math.max(0, Number(e.target.value) || 0) })} /></div>
+                              ) : (
+                                <div>
+                                  <label className={lbl}>{d.priceBasis === 'per_carat' ? '₹ per carat' : '₹ per stone'}</label>
+                                  <input type="number" min="0" step="0.01" className={field} placeholder="0" value={d.rate || ''} onChange={(e) => set({ rate: Math.max(0, Number(e.target.value) || 0) })} />
+                                  <p className="mt-1 text-[10px] font-medium text-gray-500">
+                                    = ₹{lineValue.toLocaleString('en-IN')} ({d.priceBasis === 'per_carat' ? `${d.carat || 0} ct` : `${d.count || 0} stones`})
+                                  </p>
+                                </div>
+                              )}
+                              {isAdminUser && (
+                                <div><label className={lbl}>Purchase cost (₹)</label><input type="number" min="0" step="0.01" className={field} placeholder="0" value={d.cost || ''} onChange={(e) => set({ cost: Math.max(0, Number(e.target.value) || 0) })} /></div>
+                              )}
+                              <div><label className={lbl}>Grading lab</label>{pick(d.lab, GRADING_LABS, (v) => set({ lab: v }), 'None / other')}</div>
+                              <div><label className={lbl}>Certificate No.</label><input className={field} placeholder="e.g. 2141438171" value={d.certificate} onChange={(e) => set({ certificate: e.target.value, ...(e.target.value.trim() ? (d.certificateStatus === 'none' ? { certificateStatus: 'not_verified' as CertificateStatus } : {}) : { certificateStatus: 'none' as CertificateStatus }) })} /></div>
+                              <div>
+                                <label className={lbl}>Certificate check</label>
+                                <select className={field} value={d.certificate.trim() ? d.certificateStatus : 'none'} disabled={!d.certificate.trim() || !isAdminUser}
+                                  onChange={(e) => set({ certificateStatus: e.target.value as CertificateStatus })}>
+                                  {(['none', 'not_verified', 'verified'] as CertificateStatus[]).filter((c) => (d.certificate.trim() ? c !== 'none' : c === 'none')).map((c) => <option key={c} value={c}>{CERTIFICATE_STATUS_LABELS[c]}</option>)}
+                                </select>
+                                {d.certificate.trim() && d.certificateStatus !== 'verified' && (
+                                  <p className="mt-1 text-[10px] font-medium text-gray-500">Mark verified only after checking the number on the lab's website.</p>
+                                )}
+                              </div>
                             </div>
+                            <button type="button" onClick={() => setOpenStoneExtras((o) => ({ ...o, [idx]: !extrasOpen }))}
+                              className="mt-3 text-[11px] font-bold text-blue-700 hover:underline cursor-pointer">
+                              {extrasOpen ? 'Hide more details' : 'More details (polish, symmetry, fluorescence, size, treatment, notes)'}
+                            </button>
+                            {extrasOpen && (
+                              <div className="mt-3 grid grid-cols-2 lg:grid-cols-4 gap-3">
+                                <div><label className={lbl}>Polish</label>{pick(d.polish, FINISH_GRADES, (v) => set({ polish: v }))}</div>
+                                <div><label className={lbl}>Symmetry</label>{pick(d.symmetry, FINISH_GRADES, (v) => set({ symmetry: v }))}</div>
+                                <div><label className={lbl}>Fluorescence</label>{pick(d.fluorescence, FLUORESCENCE_GRADES, (v) => set({ fluorescence: v }))}</div>
+                                <div><label className={lbl}>Size (mm)</label><input className={field} placeholder="e.g. 6.45 × 6.47 × 3.98" value={d.measurements} onChange={(e) => set({ measurements: e.target.value })} /></div>
+                                <div className="col-span-2"><label className={lbl}>Treatment (if any)</label><input className={field} placeholder="e.g. HPHT, fracture filled" value={d.treatment} onChange={(e) => set({ treatment: e.target.value })} /></div>
+                                <div className="col-span-2"><label className={lbl}>Notes</label><input className={field} placeholder="e.g. Supplier ref, laser inscription" value={d.notes} onChange={(e) => set({ notes: e.target.value })} /></div>
+                              </div>
+                            )}
                           </div>
                         )
                       })}
@@ -1609,14 +1710,28 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                           className="flex items-center gap-1.5 rounded-xl border border-dashed border-gray-400 px-3 py-2 text-[11px] font-black text-gray-800 hover:bg-gray-50 cursor-pointer">
                           <Plus size={14} /> Add another stone
                         </button>
-                        {stones.length > 1 && (
-                          <p className="text-[11px] font-bold text-gray-800">
-                            Total: {stoneTotal.count} stones · {stoneTotal.carat} ct · ₹{stoneTotal.value.toLocaleString('en-IN')}
-                          </p>
-                        )}
                       </div>
+                      {(stoneTotal.carat > 0 || stoneTotal.value > 0) && (
+                        <div className="rounded-xl border border-black/10 bg-white p-3 grid grid-cols-2 lg:grid-cols-4 gap-3 text-[11px] text-gray-800">
+                          <div><p className="font-bold text-gray-600">Diamonds</p><p className="font-black">{stoneTotal.diamondCarat} ct · ₹{stoneTotal.diamondValue.toLocaleString('en-IN')}</p>
+                            {stoneTotal.centreCarat > 0 && <p className="font-medium text-gray-600">Centre {stoneTotal.centreCarat} ct · Side {stoneTotal.sideCarat} ct</p>}</div>
+                          <div><p className="font-bold text-gray-600">Other stones</p><p className="font-black">₹{stoneTotal.gemstoneValue.toLocaleString('en-IN')}</p></div>
+                          <div>
+                            <p className="font-bold text-gray-600">All stones weigh</p>
+                            <p className="font-black">{stoneTotal.carat} ct = {caratToGrams(stoneTotal.carat).toFixed(3)} g</p>
+                            {stoneTotal.grams > 0 && Math.abs(stoneTotal.grams - (parseFloat(stoneWeight) || 0)) > 0.0005 && (
+                              <button type="button" onClick={() => setStoneWeight(String(stoneTotal.grams))} className="font-bold text-blue-700 hover:underline cursor-pointer">
+                                Use as Stone Weight
+                              </button>
+                            )}
+                          </div>
+                          {isAdminUser && stoneTotal.cost > 0 && (
+                            <div><p className="font-bold text-gray-600">Stones cost (admin only)</p><p className="font-black">₹{stoneTotal.cost.toLocaleString('en-IN')}</p></div>
+                          )}
+                        </div>
+                      )}
                       <p className="text-[10px] font-medium text-gray-500">
-                        Add one row for each kind of stone. Value is for all the stones in that row. The total fills in Stone Charge, which you can still change. Every stone is shown on the invoice.
+                        One row per kind of stone (e.g. the centre diamond, then the side diamonds). Stone prices are set here and never change with the gold rate. The total fills in Stone Charge, which you can still change. Every stone is shown on the invoice; purchase cost is never printed.
                       </p>
                     </div>
                   )}
@@ -1860,7 +1975,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                       <button
                         type="button"
                         onClick={handleAddVariantRow}
-                        className="px-3 py-1 rounded-lg bg-[#0A0A0A] text-[var(--accent)] text-xs font-black flex items-center gap-1 hover:bg-[#1A1A1A] cursor-pointer"
+                        className="px-3 py-1 rounded-lg bg-[#0A0A0A] text-white text-xs font-black flex items-center gap-1 hover:bg-[#1A1A1A] cursor-pointer"
                       >
                         <Plus size={12} /> Add Pack Size
                       </button>
@@ -2156,7 +2271,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
             <button
               type="submit"
               disabled={loading}
-              className="px-5 py-2 sm:px-6 sm:py-2.5 rounded-xl bg-[#0A0A0A] border border-[var(--accent)] text-[var(--accent)] text-xs font-black uppercase tracking-wider hover:bg-[#1A1A1A] transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              className="px-5 py-2 sm:px-6 sm:py-2.5 rounded-xl bg-[#0A0A0A] border border-[var(--accent)] text-white text-xs font-black uppercase tracking-wider hover:bg-[#1A1A1A] transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
               {loading ? (
                 <>

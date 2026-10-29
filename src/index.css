@@ -184,7 +184,7 @@
   }
 
   .btn-primary {
-    @apply px-6 py-3 rounded-xl bg-[#0A0A0A] text-[var(--accent)] border border-[var(--accent)] font-bold hover:bg-[#1A1A1A] transition-all;
+    @apply px-6 py-3 rounded-xl bg-[#0A0A0A] text-white border border-[var(--accent)] font-bold hover:bg-[#1A1A1A] transition-all;
   }
 
   .btn-secondary {

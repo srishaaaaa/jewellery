@@ -247,35 +247,141 @@ export const HALLMARK_LABELS: Record<HallmarkStatus, string> = {
 export const normalizeHallmarkStatus = (v: unknown): HallmarkStatus | null =>
   v === 'hallmarked' || v === 'not_hallmarked' || v === 'pending' ? v : null
 
-/** One stone line of an item: a single stone, or a group of identical stones. */
-export interface StoneDetails {
-  type: string
-  count: number
-  /** Value of this whole line (all its stones), in ₹ */
-  value: number
-  carat: number
-  clarity: string
-  colour: string
-  cut: string
-  certificate: string
+// ── Stones: diamonds, gemstones, pearls ────────────────────────────────────
+/** What a stone is. Natural, lab-grown and simulant are always kept apart and named on bills. */
+export type StoneKind = 'natural_diamond' | 'lab_diamond' | 'simulant' | 'gemstone' | 'pearl' | 'other'
+export const STONE_KIND_LABELS: Record<StoneKind, string> = {
+  natural_diamond: 'Natural Diamond',
+  lab_diamond: 'Lab-Grown Diamond',
+  simulant: 'Diamond Simulant',
+  gemstone: 'Gemstone',
+  pearl: 'Pearl',
+  other: 'Other Stone',
+}
+export const isDiamondKind = (k: StoneKind) => k === 'natural_diamond' || k === 'lab_diamond'
+
+/** Where the stone sits in the piece. */
+export type StoneRole = '' | 'centre' | 'side' | 'accent'
+export const STONE_ROLE_LABELS: Record<Exclude<StoneRole, ''>, string> = { centre: 'Centre', side: 'Side', accent: 'Accent' }
+
+/** How a stone line is priced. Diamond prices are entered by the store; nothing follows the metal rate. */
+export type StonePriceBasis = 'total' | 'per_carat' | 'per_stone'
+export const STONE_PRICE_BASIS_LABELS: Record<StonePriceBasis, string> = {
+  total: 'Total price',
+  per_carat: 'Price per carat',
+  per_stone: 'Price per stone',
 }
 
-export const EMPTY_STONE_DETAILS: StoneDetails = { type: '', count: 0, value: 0, carat: 0, clarity: '', colour: '', cut: '', certificate: '' }
+/** Certificate state. "verified" is only set by a person who checked it with the lab. */
+export type CertificateStatus = 'none' | 'not_verified' | 'verified'
+export const CERTIFICATE_STATUS_LABELS: Record<CertificateStatus, string> = {
+  none: 'No certificate',
+  not_verified: 'Not verified yet',
+  verified: 'Verified with lab',
+}
+
+export const DIAMOND_SHAPES = ['Round', 'Princess', 'Oval', 'Pear', 'Emerald', 'Cushion', 'Marquise', 'Radiant', 'Heart', 'Asscher', 'Baguette', 'Trillion'] as const
+export const CUT_GRADES = ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor', 'Not Graded'] as const
+export const FINISH_GRADES = ['Excellent', 'Very Good', 'Good', 'Fair', 'Poor'] as const
+export const COLOUR_GRADES = ['D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O-P', 'Q-R', 'S-Z', 'Fancy', 'Not Graded'] as const
+export const CLARITY_GRADES = ['FL', 'IF', 'VVS1', 'VVS2', 'VS1', 'VS2', 'SI1', 'SI2', 'I1', 'I2', 'I3', 'Not Graded'] as const
+export const FLUORESCENCE_GRADES = ['None', 'Faint', 'Medium', 'Strong', 'Very Strong'] as const
+export const GRADING_LABS = ['GIA', 'IGI', 'HRD', 'SGL', 'GSI'] as const
+
+/** 1 carat = 0.2 g. */
+export const CARAT_TO_GRAMS = 0.2
+export const caratToGrams = (carat: number) => roundTo(Math.max(0, toNumber(carat, 0)) * CARAT_TO_GRAMS, 3)
+
+/** One stone line of an item: a single stone, or a group of identical stones. */
+export interface StoneDetails {
+  kind: StoneKind
+  role: StoneRole
+  /** Name, e.g. "Diamond", "Ruby", "Emerald" */
+  type: string
+  shape: string
+  count: number
+  /** Total carat of this line (all its stones) */
+  carat: number
+  colour: string
+  clarity: string
+  cut: string
+  polish: string
+  symmetry: string
+  fluorescence: string
+  /** Size in mm, e.g. "6.45 × 6.47 × 3.98" */
+  measurements: string
+  priceBasis: StonePriceBasis
+  /** Price per carat or per stone, when that basis is used */
+  rate: number
+  /** Selling value of this whole line, in ₹ (worked out from the rate unless the basis is a total) */
+  value: number
+  /** Purchase cost of this line, in ₹ (admin only) */
+  cost: number
+  lab: string
+  certificate: string
+  certificateStatus: CertificateStatus
+  treatment: string
+  notes: string
+}
+
+export const EMPTY_STONE_DETAILS: StoneDetails = {
+  kind: 'natural_diamond', role: '', type: '', shape: '', count: 0, carat: 0, colour: '', clarity: '', cut: '',
+  polish: '', symmetry: '', fluorescence: '', measurements: '', priceBasis: 'total', rate: 0, value: 0, cost: 0,
+  lab: '', certificate: '', certificateStatus: 'none', treatment: '', notes: '',
+}
+
+const STONE_KINDS = Object.keys(STONE_KIND_LABELS) as StoneKind[]
+
+/** Older stones only had a free-text type: read "diamond" as a natural diamond, anything else as a gemstone. */
+const guessKind = (type: string): StoneKind => {
+  const t = type.toLowerCase()
+  if (!t || t.includes('diamond')) return t.includes('lab') ? 'lab_diamond' : 'natural_diamond'
+  if (t.includes('pearl')) return 'pearl'
+  if (t.includes('cz') || t.includes('zircon') || t.includes('moissan') || t.includes('simulant')) return 'simulant'
+  return 'gemstone'
+}
+
+/** Value of one line from its price basis. */
+export const stoneLineValue = (d: Pick<StoneDetails, 'priceBasis' | 'rate' | 'value' | 'carat' | 'count'>) =>
+  d.priceBasis === 'per_carat' ? roundTo(Math.max(0, d.carat) * Math.max(0, d.rate), 2)
+    : d.priceBasis === 'per_stone' ? roundTo(Math.max(0, d.count) * Math.max(0, d.rate), 2)
+      : roundTo(Math.max(0, d.value), 2)
 
 const normalizeStoneLine = (raw: unknown): StoneDetails | null => {
   if (!raw || typeof raw !== 'object') return null
   const r = raw as Record<string, unknown>
+  const str = (v: unknown) => String(v ?? '').trim()
+  const type = str(r.type)
+  const basis: StonePriceBasis = r.priceBasis === 'per_carat' || r.priceBasis === 'per_stone' ? r.priceBasis : 'total'
+  const certificate = str(r.certificate)
   const d: StoneDetails = {
-    type: String(r.type || '').trim(),
+    kind: STONE_KINDS.includes(r.kind as StoneKind) ? (r.kind as StoneKind) : guessKind(type),
+    role: r.role === 'centre' || r.role === 'side' || r.role === 'accent' ? r.role : '',
+    type,
+    shape: str(r.shape),
     count: Math.max(0, Math.round(toNumber(r.count, 0))),
+    carat: Math.max(0, roundTo(toNumber(r.carat, 0), 3)),
+    colour: str(r.colour),
+    clarity: str(r.clarity),
+    cut: str(r.cut),
+    polish: str(r.polish),
+    symmetry: str(r.symmetry),
+    fluorescence: str(r.fluorescence),
+    measurements: str(r.measurements),
+    priceBasis: basis,
+    rate: Math.max(0, toNumber(r.rate, 0)),
     value: Math.max(0, toNumber(r.value, 0)),
-    carat: Math.max(0, toNumber(r.carat, 0)),
-    clarity: String(r.clarity || '').trim(),
-    colour: String(r.colour || '').trim(),
-    cut: String(r.cut || '').trim(),
-    certificate: String(r.certificate || '').trim(),
+    cost: Math.max(0, toNumber(r.cost, 0)),
+    lab: str(r.lab),
+    certificate,
+    // A certificate number alone never counts as verified.
+    certificateStatus: !certificate ? 'none' : r.certificateStatus === 'verified' ? 'verified' : 'not_verified',
+    treatment: str(r.treatment),
+    notes: str(r.notes),
   }
-  return d.type || d.count || d.value || d.carat || d.clarity || d.colour || d.cut || d.certificate ? d : null
+  d.value = stoneLineValue(d)
+  const filled = d.type || d.shape || d.count || d.carat || d.value || d.colour || d.clarity || d.cut || d.certificate || d.notes
+  return filled ? d : null
 }
 
 /** Stone lines of an item. Older items saved a single stone object; that reads back as a one-line list. */
@@ -284,21 +390,47 @@ export const normalizeStoneDetails = (raw: unknown): StoneDetails[] | null => {
   return lines.length ? lines : null
 }
 
-/** Total value and carat of all stone lines. */
-export const stoneTotals = (lines: StoneDetails[] | null | undefined) => ({
-  value: roundTo((lines || []).reduce((sum, d) => sum + (d.value || 0), 0), 2),
-  carat: roundTo((lines || []).reduce((sum, d) => sum + (d.carat || 0), 0), 3),
-  count: (lines || []).reduce((sum, d) => sum + (d.count || 0), 0),
-})
+/** Totals of all stone lines; diamond and other-stone values are kept apart. */
+export const stoneTotals = (lines: StoneDetails[] | null | undefined) => {
+  const all = lines || []
+  const sum = (pick: (d: StoneDetails) => number, only?: (d: StoneDetails) => boolean) =>
+    all.filter(only || (() => true)).reduce((s, d) => s + pick(d), 0)
+  const diamond = (d: StoneDetails) => isDiamondKind(d.kind)
+  const carat = roundTo(sum((d) => d.carat), 3)
+  return {
+    value: roundTo(sum(stoneLineValue), 2),
+    diamondValue: roundTo(sum(stoneLineValue, diamond), 2),
+    gemstoneValue: roundTo(sum(stoneLineValue, (d) => !diamond(d)), 2),
+    cost: roundTo(sum((d) => d.cost), 2),
+    count: sum((d) => d.count),
+    carat,
+    diamondCarat: roundTo(sum((d) => d.carat, diamond), 3),
+    centreCarat: roundTo(sum((d) => d.carat, (d) => diamond(d) && d.role === 'centre'), 3),
+    sideCarat: roundTo(sum((d) => d.carat, (d) => diamond(d) && d.role !== 'centre'), 3),
+    grams: caratToGrams(carat),
+  }
+}
 
-const describeStoneLine = (d: StoneDetails) => [
-  d.type ? `${d.type}${d.count ? ` × ${d.count}` : ''}` : d.count ? `${d.count} stones` : '',
-  d.carat ? `${d.carat} ct` : '', d.clarity, d.colour, d.cut, d.certificate ? `Cert ${d.certificate}` : '',
-].filter(Boolean).join(', ')
+const describeStoneLine = (d: StoneDetails) => {
+  const name = d.type && !isDiamondKind(d.kind) ? d.type : STONE_KIND_LABELS[d.kind]
+  const head = [d.role ? STONE_ROLE_LABELS[d.role] : '', name].filter(Boolean).join(' ') + (d.count ? ` × ${d.count}` : '')
+  const grade = d.colour || d.clarity ? [d.colour, d.clarity].filter(Boolean).join('/') : ''
+  const cert = d.certificate ? `Cert ${[d.lab, d.certificate].filter(Boolean).join(' ')}${d.certificateStatus === 'verified' ? ' (verified)' : ''}` : ''
+  return [head, d.shape, d.carat ? `${d.carat} ct` : '', grade, d.cut ? `Cut ${d.cut}` : '', d.treatment ? `Treated: ${d.treatment}` : '', cert]
+    .filter(Boolean).join(', ')
+}
 
-/** "Diamond × 12, 0.45 ct, VS1, F; Ruby × 2, 0.2 ct" — one part per stone line. */
+/** "Centre Natural Diamond × 1, Round, 1 ct, F/VS1, Cut Excellent, Cert GIA 123; Side Natural Diamond × 12, 0.3 ct". */
 export const describeStones = (lines: StoneDetails[] | StoneDetails | null | undefined) =>
   (normalizeStoneDetails(lines) || []).map(describeStoneLine).filter(Boolean).join('; ')
+
+/** Stone lines as frozen on an invoice: no purchase cost (customers never see it). */
+export const stonesForSnapshot = (lines: StoneDetails[] | null | undefined) =>
+  (lines || []).map((d) => {
+    const { cost: _cost, ...rest } = d
+    void _cost
+    return { ...rest, value: stoneLineValue(d) }
+  })
 
 // ── Old gold exchange ─────────────────────────────────────────────────────
 export type OldGoldInput = {
@@ -417,6 +549,12 @@ export interface JewellerySnapshot {
   other_weight?: number
   hallmark_status?: HallmarkStatus | null
   stone_summary?: string | null
+  /** Every stone as it was at billing time (no purchase cost) */
+  stones?: ReturnType<typeof stonesForSnapshot> | null
+  diamond_value?: number
+  gemstone_value?: number
+  diamond_carat?: number
+  centre_carat?: number
 }
 
 export type JewelleryPricingResult =
@@ -501,7 +639,17 @@ export const priceJewelleryItem = (
       priced_at: now.toISOString(),
       ...(attrs.otherWeight ? { other_weight: roundTo(attrs.otherWeight, 3) } : {}),
       ...(attrs.hallmarkStatus ? { hallmark_status: attrs.hallmarkStatus } : {}),
-      ...(attrs.stoneDetails ? { stone_summary: describeStones(attrs.stoneDetails) } : {}),
+      ...(attrs.stoneDetails?.length ? (() => {
+        const t = stoneTotals(attrs.stoneDetails)
+        return {
+          stone_summary: describeStones(attrs.stoneDetails),
+          stones: stonesForSnapshot(attrs.stoneDetails),
+          diamond_value: t.diamondValue,
+          gemstone_value: t.gemstoneValue,
+          diamond_carat: t.diamondCarat,
+          ...(t.centreCarat ? { centre_carat: t.centreCarat } : {}),
+        }
+      })() : {}),
     },
   }
 }
@@ -542,6 +690,11 @@ export const readJewellerySnapshot = (raw: unknown): JewellerySnapshot | null =>
     other_weight: toNumber(r.other_weight, 0) || undefined,
     hallmark_status: normalizeHallmarkStatus(r.hallmark_status),
     stone_summary: text(r.stone_summary),
+    stones: Array.isArray(r.stones) ? stonesForSnapshot(normalizeStoneDetails(r.stones)) : null,
+    diamond_value: toNumber(r.diamond_value, 0) || undefined,
+    gemstone_value: toNumber(r.gemstone_value, 0) || undefined,
+    diamond_carat: toNumber(r.diamond_carat, 0) || undefined,
+    centre_carat: toNumber(r.centre_carat, 0) || undefined,
   }
 }
 

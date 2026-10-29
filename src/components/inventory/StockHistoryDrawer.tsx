@@ -72,7 +72,7 @@ export const StockHistoryDrawer: React.FC<StockHistoryDrawerProps> = ({
         {/* Header */}
         <div className="bg-[#0A0A0A] px-5 py-4 border-b border-[var(--accent-a30)] flex items-center justify-between text-white sticky top-0 z-10 safe-area-inset-top min-h-16">
           <div className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="w-9 h-9 rounded-xl bg-[#1A1A1A] border border-[var(--accent)] flex items-center justify-center text-[var(--accent)] shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[#1A1A1A] border border-[var(--accent)] flex items-center justify-center text-white shrink-0">
               <History size={18} />
             </div>
             <div className="min-w-0">

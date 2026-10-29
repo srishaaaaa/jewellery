@@ -94,7 +94,7 @@ export const QuickAddScannedProductModal: React.FC<QuickAddScannedProductModalPr
       <div className="bg-white rounded-3xl w-full max-w-sm max-h-[90vh] overflow-y-auto border border-[var(--accent-a40)] shadow-2xl flex flex-col animate-in zoom-in-95 duration-150">
         <div className="shrink-0 bg-[#0A0A0A] p-4 border-b border-[var(--accent-a30)] flex items-center justify-between text-white">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-2xl bg-[#1A1A1A] border border-[var(--accent)] flex items-center justify-center text-[var(--accent)] shrink-0 shadow-sm">
+            <div className="w-10 h-10 rounded-2xl bg-[#1A1A1A] border border-[var(--accent)] flex items-center justify-center text-white shrink-0 shadow-sm">
               <PackagePlus size={20} />
             </div>
             <div className="min-w-0">
@@ -185,7 +185,7 @@ export const QuickAddScannedProductModal: React.FC<QuickAddScannedProductModalPr
             type="button"
             onClick={handleSubmit}
             disabled={saving}
-            className="px-5 py-2 text-xs font-black rounded-xl bg-[#0A0A0A] border border-[var(--accent)] text-[var(--accent)] hover:bg-[#1A1A1A] transition-all shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            className="px-5 py-2 text-xs font-black rounded-xl bg-[#0A0A0A] border border-[var(--accent)] text-white hover:bg-[#1A1A1A] transition-all shadow-md flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
           >
             <PackagePlus size={14} />
             <span>{saving ? 'Adding...' : 'Add & Bill It'}</span>

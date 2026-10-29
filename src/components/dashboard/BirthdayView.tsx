@@ -35,7 +35,7 @@ export default function BirthdayView() {
           type="button"
           onClick={() => applyFilterPreset(key)}
           className={`rounded-lg px-2 py-1 text-[10px] font-bold transition-colors ${
-            filterPreset === key ? 'bg-[var(--accent)] text-[#000000]' : 'bg-black/[0.03] text-[#000000] hover:bg-[#E5E7EB]'
+            filterPreset === key ? 'bg-[var(--accent)] text-white' : 'bg-black/[0.03] text-[#000000] hover:bg-[#E5E7EB]'
           }`}
         >
           {label}

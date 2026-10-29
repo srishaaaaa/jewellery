@@ -101,7 +101,7 @@ export const ExpenseCategoriesView: React.FC<ExpenseCategoriesViewProps> = ({
             <button
               type="submit"
               disabled={loading || !newCatName.trim()}
-              className="w-full h-11 rounded-xl bg-[#0A0A0A] border border-[var(--accent)] text-[var(--accent)] text-xs font-bold hover:bg-[#1A1A1A] transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+              className="w-full h-11 rounded-xl bg-[#0A0A0A] border border-[var(--accent)] text-white text-xs font-bold hover:bg-[#1A1A1A] transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
             >
               <Plus size={14} /> {loading ? 'Adding...' : 'Add Category'}
             </button>

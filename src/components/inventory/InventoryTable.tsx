@@ -342,14 +342,14 @@ export const InventoryTable: React.FC = () => {
           {/* Bulk Selection Action Bar (Admin Only) */}
           {role === 'admin' && selectedIds.size > 0 && (
             <div className="bg-[#0A0A0A] border border-[var(--accent)] rounded-xl p-3.5 shadow-sm flex items-center justify-between gap-3 flex-wrap">
-              <span className="text-xs font-black text-[var(--accent)]">
+              <span className="text-xs font-black text-white">
                 {selectedProductIds.length} product{selectedProductIds.length === 1 ? '' : 's'} selected
               </span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setBulkLocationOpen(true)}
-                  className="px-3.5 py-2 rounded-xl bg-[#1A1A1A] border border-[var(--accent)] text-[var(--accent)] text-xs font-black hover:bg-[#2A2A2A] transition-all flex items-center gap-1.5 cursor-pointer"
+                  className="px-3.5 py-2 rounded-xl bg-[#1A1A1A] border border-[var(--accent)] text-white text-xs font-black hover:bg-[#2A2A2A] transition-all flex items-center gap-1.5 cursor-pointer"
                 >
                   <MapPin size={14} /> Set Location
                 </button>

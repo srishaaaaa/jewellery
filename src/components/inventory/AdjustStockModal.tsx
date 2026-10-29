@@ -77,7 +77,7 @@ const MODES: Record<AdjustMode, {
   CORRECTION: {
     label: 'Reconciliation', hint: 'Set Exact Count', Icon: Target, reason: 'CORRECTION',
     activeCard: 'bg-amber-50 border-[var(--accent)] text-amber-950 ring-2 ring-[var(--accent-a30)]',
-    activeIcon: 'bg-[var(--accent)] text-black',
+    activeIcon: 'bg-[var(--accent)] text-white',
     panel: 'bg-amber-50/60 border-[var(--accent-a40)]', text: 'text-amber-950',
     stepBtn: 'hover:bg-amber-100 text-amber-950 border-amber-300',
     input: 'border-[var(--accent)] text-black focus:border-black',
@@ -261,7 +261,7 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
         {/* Header */}
         <div className="shrink-0 bg-[#0A0A0A] px-4 sm:px-5 py-3.5 flex items-center justify-between gap-3 text-white">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="shrink-0 w-9 h-9 rounded-xl bg-[#1A1A1A] border border-[var(--accent-a30)] flex items-center justify-center text-[var(--accent)]">
+            <div className="shrink-0 w-9 h-9 rounded-xl bg-[#1A1A1A] border border-[var(--accent-a30)] flex items-center justify-center text-white">
               <SlidersHorizontal size={17} />
             </div>
             <div className="min-w-0">
@@ -439,7 +439,7 @@ export const AdjustStockModal: React.FC<AdjustStockModalProps> = ({
               className={`flex-[1.4] flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-black leading-tight transition-all shadow-md disabled:opacity-50 cursor-pointer ${
                 isDeduct
                   ? 'bg-rose-700 text-white hover:bg-rose-800'
-                  : 'bg-[#0A0A0A] text-[var(--accent)] hover:bg-[#1A1A1A]'
+                  : 'bg-[#0A0A0A] text-white hover:bg-[#1A1A1A]'
               }`}
             >
               {submitting ? (

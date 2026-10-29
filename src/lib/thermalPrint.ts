@@ -3,6 +3,7 @@ import { formatCurrency, formatInvoiceNo, paymentSplitRows, schemePaidLabel } fr
 import { formatPhoneDisplay } from './phone'
 import { useSettingsStore } from '../store/store'
 import { formatWeight, metalLabel, readJewellerySnapshot, type JewellerySnapshot } from './jewellery'
+import { gstSplit } from './gst'
 
 export interface ThermalReceiptData {
   invoiceNo: string
@@ -229,12 +230,22 @@ export function printThermalReceipt(data: ThermalReceiptData) {
                 <td class="text-right">-${formatCurrency(data.schemeDiscount || 0)}</td>
               </tr>
             ` : ''}
-            ${(data.totalGst || 0) > 0 ? `
+            ${(data.totalGst || 0) > 0 ? (() => {
+              const g = gstSplit(data.totalGst || 0, data.subtotal - (data.couponDiscount || 0) - (data.manualDiscount || 0) - (data.schemeDiscount || 0))
+              return `
               <tr>
-                <td class="text-left">GST</td>
-                <td class="text-right">+${formatCurrency(data.totalGst || 0)}</td>
+                <td class="text-left">${g.cgstLabel}</td>
+                <td class="text-right">${formatCurrency(g.cgst)}</td>
               </tr>
-            ` : ''}
+              <tr>
+                <td class="text-left">${g.sgstLabel}</td>
+                <td class="text-right">${formatCurrency(g.sgst)}</td>
+              </tr>
+              <tr>
+                <td class="text-left">${g.totalLabel}</td>
+                <td class="text-right">+${formatCurrency(data.totalGst || 0)}</td>
+              </tr>`
+            })() : ''}
             ${data.shipping > 0 ? `
               <tr>
                 <td class="text-left">Delivery</td>

@@ -105,13 +105,16 @@ export const publicInvoiceUrl = (invoiceNumberOrId: string) => {
   // here (e.g. keeping only the last 8 digits) produces a number the invoice page
   // cannot find in the database.
   const identifier = String(invoiceNumberOrId || '').trim()
+  return `${publicSiteOrigin()}/invoice/${encodeURIComponent(identifier)}`
+}
+
+/** Address of the live site, used in links sent to customers. */
+export const publicSiteOrigin = () => {
   const envUrl = (import.meta.env.VITE_SITE_URL as string | undefined)?.replace(/\/$/, '')
-  const origin =
-    envUrl ||
+  return envUrl ||
     (typeof window !== 'undefined' && window.location?.origin && !window.location.origin.includes('localhost')
       ? window.location.origin
       : BRAND_PRODUCTION_DOMAIN || (typeof window !== 'undefined' ? window.location.origin : ''))
-  return `${origin}/invoice/${encodeURIComponent(identifier)}`
 }
 
 export const buildProfessionalWhatsAppMessage = (input: BuildWhatsAppMessageInput) => {

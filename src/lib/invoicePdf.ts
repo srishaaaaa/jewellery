@@ -6,6 +6,7 @@ import { getActiveLogo } from './activeLogo'
 import { useSettingsStore } from '../store/store'
 import { formatPhoneDisplay } from './phone'
 import { formatWeight, metalLabel } from './jewellery'
+import { gstSplit } from './gst'
 
 export type InvoicePdfData = {
   invoiceNo: string
@@ -265,7 +266,10 @@ export function createInvoicePdf(data: InvoicePdfData): Blob {
   if ((data.discountAmount || 0) > 0) rows.push([`Coupon${data.couponCode ? ` (${data.couponCode})` : ''}`, `-${money(data.discountAmount || 0)}`, primaryColor])
   if ((data.manualDiscountAmount || 0) > 0) rows.push(['Discount', `-${money(data.manualDiscountAmount || 0)}`, primaryColor])
   if ((data.schemeDiscount || 0) > 0) rows.push([`Scheme Benefit${data.schemeNumber ? ` (${data.schemeNumber})` : ''}`, `-${money(data.schemeDiscount || 0)}`, primaryColor])
-  if ((data.gstAmount || 0) > 0) rows.push(['GST', money(data.gstAmount || 0), ink])
+  if ((data.gstAmount || 0) > 0) {
+    const g = gstSplit(data.gstAmount || 0, data.subtotal - (data.discountAmount || 0) - (data.manualDiscountAmount || 0) - (data.schemeDiscount || 0))
+    rows.push([g.cgstLabel, money(g.cgst), ink], [g.sgstLabel, money(g.sgst), ink], [g.totalLabel, money(data.gstAmount || 0), ink])
+  }
   rows.push(['Delivery', (data.shipping || 0) > 0 ? money(data.shipping) : 'FREE', ink])
   doc.setFontSize(9)
   rows.forEach(([label, value, color]) => { doc.setFont('helvetica', 'normal'); doc.setTextColor(color); doc.text(label, 143, y, { align: 'right' }); doc.text(value, right - 4, y, { align: 'right' }); y += 7 })

@@ -1,8 +1,9 @@
 import React, { useState } from 'react'
 import BirthdayView from './BirthdayView'
 import AnniversaryView from './AnniversaryView'
+import MissingDatesView from './MissingDatesView'
 
-type TabType = 'birthday' | 'anniversary'
+type TabType = 'birthday' | 'anniversary' | 'missing'
 
 export default function BirthdayDashboard() {
   const [activeTab, setActiveTab] = useState<TabType>('birthday')
@@ -31,11 +32,22 @@ export default function BirthdayDashboard() {
         >
           💍 Anniversaries
         </button>
+        <button
+          onClick={() => setActiveTab('missing')}
+          className={`px-4 py-3 font-bold text-sm whitespace-nowrap transition-colors ${
+            activeTab === 'missing'
+              ? 'text-[var(--accent)] border-b-2 border-[var(--accent)]'
+              : 'text-[#000000] hover:text-[#000000]'
+          }`}
+        >
+          📋 No Dates Saved
+        </button>
       </div>
 
       {/* Tab Content */}
       {activeTab === 'birthday' && <BirthdayView />}
       {activeTab === 'anniversary' && <AnniversaryView />}
+      {activeTab === 'missing' && <MissingDatesView />}
     </div>
   )
 }

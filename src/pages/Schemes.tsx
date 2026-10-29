@@ -970,7 +970,7 @@ export default function Schemes() {
               <div className="grid grid-cols-3 gap-1.5">
                 {PAYMENT_METHODS.map((m) => (
                   <button key={m} type="button" onClick={() => setCollectMethod(m)}
-                    className={`py-2 rounded-xl text-[10px] font-bold uppercase tracking-[0.15em] border-2 transition-colors ${collectMethod === m ? 'bg-[#0A0A0A] text-[var(--accent)] border-[#0A0A0A]' : 'bg-white text-[#000000] border-black/10 hover:border-gray-300'}`}>
+                    className={`py-2 rounded-xl text-[10px] font-bold uppercase tracking-[0.15em] border-2 transition-colors ${collectMethod === m ? 'bg-[#0A0A0A] text-white border-[#0A0A0A]' : 'bg-white text-[#000000] border-black/10 hover:border-gray-300'}`}>
                     {paymentMethodLabel(m)}
                   </button>
                 ))}
@@ -1068,7 +1068,7 @@ export default function Schemes() {
                 : <span className="text-xs font-semibold text-[#000000]">{rules.oneTimeVoucherPercent > 0 ? `${rules.oneTimeVoucherPercent}% voucher is created when printing` : 'Gift voucher is off (Scheme Rules)'}</span>}
             </div>
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => void printCertificate(detail, true)} className="rounded-lg bg-[#0A0A0A] px-3 py-2 text-xs font-black text-[var(--accent)]"><Printer size={13} className="inline -mt-0.5 mr-1" />Print on Letterhead</button>
+              <button onClick={() => void printCertificate(detail, true)} className="rounded-lg bg-[#0A0A0A] px-3 py-2 text-xs font-black text-white"><Printer size={13} className="inline -mt-0.5 mr-1" />Print on Letterhead</button>
               <button onClick={() => void printCertificate(detail, false)} className="rounded-lg border border-[#0A0A0A] px-3 py-2 text-xs font-black text-[#000000]">Print on Pre-printed Letterhead Paper</button>
             </div>
           </div>
@@ -1255,7 +1255,7 @@ export default function Schemes() {
             <div className="flex items-center justify-between gap-2">
               <div><p className="text-sm font-black text-[#000000]">Scheme Types</p><p className="text-[11px] text-[#000000]">Plans offered to customers. Changing a type never changes schemes already created.</p></div>
               <button type="button" onClick={() => setRulesForm((r) => ({ ...r, types: [...r.types, { id: `type-${Date.now()}`, name: 'Monthly Gold Savings', frequency: 'monthly', amount: 5000, installments: 11, durationMonths: 11, benefitType: r.defaultBenefitType, makingBenefitValue: r.defaultMakingBenefitValue, makingBenefitUnit: r.defaultMakingBenefitUnit, wastageBenefitValue: r.defaultWastageBenefitValue, wastageBenefitUnit: r.defaultWastageBenefitUnit, active: true }] }))}
-                className="shrink-0 rounded-lg bg-[#0A0A0A] px-3 py-1.5 text-xs font-black text-[var(--accent)]"><Plus size={12} className="inline -mt-0.5" /> Add Type</button>
+                className="shrink-0 rounded-lg bg-[#0A0A0A] px-3 py-1.5 text-xs font-black text-white"><Plus size={12} className="inline -mt-0.5" /> Add Type</button>
             </div>
             {rulesForm.types.length === 0 && <p className="text-[11px] font-semibold text-[#000000]">No scheme types yet. Without types, only the admin (or staff with permission) can enrol customers with custom terms.</p>}
             {rulesForm.types.map((t, idx) => {

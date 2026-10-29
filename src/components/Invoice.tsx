@@ -5,6 +5,7 @@ import { amountInWords } from '../lib/amountInWords'
 import { BilledTo, GrandTotal, Sheet, SheetFooter, SheetHeader, TotalRow } from './invoice/InvoiceParts'
 import { LABEL, MONO, TD, TH, inr, useShopProfile } from './invoice/invoiceStyle'
 import { formatWeight, metalLabel, type JewellerySnapshot } from '../lib/jewellery'
+import { gstSplit } from '../lib/gst'
 
 export interface InvoiceItem {
   id?: number | string
@@ -150,7 +151,7 @@ export const Invoice: React.FC<InvoiceProps> = ({
   const effectiveDelivery = deliveryCharge || shipping
   const reductions = schemeAmountUsed + advanceAmountUsed + exchangeAmount
   const amountPaid = Math.max(0, total - reductions)
-  const halfGst = gstAmount / 2
+  const gstParts = gstSplit(gstAmount, subtotal - discountAmount - manualDiscountAmount - schemeDiscount)
 
   const meta: Array<[string, React.ReactNode]> = [
     ['Date', billDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })],
@@ -260,8 +261,9 @@ export const Invoice: React.FC<InvoiceProps> = ({
           {schemeDiscount > 0 && <TotalRow label={`Scheme Benefit${schemeNumber ? ` (${schemeNumber})` : ''}`} value={`− ₹${inr(schemeDiscount)}`} />}
           {gstAmount > 0 && (
             <>
-              <TotalRow label="CGST" value={`₹${inr(halfGst)}`} />
-              <TotalRow label="SGST" value={`₹${inr(halfGst)}`} />
+              <TotalRow label={gstParts.cgstLabel} value={`₹${inr(gstParts.cgst)}`} />
+              <TotalRow label={gstParts.sgstLabel} value={`₹${inr(gstParts.sgst)}`} />
+              <TotalRow label={gstParts.totalLabel} value={`₹${inr(gstAmount)}`} />
             </>
           )}
           {effectiveDelivery > 0 && <TotalRow label="Delivery" value={`₹${inr(effectiveDelivery)}`} />}

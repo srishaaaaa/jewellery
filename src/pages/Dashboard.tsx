@@ -56,6 +56,7 @@ import JewelleryReports from '../components/dashboard/JewelleryReports'
 import { auditService } from '../services/auditService'
 import BirthdayDashboard from '../components/dashboard/BirthdayDashboard'
 import CustomersView from '../components/dashboard/CustomersView'
+import { SendCouponModal } from '../components/dashboard/SendCouponModal'
 import type { AdvanceOrder } from '../services/advanceOrderService'
 import { InventoryTable } from '../components/inventory/InventoryTable'
 import { ExpensesView } from '../components/expenses/ExpensesView'
@@ -142,6 +143,8 @@ type DashboardCoupon = {
   usage_limit: number | null
   usage_count: number
   min_order_value: number
+  /** Phones this coupon is locked to; empty means anyone */
+  allowed_phones?: string[] | null
 }
 type TabKey = 'overview' | 'whatsapp' | 'pos_analytics' | 'billing' | 'advance_orders' | 'inventory' | 'expenses' | 'coupons' | 'users' | 'history' | 'settings' | 'outstanding_credits' | 'customers' | 'customer_events' | 'metal_rates' | 'schemes' | 'sales_desk' | 'purchases'
 type PosAnalyticsTab = 'revenue' | 'today' | 'products' | 'categories' | 'coupons' | 'jewellery'
@@ -274,6 +277,7 @@ export default function Dashboard() {
   const [couponSaveError, setCouponSaveError] = useState('')
   const [couponSaveSuccess, setCouponSaveSuccess] = useState('')
   const [editingCouponId, setEditingCouponId] = useState<number | null>(null)
+  const [sendingCoupon, setSendingCoupon] = useState<DashboardCoupon | null>(null)
 
   const [analyticsTab, setAnalyticsTab] = useState('revenue')
 
@@ -307,6 +311,8 @@ export default function Dashboard() {
   const [analyticsDatePreset, setAnalyticsDatePreset] = useState<'all' | 'today' | 'week' | 'month' | 'year' | 'custom'>('all')
   const [analyticsDateFrom, setAnalyticsDateFrom] = useState('')
   const [analyticsDateTo, setAnalyticsDateTo] = useState('')
+  /** All bills, only GST invoices, or only non-GST bills */
+  const [analyticsBillKind, setAnalyticsBillKind] = useState<'all' | 'gst' | 'non_gst'>('all')
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([])
 
   // Order Management bill type filter
@@ -431,6 +437,10 @@ export default function Dashboard() {
     let dated = orders
     if (analyticsDateFrom) dated = dated.filter(o => o.created_at >= `${analyticsDateFrom}T00:00:00`)
     if (analyticsDateTo)   dated = dated.filter(o => o.created_at <= `${analyticsDateTo}T23:59:59`)
+    // A GST invoice is a bill that charged GST.
+    const isGstBill = (o: { total_gst?: unknown }) => toNumber(o.total_gst, 0) > 0
+    if (analyticsBillKind === 'gst') dated = dated.filter(isGstBill)
+    if (analyticsBillKind === 'non_gst') dated = dated.filter(o => !isGstBill(o))
 
     // Classify
     const nonCancelled = dated.filter(o => normalizeStatus(o.status) !== 'cancelled')
@@ -473,6 +483,11 @@ export default function Dashboard() {
     const totalExpenses = datedExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
     const netProfit = completedRevenue - totalExpenses
     const isProfitable = netProfit >= 0
+    const gstBills = billableCompleted.filter(isGstBill)
+    const nonGstBills = billableCompleted.filter(o => !isGstBill(o))
+    const gstSales = gstBills.reduce((s, o) => s + getOrderTotal(o), 0)
+    const nonGstSales = nonGstBills.reduce((s, o) => s + getOrderTotal(o), 0)
+    const gstCollected = gstBills.reduce((s, o) => s + toNumber(o.total_gst, 0), 0)
 
     const toLocalDateKey = (value: string | Date) => {
       const date = value instanceof Date ? value : new Date(value)
@@ -790,8 +805,13 @@ export default function Dashboard() {
       totalExpenses,
       netProfit,
       isProfitable,
+      gstSales,
+      nonGstSales,
+      gstCollected,
+      gstBillCount: gstBills.length,
+      nonGstBillCount: nonGstBills.length,
     }
-  }, [orders, orderItems, products, expenses, analyticsDateFrom, analyticsDateTo])
+  }, [orders, orderItems, products, expenses, analyticsDateFrom, analyticsDateTo, analyticsBillKind])
 
   // Bill-type filtered results for Order Management table (client-side, instant)
   const filteredSearchResults = useMemo(() => {
@@ -821,7 +841,7 @@ export default function Dashboard() {
           .order('created_at', { ascending: false })
           .limit(1000),
         supabase.from('coupons')
-          .select('id, code, percentage, is_active, expiry_date, usage_limit, usage_count, min_order_value')
+          .select('*')
           .order('created_at', { ascending: false }),
         expenseService.getExpenses(),
       ])
@@ -880,7 +900,7 @@ export default function Dashboard() {
     if (!isSupabaseConfigured) return
     const { data } = await supabase
       .from('coupons')
-      .select('id, code, percentage, is_active, expiry_date, usage_limit, usage_count, min_order_value')
+      .select('*')
       .order('created_at', { ascending: false })
     setCoupons((data || []) as DashboardCoupon[])
   }, [])
@@ -2314,7 +2334,7 @@ export default function Dashboard() {
                       setExportingPdf(false)
                     }
                   }}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0A0A0A] border border-[var(--accent)] text-[var(--accent)] font-black text-xs hover:bg-[#1A1A1A] shadow-md transition-all cursor-pointer hover:scale-[1.02] disabled:opacity-60"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0A0A0A] border border-[var(--accent)] text-white font-black text-xs hover:bg-[#1A1A1A] shadow-md transition-all cursor-pointer hover:scale-[1.02] disabled:opacity-60"
                   title="Export formatted executive PDF with chart diagrams"
                 >
                   {exportingPdf ? (
@@ -2325,6 +2345,16 @@ export default function Dashboard() {
                   <span>{exportingPdf ? 'Generating PDF...' : 'Export PDF (Charts)'}</span>
                 </button>
               </div>
+            </div>
+
+            {/* All bills / GST invoices / Non-GST bills */}
+            <div className="inline-flex flex-wrap items-center bg-white border border-black/10 rounded-2xl p-1 gap-1 max-w-full">
+              {([['all', 'All Bills'], ['gst', 'GST Invoices'], ['non_gst', 'Non-GST Bills']] as const).map(([kind, label]) => (
+                <button key={kind} type="button" onClick={() => setAnalyticsBillKind(kind)}
+                  className={`px-5 py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-all cursor-pointer ${analyticsBillKind === kind ? 'bg-[#0A0A0A] text-white shadow-sm' : 'text-[#000000] hover:bg-black/5'}`}>
+                  {label}
+                </button>
+              ))}
             </div>
 
             {/* Period filter (hidden for Today's Sales), IGMOLS pill bar + date range */}
@@ -2372,6 +2402,47 @@ export default function Dashboard() {
             {/* Revenue sub-tab */}
             {posAnalyticsTab === 'revenue' && (
               <div className="space-y-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5">
+                  <div className="rounded-2xl p-6 bg-gradient-to-br from-emerald-600 to-emerald-900 text-white shadow-md">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-[11px] font-black uppercase tracking-wider">{analytics.isProfitable ? 'Net Earnings' : 'Net Loss'}</p>
+                      <span className="w-11 h-11 rounded-full bg-white/15 flex items-center justify-center shrink-0"><Wallet size={18} /></span>
+                    </div>
+                    <p className="mt-4 text-[28px] font-black leading-tight break-words">{analytics.isProfitable ? '' : '−'}{formatCurrency(Math.abs(analytics.netProfit))}</p>
+                    <p className="mt-2 text-[11px] font-black">GST + Non-GST − Expenses</p>
+                  </div>
+                  <div className="rounded-2xl p-6 bg-white border border-black/15 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-[11px] font-black uppercase tracking-wider text-[#000000]">GST Sales</p>
+                      <span className="w-11 h-11 rounded-full bg-black/5 text-[#000000] flex items-center justify-center shrink-0"><Receipt size={18} /></span>
+                    </div>
+                    <p className="mt-4 text-[28px] font-black leading-tight text-[#000000] break-words">{formatCurrency(analytics.gstSales)}</p>
+                    <p className="mt-2 text-xs font-semibold text-[#000000]">{analytics.gstBillCount} GST invoice{analytics.gstBillCount === 1 ? '' : 's'}{analytics.gstCollected > 0 ? ` · GST ${formatCurrency(analytics.gstCollected)}` : ''}</p>
+                  </div>
+                  <div className="rounded-2xl p-6 bg-white border border-emerald-200 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-[11px] font-black uppercase tracking-wider text-[#000000]">Non-GST Sales</p>
+                      <span className="w-11 h-11 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0"><TrendingUp size={18} /></span>
+                    </div>
+                    <p className="mt-4 text-[28px] font-black leading-tight text-emerald-600 break-words">+{formatCurrency(analytics.nonGstSales)}</p>
+                    <p className="mt-2 text-xs font-semibold text-[#000000]">{analytics.nonGstBillCount} retail bill{analytics.nonGstBillCount === 1 ? '' : 's'}</p>
+                  </div>
+                  <div className="rounded-2xl p-6 bg-white border border-rose-200 shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-[11px] font-black uppercase tracking-wider text-[#000000]">Total Expenses</p>
+                      <span className="w-11 h-11 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center shrink-0"><TrendingDown size={18} /></span>
+                    </div>
+                    <p className="mt-4 text-[28px] font-black leading-tight text-rose-600 break-words">−{formatCurrency(analytics.totalExpenses)}</p>
+                    <button type="button" onClick={() => handleTabClick('expenses')} className="mt-2 text-xs font-black text-rose-600 underline cursor-pointer">Money out — Expense Tracker</button>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white px-5 py-4 shadow-sm">
+                  <div className="flex flex-wrap items-center gap-3 min-w-0">
+                    <span className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-indigo-700">Calculation Formula</span>
+                    <span className="text-xs font-semibold text-[#000000]">GST ({formatCurrency(analytics.gstSales)}) + Non-GST ({formatCurrency(analytics.nonGstSales)}) − Expenses ({formatCurrency(analytics.totalExpenses)})</span>
+                  </div>
+                  <span className="text-sm font-black text-[#000000]">= {analytics.isProfitable ? 'Net Profit' : 'Net Loss'}: <span className={analytics.isProfitable ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(Math.abs(analytics.netProfit))}</span></span>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
                   {[
                     {
@@ -3343,6 +3414,16 @@ export default function Dashboard() {
         )}
 
         {/* ── COUPONS TAB ── */}
+        {tab === 'coupons' && sendingCoupon && (
+          <SendCouponModal
+            coupon={sendingCoupon}
+            onClose={() => setSendingCoupon(null)}
+            onSent={(allowed) => {
+              if (allowed) setCoupons(list => list.map(c => (c.id === sendingCoupon.id ? { ...c, allowed_phones: allowed } : c)))
+              if (allowed) setSendingCoupon(c => (c ? { ...c, allowed_phones: allowed } : c))
+            }}
+          />
+        )}
         {tab === 'coupons' && (
           <div className="space-y-4">
             <div className="flex flex-col gap-3">
@@ -3550,11 +3631,25 @@ export default function Dashboard() {
 
                             <p className="text-[11px] text-[#000000]">
                               Used {coupon.usage_count}{coupon.usage_limit ? `/${coupon.usage_limit}` : ''} times
-                              {coupon.expiry_date ? ` • expires ${new Date(coupon.expiry_date).toLocaleDateString('en-IN')}` : ''}
+                              {coupon.expiry_date ? ` • expires ${new Date(coupon.expiry_date).toLocaleDateString('en-IN')}` : ' • no expiry'}
                             </p>
+                            {(coupon.allowed_phones?.length ?? 0) > 0 && (
+                              <p className="inline-block rounded-md border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">
+                                Only for {coupon.allowed_phones!.length} customer{coupon.allowed_phones!.length === 1 ? '' : 's'} it was sent to
+                              </p>
+                            )}
                           </div>
 
                           <div className="flex shrink-0 items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setSendingCoupon(coupon)}
+                              disabled={!coupon.is_active || isExpired || isExhausted}
+                              title={!coupon.is_active || isExpired || isExhausted ? 'Only active coupons can be sent' : 'Send to a customer on WhatsApp'}
+                              className="flex items-center gap-1 rounded-full bg-[#25D366] px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-white transition-colors hover:bg-[#1EBE5B] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                            >
+                              <MessageCircle size={13} /> {l('Send', 'அனுப்பு')}
+                            </button>
                             <button
                               onClick={() => void toggleCoupon(coupon)}
                               className={`rounded-full px-2.5 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] transition-colors ${

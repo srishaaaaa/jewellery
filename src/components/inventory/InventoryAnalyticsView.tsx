@@ -200,7 +200,7 @@ export const InventoryAnalyticsView: React.FC = () => {
             onClick={() => setRange('all')}
             className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap text-center ${
               range === 'all'
-                ? 'bg-[#0A0A0A] text-[var(--accent)] shadow-xs'
+                ? 'bg-[#0A0A0A] text-white shadow-xs'
                 : 'text-gray-600 hover:text-black'
             }`}
           >
@@ -211,7 +211,7 @@ export const InventoryAnalyticsView: React.FC = () => {
             onClick={() => setRange('today')}
             className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap text-center ${
               range === 'today'
-                ? 'bg-[#0A0A0A] text-[var(--accent)] shadow-xs'
+                ? 'bg-[#0A0A0A] text-white shadow-xs'
                 : 'text-gray-600 hover:text-black'
             }`}
           >
@@ -222,7 +222,7 @@ export const InventoryAnalyticsView: React.FC = () => {
             onClick={() => setRange('week')}
             className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap text-center ${
               range === 'week'
-                ? 'bg-[#0A0A0A] text-[var(--accent)] shadow-xs'
+                ? 'bg-[#0A0A0A] text-white shadow-xs'
                 : 'text-gray-600 hover:text-black'
             }`}
           >
@@ -233,7 +233,7 @@ export const InventoryAnalyticsView: React.FC = () => {
             onClick={() => setRange('month')}
             className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap text-center ${
               range === 'month'
-                ? 'bg-[#0A0A0A] text-[var(--accent)] shadow-xs'
+                ? 'bg-[#0A0A0A] text-white shadow-xs'
                 : 'text-gray-600 hover:text-black'
             }`}
           >
@@ -273,7 +273,7 @@ export const InventoryAnalyticsView: React.FC = () => {
             type="button"
             onClick={exportCsv}
             disabled={filteredMovements.length === 0}
-            className="px-3.5 py-2 rounded-xl bg-[#0A0A0A] border border-[var(--accent)] text-[var(--accent)] text-xs font-black hover:bg-[#1A1A1A] transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-40 whitespace-nowrap"
+            className="px-3.5 py-2 rounded-xl bg-[#0A0A0A] border border-[var(--accent)] text-white text-xs font-black hover:bg-[#1A1A1A] transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-40 whitespace-nowrap"
             title="Export audit movements log"
           >
             <Download size={13} />
@@ -331,7 +331,7 @@ export const InventoryAnalyticsView: React.FC = () => {
 
         {/* Net Movement Delta */}
         <div className="bg-white border border-[var(--accent-a40)] rounded-xl p-3 sm:p-4 shadow-sm flex items-center gap-2.5 sm:gap-3">
-          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-[#0A0A0A] text-[var(--accent)] flex items-center justify-center font-black">
+          <div className="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-[#0A0A0A] text-white flex items-center justify-center font-black">
             {data.netDelta >= 0 ? <TrendingUp size={20} /> : <TrendingDown size={20} />}
           </div>
           <div>

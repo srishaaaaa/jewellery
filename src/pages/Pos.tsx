@@ -1,3 +1,4 @@
+import { couponAllowsPhone } from '../lib/couponShare'
 import { useEffect, useMemo, useRef, useState, useCallback, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createPortal } from 'react-dom'
@@ -1117,6 +1118,14 @@ export default function Pos(props: PosProps = {}) {
 
       if (data.min_order_value && subtotal < Number(data.min_order_value)) {
         setCouponError(`Minimum order of ${formatCurrency(Number(data.min_order_value))} required`)
+        return
+      }
+
+      // Coupons sent "only for this customer" work only for the phones they were sent to.
+      if (!couponAllowsPhone(data.allowed_phones, customer.phone)) {
+        setCouponError(customer.phone.trim()
+          ? 'This coupon is only for the customer it was sent to'
+          : 'This coupon is for a specific customer. Enter their mobile number first')
         return
       }
 
@@ -2326,7 +2335,7 @@ export default function Pos(props: PosProps = {}) {
                     <button
                       onClick={() => void applyCoupon()}
                       disabled={couponLoading || !couponInput.trim()}
-                      className="h-9 px-3 bg-[#0A0A0A] text-[var(--accent)] border border-[var(--accent)] hover:bg-[#1A1A1A] rounded-xl text-[11px] font-black transition-colors disabled:opacity-50 shrink-0"
+                      className="h-9 px-3 bg-[#0A0A0A] text-white border border-[var(--accent)] hover:bg-[#1A1A1A] rounded-xl text-[11px] font-black transition-colors disabled:opacity-50 shrink-0"
                     >
                       Apply
                     </button>
@@ -2393,7 +2402,7 @@ export default function Pos(props: PosProps = {}) {
                           {(['value', 'grams'] as const).map((m) => (
                             <button key={m} type="button" disabled={m === 'grams' && !canRedeemByGrams}
                               onClick={() => { setSchemeMode(m); setSchemeUseAmount(String(Math.min(m === 'grams' ? schemeGramValue : schemeBalance(appliedScheme), Math.max(0, total)))) }}
-                              className={`h-8 rounded-lg border-2 text-[10px] font-bold uppercase tracking-[0.15em] transition-colors disabled:opacity-40 ${schemeMode === m && (m === 'value' || canRedeemByGrams) ? 'bg-[#0A0A0A] text-[var(--accent)] border-[#0A0A0A]' : 'bg-white text-[#000000] border-black/10'}`}>
+                              className={`h-8 rounded-lg border-2 text-[10px] font-bold uppercase tracking-[0.15em] transition-colors disabled:opacity-40 ${schemeMode === m && (m === 'value' || canRedeemByGrams) ? 'bg-[#0A0A0A] text-white border-[#0A0A0A]' : 'bg-white text-[#000000] border-black/10'}`}>
                               {m === 'value' ? `By value ${formatCurrency(schemeBalance(appliedScheme))}` : `By grams ${schemeGramsLeft(appliedScheme).toFixed(3)} g`}
                             </button>
                           ))}
@@ -2454,7 +2463,7 @@ export default function Pos(props: PosProps = {}) {
                             type="button"
                             onClick={() => applyScheme(sch)}
                             disabled={!eligibility.eligible}
-                            className="h-8 px-3 bg-[#0A0A0A] text-[var(--accent)] border border-[var(--accent)] hover:bg-[#1A1A1A] rounded-xl text-[11px] font-black transition-colors disabled:opacity-40 shrink-0"
+                            className="h-8 px-3 bg-[#0A0A0A] text-white border border-[var(--accent)] hover:bg-[#1A1A1A] rounded-xl text-[11px] font-black transition-colors disabled:opacity-40 shrink-0"
                           >
                             Apply
                           </button>
@@ -2494,7 +2503,7 @@ export default function Pos(props: PosProps = {}) {
                             <p className="text-[11px] font-black text-[#000000] break-words">{adv.receiptNumber}{adv.source === 'exchange' ? ' · Exchange credit' : ''}</p>
                             <p className="text-[10px] font-bold text-[#000000]">Balance {formatCurrency(adv.balance)}{adv.purpose ? ` · ${adv.purpose}` : ''}</p>
                           </div>
-                          <button type="button" onClick={() => applyAdvance(adv)} className="h-8 px-3 bg-[#0A0A0A] text-[var(--accent)] border border-[var(--accent)] hover:bg-[#1A1A1A] rounded-xl text-[11px] font-black transition-colors shrink-0">Use</button>
+                          <button type="button" onClick={() => applyAdvance(adv)} className="h-8 px-3 bg-[#0A0A0A] text-white border border-[var(--accent)] hover:bg-[#1A1A1A] rounded-xl text-[11px] font-black transition-colors shrink-0">Use</button>
                         </div>
                       ))}
                     </div>
@@ -2506,7 +2515,7 @@ export default function Pos(props: PosProps = {}) {
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em]">Old Gold Exchange</label>
-                  <button type="button" onClick={() => { setOldGoldForm(EMPTY_OLD_GOLD); setOldGoldOpen(true) }} className="h-7 px-2.5 bg-[#0A0A0A] text-[var(--accent)] border border-[var(--accent)] hover:bg-[#1A1A1A] rounded-lg text-[10px] font-black">+ Add</button>
+                  <button type="button" onClick={() => { setOldGoldForm(EMPTY_OLD_GOLD); setOldGoldOpen(true) }} className="h-7 px-2.5 bg-[#0A0A0A] text-white border border-[var(--accent)] hover:bg-[#1A1A1A] rounded-lg text-[10px] font-black">+ Add</button>
                 </div>
                 {oldGoldEntries.length === 0 ? (
                   <p className="text-[10px] font-bold text-[#000000]">Customer giving old gold / silver in part-payment? Add it here.</p>
@@ -2528,16 +2537,18 @@ export default function Pos(props: PosProps = {}) {
                 )}
               </div>
 
-              {/* GST Toggle */}
-              <div className="flex items-center justify-between py-1 border-b border-black/10">
-                <span className="text-[11px] font-black text-[#000000]">Enable GST on Bill</span>
-                <button
-                  type="button"
-                  onClick={() => setBillGstEnabled(!billGstEnabled)}
-                  className={`w-9 h-5 rounded-full p-0.5 transition-colors ${billGstEnabled ? 'bg-[#0A0A0A]' : 'bg-gray-200'}`}
-                >
-                  <div className={`w-4 h-4 rounded-full bg-white transition-transform ${billGstEnabled ? 'translate-x-4' : 'translate-x-0'}`}></div>
-                </button>
+              {/* Bill type: Non-GST bill or GST invoice */}
+              <div className="grid grid-cols-2 gap-1 rounded-full border border-black/10 bg-white p-1">
+                {([[false, 'Non-GST Bill'], [true, 'GST Invoice']] as const).map(([gst, label]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setBillGstEnabled(gst)}
+                    className={`h-10 rounded-full text-[11px] font-black uppercase tracking-wider transition-colors cursor-pointer ${billGstEnabled === gst ? 'bg-[#0A0A0A] text-white shadow-sm' : 'text-[#000000] hover:bg-black/5'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
 
               {billGstEnabled && (
@@ -2690,7 +2701,7 @@ export default function Pos(props: PosProps = {}) {
                         onClick={() => setPaymentType(mode)}
                         className={`py-2 rounded-xl text-[10px] font-bold uppercase tracking-[0.15em] border-2 transition-colors ${
                           paymentType === mode
-                            ? 'bg-[#0A0A0A] text-[var(--accent)] border-[#0A0A0A]'
+                            ? 'bg-[#0A0A0A] text-white border-[#0A0A0A]'
                             : 'bg-white text-[#000000] border-black/10 hover:border-gray-300'
                         }`}
                       >
@@ -2919,7 +2930,7 @@ export default function Pos(props: PosProps = {}) {
               </div>
               {error && <div className="col-span-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-600">{error}</div>}
             </div>
-            <div className="shrink-0 flex gap-3 border-t border-black/10 bg-white px-4 py-3 sm:px-6"><button type="button" onClick={() => setOldGoldOpen(false)} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button><button type="button" onClick={addOldGold} className="flex-[1.5] rounded-xl bg-[#0A0A0A] py-3 text-sm font-black text-[var(--accent)]">Add to Bill</button></div>
+            <div className="shrink-0 flex gap-3 border-t border-black/10 bg-white px-4 py-3 sm:px-6"><button type="button" onClick={() => setOldGoldOpen(false)} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button><button type="button" onClick={addOldGold} className="flex-[1.5] rounded-xl bg-[#0A0A0A] py-3 text-sm font-black text-white">Add to Bill</button></div>
           </div>
         </div>
       </ModalPortal>)}
@@ -2939,7 +2950,7 @@ export default function Pos(props: PosProps = {}) {
             <label className="block"><span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Valid until</span><input type="date" value={quoteValidUntil} min={toLocalDateStr(new Date())} onChange={e => setQuoteValidUntil(e.target.value)} className="h-[42px] w-full rounded-xl border bg-white px-3 text-sm font-bold outline-none focus:border-[var(--accent)]" /></label>
             <label className="block"><span className="mb-1 block text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Notes</span><input value={quoteNotes} onChange={e => setQuoteNotes(e.target.value)} className="w-full rounded-xl border px-3 py-2.5 text-sm outline-none focus:border-[var(--accent)]" placeholder="Optional" /></label>
             {error && <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-bold text-red-600">{error}</div>}
-            <div className="flex gap-3"><button type="button" onClick={() => setQuoteOpen(false)} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button><button type="button" disabled={saving} onClick={() => void saveQuotation()} className="flex-[1.5] rounded-xl bg-[#0A0A0A] py-3 text-sm font-black text-[var(--accent)] disabled:opacity-50">{saving ? 'Saving…' : 'Save Quotation'}</button></div>
+            <div className="flex gap-3"><button type="button" onClick={() => setQuoteOpen(false)} className="flex-1 rounded-xl border py-3 text-sm font-black">Cancel</button><button type="button" disabled={saving} onClick={() => void saveQuotation()} className="flex-[1.5] rounded-xl bg-[#0A0A0A] py-3 text-sm font-black text-white disabled:opacity-50">{saving ? 'Saving…' : 'Save Quotation'}</button></div>
           </div>
         </div>
       </ModalPortal>)}
@@ -3105,7 +3116,7 @@ export default function Pos(props: PosProps = {}) {
               <button
                 type="button"
                 onClick={addVariantToItems}
-                className="w-full py-3 rounded-2xl bg-[#0A0A0A] border border-[var(--accent)] text-[var(--accent)] text-xs font-black uppercase tracking-wider hover:bg-[#1A1A1A] transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3 rounded-2xl bg-[#0A0A0A] border border-[var(--accent)] text-white text-xs font-black uppercase tracking-wider hover:bg-[#1A1A1A] transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
               >
                 Add to Order (₹{((selectedVariant?.price || variantPickerProduct.price || 0) * variantPickerQty).toFixed(2)})
               </button>

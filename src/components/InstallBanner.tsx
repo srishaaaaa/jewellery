@@ -13,7 +13,7 @@ export function InstallBanner({ shopName, logo }: { shopName: string; logo?: str
   return (
     <div className="fixed bottom-3 left-3 right-3 sm:left-auto sm:right-4 sm:bottom-4 z-50 bg-[#000000] text-white p-2.5 sm:p-4 rounded-2xl shadow-2xl border-2 border-[var(--accent)] flex items-center gap-2.5 sm:gap-3 w-auto sm:max-w-[360px] print:hidden">
       <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-[var(--accent-a20)] border border-[var(--accent)] flex items-center justify-center shrink-0 overflow-hidden">
-        {logo ? <img src={logo} alt="" className="w-full h-full object-contain p-1" /> : <Smartphone className="w-4 h-4 sm:w-5 sm:h-5 text-[var(--accent)]" />}
+        {logo ? <img src={logo} alt="" className="w-full h-full object-contain p-1" /> : <Smartphone className="w-4 h-4 sm:w-5 sm:h-5 text-white" />}
       </div>
       <div className="flex-1 min-w-0">
         <h4 className="text-[11px] sm:text-xs font-black tracking-tight text-white uppercase truncate">Install {shopName}</h4>

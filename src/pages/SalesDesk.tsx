@@ -549,7 +549,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
                       <button className={`${iconBtn} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`} title="Download PDF" onClick={() => quotationPdf(x)}><Download size={15} /></button>
                       {x.phone && <button className={`${iconBtn} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`} title="Send on WhatsApp" onClick={() => quotationWhatsApp(x)}><MessageCircle size={15} /></button>}
-                      {x.status === 'open' && onBillQuotation && <button className={`${iconBtn} bg-[#0A0A0A] text-[var(--accent)] hover:bg-[#1A1A1A]`} title={x.validUntil && x.validUntil < new Date().toISOString().slice(0, 10) ? 'Bill now (expired: priced at today\'s rate)' : 'Bill now at the quoted prices'} onClick={() => onBillQuotation(x)}><Receipt size={15} /></button>}
+                      {x.status === 'open' && onBillQuotation && <button className={`${iconBtn} bg-[#0A0A0A] text-white hover:bg-[#1A1A1A]`} title={x.validUntil && x.validUntil < new Date().toISOString().slice(0, 10) ? 'Bill now (expired: priced at today\'s rate)' : 'Bill now at the quoted prices'} onClick={() => onBillQuotation(x)}><Receipt size={15} /></button>}
                       {x.status === 'open' && <button className={`${iconBtn} bg-[var(--accent-a10)] text-[var(--accent-dark)] hover:bg-[var(--accent-a20)]`} title="Mark as billed" onClick={() => void setQuotationStatus(x, 'converted')}><CheckCircle2 size={15} /></button>}
                       {x.status === 'open' && <button className={`${iconBtn} bg-red-50 text-red-600 hover:bg-red-100`} title="Cancel quotation" onClick={() => void setQuotationStatus(x, 'cancelled')}><XCircle size={15} /></button>}
                       {isAdmin && deleteBtn(() => void deleteRecord('quotations', x.id, x.quotationNumber, 'quotation'))}
@@ -682,7 +682,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
           <div className="flex gap-2">
             <input className={inputClass} value={returnLookup} onChange={(e) => setReturnLookup(e.target.value)} placeholder="Invoice number or customer phone"
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void findInvoice() } }} />
-            <button type="button" onClick={() => void findInvoice()} className="rounded-xl bg-[#0A0A0A] px-4 text-sm font-black text-[var(--accent)]">Find</button>
+            <button type="button" onClick={() => void findInvoice()} className="rounded-xl bg-[#0A0A0A] px-4 text-sm font-black text-white">Find</button>
           </div>
           {returnOrders.length > 1 && !returnOrder && (
             <div className="space-y-1.5">{returnOrders.map((o) => (

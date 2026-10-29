@@ -445,7 +445,7 @@ export const AddUnregisteredItemModal: React.FC<Props> = ({ isOpen, onClose, onS
             <button
               type="submit"
               disabled={isSubmitting}
-              className="h-8 px-3.5 text-[11px] font-bold rounded-lg bg-[#0A0A0A] text-[var(--accent)] border border-[var(--accent)] hover:bg-[#1A1A1A] transition-all shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+              className="h-8 px-3.5 text-[11px] font-bold rounded-lg bg-[#0A0A0A] text-white border border-[var(--accent)] hover:bg-[#1A1A1A] transition-all shadow-xs disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
             >
               {isSubmitting ? (
                 <>
