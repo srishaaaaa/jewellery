@@ -104,7 +104,7 @@ export interface Product {
   subcategory?: string
   otherWeight?: number
   hallmarkStatus?: HallmarkStatus | null
-  stoneDetails?: StoneDetails | null
+  stoneDetails?: StoneDetails[] | null
   /** Where the piece is (available, reserved, under repair...). Only available pieces can be billed. */
   itemStatus?: ItemStatus
 }

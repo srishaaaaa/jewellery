@@ -230,7 +230,7 @@ export interface JewelleryAttributes {
   subcategory: string
   otherWeight?: number
   hallmarkStatus?: HallmarkStatus | null
-  stoneDetails?: StoneDetails | null
+  stoneDetails?: StoneDetails[] | null
 }
 
 /** Net metal weight = gross - stone - other (non-metal) weight, never below zero. */
@@ -247,10 +247,11 @@ export const HALLMARK_LABELS: Record<HallmarkStatus, string> = {
 export const normalizeHallmarkStatus = (v: unknown): HallmarkStatus | null =>
   v === 'hallmarked' || v === 'not_hallmarked' || v === 'pending' ? v : null
 
-/** Optional stone / diamond details of an item. */
+/** One stone line of an item: a single stone, or a group of identical stones. */
 export interface StoneDetails {
   type: string
   count: number
+  /** Value of this whole line (all its stones), in ₹ */
   value: number
   carat: number
   clarity: string
@@ -261,7 +262,7 @@ export interface StoneDetails {
 
 export const EMPTY_STONE_DETAILS: StoneDetails = { type: '', count: 0, value: 0, carat: 0, clarity: '', colour: '', cut: '', certificate: '' }
 
-export const normalizeStoneDetails = (raw: unknown): StoneDetails | null => {
+const normalizeStoneLine = (raw: unknown): StoneDetails | null => {
   if (!raw || typeof raw !== 'object') return null
   const r = raw as Record<string, unknown>
   const d: StoneDetails = {
@@ -277,14 +278,27 @@ export const normalizeStoneDetails = (raw: unknown): StoneDetails | null => {
   return d.type || d.count || d.value || d.carat || d.clarity || d.colour || d.cut || d.certificate ? d : null
 }
 
-/** "Diamond × 12, 0.45 ct, VS1, F, Excellent, Cert IGI123". */
-export const describeStones = (d: StoneDetails | null | undefined) => {
-  if (!d) return ''
-  return [
-    d.type ? `${d.type}${d.count ? ` × ${d.count}` : ''}` : d.count ? `${d.count} stones` : '',
-    d.carat ? `${d.carat} ct` : '', d.clarity, d.colour, d.cut, d.certificate ? `Cert ${d.certificate}` : '',
-  ].filter(Boolean).join(', ')
+/** Stone lines of an item. Older items saved a single stone object; that reads back as a one-line list. */
+export const normalizeStoneDetails = (raw: unknown): StoneDetails[] | null => {
+  const lines = (Array.isArray(raw) ? raw : [raw]).map(normalizeStoneLine).filter((d): d is StoneDetails => d !== null)
+  return lines.length ? lines : null
 }
+
+/** Total value and carat of all stone lines. */
+export const stoneTotals = (lines: StoneDetails[] | null | undefined) => ({
+  value: roundTo((lines || []).reduce((sum, d) => sum + (d.value || 0), 0), 2),
+  carat: roundTo((lines || []).reduce((sum, d) => sum + (d.carat || 0), 0), 3),
+  count: (lines || []).reduce((sum, d) => sum + (d.count || 0), 0),
+})
+
+const describeStoneLine = (d: StoneDetails) => [
+  d.type ? `${d.type}${d.count ? ` × ${d.count}` : ''}` : d.count ? `${d.count} stones` : '',
+  d.carat ? `${d.carat} ct` : '', d.clarity, d.colour, d.cut, d.certificate ? `Cert ${d.certificate}` : '',
+].filter(Boolean).join(', ')
+
+/** "Diamond × 12, 0.45 ct, VS1, F; Ruby × 2, 0.2 ct" — one part per stone line. */
+export const describeStones = (lines: StoneDetails[] | StoneDetails | null | undefined) =>
+  (normalizeStoneDetails(lines) || []).map(describeStoneLine).filter(Boolean).join('; ')
 
 // ── Old gold exchange ─────────────────────────────────────────────────────
 export type OldGoldInput = {

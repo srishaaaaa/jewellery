@@ -54,6 +54,7 @@ import {
   ITEM_STATUS_LABELS,
   type ItemStatus,
   normalizeStoneDetails,
+  stoneTotals,
   type HallmarkStatus,
   type StoneDetails,
 } from '../../lib/jewellery'
@@ -177,7 +178,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
   const [itemStatus, setItemStatus] = useState<ItemStatus>('available')
   /** Status when the form opened: item_status is only sent when it changes, so saving works before the database update. */
   const [loadedItemStatus, setLoadedItemStatus] = useState<ItemStatus>('available')
-  const [stoneDetails, setStoneDetails] = useState<StoneDetails>(EMPTY_STONE_DETAILS)
+  const [stones, setStones] = useState<StoneDetails[]>([EMPTY_STONE_DETAILS])
   const [showStones, setShowStones] = useState(false)
   const [imageUrl, setImageUrl] = useState<string>('')
   const [imageUploading, setImageUploading] = useState(false)
@@ -248,7 +249,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     setSubcategory('')
     setOtherWeight('')
     setHallmarkStatus('')
-    setStoneDetails(EMPTY_STONE_DETAILS)
+    setStones([EMPTY_STONE_DETAILS])
     setShowStones(false)
     setImageUrl('')
   }
@@ -313,8 +314,8 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     setHallmarkStatus(p.hallmarkStatus || '')
     setItemStatus(p.itemStatus || 'available')
     setLoadedItemStatus(p.itemStatus || 'available')
-    setStoneDetails(p.stoneDetails || EMPTY_STONE_DETAILS)
-    setShowStones(Boolean(p.stoneDetails))
+    setStones(p.stoneDetails?.length ? p.stoneDetails : [EMPTY_STONE_DETAILS])
+    setShowStones(Boolean(p.stoneDetails?.length))
     setImageUrl(p.imageUrl && !p.imageUrl.includes('placeholder') ? p.imageUrl : '')
 
     if (p.hasVariants) {
@@ -405,7 +406,21 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
       ? customPurity.trim().toUpperCase()
       : purityChoice
   const computedNetWeight = calculateNetWeight(parseFloat(grossWeight) || 0, parseFloat(stoneWeight) || 0, parseFloat(otherWeight) || 0)
-  const cleanStoneDetails = showStones ? normalizeStoneDetails(stoneDetails) : null
+  const cleanStoneDetails = showStones ? normalizeStoneDetails(stones) : null
+  const stoneTotal = stoneTotals(stones)
+  /** Changing a stone's value refills Stone Charge with the new total. */
+  const applyStones = (next: StoneDetails[]) => {
+    setStones(next)
+    const total = stoneTotals(next).value
+    if (total > 0) setStoneCharge(String(total))
+  }
+  const updateStone = (idx: number, patch: Partial<StoneDetails>) => {
+    const next = stones.map((d, i) => (i === idx ? { ...d, ...patch } : d))
+    if ('value' in patch) applyStones(next)
+    else setStones(next)
+  }
+  const addStone = () => setStones([...stones, EMPTY_STONE_DETAILS])
+  const removeStone = (idx: number) => applyStones(stones.filter((_, i) => i !== idx))
   const effectiveNetWeight = netWeightEdited ? Math.max(0, parseFloat(netWeight) || 0) : computedNetWeight
   const jewelleryPreview = metalType
     ? priceJewelleryItem({
@@ -1382,16 +1397,7 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                     />
                   </div>
                   <div>
-                    <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center justify-between gap-2">
-                      <span>Net Weight (g)</span>
-                      {netWeightEdited ? (
-                        <button type="button" onClick={() => { setNetWeightEdited(false); setNetWeight('') }} className="text-[10px] font-bold text-blue-600 hover:underline cursor-pointer">
-                          Auto
-                        </button>
-                      ) : (
-                        <span className="text-[10px] font-medium text-gray-400">Gross − Stone − Other</span>
-                      )}
-                    </label>
+                    <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center whitespace-nowrap">Net Weight (g)</label>
                     <input
                       type="number"
                       min="0"
@@ -1402,6 +1408,16 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                       onChange={(e) => { setNetWeightEdited(true); setNetWeight(e.target.value) }}
                       className="w-full h-10 px-3.5 rounded-xl border border-emerald-300 bg-emerald-50/50 text-xs font-bold text-emerald-950 outline-none focus:border-emerald-600 focus:bg-white"
                     />
+                    {netWeightEdited ? (
+                      <p className="mt-1 text-[10px] font-medium text-gray-500">
+                        Typed by hand ·{' '}
+                        <button type="button" onClick={() => { setNetWeightEdited(false); setNetWeight('') }} className="font-bold text-blue-600 hover:underline cursor-pointer">
+                          Calculate automatically
+                        </button>
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-[10px] font-medium text-gray-500">Gross − Stone − Other</p>
+                    )}
                   </div>
                 </div>
 
@@ -1469,6 +1485,9 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                       onChange={(e) => setStoneCharge(e.target.value)}
                       className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]"
                     />
+                    {showStones && stoneTotal.value > 0 && (
+                      <p className="mt-1 text-[10px] font-medium text-gray-500">Stones below total ₹{stoneTotal.value.toLocaleString('en-IN')}</p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Other Charge (₹)</label>
@@ -1557,16 +1576,48 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                     Stone / diamond details
                   </label>
                   {showStones && (
-                    <div className="mt-3 grid grid-cols-2 lg:grid-cols-4 gap-3">
-                      <div><label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Stone type</label><input className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]" placeholder="e.g. Diamond, Ruby" value={stoneDetails.type} onChange={(e) => setStoneDetails((d) => ({ ...d, type: e.target.value }))} /></div>
-                      <div><label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">No. of stones</label><input type="number" min="0" step="1" className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]" value={stoneDetails.count || ''} onChange={(e) => setStoneDetails((d) => ({ ...d, count: Number(e.target.value) || 0 }))} /></div>
-                      <div><label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Stone value (₹)</label><input type="number" min="0" step="0.01" className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]" value={stoneDetails.value || ''} onChange={(e) => setStoneDetails((d) => ({ ...d, value: Number(e.target.value) || 0 }))} /></div>
-                      <div><label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Diamond carat</label><input type="number" min="0" step="0.01" className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]" value={stoneDetails.carat || ''} onChange={(e) => setStoneDetails((d) => ({ ...d, carat: Number(e.target.value) || 0 }))} /></div>
-                      <div><label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Clarity</label><input className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]" placeholder="e.g. VS1" value={stoneDetails.clarity} onChange={(e) => setStoneDetails((d) => ({ ...d, clarity: e.target.value }))} /></div>
-                      <div><label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Colour</label><input className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]" placeholder="e.g. F" value={stoneDetails.colour} onChange={(e) => setStoneDetails((d) => ({ ...d, colour: e.target.value }))} /></div>
-                      <div><label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Cut</label><input className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]" placeholder="e.g. Excellent" value={stoneDetails.cut} onChange={(e) => setStoneDetails((d) => ({ ...d, cut: e.target.value }))} /></div>
-                      <div><label className="block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center">Certificate No.</label><input className="w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]" placeholder="e.g. IGI 123456" value={stoneDetails.certificate} onChange={(e) => setStoneDetails((d) => ({ ...d, certificate: e.target.value }))} /></div>
-                      <p className="col-span-2 lg:col-span-4 text-[10px] font-medium text-gray-500">The price uses the Stone Charge above; these details are shown on the invoice.</p>
+                    <div className="mt-3 space-y-3">
+                      {stones.map((d, idx) => {
+                        const field = 'w-full h-10 px-3.5 rounded-xl border border-gray-300 bg-white text-xs font-bold text-gray-900 outline-none focus:border-[#0A0A0A]'
+                        const lbl = 'block text-[11px] font-bold text-gray-700 mb-1.5 h-4 flex items-center whitespace-nowrap'
+                        const set = (patch: Partial<StoneDetails>) => updateStone(idx, patch)
+                        return (
+                          <div key={idx} className="rounded-xl border border-black/10 bg-gray-50/60 p-3">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <p className="text-[11px] font-black uppercase tracking-wider text-gray-700">Stone {idx + 1}</p>
+                              {stones.length > 1 && (
+                                <button type="button" onClick={() => removeStone(idx)} className="flex items-center gap-1 text-[11px] font-bold text-red-600 hover:underline cursor-pointer">
+                                  <Trash2 size={13} /> Remove
+                                </button>
+                              )}
+                            </div>
+                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                              <div><label className={lbl}>Stone type</label><input className={field} placeholder="e.g. Diamond, Ruby" value={d.type} onChange={(e) => set({ type: e.target.value })} /></div>
+                              <div><label className={lbl}>No. of stones</label><input type="number" min="0" step="1" className={field} placeholder="0" value={d.count || ''} onChange={(e) => set({ count: Number(e.target.value) || 0 })} /></div>
+                              <div><label className={lbl}>Carat (total)</label><input type="number" min="0" step="0.001" className={field} placeholder="0.00" value={d.carat || ''} onChange={(e) => set({ carat: Number(e.target.value) || 0 })} /></div>
+                              <div><label className={lbl}>Value (₹)</label><input type="number" min="0" step="0.01" className={field} placeholder="0" value={d.value || ''} onChange={(e) => set({ value: Number(e.target.value) || 0 })} /></div>
+                              <div><label className={lbl}>Clarity</label><input className={field} placeholder="e.g. VS1" value={d.clarity} onChange={(e) => set({ clarity: e.target.value })} /></div>
+                              <div><label className={lbl}>Colour</label><input className={field} placeholder="e.g. F" value={d.colour} onChange={(e) => set({ colour: e.target.value })} /></div>
+                              <div><label className={lbl}>Cut</label><input className={field} placeholder="e.g. Excellent" value={d.cut} onChange={(e) => set({ cut: e.target.value })} /></div>
+                              <div><label className={lbl}>Certificate No.</label><input className={field} placeholder="e.g. IGI 123456" value={d.certificate} onChange={(e) => set({ certificate: e.target.value })} /></div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <button type="button" onClick={addStone}
+                          className="flex items-center gap-1.5 rounded-xl border border-dashed border-gray-400 px-3 py-2 text-[11px] font-black text-gray-800 hover:bg-gray-50 cursor-pointer">
+                          <Plus size={14} /> Add another stone
+                        </button>
+                        {stones.length > 1 && (
+                          <p className="text-[11px] font-bold text-gray-800">
+                            Total: {stoneTotal.count} stones · {stoneTotal.carat} ct · ₹{stoneTotal.value.toLocaleString('en-IN')}
+                          </p>
+                        )}
+                      </div>
+                      <p className="text-[10px] font-medium text-gray-500">
+                        Add one row for each kind of stone. Value is for all the stones in that row. The total fills in Stone Charge, which you can still change. Every stone is shown on the invoice.
+                      </p>
                     </div>
                   )}
                 </div>

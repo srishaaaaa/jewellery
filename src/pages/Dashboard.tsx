@@ -1429,7 +1429,7 @@ export default function Dashboard() {
         { id: 'sales_desk',     icon: <Briefcase size={20} />,    label: 'Sales Desk' },
         { id: 'advance_orders', icon: <Clock size={20} />,        label: 'Advance Orders' },
         { id: 'customers',      icon: <Users size={20} />,        label: 'Customers' },
-        { id: 'customer_events', icon: <Cake size={20} />,        label: 'Birthdays & Anniversaries' },
+        { id: 'customer_events', icon: <Cake size={20} />,        label: 'Special Occasions' },
         { id: 'history',        icon: <History size={20} />,      label: 'Order History' },
       ]
     : [
@@ -1441,7 +1441,7 @@ export default function Dashboard() {
         { id: 'sales_desk',     icon: <Briefcase size={20} />,    label: 'Sales Desk' },
         { id: 'advance_orders', icon: <Clock size={20} />,        label: 'Advance Orders' },
         { id: 'customers',      icon: <Users size={20} />,        label: 'Customers' },
-        { id: 'customer_events', icon: <Cake size={20} />,        label: 'Birthdays & Anniversaries' },
+        { id: 'customer_events', icon: <Cake size={20} />,        label: 'Special Occasions' },
         { id: 'expenses',       icon: <Wallet size={20} />,       label: 'Expense Tracker' },
         { id: 'outstanding_credits', icon: <Banknote size={20} />, label: 'Outstanding Credits', badge: outstandingCreditCount },
         { id: 'history',        icon: <History size={20} />,      label: 'Order History' },
