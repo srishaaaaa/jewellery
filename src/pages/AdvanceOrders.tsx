@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Calendar, Check, Eye, IndianRupee, Package, Printer, Search, Trash2, X } from 'lucide-react'
+import { Calendar, Check, Clock, Eye, FileText, IndianRupee, PackageCheck, Printer, RefreshCw, Search, Trash2, X } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { getErrorMessage } from '../lib/errorMessage'
 import { formatCurrency } from '../lib/retail'
@@ -99,14 +99,24 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
 
   const removeCoupon = () => { setAppliedCoupon(null); setCouponInput(''); setCouponError('') }
 
-  const analytics = useMemo(() => ({
-    total: orders.length,
-    pending: orders.filter(o => o.status === 'pending_deposit' || o.status === 'waiting_final_payment').length,
-    deposits: orders.filter(o => o.status !== 'cancelled').reduce((sum, o) => sum + o.deposit_amount, 0),
-    outstanding: orders.filter(o => !['completed', 'cancelled'].includes(o.status)).reduce((sum, o) => sum + o.remaining_balance, 0),
-    ready: orders.filter(o => o.status === 'ready_for_delivery').length,
-    completed: orders.filter(o => o.status === 'completed').length,
-  }), [orders])
+  const analytics = useMemo(() => {
+    const open = orders.filter(o => !['completed', 'cancelled'].includes(o.status))
+    const live = orders.filter(o => o.status !== 'cancelled')
+    return {
+      pending: orders.filter(o => o.status === 'pending_deposit' || o.status === 'waiting_final_payment').length,
+      ready: orders.filter(o => o.status === 'ready_for_delivery').length,
+      completed: orders.filter(o => o.status === 'completed').length,
+      /** Balance still to collect on open orders */
+      outstanding: open.reduce((sum, o) => sum + o.remaining_balance, 0),
+      balanceDueCount: open.filter(o => o.remaining_balance > 0).length,
+      /** Deposits already taken on orders that are still open */
+      openDeposits: open.reduce((sum, o) => sum + o.deposit_amount, 0),
+      openDepositCount: open.filter(o => o.deposit_amount > 0).length,
+      /** Value of every advance order that is not cancelled */
+      totalValue: live.reduce((sum, o) => sum + o.total_amount, 0),
+      liveCount: live.length,
+    }
+  }, [orders])
 
   const filtered = useMemo(() => orders.filter(order => {
     const query = search.trim().toLowerCase()
@@ -267,8 +277,20 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
     {/* Header */}
     <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6">
       <div>
+        <p className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-700">Separate from sales</p>
         <h2 className="text-[28px] font-black text-[#000000] tracking-tight">Advance Orders</h2>
+        <p className="text-sm text-[#000000]/80 font-medium mt-1">Deposits are tracked separately. Full order value is recognized once final payment is completed.</p>
         <p className="text-xs text-[#000000] font-semibold mt-1">Partial-payment holds — revenue is recognized only when the balance is collected.</p>
+      </div>
+      <div className="flex items-center gap-2 lg:order-last">
+        <button type="button" onClick={() => setCreateOpen(true)}
+          className="rounded-xl bg-emerald-600 px-5 py-3 text-sm font-black text-white shadow-sm hover:bg-emerald-700 cursor-pointer whitespace-nowrap">
+          + New Advance Order
+        </button>
+        <button type="button" onClick={() => void load()} title="Refresh" aria-label="Refresh"
+          className="rounded-xl border border-black/10 bg-white p-3 text-[#000000] shadow-sm hover:bg-black/5 cursor-pointer">
+          <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+        </button>
       </div>
       <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
         <div className="flex flex-wrap items-center bg-[#FFFFFF] border border-black/10 rounded-xl p-1 gap-1 max-w-full">
@@ -299,18 +321,22 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
     {notice && <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</div>}
 
     {/* Summary cards */}
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
       {([
-        ['Outstanding Balance', money(analytics.outstanding), <IndianRupee key="r" className="w-5 h-5 text-[#DC2626]" />, 'bg-[#FEE2E2]'],
-        ['Ready For Collection', String(analytics.ready), <Package key="p" className="w-5 h-5 text-[#2563EB]" />, 'bg-[#DBEAFE]'],
-        ['Completed Deposits', String(analytics.completed), <Check key="c" className="w-5 h-5 text-[#16A34A]" />, 'bg-[#DCFCE7]'],
-      ] as const).map(([label, value, icon, bg]) => (
-        <div key={label} className="bg-white border border-black/10 rounded-xl p-4 shadow-xs flex justify-between items-center">
-          <div>
-            <p className="text-[10px] font-bold text-[var(--accent-dark)] uppercase tracking-wider">{label}</p>
-            <p className="text-xl font-black text-black">{value}</p>
+        ['Pending Deposit Amount Received', money(analytics.openDeposits), `${analytics.openDepositCount} bill${analytics.openDepositCount === 1 ? '' : 's'} with pending deposits`, <IndianRupee key="d" className="w-4 h-4 text-emerald-700" />, 'bg-emerald-50 border-emerald-200'],
+        ['Needed to Receive (Pending)', money(analytics.outstanding), `${analytics.balanceDueCount} bill${analytics.balanceDueCount === 1 ? '' : 's'} with balance due`, <IndianRupee key="r" className="w-4 h-4 text-orange-700" />, 'bg-orange-50 border-orange-200'],
+        ['Total Advance Orders Value', money(analytics.totalValue), `${analytics.liveCount} total advance order${analytics.liveCount === 1 ? '' : 's'}`, <FileText key="v" className="w-4 h-4 text-fuchsia-700" />, 'bg-fuchsia-50 border-fuchsia-200'],
+        ['Ready for Delivery', String(analytics.ready), 'Ready for customer pickup/delivery', <PackageCheck key="p" className="w-4 h-4 text-blue-700" />, 'bg-blue-50 border-blue-200'],
+        ['Pending Orders', String(analytics.pending), 'Awaiting balance or confirmation', <Clock key="c" className="w-4 h-4 text-rose-700" />, 'bg-rose-50 border-rose-200'],
+        ['Completed Deposits', String(analytics.completed), 'Balance collected and billed', <Check key="k" className="w-4 h-4 text-green-700" />, 'bg-green-50 border-green-200'],
+      ] as const).map(([label, value, note, icon, iconBox]) => (
+        <div key={label} className="bg-white border border-black/10 rounded-2xl p-5 shadow-xs flex flex-col">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-[11px] font-black text-[#000000]/75 uppercase tracking-wider leading-snug">{label}</p>
+            <div className={`w-10 h-10 shrink-0 rounded-xl border ${iconBox} flex items-center justify-center`}>{icon}</div>
           </div>
-          <div className={`w-10 h-10 rounded-lg ${bg} flex items-center justify-center`}>{icon}</div>
+          <p className="mt-4 text-[26px] font-black text-[#000000] leading-tight break-words">{value}</p>
+          <p className="mt-3 pt-3 border-t border-black/10 text-xs font-medium text-[#000000]/70">{note}</p>
         </div>
       ))}
     </div>
