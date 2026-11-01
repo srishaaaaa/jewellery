@@ -62,6 +62,7 @@ import type { AdvanceOrder } from '../services/advanceOrderService'
 import { InventoryTable } from '../components/inventory/InventoryTable'
 import { ExpensesView } from '../components/expenses/ExpensesView'
 import { expenseService, type ExpenseRecord } from '../services/expenseService'
+import { oldGoldService, type OldGoldRecord } from '../services/salesDeskService'
 import { useNavigationStore } from '../store/navigationStore'
 import { useHardwareBarcodeScanner } from '../hooks/useHardwareBarcodeScanner'
 import { BarcodeRedirectDialog } from '../components/pos/BarcodeRedirectDialog'
@@ -318,6 +319,8 @@ export default function Dashboard() {
   /** All bills, only GST invoices, or only non-GST bills */
   const [analyticsBillKind, setAnalyticsBillKind] = useState<'all' | 'gst' | 'non_gst'>('all')
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([])
+  const [oldGold, setOldGold] = useState<OldGoldRecord[]>([])
+  const netRules = useSettingsStore(s => s.settings?.posPermissions)
 
   // Order Management bill type filter
   const [billTypeFilter, setBillTypeFilter] = useState<'all' | 'offline' | 'online' | 'manual'>('all')
@@ -486,7 +489,15 @@ export default function Dashboard() {
     if (analyticsDateFrom) datedExpenses = datedExpenses.filter(e => e.expense_date >= analyticsDateFrom)
     if (analyticsDateTo)   datedExpenses = datedExpenses.filter(e => e.expense_date <= analyticsDateTo)
     const totalExpenses = datedExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
-    const netProfit = completedRevenue - totalExpenses
+    // Old gold taken in during the period: exchanged on bills and bought at the counter
+    const oldGoldDay = (iso: string) => toLocalDateStr(new Date(iso))
+    const totalOldGold = oldGold
+      .filter(g => (!analyticsDateFrom || oldGoldDay(g.createdAt) >= analyticsDateFrom) && (!analyticsDateTo || oldGoldDay(g.createdAt) <= analyticsDateTo))
+      .reduce((s, g) => s + (Number(g.netValue) || 0), 0)
+    const subtractExpenses = netRules?.netProfitIncludeExpenses ?? true
+    const subtractOldGold = netRules?.netProfitIncludeOldGold ?? true
+    const netProfit = completedRevenue - (subtractExpenses ? totalExpenses : 0) - (subtractOldGold ? totalOldGold : 0)
+    const netFormula = ['GST + Non-GST', subtractExpenses ? 'Expenses' : '', subtractOldGold ? 'Old Gold' : ''].filter(Boolean).join(' − ')
     const isProfitable = netProfit >= 0
     const gstBills = billableCompleted.filter(isGstBill)
     const nonGstBills = billableCompleted.filter(o => !isGstBill(o))
@@ -808,6 +819,8 @@ export default function Dashboard() {
       topWAProducts,
       topWACategories,
       totalExpenses,
+      totalOldGold,
+      netFormula,
       netProfit,
       isProfitable,
       gstSales,
@@ -816,7 +829,7 @@ export default function Dashboard() {
       gstBillCount: gstBills.length,
       nonGstBillCount: nonGstBills.length,
     }
-  }, [orders, orderItems, products, expenses, analyticsDateFrom, analyticsDateTo, analyticsBillKind])
+  }, [orders, orderItems, products, expenses, oldGold, netRules, analyticsDateFrom, analyticsDateTo, analyticsBillKind])
 
   // Bill-type filtered results for Order Management table (client-side, instant)
   const filteredSearchResults = useMemo(() => {
@@ -858,6 +871,7 @@ export default function Dashboard() {
       setSearchResults(mappedOrders.filter(o => normalizeOrderType(o.order_type) !== 'online_request').slice(0, 100))
       setCoupons((couponRes.data || []) as DashboardCoupon[])
       setExpenses(expList || [])
+      oldGoldService.list().then(setOldGold).catch(() => setOldGold([]))
 
       const orderIds = mappedOrders.map(o => o.id).filter(Boolean)
       if (orderIds.length > 0) {
@@ -2454,7 +2468,7 @@ export default function Dashboard() {
                       <span className="w-11 h-11 rounded-full bg-white/15 flex items-center justify-center shrink-0"><Wallet size={18} /></span>
                     </div>
                     <p className="mt-4 text-[28px] font-black leading-tight break-words">{analytics.isProfitable ? '' : '−'}{formatCurrency(Math.abs(analytics.netProfit))}</p>
-                    <p className="mt-2 text-[11px] font-black">GST + Non-GST − Expenses</p>
+                    <p className="mt-2 text-[11px] font-black">{analytics.netFormula}</p>
                   </div>
                   <div className="rounded-2xl p-6 bg-white border border-black/15 shadow-sm">
                     <div className="flex items-start justify-between gap-3">
@@ -2479,6 +2493,12 @@ export default function Dashboard() {
                     </div>
                     <p className="mt-4 text-[28px] font-black leading-tight text-rose-600 break-words">−{formatCurrency(analytics.totalExpenses)}</p>
                     <button type="button" onClick={() => handleTabClick('expenses')} className="mt-2 text-xs font-black text-rose-600 underline cursor-pointer">Money out — Expense Tracker</button>
+                    {analytics.totalOldGold > 0 && (
+                      <p className="mt-2 text-xs font-semibold text-[#000000]">
+                        Old gold taken in: <span className="font-black text-rose-600">−{formatCurrency(analytics.totalOldGold)}</span>
+                        {!(netRules?.netProfitIncludeOldGold ?? true) && ' (not subtracted — see Settings)'}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white px-5 py-4 shadow-sm">

@@ -474,6 +474,30 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                   </span>
                 </label>
                 <p className="text-[11px] text-[#000000]">Staff never change metal rates, Schema rules, invoices, completed payments, stock quantities or settings.</p>
+                <div className="pt-3 border-t border-black/10 space-y-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Net Profit calculation</p>
+                  {([
+                    ['netProfitIncludeExpenses', 'Subtract expenses', 'On: Net Profit = sales − expenses from the Expense Tracker.'],
+                    ['netProfitIncludeOldGold', 'Subtract old gold exchange', 'On: Net Profit also takes off old gold taken in — exchanged on bills and bought at the counter.'],
+                  ] as const).map(([key, label, hint]) => (
+                    <div key={key} className="flex items-start justify-between gap-4">
+                      <span>
+                        <span className="block text-xs font-bold text-[#000000]">{label}</span>
+                        <span className="block text-[11px] text-[#000000]">{hint}</span>
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={form.posPermissions[key]}
+                        aria-label={label}
+                        onClick={() => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, [key]: !f.posPermissions[key] } }))}
+                        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors cursor-pointer ${form.posPermissions[key] ? 'bg-[var(--accent)]' : 'bg-black/20'}`}
+                      >
+                        <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${form.posPermissions[key] ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             </SectionCard>
           </div>

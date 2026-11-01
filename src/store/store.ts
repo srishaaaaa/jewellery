@@ -178,9 +178,13 @@ export interface PosPermissions {
   cashLimit: number
   /** Admin may accept cash above cashLimit (staff never can). */
   allowCashAboveLimit: boolean
+  /** Net Profit subtracts expenses from the Expense Tracker. */
+  netProfitIncludeExpenses: boolean
+  /** Net Profit subtracts old gold taken in (exchanged on bills and bought at the counter). */
+  netProfitIncludeOldGold: boolean
 }
 
-export const DEFAULT_POS_PERMISSIONS: PosPermissions = { staffMaxDiscountPercent: 5, staffCanCustomiseSchemes: false, cashLimit: 199500, allowCashAboveLimit: false }
+export const DEFAULT_POS_PERMISSIONS: PosPermissions = { staffMaxDiscountPercent: 5, staffCanCustomiseSchemes: false, cashLimit: 199500, allowCashAboveLimit: false, netProfitIncludeExpenses: true, netProfitIncludeOldGold: true }
 
 export const normalizePosPermissions = (raw: unknown): PosPermissions => {
   const r = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
@@ -190,6 +194,8 @@ export const normalizePosPermissions = (raw: unknown): PosPermissions => {
     staffCanCustomiseSchemes: typeof r.staffCanCustomiseSchemes === 'boolean' ? r.staffCanCustomiseSchemes : DEFAULT_POS_PERMISSIONS.staffCanCustomiseSchemes,
     cashLimit: Number(r.cashLimit) > 0 ? Number(r.cashLimit) : DEFAULT_POS_PERMISSIONS.cashLimit,
     allowCashAboveLimit: typeof r.allowCashAboveLimit === 'boolean' ? r.allowCashAboveLimit : DEFAULT_POS_PERMISSIONS.allowCashAboveLimit,
+    netProfitIncludeExpenses: typeof r.netProfitIncludeExpenses === 'boolean' ? r.netProfitIncludeExpenses : DEFAULT_POS_PERMISSIONS.netProfitIncludeExpenses,
+    netProfitIncludeOldGold: typeof r.netProfitIncludeOldGold === 'boolean' ? r.netProfitIncludeOldGold : DEFAULT_POS_PERMISSIONS.netProfitIncludeOldGold,
   }
 }
 
