@@ -99,7 +99,7 @@ export const customerService = {
    * anniversary/name/address never overwrite a previously-saved value —
    * only non-blank fields from this sale are applied.
    */
-  async upsertFromSale(input: { phone: string; name?: string; address?: string; birthday?: string | null; anniversary?: string | null; aadhaar?: string | null; pan?: string | null }): Promise<void> {
+  async upsertFromSale(input: { phone: string; name?: string; address?: string; email?: string; birthday?: string | null; anniversary?: string | null; aadhaar?: string | null; pan?: string | null }): Promise<void> {
     const phone = input.phone.trim()
     if (!phone) return
 
@@ -115,6 +115,7 @@ export const customerService = {
       // Aadhaar / PAN given on this bill are kept for next time (blank never clears a saved one).
       ...(normalizeAadhaar(input.aadhaar) ? { aadhaar: normalizeAadhaar(input.aadhaar) } : {}),
       ...(input.pan?.trim() ? { pan: input.pan.trim().toUpperCase() } : {}),
+      ...(input.email?.trim() ? { email: input.email.trim() } : {}),
     }
 
     const { error } = await supabase.from('customers').upsert(payload, { onConflict: 'phone' })

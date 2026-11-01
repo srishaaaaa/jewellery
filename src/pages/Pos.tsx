@@ -356,7 +356,7 @@ export default function Pos(props: PosProps = {}) {
   const [editingOfferId, setEditingOfferId] = useState<string | number | null>(null)
   const [quickAddBarcode, setQuickAddBarcode] = useState('')
   const [scanResetTick, setScanResetTick] = useState(0)
-  const [customer, setCustomer] = useState({ name: '', phone: '', address: '' })
+  const [customer, setCustomer] = useState({ name: '', phone: '', address: '', email: '' })
   const [customerBirthday, setCustomerBirthday] = useState('')
   const [customerAnniversary, setCustomerAnniversary] = useState('')
 
@@ -396,6 +396,7 @@ export default function Pos(props: PosProps = {}) {
       ...prev,
       name: prev.name.trim() || found.name || prev.name,
       address: prev.address.trim() || found.address || prev.address,
+      email: prev.email.trim() || found.email || prev.email,
     }))
     if (found.birthday) setCustomerBirthday((prev) => prev || found.birthday || '')
     if (found.anniversary) setCustomerAnniversary((prev) => prev || found.anniversary || '')
@@ -1077,7 +1078,7 @@ export default function Pos(props: PosProps = {}) {
       }
     })
     setItems(loaded)
-    setCustomer({ name: q.customerName, phone: q.phone, address: '' })
+    setCustomer({ name: q.customerName, phone: q.phone, address: '', email: '' })
     setBillingQuotation({ id: q.id, number: q.quotationNumber })
     setQuoteSaved(valid
       ? `Billing ${q.quotationNumber} at the quoted prices.`
@@ -1088,7 +1089,7 @@ export default function Pos(props: PosProps = {}) {
   const clearAll = () => {
     setBillingQuotation(null)
     setItems([])
-    setCustomer({ name: '', phone: '', address: '' })
+    setCustomer({ name: '', phone: '', address: '', email: '' })
     setCustomerBirthday('')
     setCustomerAnniversary('')
     setInvoice(null)
@@ -1302,7 +1303,7 @@ export default function Pos(props: PosProps = {}) {
       })
       // New customers land in the Customers list, with any birthday / ID details typed on the bill
       void customerService.upsertFromSale({
-        phone: created.phone, name: created.customer_name, address: created.address,
+        phone: created.phone, name: created.customer_name, address: created.address, email: customer.email,
         birthday: customerBirthday || null, anniversary: customerAnniversary || null,
         aadhaar: customerAadhaar || null, pan: customerPan || null,
       }).catch(() => undefined)
@@ -1554,6 +1555,7 @@ export default function Pos(props: PosProps = {}) {
         phone: normalizedPhone,
         name: customer.name,
         address: customer.address,
+        email: customer.email,
         birthday: customerBirthday,
         anniversary: customerAnniversary,
         aadhaar: normalizeAadhaar(customerAadhaar) || null,
@@ -1561,7 +1563,7 @@ export default function Pos(props: PosProps = {}) {
       })
 
       setItems([])
-      setCustomer({ name: '', phone: '', address: '' })
+      setCustomer({ name: '', phone: '', address: '', email: '' })
       setCreditDueDate('')
       setCustomerBirthday('')
       setCustomerAnniversary('')
@@ -1956,6 +1958,26 @@ export default function Pos(props: PosProps = {}) {
                   value={remarks}
                   onChange={e => setRemarks(e.target.value)}
                   placeholder="Optional remarks"
+                  className="w-full bg-white border border-black/10 hover:border-black/10 focus:border-[var(--accent)] focus:bg-white rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Email</label>
+                <input
+                  type="email"
+                  value={customer.email}
+                  onChange={e => setCustomer({...customer, email: e.target.value})}
+                  placeholder="customer@email.com"
+                  className="w-full bg-white border border-black/10 hover:border-black/10 focus:border-[var(--accent)] focus:bg-white rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Address</label>
+                <input
+                  type="text"
+                  value={customer.address}
+                  onChange={e => setCustomer({...customer, address: e.target.value})}
+                  placeholder="Door no., street, area, city"
                   className="w-full bg-white border border-black/10 hover:border-black/10 focus:border-[var(--accent)] focus:bg-white rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm"
                 />
               </div>
