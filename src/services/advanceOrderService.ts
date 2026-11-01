@@ -1,7 +1,7 @@
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 
 export type AdvanceStatus = 'pending_deposit' | 'ready_for_delivery' | 'waiting_final_payment' | 'completed' | 'cancelled'
-export type AdvancePaymentMethod = 'cash' | 'upi' | 'card'
+export type AdvancePaymentMethod = 'cash' | 'upi' | 'card' | 'bank' | 'cheque' | 'mixed'
 
 export type AdvanceOrder = {
   id: string

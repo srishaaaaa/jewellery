@@ -1300,6 +1300,12 @@ export default function Pos(props: PosProps = {}) {
         remarks: depositForm.remarks, referenceNumber: depositForm.referenceNumber, paymentMethod: depositForm.paymentMethod, createdByName: role || 'Staff',
         products: productsSnapshot,
       })
+      // New customers land in the Customers list, with any birthday / ID details typed on the bill
+      void customerService.upsertFromSale({
+        phone: created.phone, name: created.customer_name, address: created.address,
+        birthday: customerBirthday || null, anniversary: customerAnniversary || null,
+        aadhaar: customerAadhaar || null, pan: customerPan || null,
+      }).catch(() => undefined)
       setDepositCreated(created)
       setDepositOpen(false)
       clearAll()

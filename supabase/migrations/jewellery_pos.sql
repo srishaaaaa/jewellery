@@ -1934,3 +1934,166 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.record_scheme_installments(UUID, INTEGER, TEXT, TEXT, TEXT, NUMERIC, TEXT) TO anon, authenticated;
+
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- Advance orders take every payment mode: cash, UPI, card, bank, cheque
+-- and mixed (split; the amounts per mode are kept in the remarks).
+-- Same functions as in production_schema.sql with the wider list.
+-- ═══════════════════════════════════════════════════════════════════════
+ALTER TABLE public.advance_order_payments DROP CONSTRAINT IF EXISTS advance_order_payments_payment_method_check;
+ALTER TABLE public.advance_order_payments ADD CONSTRAINT advance_order_payments_payment_method_check
+  CHECK (payment_method IN ('cash','upi','card','bank','cheque','mixed'));
+
+CREATE OR REPLACE FUNCTION public.create_advance_order(
+  p_customer_name TEXT, p_phone TEXT, p_address TEXT, p_product_name TEXT,
+  p_category TEXT, p_description TEXT, p_total_amount NUMERIC,
+  p_deposit_amount NUMERIC, p_expected_delivery_date TEXT,
+  p_remarks TEXT DEFAULT '', p_payment_method TEXT DEFAULT 'cash',
+  p_created_by_name TEXT DEFAULT 'Admin', p_products JSONB DEFAULT '[]'
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_row public.advance_orders;
+  v_deposit_id TEXT;
+  v_method TEXT;
+BEGIN
+  v_method := LOWER(COALESCE(p_payment_method, 'cash'));
+  IF v_method NOT IN ('cash', 'upi', 'card', 'bank', 'cheque', 'mixed') THEN
+    v_method := 'cash';
+  END IF;
+
+  LOOP
+    v_deposit_id := 'DEP-' || TO_CHAR(NOW(), 'YYYYMMDD') || '-' || LPAD((FLOOR(RANDOM() * 9000) + 1000)::INT::TEXT, 4, '0');
+    EXIT WHEN NOT EXISTS (SELECT 1 FROM public.advance_orders WHERE deposit_id = v_deposit_id);
+  END LOOP;
+
+  INSERT INTO public.advance_orders (
+    deposit_id, customer_name, phone, address, product_name, products,
+    category, description, total_amount, deposit_amount,
+    expected_delivery_date, status, remarks, created_by_name
+  ) VALUES (
+    v_deposit_id,
+    COALESCE(NULLIF(TRIM(p_customer_name), ''), 'Customer'),
+    COALESCE(p_phone, ''),
+    COALESCE(p_address, ''),
+    COALESCE(NULLIF(TRIM(p_product_name), ''), 'Product'),
+    COALESCE(p_products, '[]'::JSONB),
+    COALESCE(p_category, ''),
+    COALESCE(p_description, ''),
+    p_total_amount,
+    p_deposit_amount,
+    NULLIF(TRIM(p_expected_delivery_date), '')::DATE,
+    'pending_deposit',
+    COALESCE(p_remarks, ''),
+    COALESCE(p_created_by_name, 'Admin')
+  )
+  RETURNING * INTO v_row;
+
+  INSERT INTO public.advance_order_timeline (advance_order_id, event_type, label, remarks)
+  VALUES
+    (v_row.id, 'created', 'Deposit Created', COALESCE(p_remarks, '')),
+    (v_row.id, 'deposit_received', 'Deposit Received', 'Received INR ' || p_deposit_amount || ' via ' || CASE WHEN v_method = 'upi' THEN 'QR' ELSE UPPER(v_method) END);
+
+  INSERT INTO public.advance_order_payments (advance_order_id, payment_type, amount, payment_method, remarks)
+  VALUES (v_row.id, 'deposit', p_deposit_amount, v_method, COALESCE(p_remarks, ''))
+  ON CONFLICT (advance_order_id, payment_type) DO NOTHING;
+
+  RETURN row_to_json(v_row);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.complete_advance_order_v2(
+  p_order_id UUID, p_payment_method TEXT, p_final_amount NUMERIC,
+  p_coupon_code TEXT DEFAULT NULL, p_coupon_percentage NUMERIC DEFAULT 0,
+  p_manual_discount NUMERIC DEFAULT 0, p_remarks TEXT DEFAULT ''
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_adv public.advance_orders;
+  v_order_id UUID;
+  v_invoice_no TEXT;
+  v_now TIMESTAMPTZ := NOW();
+  v_method TEXT;
+  v_final NUMERIC;
+  v_manual NUMERIC;
+  v_coupon NUMERIC;
+  v_items JSONB;
+BEGIN
+  SELECT * INTO v_adv FROM public.advance_orders WHERE id = p_order_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Advance order not found';
+  END IF;
+
+  -- Already completed: return the existing bill instead of creating another.
+  IF v_adv.status = 'completed' AND v_adv.completed_order_id IS NOT NULL THEN
+    RETURN json_build_object('order_id', v_adv.completed_order_id::TEXT, 'invoice_no', v_adv.invoice_number, 'completed_at', v_adv.completed_at);
+  END IF;
+  IF v_adv.status = 'cancelled' THEN
+    RAISE EXCEPTION 'Advance order is cancelled';
+  END IF;
+
+  v_method := LOWER(COALESCE(p_payment_method, 'cash'));
+  IF v_method NOT IN ('cash', 'upi', 'card', 'bank', 'cheque', 'mixed') THEN
+    v_method := 'cash';
+  END IF;
+  v_final  := GREATEST(0, COALESCE(p_final_amount, v_adv.remaining_balance));
+  v_manual := GREATEST(0, COALESCE(p_manual_discount, 0));
+  v_coupon := GREATEST(0, v_adv.remaining_balance - v_final - v_manual);
+  v_items  := CASE WHEN jsonb_typeof(v_adv.products) = 'array' AND jsonb_array_length(v_adv.products) > 0 THEN v_adv.products
+                   ELSE jsonb_build_array(jsonb_build_object(
+                     'name', v_adv.product_name, 'category', v_adv.category, 'quantity', 1,
+                     'base_price', v_adv.total_amount, 'line_total', v_adv.total_amount,
+                     'unit', 'piece', 'unit_type', 'unit', 'source', 'advance_order'))
+              END;
+
+  v_order_id := gen_random_uuid();
+  v_invoice_no := public.next_invoice_no();
+
+  INSERT INTO public.orders (
+    id, invoice_no, customer_name, phone, address, items, subtotal, shipping, total,
+    status, order_mode, order_type, delivery_charge, discount_amount,
+    manual_discount_amount, manual_discount_type, manual_discount_value,
+    coupon_code, coupon_percentage, payment_method, payment_mode,
+    remarks, billing_date, created_at, updated_at
+  ) VALUES (
+    v_order_id, v_invoice_no, v_adv.customer_name, v_adv.phone, v_adv.address, v_items,
+    v_adv.total_amount, 0, v_adv.deposit_amount + v_final,
+    'completed', 'offline', 'advance_order', 0, v_coupon,
+    v_manual, 'flat', v_manual,
+    p_coupon_code, COALESCE(p_coupon_percentage, 0), v_method, v_method,
+    COALESCE(p_remarks, ''), v_now, v_now, v_now
+  );
+
+  UPDATE public.advance_orders
+  SET status = 'completed',
+      completed_at = v_now,
+      completed_order_id = v_order_id,
+      invoice_number = v_invoice_no,
+      final_payment_method = v_method,
+      remarks = COALESCE(NULLIF(p_remarks, ''), remarks),
+      updated_at = v_now
+  WHERE id = p_order_id;
+
+  INSERT INTO public.advance_order_payments (advance_order_id, payment_type, amount, payment_method, remarks, received_at)
+  VALUES (p_order_id, 'remaining', v_final, v_method, COALESCE(p_remarks, ''), v_now)
+  ON CONFLICT (advance_order_id, payment_type) DO NOTHING;
+
+  INSERT INTO public.advance_order_timeline (advance_order_id, event_type, label, remarks, created_at)
+  VALUES
+    (p_order_id, 'remaining_payment_received', 'Final Payment Received', COALESCE(p_remarks, ''), v_now),
+    (p_order_id, 'delivered', 'Delivered', COALESCE(p_remarks, ''), v_now),
+    (p_order_id, 'revenue_posted', 'Revenue Posted (INR ' || (v_adv.deposit_amount + v_final) || ')', COALESCE(p_remarks, ''), v_now),
+    (p_order_id, 'invoice_generated', 'Invoice Generated (' || v_invoice_no || ')', COALESCE(p_remarks, ''), v_now);
+
+  RETURN json_build_object('order_id', v_order_id::TEXT, 'invoice_no', v_invoice_no, 'completed_at', v_now);
+END;
+$$;

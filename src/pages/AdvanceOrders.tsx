@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Box, Calendar, Check, Clock, Eye, FileText, IndianRupee, Plus, Printer, RefreshCw, Trash2, Wallet, X } from 'lucide-react'
-import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { customerService } from '../services/customerService'
 import { getErrorMessage } from '../lib/errorMessage'
 import { formatCurrency } from '../lib/retail'
 import { printThermalReceipt } from '../lib/thermalPrint'
@@ -10,6 +10,8 @@ import { useNavigate } from 'react-router-dom'
 import { ModalPortal } from '../components/ModalPortal'
 import { DocumentPreviewModal } from '../components/invoice/InvoiceParts'
 import { AdvanceReceiptSheet } from '../components/invoice/AdvanceReceiptSheet'
+import { PaymentModePicker } from '../components/PaymentModePicker'
+import { splitError, splitSummary, type PaymentMode, type SplitAmounts } from '../lib/paymentModes'
 import { PrintSettingsModal } from '../components/invoice/PrintSettingsModal'
 import { thermalWidth, type PrintPrefs } from '../lib/printPrefs'
 import { DocIcon, WhatsAppIcon, actionBtn } from '../components/ActionIcons'
@@ -72,36 +74,15 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
   const [printFor, setPrintFor] = useState<AdvanceOrder | null>(null)
   const navigate = useNavigate()
   const [paymentOrder, setPaymentOrder] = useState<AdvanceOrder | null>(null)
-  const [paymentForm, setPaymentForm] = useState({ method: 'cash' as AdvancePaymentMethod, remarks: '' })
-  const [couponInput, setCouponInput] = useState('')
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; percentage: number } | null>(null)
-  const [couponError, setCouponError] = useState('')
-  const [availableCoupons, setAvailableCoupons] = useState<{ code: string; percentage: number }[]>([])
-  const [manualDiscount, setManualDiscount] = useState('')
-  const [manualDiscountType, setManualDiscountType] = useState<'rm' | '%'>('rm')
+  const [payMode, setPayMode] = useState<PaymentMode>('cash')
+  const [paySplit, setPaySplit] = useState<SplitAmounts>({})
+  const [payError, setPayError] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true); setError('')
     try { setOrders(await listAdvanceOrders()) } catch (err) { setError(getErrorMessage(err, 'Unable to load advance orders')) } finally { setLoading(false) }
   }, [])
   useEffect(() => { void load() }, [load])
-
-  // Fetch active coupons for the payment modal
-  useEffect(() => {
-    if (!isSupabaseConfigured) return
-    supabase.from('coupons').select('code, percentage').eq('is_active', true)
-      .then(({ data }) => { if (data) setAvailableCoupons(data as { code: string; percentage: number }[]) })
-  }, [])
-
-  const applyCoupon = () => {
-    const code = couponInput.trim().toUpperCase()
-    const found = availableCoupons.find(c => c.code.toUpperCase() === code)
-    if (!found) { setCouponError('Invalid or inactive coupon code.'); return }
-    setAppliedCoupon(found)
-    setCouponError('')
-  }
-
-  const removeCoupon = () => { setAppliedCoupon(null); setCouponInput(''); setCouponError('') }
 
   const analytics = useMemo(() => {
     const open = orders.filter(o => !['completed', 'cancelled'].includes(o.status))
@@ -153,6 +134,8 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
     if (!Number.isFinite(total) || total <= 0 || !Number.isFinite(deposit) || deposit <= 0 || deposit >= total) { setError('Deposit must be greater than RM0 and less than the total order amount.'); setSaving(false); return }
     try {
       const created = await createAdvanceOrder({ ...form, totalAmount: total, depositAmount: deposit, referenceNumber: form.reference_number, createdByName: role || 'Staff', products: [{ ...(linkedStockItem ? { product_id: linkedStockItem.id } : {}), name: form.productName, category: form.category, description: form.description, quantity: 1, base_price: total, line_total: total, unit: 'piece', unit_type: 'unit', source: 'advance_order' }] })
+      // New customers land in the Customers list (existing ones keep their details)
+      void customerService.upsertFromSale({ phone: created.phone, name: created.customer_name, address: created.address }).catch(() => undefined)
       setOrders(current => [created, ...current]); setForm(initialForm); setCreateOpen(false); setNotice(`${created.deposit_id} created. Deposit is tracked separately and has not been added to revenue.`)
 
       // Redirect to WhatsApp with advance deposit receipt
@@ -171,7 +154,7 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
   }
 
   const changeStatus = async (order: AdvanceOrder, status: AdvanceStatus) => {
-    if (status === 'completed') { setPaymentOrder(order); return }
+    if (status === 'completed') { openReceive(order); return }
     try { const updated = await updateAdvanceStatus(order.id, status); setOrders(rows => rows.map(row => row.id === order.id ? updated : row)); if (selected?.id === order.id) setSelected(updated) } catch (err) { setError(getErrorMessage(err, 'Unable to update status')) }
   }
 
@@ -189,34 +172,24 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
     }
   }
 
+  const openReceive = (order: AdvanceOrder) => { setPaymentOrder(order); setPayMode('cash'); setPaySplit({}); setPayError('') }
+
   const receivePayment = async (event: FormEvent) => {
-    event.preventDefault(); if (!paymentOrder) return; setSaving(true); setError('')
+    event.preventDefault(); if (!paymentOrder) return
+    const amount = paymentOrder.remaining_balance
+    const mixError = splitError(payMode, paySplit, amount)
+    if (mixError) { setPayError(mixError); return }
+    setSaving(true); setError(''); setPayError('')
     try {
-      const couponDiscount = appliedCoupon ? Math.round(paymentOrder.remaining_balance * (appliedCoupon.percentage / 100) * 100) / 100 : 0
-      const manualDiscountNum = Math.max(0, Number(manualDiscount) || 0)
-      const manualDisc = manualDiscountType === '%'
-        ? Math.round(paymentOrder.remaining_balance * (manualDiscountNum / 100) * 100) / 100
-        : manualDiscountNum
-      const finalAmount = Math.max(0, paymentOrder.remaining_balance - couponDiscount - manualDisc)
-      const parts = [paymentForm.remarks]
-      if (appliedCoupon) parts.push(`Coupon: ${appliedCoupon.code} (-${appliedCoupon.percentage}%) = -INR ${couponDiscount.toFixed(2)}`)
-      if (manualDisc > 0) parts.push(`Manual Discount: ${manualDiscountType === '%' ? manualDiscountNum + '%' : '₹' + manualDiscountNum.toFixed(2)} = -INR ${manualDisc.toFixed(2)}`)
-      const remarksWithCoupon = parts.filter(Boolean).join(' | ')
-      const result = await completeAdvanceOrder(
-        paymentOrder.id, 
-        paymentForm.method, 
-        finalAmount,
-        appliedCoupon?.code || null,
-        appliedCoupon?.percentage || 0,
-        manualDisc,
-        remarksWithCoupon
-      )
-      const completed: AdvanceOrder = { ...paymentOrder, status: 'completed', remaining_balance: finalAmount, completed_at: result.completed_at, completed_order_id: result.order_id, invoice_number: result.invoice_no, final_payment_method: paymentForm.method }
-      setOrders(rows => rows.map(row => row.id === completed.id ? completed : row)); onOrderCompleted?.(completed); setPaymentOrder(null); setPaymentForm({ method: 'cash', remarks: '' }); setAppliedCoupon(null); setCouponInput(''); setCouponError(''); setManualDiscount(''); setManualDiscountType('rm'); setNotice(`${result.invoice_no} generated once. The full ${formatCurrency(completed.total_amount)} is now recognized as revenue.`)
+      const remarks = payMode === 'mixed' ? `Split: ${splitSummary(paySplit)}` : ''
+      const result = await completeAdvanceOrder(paymentOrder.id, payMode, amount, null, 0, 0, remarks)
+      const completed: AdvanceOrder = { ...paymentOrder, status: 'completed', remaining_balance: amount, completed_at: result.completed_at, completed_order_id: result.order_id, invoice_number: result.invoice_no, final_payment_method: payMode }
+      setOrders(rows => rows.map(row => row.id === completed.id ? completed : row)); onOrderCompleted?.(completed); setPaymentOrder(null)
+      setNotice(`${result.invoice_no} generated once. The full ${formatCurrency(completed.total_amount)} is now recognized as revenue.`)
 
       // Redirect to WhatsApp with final invoice URL + Instagram + Feedback form
       whatsappInvoice(completed)
-    } catch (err) { setError(getErrorMessage(err, 'Unable to complete payment')) } finally { setSaving(false) }
+    } catch (err) { setPayError(getErrorMessage(err, 'Unable to complete payment')) } finally { setSaving(false) }
   }
 
   const productRows = (order: AdvanceOrder) => order.products.length ? order.products : [{ name: order.product_name, quantity: 1, base_price: order.total_amount, line_total: order.total_amount, unit: 'piece', unit_type: 'unit' }]
@@ -418,7 +391,7 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
                 <Eye className="w-4 h-4" />
               </button>
               {isOpen(order) && (
-                <button type="button" onClick={() => setPaymentOrder(order)} title="Receive balance" className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`}>
+                <button type="button" onClick={() => openReceive(order)} title="Receive balance" className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`}>
                   <IndianRupee className="w-4 h-4" />
                 </button>
               )}
@@ -442,7 +415,29 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
         ? <p className="mt-1 text-[11px] font-bold text-emerald-700">Linked to stock ({linkedStockItem.stock} in stock) — 1 will be taken off when the order is completed.</p>
         : <p className="mt-1 text-[11px] font-semibold text-amber-700">Not a stock item — stock won't change. Pick an item from the list to link it, or use POS → Deposit Order for items with sizes or more than one item.</p>)}</Field><Field label="Category"><input className={inputClass} value={form.category} onChange={e=>setForm({...form,category:e.target.value})}/></Field><Field label="Description"><textarea className={inputClass} value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></Field><Field label="Total Order Amount *"><input required min="0.01" step="0.01" type="number" className={inputClass} value={form.totalAmount} onChange={e=>setForm({...form,totalAmount:e.target.value})}/></Field><Field label="Deposit Amount Received *"><input required min="0" step="0.01" type="number" className={inputClass} value={form.depositAmount} onChange={e=>setForm({...form,depositAmount:e.target.value})}/></Field><Field label="Remaining Balance (automatic)"><div className="rounded-xl bg-emerald-50 px-4 py-3 font-black text-emerald-800">{formatCurrency(Math.max(0, Number(form.totalAmount||0)-Number(form.depositAmount||0)))}</div></Field><Field label="Deposit Payment Method"><select className={inputClass} value={form.paymentMethod} onChange={e=>setForm({...form,paymentMethod:e.target.value as AdvancePaymentMethod})}><option value="cash">Cash</option><option value="upi">QR</option><option value="card">Card</option></select></Field><Field label="Expected Delivery Date *"><input required type="date" className={inputClass} value={form.expectedDeliveryDate} onChange={e=>setForm({...form,expectedDeliveryDate:e.target.value})}/></Field><Field label="Order Status"><select disabled className={inputClass} value="pending_deposit"><option value="pending_deposit">Pending Deposit</option></select></Field>      <div className="md:col-span-2"><Field label="Reference Number"><input className={inputClass} value={form.reference_number} onChange={e=>setForm({...form,reference_number:e.target.value})} placeholder="e.g. PO-001, booking ref (optional)"/></Field></div><div className="md:col-span-2"><Field label="Remarks"><textarea className={inputClass} value={form.remarks} onChange={e=>setForm({...form,remarks:e.target.value})} placeholder="e.g. special instructions, colour, size notes"/></Field></div></div><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={()=>setCreateOpen(false)} className="rounded-xl border px-5 py-2.5 font-bold">Cancel</button><button disabled={saving} className="rounded-xl bg-[var(--accent-dark)] px-5 py-2.5 font-black text-white disabled:opacity-50">{saving?'Creating...':'Create & Save Advance Receipt'}</button></div></form></div></ModalPortal>}
 
-    {paymentOrder && <ModalPortal><div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/55 p-3 sm:p-4"><form onSubmit={receivePayment} className="flex w-full max-w-md max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-xl sm:rounded-xl bg-white shadow-2xl"><div className="shrink-0 flex items-start justify-between border-b border-black/10 px-4 pt-4 pb-3 sm:px-6 sm:pt-5"><div><p className="text-xs font-black uppercase tracking-wider text-emerald-600">{paymentOrder.deposit_id}</p><h3 className="text-xl font-black text-[#000000]">Receive Remaining Payment</h3></div><button type="button" onClick={()=>setPaymentOrder(null)} className="shrink-0 text-[#000000] hover:text-black"><X size={20}/></button></div><div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6"><div className="mb-4 rounded-xl bg-emerald-50 py-3 sm:py-5 text-center">{(() => { const couponDisc = appliedCoupon ? Math.round(paymentOrder.remaining_balance * (appliedCoupon.percentage / 100) * 100) / 100 : 0; const manualNum = Math.max(0, Number(manualDiscount) || 0); const manualDisc = manualDiscountType === '%' ? Math.round(paymentOrder.remaining_balance * (manualNum / 100) * 100) / 100 : manualNum; const finalAmt = Math.max(0, paymentOrder.remaining_balance - couponDisc - manualDisc); return (<><p className="text-[11px] font-black uppercase tracking-widest text-emerald-600">Remaining Amount</p><p className={`mt-1 font-black text-emerald-800 ${(couponDisc > 0 || manualDisc > 0) ? 'text-xl line-through opacity-60' : 'text-3xl sm:text-4xl'}`}>{formatCurrency(paymentOrder.remaining_balance)}</p>{(couponDisc > 0 || manualDisc > 0) && (<><div className="mt-2 space-y-0.5 text-xs text-emerald-700">{couponDisc > 0 && <p>Coupon {appliedCoupon!.code} ({appliedCoupon!.percentage}%): -{formatCurrency(couponDisc)}</p>}{manualDisc > 0 && <p>Manual Discount: -{formatCurrency(manualDisc)}</p>}</div><p className="mt-2 text-2xl sm:text-3xl font-black text-emerald-950">You Pay: {formatCurrency(finalAmt)}</p></>)}</>)})()}</div><div className="space-y-3 sm:space-y-4"><Field label="Coupon Code (Optional)"><div className="flex gap-2">{appliedCoupon ? (<div className="flex flex-1 items-center justify-between rounded-xl bg-emerald-50 px-3 py-2.5 text-sm font-black text-emerald-700"><span>{appliedCoupon.code} — {appliedCoupon.percentage}% OFF</span><button type="button" onClick={removeCoupon} className="ml-2 text-red-500 hover:text-red-700"><X size={14}/></button></div>) : (<><input list="adv-coupon-list" className={`${inputClass} flex-1`} value={couponInput} onChange={e=>{setCouponInput(e.target.value.toUpperCase());setCouponError('')}} placeholder="Enter code" /><datalist id="adv-coupon-list">{availableCoupons.map(c=><option key={c.code} value={c.code}/>)}</datalist><button type="button" onClick={applyCoupon} className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-black text-white hover:bg-emerald-700">Apply</button></>)}</div>{couponError && <p className="mt-1 text-xs font-semibold text-red-600">{couponError}</p>}</Field><Field label="Manual Discount"><div className="flex gap-2 items-center"><select value={manualDiscountType} onChange={e=>setManualDiscountType(e.target.value as 'rm'|'%')} className="rounded-xl border border-black/10 bg-white px-3 py-2.5 text-sm font-black text-[#000000] outline-none focus:border-[var(--accent-dark)] focus:ring-2 focus:ring-emerald-100"><option value="rm">₹</option><option value="%">%</option></select><input type="number" min="0" step="0.01" className={`${inputClass} flex-1`} value={manualDiscount} onChange={e=>setManualDiscount(e.target.value)} placeholder="0" /></div></Field><Field label="Payment Method"><select className={inputClass} value={paymentForm.method} onChange={e=>setPaymentForm({...paymentForm,method:e.target.value as AdvancePaymentMethod})}><option value="cash">Cash</option><option value="upi">QR</option><option value="card">Card</option></select></Field><Field label="Payment Notes"><textarea className={inputClass} value={paymentForm.remarks} onChange={e=>setPaymentForm({...paymentForm,remarks:e.target.value})} rows={2} placeholder="Notes about this payment (optional)"/></Field><p className="mt-2 rounded-xl bg-amber-50 p-3 text-[11px] font-semibold text-amber-800">Confirmation marks the order Completed, creates one official invoice, and recognizes the full {formatCurrency(paymentOrder.total_amount)} as revenue.</p></div></div><div className="shrink-0 border-t border-black/10 bg-white px-4 py-3 sm:px-6"><button disabled={saving} className="w-full rounded-xl bg-emerald-600 py-3 sm:py-3.5 font-black text-white shadow-lg shadow-emerald-600/30 transition-transform active:scale-95 disabled:opacity-50">{saving?'Processing...':'Confirm Final Payment'}</button></div></form></div></ModalPortal>}
+    {paymentOrder && <ModalPortal><div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4" onMouseDown={e => { if (e.target === e.currentTarget) setPaymentOrder(null) }}>
+      <form onSubmit={receivePayment} className="flex w-full max-w-md max-h-[calc(100dvh-24px)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="shrink-0 flex items-start justify-between border-b border-black/10 px-5 pt-5 pb-3">
+          <div><p className="text-[11px] font-mono font-bold text-[var(--accent)]">{paymentOrder.deposit_id}</p><h3 className="text-lg font-black text-[#000000] tracking-tight">Receive Remaining Payment</h3></div>
+          <button type="button" onClick={() => setPaymentOrder(null)} aria-label="Close" className="text-black hover:bg-black/5 w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          <div className="rounded-xl bg-[#DCFCE7] border border-[#16A34A]/30 py-4 text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-[#166534]">Remaining Amount</p>
+            <p className="mt-1 text-3xl font-black text-[#166534]">{formatCurrency(paymentOrder.remaining_balance)}</p>
+            <p className="mt-1 text-[11px] font-semibold text-[#166534]/80">{paymentOrder.customer_name} • Total {formatCurrency(paymentOrder.total_amount)} • Paid {formatCurrency(paymentOrder.deposit_amount)}</p>
+          </div>
+          <PaymentModePicker mode={payMode} onMode={setPayMode} split={paySplit} onSplit={setPaySplit} total={paymentOrder.remaining_balance} />
+          {payError && <p className="text-xs font-bold text-[#DC2626]">{payError}</p>}
+          <p className="rounded-lg bg-[#FEF3C7] border border-[#F59E0B]/30 p-2.5 text-[10px] font-bold text-[#78350F]">Confirmation marks the order Completed, creates one official invoice, and recognizes the full {formatCurrency(paymentOrder.total_amount)} as revenue.</p>
+        </div>
+        <div className="shrink-0 border-t border-black/10 bg-white px-5 py-3">
+          <button disabled={saving} className="w-full py-3 rounded-lg font-black text-[11px] uppercase tracking-[0.1em] flex items-center justify-center gap-2 bg-[#10B981] hover:bg-[#059669] text-white shadow-md transition-all disabled:opacity-60 cursor-pointer">
+            {saving ? 'Processing…' : <><Check className="w-4 h-4" /> Confirm Final Payment</>}
+          </button>
+        </div>
+      </form>
+    </div></ModalPortal>}
 
     {printFor && (
       <PrintSettingsModal onClose={() => setPrintFor(null)} onPrint={(prefs) => printReceipt(printFor, prefs)} />
