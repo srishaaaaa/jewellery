@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react'
-import { Check, Coins, Download, Edit2, List, PiggyBank, Plus, Receipt, Search, Tag, Trash2, Wallet } from 'lucide-react'
+import { Check, Coins, Edit2, List, PiggyBank, Plus, Receipt, Tag, Trash2, Wallet } from 'lucide-react'
 import {
   expenseService,
   exportExpensesToCSV,
@@ -7,11 +7,12 @@ import {
   type ExpenseRecord,
 } from '../../services/expenseService'
 import { ExpenseCategoriesView } from './ExpenseCategoriesView'
+import { FilterCard, FilterField, PeriodBar } from '../filters/PageFilters'
+import { filterInput, type PeriodPreset } from '../filters/filterStyles'
 import { getPresetRange, toLocalDateStr } from '../../lib/dateRanges'
 import { getErrorMessage } from '../../lib/errorMessage'
 
-type PeriodKey = 'today' | 'week' | 'month' | 'year' | 'all' | 'custom'
-const PERIODS: [PeriodKey, string][] = [['today', 'Today'], ['week', 'Week'], ['month', 'Month'], ['year', 'Year'], ['all', 'All'], ['custom', 'Custom']]
+type PeriodKey = PeriodPreset
 const PAYMENT_MODES = ['CASH', 'UPI', 'CARD', 'BANK TRANSFER']
 const CUSTOM = '__custom__'
 
@@ -31,6 +32,8 @@ export const ExpensesView: React.FC = () => {
   const [endDate, setEndDate] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('ALL')
   const [search, setSearch] = useState('')
+  const [searchDraft, setSearchDraft] = useState('')
+  const [modeFilter, setModeFilter] = useState('ALL')
 
   // Add / edit form
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -77,9 +80,10 @@ export const ExpensesView: React.FC = () => {
     const q = search.trim().toLowerCase()
     const filtered = expenses.filter(e =>
       (categoryFilter === 'ALL' || e.category_name === categoryFilter) &&
+      (modeFilter === 'ALL' || (e.payment_mode || 'cash').toUpperCase() === modeFilter) &&
       (!q || [e.description, e.category_name, e.payment_mode, String(e.amount)].join(' ').toLowerCase().includes(q)))
     return { total, count: expenses.length, topCategory: categoryBreakdown[0]?.category || 'None', categoryBreakdown, allCategories: [...byCategory.keys()].sort(), filtered }
-  }, [expenses, categoryFilter, search])
+  }, [expenses, categoryFilter, search, modeFilter])
 
   const resetForm = () => {
     setEditingId(null); setTitle(''); setAmount(''); setDate(toLocalDateStr(new Date()))
@@ -145,40 +149,50 @@ export const ExpensesView: React.FC = () => {
             Record what the shop spends. Expenses are offset against sales to show your real Net Profit on the dashboard.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {view === 'expenses' && (
-            <div className="flex flex-wrap items-center gap-1.5 bg-[#FAFAFA] border border-black/10 rounded-xl p-1">
-              {PERIODS.map(([key, text]) => (
-                <button key={key} type="button" onClick={() => setPeriod(key)}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${period === key ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[#000000] hover:bg-black/5'}`}>
-                  {text}
-                </button>
-              ))}
-            </div>
-          )}
-          <button type="button" onClick={() => setView(view === 'expenses' ? 'categories' : 'expenses')}
-            className="flex items-center gap-1.5 px-3 py-2 border border-[var(--accent-a30)] text-[var(--accent)] hover:bg-[var(--accent-a5)] rounded-xl text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer">
-            {view === 'expenses' ? <><Tag className="w-3.5 h-3.5" /> Manage Categories</> : <><Receipt className="w-3.5 h-3.5" /> Back to Expenses</>}
+        {view === 'expenses' ? (
+          <PeriodBar
+            preset={period}
+            from={range.from}
+            to={range.to}
+            onPreset={p => setPeriod(p)}
+            onFrom={v => { setStartDate(v); setEndDate(range.to); setPeriod('custom') }}
+            onTo={v => { setEndDate(v); setStartDate(range.from); setPeriod('custom') }}
+            onExport={() => exportExpensesToCSV(stats.filtered)}
+            exportDisabled={stats.filtered.length === 0}
+          >
+            <button type="button" onClick={() => setView('categories')}
+              className="flex items-center gap-1.5 px-3 py-2 border border-black/10 bg-white text-[#000000] hover:bg-black/5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer">
+              <Tag className="w-3.5 h-3.5" /> Manage Categories
+            </button>
+          </PeriodBar>
+        ) : (
+          <button type="button" onClick={() => setView('expenses')}
+            className="flex items-center gap-1.5 px-3 py-2 border border-black/10 bg-white text-[#000000] hover:bg-black/5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer">
+            <Receipt className="w-3.5 h-3.5" /> Back to Expenses
           </button>
-        </div>
+        )}
       </div>
 
       {view === 'categories' ? (
         <ExpenseCategoriesView categories={categories} onCategoriesUpdated={() => { void loadCategories(); void loadExpenses() }} />
       ) : (
         <>
-          {period === 'custom' && (
-            <div className="flex flex-wrap items-end gap-3 mb-6 bg-white border border-black/10 rounded-xl p-4">
-              <div>
-                <label className={label}>From</label>
-                <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-[#FAFAFA] border border-black/10 rounded-lg px-3 py-2 text-sm text-[#000000] focus:outline-none focus:border-[var(--accent)]" />
-              </div>
-              <div>
-                <label className={label}>To</label>
-                <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-[#FAFAFA] border border-black/10 rounded-lg px-3 py-2 text-sm text-[#000000] focus:outline-none focus:border-[var(--accent)]" />
-              </div>
-            </div>
-          )}
+          <FilterCard
+            tabs={[{ id: 'ALL', label: 'All' }, ...PAYMENT_MODES.map(m => ({ id: m, label: m }))]}
+            activeTab={modeFilter}
+            onTab={setModeFilter}
+            onSearch={() => setSearch(searchDraft)}
+          >
+            <FilterField label="Search Expense" search>
+              <input className={`${filterInput} pl-9`} placeholder="What for, notes, amount…" value={searchDraft} onChange={e => setSearchDraft(e.target.value)} />
+            </FilterField>
+            <FilterField label="Category">
+              <select className={`${filterInput} cursor-pointer`} value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
+                <option value="ALL">All Categories</option>
+                {stats.allCategories.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </FilterField>
+          </FilterCard>
 
           {/* Summary cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
@@ -311,22 +325,7 @@ export const ExpensesView: React.FC = () => {
                 <List className="w-4 h-4 text-[var(--accent)]" />
                 Expense Log
               </h3>
-              <div className="flex flex-wrap items-center gap-2">
-                <select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}
-                  className="bg-[#FAFAFA] border border-black/10 rounded-lg px-3 py-2 text-xs font-bold text-[#000000] focus:outline-none focus:border-[var(--accent)] cursor-pointer">
-                  <option value="ALL">All categories</option>
-                  {stats.allCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-black/30 absolute left-3 top-1/2 -translate-y-1/2" />
-                  <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search expenses…"
-                    className="bg-[#FAFAFA] border border-black/10 rounded-lg pl-8 pr-3 py-2 text-xs text-[#000000] focus:outline-none focus:border-[var(--accent)] placeholder:text-black/30 w-44" />
-                </div>
-                <button type="button" onClick={() => exportExpensesToCSV(stats.filtered)} disabled={stats.filtered.length === 0}
-                  className="flex items-center gap-1.5 px-3 py-2 border border-black/10 rounded-lg text-[10px] font-bold uppercase tracking-wider text-[#000000] hover:bg-black/5 transition-colors cursor-pointer disabled:opacity-40">
-                  <Download className="w-3.5 h-3.5" /> Export CSV
-                </button>
-              </div>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#000000]/60">{stats.filtered.length} shown</span>
             </div>
 
             {loading ? (

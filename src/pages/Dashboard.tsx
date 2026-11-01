@@ -44,7 +44,8 @@ import { Invoice } from '../components/Invoice'
 import { printThermalReceipt } from '../lib/thermalPrint'
 import { buildProfessionalWhatsAppMessage, buildCreditReminderWhatsAppMessage, buildCreditPaidWhatsAppMessage } from '../lib/whatsappMessage'
 import { invoicePdfFile } from '../lib/invoicePdf'
-import { toWhatsAppUrl } from '../lib/phone'
+import { formatPhoneDisplay, toWhatsAppUrl } from '../lib/phone'
+import { formatWeight, metalLabel } from '../lib/jewellery'
 import { toDaysOverdue } from '../services/creditService'
 import Pos from './Pos'
 import AdvanceOrders from './AdvanceOrders'
@@ -84,6 +85,9 @@ import {
 } from 'recharts'
 import { DocIcon, EyeIcon, WhatsAppIcon, actionBtn } from '../components/ActionIcons'
 import { DocumentPreviewModal } from '../components/invoice/InvoiceParts'
+import { ModalPortal } from '../components/ModalPortal'
+import { FilterCard, FilterField } from '../components/filters/PageFilters'
+import { filterInput } from '../components/filters/filterStyles'
 import { PrintSettingsModal } from '../components/invoice/PrintSettingsModal'
 import { thermalWidth } from '../lib/printPrefs'
 import { getPresetRange, startOfWeekMonday, toLocalDateStr } from '../lib/dateRanges'
@@ -317,6 +321,7 @@ export default function Dashboard() {
 
   // Order Management bill type filter
   const [billTypeFilter, setBillTypeFilter] = useState<'all' | 'offline' | 'online' | 'manual'>('all')
+  const [gstFilter, setGstFilter] = useState<'all' | 'gst' | 'non_gst'>('all')
 
   // Users tab
   const [allUsers, setAllUsers] = useState<ProfileUser[]>([])
@@ -817,7 +822,9 @@ export default function Dashboard() {
   const filteredSearchResults = useMemo(() => {
     // Credit sales stay out of Order History (they live in Outstanding Credits
     // instead) until they're marked paid, at which point they "move" here.
-    const settled = searchResults.filter(o => o.credit_status !== 'outstanding' && !(o.is_credit && !o.credit_status))
+    const settled = searchResults
+      .filter(o => o.credit_status !== 'outstanding' && !(o.is_credit && !o.credit_status))
+      .filter(o => gstFilter === 'all' || (gstFilter === 'gst') === (toNumber(o.total_gst, 0) > 0))
     if (billTypeFilter === 'all') return settled
     return settled.filter(o => {
       const type = normalizeOrderType(o.order_type)
@@ -827,7 +834,7 @@ export default function Dashboard() {
       if (billTypeFilter === 'online')  return type === 'pos_sale' && mode === 'online'
       return true
     })
-  }, [searchResults, billTypeFilter])
+  }, [searchResults, billTypeFilter, gstFilter])
 
   // Load dashboard data
   const loadData = useCallback(async () => {
@@ -922,6 +929,44 @@ export default function Dashboard() {
     void auditService.log({ action: 'invoice_status_changed', entityType: 'invoice', entityId: before?.invoice_no || orderId, oldValue: { status: before?.status }, newValue: { status: newStatus } })
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o))
     setSearchResults(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o))
+  }
+
+  const [editOrder, setEditOrder] = useState<DashboardOrder | null>(null)
+  const [editForm, setEditForm] = useState({ customer_name: '', phone: '', address: '', customer_gstin: '', customer_pan: '', reference_number: '', remarks: '' })
+  const [editSaving, setEditSaving] = useState(false)
+  const [editError, setEditError] = useState('')
+  const openEditOrder = (o: DashboardOrder) => {
+    setEditOrder(o)
+    setEditError('')
+    setEditForm({
+      customer_name: o.customer_name || '', phone: o.phone || '', address: o.address || '',
+      customer_gstin: o.customer_gstin || '', customer_pan: o.customer_pan || '',
+      reference_number: o.reference_number || '', remarks: o.remarks || '',
+    })
+  }
+  /** Saves customer / reference details on a bill. Items, rates and amounts stay as billed. */
+  const saveEditOrder = async () => {
+    if (!editOrder) return
+    setEditSaving(true); setEditError('')
+    const patch = {
+      customer_name: editForm.customer_name.trim(), phone: editForm.phone.trim(), address: editForm.address.trim(),
+      customer_gstin: editForm.customer_gstin.trim().toUpperCase() || null, customer_pan: editForm.customer_pan.trim().toUpperCase() || null,
+      reference_number: editForm.reference_number.trim() || null, remarks: editForm.remarks.trim() || null,
+    }
+    const { error } = await supabase.from('orders').update(patch).eq('id', editOrder.id)
+    setEditSaving(false)
+    if (error) { setEditError(error.message || 'Could not save the changes.'); return }
+    void auditService.log({
+      action: 'invoice_edited', entityType: 'invoice', entityId: editOrder.invoice_no || editOrder.id,
+      oldValue: { customer_name: editOrder.customer_name, phone: editOrder.phone, address: editOrder.address, customer_gstin: editOrder.customer_gstin, customer_pan: editOrder.customer_pan, reference_number: editOrder.reference_number, remarks: editOrder.remarks },
+      newValue: patch,
+    })
+    const apply = (o: DashboardOrder): DashboardOrder => o.id === editOrder.id
+      ? { ...o, ...patch, reference_number: patch.reference_number || undefined, remarks: patch.remarks || undefined }
+      : o
+    setOrders(prev => prev.map(apply))
+    setSearchResults(prev => prev.map(apply))
+    setEditOrder(null)
   }
 
   /**
@@ -3195,33 +3240,30 @@ export default function Dashboard() {
             </div>
             <div>
               {/* Filters */}
-              <form onSubmit={runSearch} className="bg-white border border-black/10 rounded-xl p-5 shadow-sm mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <label className="block">
-                  <span className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Search Order ID</span>
-                  <span className="relative block">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#000000]" />
-                    <input className="w-full bg-white border border-black/10 focus:border-[var(--accent)] rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm pl-9" placeholder="e.g. INV-..." value={search.invoiceNo} onChange={e => setSearch(s => ({ ...s, invoiceNo: e.target.value }))} />
-                  </span>
-                </label>
-                <label className="block">
-                  <span className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Customer Name</span>
-                  <input className="w-full bg-white border border-black/10 focus:border-[var(--accent)] rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm" placeholder="Search name..." value={search.customerName} onChange={e => setSearch(s => ({ ...s, customerName: e.target.value }))} />
-                </label>
-                <label className="block">
-                  <span className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Customer Phone</span>
-                  <input className="w-full bg-white border border-black/10 focus:border-[var(--accent)] rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm" inputMode="tel" placeholder="Search phone..." value={search.phone} onChange={e => setSearch(s => ({ ...s, phone: e.target.value }))} />
-                </label>
-                <label className="block">
-                  <span className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Order Source</span>
-                  <select className="w-full bg-white border border-black/10 focus:border-[var(--accent)] rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm cursor-pointer" value={billTypeFilter} onChange={e => setBillTypeFilter(e.target.value as typeof billTypeFilter)}>
+              <FilterCard
+                tabs={[{ id: 'all' as const, label: 'All Bills' }, { id: 'gst' as const, label: 'GST Invoices' }, { id: 'non_gst' as const, label: 'Non-GST Bills' }]}
+                activeTab={gstFilter}
+                onTab={setGstFilter}
+                onSearch={() => void runSearchRef.current()}
+              >
+                <FilterField label="Search Order ID" search>
+                  <input className={`${filterInput} pl-9`} placeholder="e.g. INV-..." value={search.invoiceNo} onChange={e => setSearch(s => ({ ...s, invoiceNo: e.target.value }))} />
+                </FilterField>
+                <FilterField label="Customer Name">
+                  <input className={filterInput} placeholder="Search name..." value={search.customerName} onChange={e => setSearch(s => ({ ...s, customerName: e.target.value }))} />
+                </FilterField>
+                <FilterField label="Customer Phone">
+                  <input className={filterInput} inputMode="tel" placeholder="Search phone..." value={search.phone} onChange={e => setSearch(s => ({ ...s, phone: e.target.value }))} />
+                </FilterField>
+                <FilterField label="Order Source">
+                  <select className={`${filterInput} cursor-pointer`} value={billTypeFilter} onChange={e => setBillTypeFilter(e.target.value as typeof billTypeFilter)}>
                     <option value="all">All Sources</option>
                     <option value="offline">Offline</option>
                     <option value="online">Online</option>
                     <option value="manual">Manual</option>
                   </select>
-                </label>
-                <button type="submit" className="hidden" aria-hidden="true" tabIndex={-1} />
-              </form>
+                </FilterField>
+              </FilterCard>
               {searchLoading && <p className="mb-2 text-[11px] font-semibold text-[#000000]">{l('Searching...', 'தேடுகிறது...')}</p>}
               <div className="md:hidden rounded-xl border border-black/10 divide-y divide-black/5 overflow-hidden bg-white">
                 {filteredSearchResults.slice(0, 50).map(o => {
@@ -3260,8 +3302,11 @@ export default function Dashboard() {
                           <button onClick={() => handleShareViaWhatsApp(o)} title="Send on WhatsApp" aria-label="Send on WhatsApp" className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`}>
                             <WhatsAppIcon className="w-4 h-4" />
                           </button>
-                          <button onClick={() => void openOrderInvoice(o, 'view')} title="View invoice" aria-label="View invoice" className={`${actionBtn} bg-[var(--accent-a10)] hover:bg-[var(--accent-a20)] text-[var(--accent)]`}>
+                          <button onClick={() => void openOrderInvoice(o, 'view')} title="View invoice" aria-label="View invoice" className={`${actionBtn} bg-black/10 hover:bg-black/15 text-[#000000]`}>
                             <DocIcon className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => openEditOrder(o)} title="Edit order details" aria-label="Edit order details" className={`${actionBtn} bg-[#2563EB]/10 hover:bg-[#2563EB]/20 text-[#2563EB]`}>
+                            <Edit2 className="w-4 h-4" />
                           </button>
                         </div>
                         <div className="flex gap-2 w-full sm:flex-1">
@@ -3318,7 +3363,12 @@ export default function Dashboard() {
                             <span className="font-semibold text-[#000000]">{formatPhoneWithCountryCode(o.phone).code}</span>
                             <span className="ml-1">{formatPhoneWithCountryCode(o.phone).number}</span>
                           </td>
-                          <td className="px-4 py-3"><span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase ${billTypeClass}`}>{billTypeLabel}</span></td>
+                          <td className="whitespace-nowrap px-4 py-3">
+                            <div className="flex flex-col items-center gap-1">
+                              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase ${billTypeClass}`}>{billTypeLabel}</span>
+                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border ${toNumber(o.total_gst, 0) > 0 ? 'border-[var(--accent-a40)] text-[var(--accent-dark)] bg-[var(--accent-a10)]' : 'border-black/15 text-black/60 bg-black/[0.03]'}`}>{toNumber(o.total_gst, 0) > 0 ? 'GST' : 'Non-GST'}</span>
+                            </div>
+                          </td>
                           <td className="px-4 py-3 text-[10px] leading-relaxed">
                             {o.coupon_code || o.discount_amount > 0 || o.delivery_charge > 0 ? (
                               <div className="flex flex-col items-center gap-0.5">
@@ -3361,8 +3411,11 @@ export default function Dashboard() {
                               <button onClick={() => handleShareViaWhatsApp(o)} title="Send on WhatsApp" aria-label="Send on WhatsApp" className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`}>
                                 <WhatsAppIcon className="w-4 h-4" />
                               </button>
-                              <button onClick={() => void openOrderInvoice(o, 'view')} title="View invoice" aria-label="View invoice" className={`${actionBtn} bg-[var(--accent-a10)] hover:bg-[var(--accent-a20)] text-[var(--accent)]`}>
+                              <button onClick={() => void openOrderInvoice(o, 'view')} title="View invoice" aria-label="View invoice" className={`${actionBtn} bg-black/10 hover:bg-black/15 text-[#000000]`}>
                                 <DocIcon className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => openEditOrder(o)} title="Edit order details" aria-label="Edit order details" className={`${actionBtn} bg-[#2563EB]/10 hover:bg-[#2563EB]/20 text-[#2563EB]`}>
+                                <Edit2 className="w-4 h-4" />
                               </button>
                               <button onClick={() => setHistoryExpandedId(historyExpandedId === o.id ? null : o.id)} title="Order details" aria-label="Order details"
                                 className={`${actionBtn} ${historyExpandedId === o.id ? 'bg-[#000000] text-white' : 'bg-black/5 hover:bg-black/10 text-[#000000]'}`}>
@@ -3376,30 +3429,81 @@ export default function Dashboard() {
                             </div>
                           </td>
                         </tr>
-                        {historyExpandedId === o.id && (
-                          <tr className="bg-white border-b border-black/10">
-                            <td colSpan={9} className="px-4 py-4">
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
-                                <div>
-                                  <p className="text-[10px] font-bold uppercase text-[#9BAB9A] tracking-wider mb-1">Reference No</p>
-                                  <p className="font-semibold text-[#000000]">{(o as unknown as Record<string,unknown>).reference_number as string || '—'}</p>
+                        {historyExpandedId === o.id && (() => {
+                          const detailItems = getOrderWhatsAppPreview(o)?.items || []
+                          const itemsTotal = detailItems.reduce((sum, item) => sum + toNumber(item.line_total, 0), 0)
+                          const created = new Date(o.created_at)
+                          const Info = ({ label, value }: { label: string; value: React.ReactNode }) => (
+                            <div className="min-w-0">
+                              <p className="text-[10px] font-bold uppercase text-[#9BAB9A] tracking-wider mb-1">{label}</p>
+                              <p className="font-semibold text-[#000000] break-words">{value || '—'}</p>
+                            </div>
+                          )
+                          const Money = ({ label, value, tone }: { label: string; value: string; tone?: string }) => (
+                            <div className={`flex justify-between gap-3 ${tone || 'text-[#000000]'}`}><span>{label}</span><span className="font-bold whitespace-nowrap">{value}</span></div>
+                          )
+                          return (
+                          <tr className="bg-[#F9FAFB] border-b border-black/10">
+                            <td colSpan={9} className="px-5 py-5 text-left">
+                              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                                <Info label="Customer" value={o.customer_name} />
+                                <Info label="Mobile Number" value={o.phone ? formatPhoneDisplay(o.phone) : ''} />
+                                <Info label="Address" value={o.address} />
+                                <Info label="Date & Time" value={`${created.toLocaleDateString('en-IN')} • ${created.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`} />
+                                <Info label="Reference No" value={o.reference_number} />
+                                <Info label="Remarks" value={o.remarks} />
+                                <Info label="Customer GSTIN" value={o.customer_gstin} />
+                                <Info label="Customer PAN" value={o.customer_pan} />
+                                <Info label="Payment" value={formatPaymentMode(o.payment_mode || o.payment_method, o.split_details)} />
+                                <Info label="Bill Type" value={toNumber(o.total_gst, 0) > 0 ? 'GST Invoice' : 'Non-GST Bill'} />
+                                <Info label="Status" value={normalizeStatus(o.status).toUpperCase()} />
+                                {o.scheme_number && <Info label="Scheme" value={o.scheme_number} />}
+                              </div>
+
+                              <div className="mt-5 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-5 text-xs">
+                                <div className="rounded-xl border border-black/10 bg-white overflow-hidden">
+                                  <div className="grid grid-cols-[minmax(0,1fr)_70px_100px_110px] gap-3 px-4 py-2.5 border-b border-black/10 text-[10px] font-bold uppercase tracking-wider text-[#000000]">
+                                    <span>Item</span><span className="text-center">Qty</span><span className="text-right">Rate</span><span className="text-right">Amount</span>
+                                  </div>
+                                  {detailItems.length === 0 ? (
+                                    <p className="px-4 py-4 text-[#000000]/60 font-semibold">No item details saved on this bill.</p>
+                                  ) : detailItems.map((item, i) => (
+                                    <div key={i} className="grid grid-cols-[minmax(0,1fr)_70px_100px_110px] gap-3 px-4 py-2.5 border-b border-black/5 last:border-0">
+                                      <div className="min-w-0">
+                                        <p className="font-bold text-[#000000] break-words">{String(item.name)}</p>
+                                        {item.jewellery && (
+                                          <p className="text-[10px] font-semibold text-[#000000]/60 break-words">
+                                            {metalLabel(item.jewellery.metal_type, item.jewellery.purity)}
+                                            {item.jewellery.net_weight > 0 ? ` • Net ${formatWeight(item.jewellery.net_weight)}` : ''}
+                                            {item.jewellery.gross_weight > 0 ? ` • Gross ${formatWeight(item.jewellery.gross_weight)}` : ''}
+                                            {item.jewellery.huid ? ` • HUID ${item.jewellery.huid}` : ''}
+                                          </p>
+                                        )}
+                                      </div>
+                                      <span className="text-center font-semibold">{toNumber(item.quantity, 1)}</span>
+                                      <span className="text-right font-semibold">{formatCurrency(toNumber(item.base_price, 0))}</span>
+                                      <span className="text-right font-bold">{formatCurrency(toNumber(item.line_total, 0))}</span>
+                                    </div>
+                                  ))}
                                 </div>
-                                <div>
-                                  <p className="text-[10px] font-bold uppercase text-[#9BAB9A] tracking-wider mb-1">Remarks</p>
-                                  <p className="font-semibold text-[#000000] break-words">{(o as unknown as Record<string,unknown>).remarks as string || '—'}</p>
-                                </div>
-                                <div>
-                                  <p className="text-[10px] font-bold uppercase text-[#9BAB9A] tracking-wider mb-1">Customer</p>
-                                  <p className="font-semibold text-[#000000]">{o.customer_name}</p>
-                                </div>
-                                <div>
-                                  <p className="text-[10px] font-bold uppercase text-[#9BAB9A] tracking-wider mb-1">Address</p>
-                                  <p className="font-semibold text-[#000000] break-words">{o.address || '—'}</p>
+
+                                <div className="rounded-xl border border-black/10 bg-white p-4 space-y-1.5 h-fit">
+                                  <Money label="Items Total" value={formatCurrency(itemsTotal)} />
+                                  {toNumber(o.discount_amount, 0) > 0 && <Money label={`Coupon${o.coupon_code ? ` (${o.coupon_code})` : ''}`} value={`−${formatCurrency(toNumber(o.discount_amount, 0))}`} tone="text-emerald-700" />}
+                                  {toNumber(o.manual_discount_amount, 0) > 0 && <Money label="Discount" value={`−${formatCurrency(toNumber(o.manual_discount_amount, 0))}`} tone="text-emerald-700" />}
+                                  {toNumber(o.scheme_discount, 0) > 0 && <Money label="Scheme Benefit" value={`−${formatCurrency(toNumber(o.scheme_discount, 0))}`} tone="text-emerald-700" />}
+                                  {toNumber(o.total_gst, 0) > 0 && <Money label="GST" value={`+${formatCurrency(toNumber(o.total_gst, 0))}`} />}
+                                  {toNumber(o.delivery_charge, 0) > 0 && <Money label="Delivery" value={`+${formatCurrency(toNumber(o.delivery_charge, 0))}`} />}
+                                  <div className="border-t border-black/10 pt-2 mt-1"><Money label="Total" value={formatCurrency(getOrderTotal(o))} /></div>
+                                  {toNumber(o.scheme_amount_used, 0) > 0 && <Money label="Paid from Scheme" value={`−${formatCurrency(toNumber(o.scheme_amount_used, 0))}`} tone="text-[var(--accent-dark)]" />}
+                                  {toNumber(o.advance_amount_used, 0) > 0 && <Money label="Advance Adjusted" value={`−${formatCurrency(toNumber(o.advance_amount_used, 0))}`} tone="text-[var(--accent-dark)]" />}
+                                  {toNumber(o.exchange_amount, 0) > 0 && <Money label="Old Gold Exchange" value={`−${formatCurrency(toNumber(o.exchange_amount, 0))}`} tone="text-[var(--accent-dark)]" />}
                                 </div>
                               </div>
                             </td>
                           </tr>
-                        )}
+                          )
+                        })()}
                         </React.Fragment>
                       )
                     })}
@@ -3938,6 +4042,48 @@ export default function Dashboard() {
           </DocumentPreviewModal>
         )
       })()}
+
+      {editOrder && (
+        <ModalPortal>
+          <div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-6" onMouseDown={e => { if (e.target === e.currentTarget) setEditOrder(null) }}>
+            <form onSubmit={e => { e.preventDefault(); void saveEditOrder() }} className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl">
+              <div className="flex items-center justify-between bg-[#1C1C1C] px-5 py-4">
+                <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-white"><Edit2 className="w-4 h-4" /> Edit Order • #{formatInvoiceNo(editOrder.invoice_no || editOrder.id)}</h3>
+                <button type="button" onClick={() => setEditOrder(null)} aria-label="Close" className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 cursor-pointer"><X className="w-4 h-4" /></button>
+              </div>
+              <div className="max-h-[70vh] overflow-y-auto p-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {([
+                  ['customer_name', 'Customer Name', 'text'], ['phone', 'Mobile Number', 'tel'],
+                  ['customer_gstin', 'Customer GSTIN', 'text'], ['customer_pan', 'Customer PAN', 'text'],
+                  ['reference_number', 'Reference Number', 'text'],
+                ] as const).map(([key, label, type]) => (
+                  <FilterField key={key} label={label}>
+                    <input type={type} className={filterInput} value={editForm[key]} onChange={e => setEditForm(f => ({ ...f, [key]: e.target.value }))} />
+                  </FilterField>
+                ))}
+                <div className="sm:col-span-2">
+                  <FilterField label="Address">
+                    <input className={filterInput} value={editForm.address} onChange={e => setEditForm(f => ({ ...f, address: e.target.value }))} />
+                  </FilterField>
+                </div>
+                <div className="sm:col-span-2">
+                  <FilterField label="Remarks">
+                    <textarea rows={2} className={filterInput} value={editForm.remarks} onChange={e => setEditForm(f => ({ ...f, remarks: e.target.value }))} />
+                  </FilterField>
+                </div>
+                <p className="sm:col-span-2 rounded-lg bg-[#FEF3C7] border border-[#F59E0B]/30 px-3 py-2 text-[11px] font-semibold text-[#78350F]">
+                  Items, rates and amounts stay as billed. To change those, cancel the bill and bill it again.
+                </p>
+                {editError && <p className="sm:col-span-2 text-xs font-bold text-[#DC2626]">{editError}</p>}
+              </div>
+              <div className="flex justify-end gap-3 border-t border-black/10 bg-[#FAFAFA] px-5 py-4">
+                <button type="button" onClick={() => setEditOrder(null)} className="rounded-xl px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-black/60 hover:bg-black/5 cursor-pointer">Cancel</button>
+                <button type="submit" disabled={editSaving} className="rounded-xl bg-[#111111] px-6 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:bg-black disabled:opacity-60 cursor-pointer">{editSaving ? 'Saving…' : 'Save Changes'}</button>
+              </div>
+            </form>
+          </div>
+        </ModalPortal>
+      )}
 
       {printOrder && (
         <PrintSettingsModal
