@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { Banknote, CheckCircle2, AlertTriangle, IndianRupee, Printer, Download, Trash2, Search, History } from 'lucide-react'
+import { Banknote, CheckCircle2, AlertTriangle, IndianRupee, Printer, Download, Trash2, History } from 'lucide-react'
 import { DocIcon, WhatsAppIcon, actionBtn } from '../ActionIcons'
 import { creditService, toDaysOverdue } from '../../services/creditService'
 import { formatCurrency, formatInvoiceNo } from '../../lib/retail'
@@ -7,6 +7,9 @@ import { useSound } from '../../context/SoundContext'
 import { formatDateDDMMYYYY } from '../../lib/dateFormat'
 import type { DashboardOrder } from '../../pages/Dashboard'
 import { getPresetRange, toLocalDateStr } from '../../lib/dateRanges'
+import { csvDate, csvPhone, downloadCsv } from '../../lib/csv'
+import { FilterCard, FilterField, PeriodBar } from '../filters/PageFilters'
+import { filterInput } from '../filters/filterStyles'
 
 export interface OutstandingCreditsViewProps {
   orders: DashboardOrder[]
@@ -20,14 +23,10 @@ export interface OutstandingCreditsViewProps {
   onDelete: (order: DashboardOrder) => void
 }
 
-const matchesSearch = (order: DashboardOrder, query: string) => {
-  const q = query.trim().toLowerCase()
-  if (!q) return true
-  return (
-    (order.customer_name || '').toLowerCase().includes(q) ||
-    (order.phone || '').toLowerCase().includes(q) ||
-    formatInvoiceNo(order.invoice_no).toLowerCase().includes(q)
-  )
+type CreditQuery = { invoice: string; name: string; phone: string }
+const matchesSearch = (order: DashboardOrder, q: CreditQuery) => {
+  const has = (value: string | null | undefined, needle: string) => !needle.trim() || String(value || '').toLowerCase().includes(needle.trim().toLowerCase())
+  return has(formatInvoiceNo(order.invoice_no), q.invoice) && has(order.customer_name, q.name) && has(order.phone, q.phone)
 }
 
 function ActionButtons({ order, onView, onPrint, onDownload, onShare, onDelete }: {
@@ -67,7 +66,9 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
   const { play } = useSound()
   const [settlingId, setSettlingId] = useState<string | null>(null)
   const [savingDueDateId, setSavingDueDateId] = useState<string | null>(null)
-  const [search, setSearch] = useState('')
+  const [draft, setDraft] = useState<CreditQuery>({ invoice: '', name: '', phone: '' })
+  const [search, setSearch] = useState<CreditQuery>({ invoice: '', name: '', phone: '' })
+  const searching = Boolean(search.invoice.trim() || search.name.trim() || search.phone.trim())
   const [activeTab, setActiveTab] = useState<'outstanding' | 'history'>('outstanding')
   const [datePreset, setDatePreset] = useState<DatePreset>('all')
   const [fromDate, setFromDate] = useState('')
@@ -145,6 +146,14 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
     }
   }
 
+  const exportCsv = () => {
+    const rows = activeTab === 'outstanding' ? items : filteredHistory
+    downloadCsv(`credits-${activeTab}-${toLocalDateStr(new Date())}.csv`, [
+      ['Invoice No', 'Customer', 'Phone', 'Bill Date', 'Due Date', 'Amount', 'Status', 'Paid On'],
+      ...rows.map(o => [formatInvoiceNo(o.invoice_no), o.customer_name, csvPhone(o.phone), csvDate(o.created_at), o.credit_due_date || '', Number(o.total || 0).toFixed(2), o.credit_status === 'paid' ? 'Paid' : 'Outstanding', o.credit_paid_at ? csvDate(o.credit_paid_at) : '']),
+    ])
+  }
+
   const totalOutstanding = items.reduce((sum, o) => sum + Number(o.total || 0), 0)
   const overdueItems = items.filter((o) => o.daysOverdue > 0)
   const totalOverdue = overdueItems.reduce((sum, o) => sum + Number(o.total || 0), 0)
@@ -162,28 +171,37 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
             Credit sales still to be collected. Mark a bill paid when the customer settles it.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5 bg-[#FAFAFA] border border-black/10 rounded-xl p-1">
-          {([['today', 'Today'], ['week', 'Week'], ['month', 'Month'], ['year', 'Year'], ['all', 'All'], ['custom', 'Custom']] as const).map(([value, label]) => (
-            <button key={value} type="button" onClick={() => applyDatePreset(value)}
-              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${datePreset === value ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[#000000] hover:bg-black/5'}`}>
-              {label}
-            </button>
-          ))}
-        </div>
+        <PeriodBar
+          preset={datePreset}
+          from={fromDate}
+          to={toDate}
+          onPreset={applyDatePreset}
+          onFrom={v => { setFromDate(v); setDatePreset('custom') }}
+          onTo={v => { setToDate(v); setDatePreset('custom') }}
+          onExport={exportCsv}
+          exportDisabled={(activeTab === 'outstanding' ? items.length : filteredHistory.length) === 0}
+        />
       </div>
 
-      {datePreset === 'custom' && (
-        <div className="flex flex-wrap items-end gap-3 bg-white border border-black/10 rounded-xl p-4">
-          <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#000000] mb-1">From</label>
-            <input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} className="bg-[#FAFAFA] border border-black/10 rounded-lg px-3 py-2 text-sm text-[#000000] focus:outline-none focus:border-[var(--accent)]" />
-          </div>
-          <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-[#000000] mb-1">To</label>
-            <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} className="bg-[#FAFAFA] border border-black/10 rounded-lg px-3 py-2 text-sm text-[#000000] focus:outline-none focus:border-[var(--accent)]" />
-          </div>
-        </div>
-      )}
+      <FilterCard
+        tabs={[
+          { id: 'outstanding' as const, label: 'Outstanding', count: items.length },
+          { id: 'history' as const, label: 'History', count: filteredHistory.length },
+        ]}
+        activeTab={activeTab}
+        onTab={setActiveTab}
+        onSearch={() => setSearch(draft)}
+      >
+        <FilterField label="Search Invoice No" search>
+          <input className={`${filterInput} pl-9`} placeholder="e.g. INV-..." value={draft.invoice} onChange={e => setDraft(d => ({ ...d, invoice: e.target.value }))} />
+        </FilterField>
+        <FilterField label="Customer Name">
+          <input className={filterInput} placeholder="Search name..." value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} />
+        </FilterField>
+        <FilterField label="Customer Phone">
+          <input className={filterInput} inputMode="tel" placeholder="Search phone..." value={draft.phone} onChange={e => setDraft(d => ({ ...d, phone: e.target.value }))} />
+        </FilterField>
+      </FilterCard>
 
       {/* Summary cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -213,32 +231,12 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
         </div>
       </div>
 
-      {/* Tabs + search */}
-      <div className="bg-white border border-black/10 rounded-xl p-3 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
-        <div className="flex gap-1.5">
-          {([
-            { id: 'outstanding' as const, label: 'Outstanding', count: items.length },
-            { id: 'history' as const, label: 'History', count: filteredHistory.length },
-          ]).map(({ id, label, count }) => (
-            <button key={id} type="button" onClick={() => setActiveTab(id)}
-              className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${activeTab === id ? 'bg-[var(--accent)] text-white' : 'bg-[#F4F4F5] text-black hover:bg-black/10'}`}>
-              {label} ({count})
-            </button>
-          ))}
-        </div>
-        <div className="relative w-full sm:w-64">
-          <Search className="w-3.5 h-3.5 text-black/30 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input type="text" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search invoice, customer, phone…"
-            className="w-full bg-[#FAFAFA] border border-black/10 rounded-lg pl-8 pr-3 py-2 text-xs text-[#000000] focus:outline-none focus:border-[var(--accent)] placeholder:text-black/30" />
-        </div>
-      </div>
-
       {/* Outstanding Table */}
       {activeTab === 'outstanding' && (
       <div className="bg-white border border-black/10 rounded-xl overflow-hidden shadow-sm">
         {items.length === 0 ? (
           <div className="p-16 text-center text-gray-400 font-bold text-xs">
-            {search ? 'No outstanding credit sales match your search.' : "No outstanding credit sales. Everything's settled!"}
+            {searching ? 'No outstanding credit sales match your search.' : "No outstanding credit sales. Everything's settled!"}
           </div>
         ) : (
           <>
@@ -378,7 +376,7 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
         </div>
         {filteredHistory.length === 0 ? (
           <div className="p-16 text-center text-gray-400 font-bold text-xs">
-            {search ? 'No settled credit sales match your search.' : 'No credit sales have been settled yet.'}
+            {searching ? 'No settled credit sales match your search.' : 'No credit sales have been settled yet.'}
           </div>
         ) : (
           <>

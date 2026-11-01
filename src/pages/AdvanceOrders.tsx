@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Box, Calendar, Check, Clock, Eye, FileText, IndianRupee, Plus, Printer, RefreshCw, Search, Trash2, Wallet, X } from 'lucide-react'
+import { Box, Calendar, Check, Clock, Eye, FileText, IndianRupee, Plus, Printer, RefreshCw, Trash2, Wallet, X } from 'lucide-react'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { getErrorMessage } from '../lib/errorMessage'
 import { formatCurrency } from '../lib/retail'
@@ -21,6 +21,9 @@ import {
   type AdvanceOrder, type AdvancePaymentMethod, type AdvanceStatus,
 } from '../services/advanceOrderService'
 import { isInPreset, toLocalDateStr } from '../lib/dateRanges'
+import { csvDate, csvPhone, downloadCsv } from '../lib/csv'
+import { FilterCard, FilterField, PeriodBar } from '../components/filters/PageFilters'
+import { filterInput, periodRange } from '../components/filters/filterStyles'
 
 type DateFilter = 'all' | 'today' | 'week' | 'month' | 'year' | 'custom'
 type StatusFilter = 'all' | 'pending' | 'ready' | 'completed' | 'cancelled'
@@ -58,7 +61,8 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
   const [form, setForm] = useState(initialForm)
   const linkedStockItem = stockItemFor(form.productName, form.category)
   const [saving, setSaving] = useState(false)
-  const [search, setSearch] = useState('')
+  const [draft, setDraft] = useState({ id: '', name: '', phone: '', product: '' })
+  const [query, setQuery] = useState({ id: '', name: '', phone: '', product: '' })
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [dateFilter, setDateFilter] = useState<DateFilter>('all')
   const [fromDate, setFromDate] = useState('')
@@ -120,9 +124,9 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
   }, [orders])
 
   const filtered = useMemo(() => orders.filter(order => {
-    const query = search.trim().toLowerCase()
-    const searchable = [order.deposit_id, order.customer_name, order.phone, order.product_name, STATUS_LABELS[order.status]].join(' ').toLowerCase()
-    if (query && !searchable.includes(query)) return false
+    const has = (value: string | null | undefined, needle: string) => !needle.trim() || String(value || '').toLowerCase().includes(needle.trim().toLowerCase())
+    if (!has(order.deposit_id, query.id) || !has(order.customer_name, query.name) || !has(order.phone, query.phone)) return false
+    if (query.product.trim() && !(order.products || []).some(item => has(String(item.name || ''), query.product)) && !has(order.product_name, query.product)) return false
     if (statusFilter === 'pending' && !['pending_deposit', 'waiting_final_payment'].includes(order.status)) return false
     if (statusFilter === 'ready' && order.status !== 'ready_for_delivery') return false
     if (statusFilter === 'completed' && order.status !== 'completed') return false
@@ -136,7 +140,12 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
       if (!isInPreset(order.created_at, dateFilter)) return false
     }
     return true
-  }), [orders, search, statusFilter, dateFilter, fromDate, toDate])
+  }), [orders, query, statusFilter, dateFilter, fromDate, toDate])
+
+  const exportCsv = () => downloadCsv(`advance-orders-${toLocalDateStr(new Date())}.csv`, [
+    ['Deposit ID', 'Created', 'Customer', 'Phone', 'Product', 'Total', 'Paid', 'Balance', 'Delivery', 'Status', 'Invoice No'],
+    ...filtered.map(o => [o.deposit_id, csvDate(o.created_at, true), o.customer_name, csvPhone(o.phone), o.product_name, o.total_amount.toFixed(2), o.deposit_amount.toFixed(2), (o.status === 'completed' ? 0 : o.remaining_balance).toFixed(2), o.expected_delivery_date || '', STATUS_LABELS[o.status], o.invoice_number || '']),
+  ])
 
   const create = async (event: FormEvent) => {
     event.preventDefault(); setSaving(true); setError(''); setNotice('')
@@ -281,43 +290,53 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
         <h2 className="text-[28px] font-black text-[#000000] tracking-tight">Advance Orders</h2>
         <p className="text-xs text-[#000000] font-semibold mt-1">Partial-payment holds — revenue is recognized only when the balance is collected.</p>
       </div>
-      <div className="flex flex-col items-stretch xl:items-end gap-3 w-full xl:w-auto">
-        <div className="flex flex-wrap items-center bg-white border border-black/10 rounded-2xl p-1.5 gap-1 max-w-full shadow-xs">
-          <span className="text-[10px] font-black text-[#000000] uppercase tracking-wider px-3">Period:</span>
-          {(['all', 'today', 'week', 'month', 'year'] as const).map(p => (
-            <button key={p} type="button" onClick={() => { setDateFilter(p); setFromDate(''); setToDate('') }}
-              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${dateFilter === p ? 'bg-[#0A0A0A] text-white shadow-sm' : 'text-[#000000] hover:bg-black/5'}`}>
-              {p === 'all' ? 'All Time' : p === 'today' ? 'Today' : p === 'week' ? 'This Week' : p === 'month' ? 'This Month' : 'This Year'}
-            </button>
-          ))}
-        </div>
-        <div className="flex flex-wrap items-center xl:justify-end gap-3">
-          <button type="button" onClick={() => setCreateOpen(true)}
-            className="flex items-center gap-2 rounded-2xl bg-[#0A0A0A] px-6 py-3 text-sm font-black text-white shadow-sm hover:bg-[#1A1A1A] cursor-pointer whitespace-nowrap">
-            <Plus size={16} /> New Advance Order
-          </button>
-          <button type="button" onClick={() => void load()} title="Refresh" aria-label="Refresh"
-            className="rounded-2xl border border-black/10 bg-white p-3 text-[#000000] shadow-xs hover:bg-black/5 cursor-pointer">
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-          </button>
-          <div className="flex flex-wrap items-center border rounded-2xl px-4 py-2 gap-4 shadow-xs bg-white border-black/10 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-[#000000]">From:</span>
-              <input type="date" value={fromDate} onChange={e => { setDateFilter('custom'); setFromDate(e.target.value) }}
-                className="text-sm font-semibold bg-transparent border-none outline-none focus:ring-0 cursor-pointer text-[#000000] w-[130px]" />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-black uppercase tracking-wider text-[#000000]">To:</span>
-              <input type="date" value={toDate} onChange={e => { setDateFilter('custom'); setToDate(e.target.value) }}
-                className="text-sm font-semibold bg-transparent border-none outline-none focus:ring-0 cursor-pointer text-[#000000] w-[130px]" />
-            </div>
-          </div>
-        </div>
-      </div>
+      <PeriodBar
+        preset={dateFilter}
+        from={dateFilter === 'custom' ? fromDate : periodRange(dateFilter).from}
+        to={dateFilter === 'custom' ? toDate : periodRange(dateFilter).to}
+        onPreset={p => { setDateFilter(p); setFromDate(''); setToDate('') }}
+        onFrom={v => { setDateFilter('custom'); setFromDate(v) }}
+        onTo={v => { setDateFilter('custom'); setToDate(v) }}
+        onExport={exportCsv}
+        exportDisabled={filtered.length === 0}
+      >
+        <button type="button" onClick={() => setCreateOpen(true)}
+          className="flex items-center gap-2 rounded-xl bg-[#0A0A0A] px-4 py-2 text-xs font-black uppercase tracking-wider text-white shadow-sm hover:bg-[#1A1A1A] cursor-pointer whitespace-nowrap">
+          <Plus size={14} /> New Advance Order
+        </button>
+        <button type="button" onClick={() => void load()} title="Refresh" aria-label="Refresh"
+          className="rounded-xl border border-black/10 bg-white p-2 text-[#000000] shadow-xs hover:bg-black/5 cursor-pointer">
+          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+        </button>
+      </PeriodBar>
     </div>
 
     {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
     {notice && <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</div>}
+
+    <FilterCard
+      tabs={(['all', 'pending', 'ready', 'completed', 'cancelled'] as StatusFilter[]).map(st => ({
+        id: st,
+        label: st === 'all' ? 'All' : st.charAt(0).toUpperCase() + st.slice(1),
+        count: st === 'all' ? orders.length : st === 'pending' ? analytics.pending : st === 'ready' ? analytics.ready : st === 'completed' ? analytics.completed : analytics.cancelled,
+      }))}
+      activeTab={statusFilter}
+      onTab={setStatusFilter}
+      onSearch={() => setQuery(draft)}
+    >
+      <FilterField label="Search Deposit ID" search>
+        <input className={`${filterInput} pl-9`} placeholder="e.g. DEP-..." value={draft.id} onChange={e => setDraft(d => ({ ...d, id: e.target.value }))} />
+      </FilterField>
+      <FilterField label="Customer Name">
+        <input className={filterInput} placeholder="Search name..." value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} />
+      </FilterField>
+      <FilterField label="Customer Phone">
+        <input className={filterInput} inputMode="tel" placeholder="Search phone..." value={draft.phone} onChange={e => setDraft(d => ({ ...d, phone: e.target.value }))} />
+      </FilterField>
+      <FilterField label="Product">
+        <input className={filterInput} placeholder="Search product..." value={draft.product} onChange={e => setDraft(d => ({ ...d, product: e.target.value }))} />
+      </FilterField>
+    </FilterCard>
 
     {/* Summary cards */}
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
@@ -338,26 +357,6 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
           <p className="mt-auto pt-2 text-[10.5px] font-medium text-[#000000]/65 leading-snug">{note}</p>
         </div>
       ))}
-    </div>
-
-    {/* Search + status filter */}
-    <div className="bg-white border border-black/10 rounded-2xl p-4 mb-4 flex flex-col md:flex-row gap-3 items-stretch md:items-center shadow-xs">
-      <div className="flex-1 relative">
-        <Search className="w-5 h-5 text-[#000000]/70 absolute left-4 top-1/2 -translate-y-1/2" />
-        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by ID, customer, phone, product or status"
-          className="w-full bg-white border border-black/10 rounded-xl pl-12 pr-3 py-3 text-sm font-semibold text-[#000000] focus:outline-none focus:border-[#0A0A0A]" />
-      </div>
-      <div className="flex gap-2 flex-wrap">
-        {(['all', 'pending', 'ready', 'completed', 'cancelled'] as StatusFilter[]).map(s => {
-          const count = s === 'all' ? orders.length : s === 'pending' ? analytics.pending : s === 'ready' ? analytics.ready : s === 'completed' ? analytics.completed : analytics.cancelled
-          return (
-            <button key={s} type="button" onClick={() => setStatusFilter(s)}
-              className={`px-4 py-3 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer whitespace-nowrap ${statusFilter === s ? 'bg-[#0A0A0A] text-white' : 'bg-[#F4F4F5] text-[#000000] hover:bg-black/10'}`}>
-              {s}{count > 0 ? ` (${count})` : ''}
-            </button>
-          )
-        })}
-      </div>
     </div>
 
     {/* Rows */}
