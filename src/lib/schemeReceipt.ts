@@ -1,3 +1,4 @@
+import { paymentModeLabel } from './paymentModes'
 import { BRAND_ADDRESS, BRAND_EN, BRAND_PHONE_DISPLAY } from './brand'
 import { formatCurrency } from './retail'
 import { formatPhoneDisplay } from './phone'
@@ -10,9 +11,7 @@ const esc = (value: string) => value.replace(/[&<>'"]/g, char => ({ '&': '&amp;'
 export const paymentMethodLabel = (method: string | null | undefined) => {
   const m = String(method || '').toLowerCase()
   if (m === 'qr' || m === 'upi') return 'UPI / QR'
-  if (m === 'card') return 'Card'
-  if (m === 'cash') return 'Cash'
-  return m ? m.toUpperCase() : '—'
+  return paymentModeLabel(m)
 }
 
 export type ReceiptTotals = { totalPaid: number; remaining: number; nextDueDate: string | null; totalGrams: number }

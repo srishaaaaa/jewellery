@@ -15,6 +15,8 @@ import { schemeService, type SchemeInstallment, type SchemeRedemption, type Sche
 import { buildSchemeInstallmentWhatsAppMessage } from '../lib/whatsappMessage'
 import { useMetalRateStore } from '../store/metalRateStore'
 import { paymentMethodLabel, printSchemeReceipt, totalsAfterInstallment } from '../lib/schemeReceipt'
+import { PaymentModePicker } from '../components/PaymentModePicker'
+import { splitError, splitSummary, type PaymentMode, type SplitAmounts } from '../lib/paymentModes'
 import { printDepositCertificate } from '../lib/schemeCertificate'
 import {
   BENEFIT_TYPE_LABELS,
@@ -68,8 +70,6 @@ const fmtDate = (iso: string | null | undefined) => {
   return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-const PAYMENT_METHODS = ['cash', 'qr', 'card'] as const
-type PaymentMethod = typeof PAYMENT_METHODS[number]
 
 type CreateForm = {
   /** Scheme type the terms come from ('' = custom terms, admin only) */
@@ -136,13 +136,16 @@ export default function Schemes() {
   // Collect installment
   const [collectScheme, setCollectScheme] = useState<JewelleryScheme | null>(null)
   const [collectInstallments, setCollectInstallments] = useState<SchemeInstallment[]>([])
-  const [collectMethod, setCollectMethod] = useState<PaymentMethod>('cash')
   const [collectNotes, setCollectNotes] = useState('')
   // Gold the payment buys: the scheme's purity (chosen on the first payment) at today's rate unless overridden.
   const [collectPurity, setCollectPurity] = useState('22K')
   const [collectRate, setCollectRate] = useState('')
   const rates = useMetalRateStore((s) => s.rates)
-  const [receipt, setReceipt] = useState<{ scheme: JewelleryScheme; installment: SchemeInstallment } | null>(null)
+  const [receipt, setReceipt] = useState<{ scheme: JewelleryScheme; installment: SchemeInstallment; installments?: SchemeInstallment[] } | null>(null)
+  const [collectCount, setCollectCount] = useState(1)
+  const [collectAmountText, setCollectAmountText] = useState('')
+  const [collectMode, setCollectMode] = useState<PaymentMode>('cash')
+  const [collectSplit, setCollectSplit] = useState<SplitAmounts>({})
 
   // Details
   const [detail, setDetail] = useState<JewelleryScheme | null>(null)
@@ -354,7 +357,10 @@ export default function Schemes() {
   // ── Collect installment ─────────────────────────────────────────────────
   const openCollect = async (scheme: JewelleryScheme) => {
     setCollectScheme(scheme)
-    setCollectMethod('cash')
+    setCollectMode('cash')
+    setCollectSplit({})
+    setCollectCount(1)
+    setCollectAmountText('')
     setCollectNotes('')
     setCollectPurity(scheme.goldPurity || '22K')
     setCollectRate('')
@@ -371,20 +377,38 @@ export default function Schemes() {
   const previousPayments = collectInstallments.filter((i) => i.status === 'paid')
   const collectTodayRate = rates[rateKey('gold', collectPurity)]?.ratePerGram || 0
   const collectGoldRate = collectRate.trim() === '' ? collectTodayRate : Number(collectRate) || 0
-  const collectGrams = nextInstallment && collectGoldRate > 0 ? Math.round((nextInstallment.amountDue / collectGoldRate) * 1000) / 1000 : 0
+  const pendingInstallments = collectInstallments.filter((i) => i.status === 'pending')
+  const collectSelected = pendingInstallments.slice(0, Math.max(1, Math.min(collectCount, pendingInstallments.length)))
+  const collectTotal = collectSelected.reduce((sum, i) => sum + i.amountDue, 0)
+  const collectGrams = collectSelected.length && collectGoldRate > 0 ? Math.round((collectTotal / collectGoldRate) * 1000) / 1000 : 0
+  /** Typing an amount picks how many installments it covers (₹5,000 on a ₹1,000 plan = 5). */
+  const setCollectAmount = (text: string) => {
+    setCollectAmountText(text)
+    const amount = Number(text) || 0
+    const per = nextInstallment?.amountDue || 0
+    if (per > 0 && amount > 0) setCollectCount(Math.max(1, Math.min(Math.floor((amount + 0.001) / per), pendingInstallments.length)))
+  }
+  const collectLeftover = (() => {
+    const amount = Number(collectAmountText) || 0
+    return collectAmountText.trim() !== '' && amount > collectTotal ? Math.round((amount - collectTotal) * 100) / 100 : 0
+  })()
 
   const submitCollect = async (event: FormEvent) => {
     event.preventDefault()
     if (!collectScheme) return
     if (collectRate.trim() !== '' && !(Number(collectRate) > 0)) { setModalError('Enter a valid gold rate, or leave it empty to use today\'s rate.'); return }
+    const mixError = splitError(collectMode, collectSplit, collectTotal)
+    if (mixError) { setModalError(mixError); return }
     setSaving(true)
     setModalError('')
     try {
-      const result = await schemeService.recordInstallment(collectScheme.id, collectMethod, staffName, collectNotes,
+      const count = collectSelected.length
+      const notes = [collectMode === 'mixed' ? `Split: ${splitSummary(collectSplit)}` : '', count > 1 ? `Paid ${count} installments together (${formatCurrency(collectTotal)})` : '', collectNotes.trim()].filter(Boolean).join(' | ')
+      const result = await schemeService.recordInstallments(collectScheme.id, count, collectMode, staffName, notes,
         { rate: collectGoldRate > 0 ? collectGoldRate : null, purity: collectPurity })
       replaceScheme(result.scheme)
       setCollectScheme(null)
-      setReceipt(result)
+      setReceipt({ scheme: result.scheme, installment: result.installments[result.installments.length - 1], installments: result.installments })
       if (view === 'payments') void loadPayments()
     } catch (err) {
       setModalError(getErrorMessage(err, 'Unable to record the installment'))
@@ -939,10 +963,39 @@ export default function Schemes() {
             <p className="text-sm text-[#000000]">{collectInstallments.length ? 'All installments are paid.' : 'Loading installments…'}</p>
           ) : <>
             <div className="rounded-xl bg-emerald-50 py-4 text-center">
-              <p className="text-[11px] font-black uppercase tracking-widest text-emerald-600">Installment {nextInstallment.installmentNumber} of {collectScheme.totalInstallments}</p>
-              <p className="mt-1 text-3xl font-black text-emerald-800">{formatCurrency(nextInstallment.amountDue)}</p>
-              <p className={`mt-1 text-xs font-bold ${nextInstallment.dueDate < today ? 'text-red-600' : 'text-emerald-700'}`}>Due {fmtDate(nextInstallment.dueDate)}{nextInstallment.dueDate < today ? ' (overdue)' : ''}</p>
+              <p className="text-[11px] font-black uppercase tracking-widest text-emerald-600">
+                {collectSelected.length > 1
+                  ? `Installments ${collectSelected[0].installmentNumber}–${collectSelected[collectSelected.length - 1].installmentNumber} of ${collectScheme.totalInstallments}`
+                  : `Installment ${nextInstallment.installmentNumber} of ${collectScheme.totalInstallments}`}
+              </p>
+              <p className="mt-1 text-3xl font-black text-emerald-800">{formatCurrency(collectTotal)}</p>
+              <p className={`mt-1 text-xs font-bold ${nextInstallment.dueDate < today ? 'text-red-600' : 'text-emerald-700'}`}>
+                {collectSelected.length > 1
+                  ? `${collectSelected.length} × ${formatCurrency(nextInstallment.amountDue)} · covers dues ${fmtDate(collectSelected[0].dueDate)} to ${fmtDate(collectSelected[collectSelected.length - 1].dueDate)}`
+                  : <>Due {fmtDate(nextInstallment.dueDate)}{nextInstallment.dueDate < today ? ' (overdue)' : ''}</>}
+              </p>
             </div>
+            {pendingInstallments.length > 1 && (
+              <div className="rounded-xl border border-black/10 p-3 space-y-3">
+                <div>
+                  <p className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">How many installments?</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[1, 2, 3, 6, 12].filter((n) => n <= pendingInstallments.length).concat(pendingInstallments.length > 12 || ![1, 2, 3, 6, 12].includes(pendingInstallments.length) ? [pendingInstallments.length] : []).map((n) => (
+                      <button key={n} type="button" onClick={() => { setCollectCount(n); setCollectAmountText('') }}
+                        className={`rounded-lg px-3 py-1.5 text-[11px] font-black border-2 transition-colors cursor-pointer ${collectSelected.length === n ? 'bg-[#0A0A0A] text-white border-[#0A0A0A]' : 'bg-white text-[#000000] border-black/10 hover:border-black/25'}`}>
+                        {n === pendingInstallments.length && n > 1 ? `All ${n}` : n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <Field label="Or enter the amount received">
+                  <input type="number" min="0" step="0.01" inputMode="decimal" className={inputClass} value={collectAmountText} onChange={(e) => setCollectAmount(e.target.value)} onWheel={(e) => e.currentTarget.blur()} placeholder={`e.g. ${formatCurrency(nextInstallment.amountDue * Math.min(5, pendingInstallments.length))}`} />
+                </Field>
+                {collectLeftover > 0 && (
+                  <p className="text-[11px] font-bold text-[#B45309]">{formatCurrency(collectLeftover)} is more than whole installments. Collect {formatCurrency(collectTotal)} now, or pick one more installment.</p>
+                )}
+              </div>
+            )}
             <div className="grid grid-cols-3 gap-2 text-center">
               {[['Previous Payments', String(previousPayments.length)], ['Total Paid', formatCurrency(collectScheme.totalPaid)], ['Remaining', `${collectScheme.totalInstallments - collectScheme.installmentsPaid} inst.`]].map(([k, v]) => (
                 <div key={k} className="rounded-xl bg-black/[0.03] p-2.5"><p className="text-[9px] font-black uppercase text-[#000000]">{k}</p><p className="mt-0.5 text-sm font-black text-[#000000] break-words">{v}</p></div>
@@ -961,21 +1014,12 @@ export default function Schemes() {
               </div>
               <p className="text-xs font-bold text-amber-900">
                 {collectGrams > 0
-                  ? <>{formatCurrency(nextInstallment.amountDue)} buys <span className="font-black">{collectGrams.toFixed(3)} g</span> at {formatCurrency(collectGoldRate)}/g{collectRate.trim() === '' ? " (today's rate)" : ''}</>
+                  ? <>{formatCurrency(collectTotal)} buys <span className="font-black">{collectGrams.toFixed(3)} g</span> at {formatCurrency(collectGoldRate)}/g{collectRate.trim() === '' ? " (today's rate)" : ''}</>
                   : `No ${collectPurity} rate is set for today. Enter the rate to record the grams.`}
               </p>
               <p className="text-[11px] font-semibold text-amber-800">Gold saved: {collectScheme.totalGrams.toFixed(3)} g{collectGrams > 0 ? ` → ${(collectScheme.totalGrams + collectGrams).toFixed(3)} g after this payment` : ''}</p>
             </div>
-            <Field label="Payment Method">
-              <div className="grid grid-cols-3 gap-1.5">
-                {PAYMENT_METHODS.map((m) => (
-                  <button key={m} type="button" onClick={() => setCollectMethod(m)}
-                    className={`py-2 rounded-xl text-[10px] font-bold uppercase tracking-[0.15em] border-2 transition-colors ${collectMethod === m ? 'bg-[#0A0A0A] text-white border-[#0A0A0A]' : 'bg-white text-[#000000] border-black/10 hover:border-gray-300'}`}>
-                    {paymentMethodLabel(m)}
-                  </button>
-                ))}
-              </div>
-            </Field>
+            <PaymentModePicker mode={collectMode} onMode={setCollectMode} split={collectSplit} onSplit={setCollectSplit} total={collectTotal} />
             <Field label="Notes"><input className={inputClass} value={collectNotes} onChange={(e) => setCollectNotes(e.target.value)} placeholder="Optional (e.g. UPI ref no.)" /></Field>
             {previousPayments.length > 0 && (
               <div>
@@ -991,7 +1035,7 @@ export default function Schemes() {
         </div>
         <div className="shrink-0 border-t border-black/10 bg-white px-4 py-3 sm:px-6">
           <button disabled={saving || !nextInstallment} className="w-full rounded-xl bg-emerald-600 py-3 sm:py-3.5 font-black text-white shadow-lg shadow-emerald-600/30 transition-transform active:scale-95 disabled:opacity-50">
-            {saving ? 'Processing...' : nextInstallment ? `Receive ${formatCurrency(nextInstallment.amountDue)}` : 'Nothing due'}
+            {saving ? 'Processing...' : nextInstallment ? `Receive ${formatCurrency(collectTotal)}${collectSelected.length > 1 ? ` (${collectSelected.length} installments)` : ''}` : 'Nothing due'}
           </button>
         </div>
       </form>
@@ -1002,9 +1046,11 @@ export default function Schemes() {
       <div className="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 text-center shadow-2xl">
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl">✓</div>
         <p className="mt-4 text-[11px] font-black uppercase tracking-[.16em] text-emerald-600">Installment received</p>
-        <h3 className="mt-1 text-2xl font-black text-[#000000]">{receipt.installment.receiptNumber}</h3>
+        <h3 className="mt-1 text-2xl font-black text-[#000000]">{receipt.installments && receipt.installments.length > 1 ? `${receipt.installments[0].receiptNumber} – ${receipt.installment.receiptNumber}` : receipt.installment.receiptNumber}</h3>
         <p className="mt-2 text-sm text-[#000000]">
-          {receipt.scheme.schemeNumber} · Installment {receipt.installment.installmentNumber} of {receipt.scheme.totalInstallments} · {formatCurrency(receipt.installment.amountPaid)}
+          {receipt.installments && receipt.installments.length > 1
+            ? `${receipt.scheme.schemeNumber} · Installments ${receipt.installments[0].installmentNumber}–${receipt.installment.installmentNumber} of ${receipt.scheme.totalInstallments} · ${formatCurrency(receipt.installments.reduce((sum, i) => sum + i.amountPaid, 0))}`
+            : `${receipt.scheme.schemeNumber} · Installment ${receipt.installment.installmentNumber} of ${receipt.scheme.totalInstallments} · ${formatCurrency(receipt.installment.amountPaid)}`}
         </p>
         {receipt.installment.goldGrams != null && receipt.installment.goldRate && <p className="mt-1 text-sm font-bold text-amber-700">{receipt.installment.goldGrams.toFixed(3)} g gold at {formatCurrency(receipt.installment.goldRate)}/g · Total saved {receipt.scheme.totalGrams.toFixed(3)} g</p>}
         <p className="mt-1 text-xs font-semibold text-[#000000]">Total paid {formatCurrency(receipt.scheme.totalPaid)} · {receipt.scheme.nextDueDate ? `Next due ${fmtDate(receipt.scheme.nextDueDate)}` : `Scheme ${SCHEME_STATUS_LABELS[deriveSchemeStatus(receipt.scheme, today)].toLowerCase()}`}</p>

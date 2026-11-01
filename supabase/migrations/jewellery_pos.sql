@@ -1894,3 +1894,43 @@ CREATE TRIGGER scheme_installment_issue_voucher
 GRANT EXECUTE ON FUNCTION public.close_scheme_early(UUID, TEXT, BOOLEAN, BOOLEAN, INTEGER, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.set_scheme_redemption_terms(UUID, BOOLEAN, BOOLEAN, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.issue_scheme_gift_voucher(UUID, NUMERIC, TEXT) TO anon, authenticated;
+
+-- ═══════════════════════════════════════════════════════════════════════
+-- Pay several installments at once (e.g. ₹5,000 on a ₹1,000 plan = the
+-- next 5 installments), at the start or partway through. Each installment
+-- is recorded exactly as a single collection: own receipt number, gold rate
+-- and grams. Runs in one transaction, so it is all or nothing.
+-- ═══════════════════════════════════════════════════════════════════════
+CREATE OR REPLACE FUNCTION public.record_scheme_installments(
+  p_scheme_id UUID,
+  p_count INTEGER,
+  p_payment_method TEXT,
+  p_created_by TEXT DEFAULT 'Admin',
+  p_notes TEXT DEFAULT '',
+  p_gold_rate NUMERIC DEFAULT NULL,
+  p_gold_purity TEXT DEFAULT NULL
+)
+RETURNS JSON
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_pending INTEGER;
+  v_result JSON;
+  v_installments JSON[] := ARRAY[]::JSON[];
+  i INTEGER;
+BEGIN
+  IF COALESCE(p_count, 0) < 1 THEN RAISE EXCEPTION 'Choose at least one installment to collect.'; END IF;
+  SELECT COUNT(*) INTO v_pending FROM public.scheme_installments WHERE scheme_id = p_scheme_id AND status = 'pending';
+  IF p_count > v_pending THEN
+    RAISE EXCEPTION 'Only % installment(s) are left on this scheme.', v_pending;
+  END IF;
+
+  FOR i IN 1..p_count LOOP
+    v_result := public.record_scheme_installment(p_scheme_id, p_payment_method, p_created_by, p_notes, p_gold_rate, p_gold_purity);
+    v_installments := v_installments || (v_result -> 'installment');
+  END LOOP;
+
+  RETURN json_build_object('installments', array_to_json(v_installments), 'scheme', v_result -> 'scheme');
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.record_scheme_installments(UUID, INTEGER, TEXT, TEXT, TEXT, NUMERIC, TEXT) TO anon, authenticated;

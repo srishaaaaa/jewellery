@@ -243,6 +243,35 @@ export const schemeService = {
     return { installment: mapInstallmentRow(payload.installment), scheme: mapSchemeRow(payload.scheme) }
   },
 
+  /**
+   * Collects the next `count` pending installments in one go (e.g. ₹5,000 on a ₹1,000 plan = 5).
+   * Each one gets its own receipt and grams, exactly as a single collection.
+   */
+  async recordInstallments(schemeId: string, count: number, paymentMethod: string, createdBy: string, notes = '', gold: { rate: number | null; purity: string } | null = null) {
+    if (count <= 1) {
+      const single = await this.recordInstallment(schemeId, paymentMethod, createdBy, notes, gold)
+      return { installments: [single.installment], scheme: single.scheme }
+    }
+    const { data, error } = await supabase.rpc('record_scheme_installments', {
+      p_scheme_id: schemeId,
+      p_count: count,
+      p_payment_method: paymentMethod,
+      p_created_by: createdBy,
+      p_notes: notes,
+      p_gold_rate: gold?.rate ?? null,
+      p_gold_purity: gold?.purity ?? null,
+    })
+    if (error) {
+      if ((error as { code?: string }).code === 'PGRST202') {
+        throw new Error('Collecting several installments at once needs the database update: run supabase/migrations/jewellery_pos.sql again in the Supabase SQL Editor.')
+      }
+      throw toError(error, 'Unable to record the installments')
+    }
+    const payload = (data || {}) as { installments?: Record<string, unknown>[]; scheme?: Record<string, unknown> }
+    if (!payload.installments?.length || !payload.scheme) throw new Error('Installments were not recorded')
+    return { installments: payload.installments.map(mapInstallmentRow), scheme: mapSchemeRow(payload.scheme) }
+  },
+
   /** Reserves scheme balance/benefit for a bill before the bill is saved. */
   async reserveRedemption(params: {
     schemeId: string
