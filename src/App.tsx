@@ -14,6 +14,7 @@ const Pos = lazy(() => import('./pages/Pos'))
 const DigitalInvoice = lazy(() => import('./pages/DigitalInvoice'))
 const CouponPage = lazy(() => import('./pages/CouponPage'))
 const AdvanceReceiptPage = lazy(() => import('./pages/AdvanceReceiptPage'))
+const PurchaseBillPage = lazy(() => import('./pages/PurchaseBillPage'))
 const Login = lazy(() => import('./pages/Login'))
 const AdminLogin = lazy(() => import('./pages/AdminLogin'))
 
@@ -227,6 +228,16 @@ function AppShell() {
               <Suspense fallback={<LoadingSpinner />}>
                 <CouponPage />
               </Suspense>
+            }
+          />
+          <Route
+            path="/purchase/:id"
+            element={
+              <AdminGuard>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <PurchaseBillPage />
+                </Suspense>
+              </AdminGuard>
             }
           />
           <Route

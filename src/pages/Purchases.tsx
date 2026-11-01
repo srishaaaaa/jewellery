@@ -1,11 +1,21 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Download, Eye, Plus, RefreshCw, Search, Truck, Users, Wallet, X } from 'lucide-react'
+import { Download, Eye, Plus, Printer, RefreshCw, Search, Truck, Users, Wallet, X } from 'lucide-react'
 import { getErrorMessage } from '../lib/errorMessage'
 import { formatCurrency, formatPaymentMode, COUNTER_PAYMENT_METHODS } from '../lib/retail'
 import { csvDate, csvPhone, downloadCsv } from '../lib/csv'
 import { formatWeight, GOLD_PURITIES, metalLabel, normalizeMetalType } from '../lib/jewellery'
+import { useNavigate } from 'react-router-dom'
 import { ModalPortal } from '../components/ModalPortal'
-import { useProductStore } from '../store/store'
+import { useProductStore, useSettingsStore } from '../store/store'
+import { BRAND_EN } from '../lib/brand'
+import { PaymentModePicker } from '../components/PaymentModePicker'
+import { splitError, splitSummary, type PaymentMode, type SplitAmounts } from '../lib/paymentModes'
+import { PrintSettingsModal } from '../components/invoice/PrintSettingsModal'
+import { DocumentPreviewModal } from '../components/invoice/InvoiceParts'
+import { PurchaseBillSheet } from '../components/invoice/PurchaseBillSheet'
+import { WhatsAppIcon } from '../components/ActionIcons'
+import { thermalWidth } from '../lib/printPrefs'
+import { printPurchaseThermal, sharePurchaseWhatsApp } from '../lib/purchaseDocs'
 import { auditService } from '../services/auditService'
 import {
   purchaseService, supplierService,
@@ -69,6 +79,7 @@ export default function Purchases() {
   useEffect(() => { void load() }, [load])
 
   const supplierById = useMemo(() => new Map(suppliers.map((s) => [s.id, s])), [suppliers])
+  const navigate = useNavigate()
   const owedBySupplier = useMemo(() => {
     const m = new Map<string, { total: number; due: number; count: number }>()
     for (const p of purchases) {
@@ -171,10 +182,16 @@ export default function Purchases() {
   const [detail, setDetail] = useState<Purchase | null>(null)
   const [detailPayments, setDetailPayments] = useState<SupplierPayment[]>([])
   const [payForm, setPayForm] = useState({ amount: '', method: 'bank', reference: '' })
+  const [payMode, setPayMode] = useState<PaymentMode>('bank')
+  const [paySplit, setPaySplit] = useState<SplitAmounts>({})
+  const [printOpen, setPrintOpen] = useState(false)
+  const [billPreview, setBillPreview] = useState(false)
+  const shopName = useSettingsStore(s => s.settings?.name) || BRAND_EN
   const openDetail = async (p: Purchase) => {
     setDetail(p)
     setDetailPayments([])
     setPayForm({ amount: p.due > 0 ? String(p.due) : '', method: 'bank', reference: '' })
+    setPayMode('bank'); setPaySplit({}); setPrintOpen(false); setBillPreview(false)
     setModalError('')
     try { setDetailPayments(await purchaseService.payments(p.id)) } catch (err) { setModalError(getErrorMessage(err, 'Unable to load payments')) }
   }
@@ -187,8 +204,10 @@ export default function Purchases() {
     setSaving(true)
     setModalError('')
     try {
-      const updated = await purchaseService.pay(detail.id, amount, payForm.method, payForm.reference.trim())
-      void auditService.log({ action: 'supplier_paid', entityType: 'purchase', entityId: updated.purchaseNumber, newValue: { amount, method: payForm.method } })
+      const mixError = splitError(payMode, paySplit, amount)
+      if (mixError) { setModalError(mixError); setSaving(false); return }
+      const updated = await purchaseService.pay(detail.id, amount, payMode, payForm.reference.trim(), payMode === 'mixed' ? `Split: ${splitSummary(paySplit)}` : '')
+      void auditService.log({ action: 'supplier_paid', entityType: 'purchase', entityId: updated.purchaseNumber, newValue: { amount, method: payMode } })
       setPurchases((rows) => rows.map((r) => (r.id === updated.id ? updated : r)))
       setDetail(updated)
       setDetailPayments(await purchaseService.payments(updated.id))
@@ -399,12 +418,29 @@ export default function Purchases() {
       </form>
     </div></ModalPortal>}
 
+    {detail && printOpen && (
+      <PrintSettingsModal
+        onClose={() => setPrintOpen(false)}
+        onPrint={(prefs) => prefs.paper === 'thermal' ? printPurchaseThermal(detail, supplierById.get(detail.supplierId), thermalWidth(prefs)) : navigate(`/purchase/${detail.id}?print=${prefs.size}`)}
+      />
+    )}
+    {detail && billPreview && (
+      <DocumentPreviewModal title={`Purchase Bill • #${detail.purchaseNumber}`} onClose={() => setBillPreview(false)} onOpenFull={() => navigate(`/purchase/${detail.id}`)}>
+        <PurchaseBillSheet purchase={detail} supplier={supplierById.get(detail.supplierId)} payments={detailPayments} />
+      </DocumentPreviewModal>
+    )}
+
     {/* ── Purchase detail / pay supplier ── */}
     {detail && <ModalPortal><div className="fixed inset-0 z-[997] flex justify-end bg-black/45">
       <div className="h-full w-full max-w-2xl overflow-y-auto bg-white p-5 sm:p-6 shadow-2xl">
         <div className="flex items-start justify-between">
           <div><p className="text-xs font-black text-[var(--accent-dark)]">{detail.purchaseNumber} • {fmtDate(detail.purchaseDate)}</p><h3 className="text-2xl font-black">{supplierById.get(detail.supplierId)?.name || 'Supplier'}</h3>{detail.supplierInvoiceNo && <p className="text-xs text-[#000000]">Supplier bill {detail.supplierInvoiceNo}</p>}</div>
           <button onClick={() => setDetail(null)}><X /></button>
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <button type="button" onClick={() => setPrintOpen(true)} className="flex items-center justify-center gap-2 rounded-xl border border-black/15 bg-white py-3 text-[11px] font-black uppercase tracking-wider text-[#000000] hover:bg-black/5 cursor-pointer"><Printer className="w-4 h-4 text-[var(--accent)]" /> Print</button>
+          <button type="button" onClick={() => setBillPreview(true)} className="flex items-center justify-center gap-2 rounded-xl border border-black/15 bg-white py-3 text-[11px] font-black uppercase tracking-wider text-[#000000] hover:bg-black/5 cursor-pointer"><Eye className="w-4 h-4 text-[var(--accent)]" /> View Bill</button>
+          <button type="button" onClick={() => sharePurchaseWhatsApp(detail, supplierById.get(detail.supplierId), shopName, `${window.location.origin}/purchase/${detail.id}`)} className="flex items-center justify-center gap-2 rounded-xl bg-[#10B981] hover:bg-[#059669] py-3 text-[11px] font-black uppercase tracking-wider text-white cursor-pointer"><WhatsAppIcon className="w-4 h-4" /> WhatsApp</button>
         </div>
         {modalError && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
         <div className="mt-4 overflow-x-auto rounded-xl border border-black/10">
@@ -435,9 +471,9 @@ export default function Purchases() {
             <h4 className="font-black">Pay Supplier</h4>
             <div className="grid gap-3 sm:grid-cols-3">
               <Field label="Amount ₹"><input type="number" min="0" step="0.01" className={inputClass} value={payForm.amount} onChange={(e) => setPayForm((f) => ({ ...f, amount: e.target.value }))} /></Field>
-              <Field label="Paid by"><select className={inputClass} value={payForm.method} onChange={(e) => setPayForm((f) => ({ ...f, method: e.target.value }))}>{COUNTER_PAYMENT_METHODS.map((m) => <option key={m} value={m}>{formatPaymentMode(m)}</option>)}</select></Field>
               <Field label="Reference"><input className={inputClass} value={payForm.reference} onChange={(e) => setPayForm((f) => ({ ...f, reference: e.target.value }))} placeholder="UTR / cheque no." /></Field>
             </div>
+            <PaymentModePicker label="Paid by" mode={payMode} onMode={setPayMode} split={paySplit} onSplit={setPaySplit} total={n(payForm.amount)} />
             <button disabled={saving} className="w-full rounded-xl bg-[var(--accent-dark)] py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50">{saving ? 'Saving…' : 'Record Payment'}</button>
           </form>
         )}
