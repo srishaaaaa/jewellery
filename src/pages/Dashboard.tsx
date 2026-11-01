@@ -495,8 +495,12 @@ export default function Dashboard() {
     const totalExpenses = datedExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
     // Old gold taken in during the period: exchanged on bills and bought at the counter
     const oldGoldDay = (iso: string) => toLocalDateStr(new Date(iso))
+    // GST / Non-GST: old gold on a bill follows that bill; counter purchases have no GST invoice
+    const gstByOrder = new Map(orders.map(o => [o.id, isGstBill(o)]))
+    const kindMatch = (gst: boolean) => analyticsBillKind === 'all' || (analyticsBillKind === 'gst') === gst
     const totalOldGold = oldGold
       .filter(g => (!analyticsDateFrom || oldGoldDay(g.createdAt) >= analyticsDateFrom) && (!analyticsDateTo || oldGoldDay(g.createdAt) <= analyticsDateTo))
+      .filter(g => kindMatch(g.source === 'billing' && g.orderId ? gstByOrder.get(g.orderId) ?? false : false))
       .reduce((s, g) => s + (Number(g.netValue) || 0), 0)
     const subtractExpenses = netRules?.netProfitIncludeExpenses ?? true
     const subtractOldGold = netRules?.netProfitIncludeOldGold ?? true
@@ -508,8 +512,9 @@ export default function Dashboard() {
     const openAdvances = advanceList.filter(a => a.status !== 'completed' && a.status !== 'cancelled')
     const advanceDepositsHeld = openAdvances.reduce((s, a) => s + a.deposit_amount, 0)
     const advanceBalanceDue = openAdvances.reduce((s, a) => s + a.remaining_balance, 0)
-    const creditOutstanding = orders.filter(o => o.credit_status === 'outstanding').reduce((s, o) => s + getOrderTotal(o), 0)
-    const creditOutstandingCount = orders.filter(o => o.credit_status === 'outstanding').length
+    const creditBills = orders.filter(o => o.credit_status === 'outstanding' && kindMatch(isGstBill(o)))
+    const creditOutstanding = creditBills.reduce((s, o) => s + getOrderTotal(o), 0)
+    const creditOutstandingCount = creditBills.length
     const netProfit = completedRevenue - (subtractExpenses ? totalExpenses : 0) - (subtractOldGold ? totalOldGold : 0) - (subtractPurchases ? totalPurchases : 0)
     const netFormula = ['GST + Non-GST', subtractExpenses ? 'Expenses' : '', subtractOldGold ? 'Old Gold' : '', subtractPurchases ? 'Purchases' : ''].filter(Boolean).join(' − ')
     const isProfitable = netProfit >= 0
@@ -2535,13 +2540,15 @@ export default function Dashboard() {
                     ['Owed to Suppliers', formatCurrency(analytics.supplierOwed), 'Balance still to pay', 'purchases', 'text-rose-600'],
                     ['Advance Deposits Held', formatCurrency(analytics.advanceDepositsHeld), `${analytics.openAdvanceCount} open order${analytics.openAdvanceCount === 1 ? '' : 's'} · ${formatCurrency(analytics.advanceBalanceDue)} to collect`, 'advance_orders', 'text-[#000000]'],
                     ['Credit Outstanding', formatCurrency(analytics.creditOutstanding), `${analytics.creditOutstandingCount} unpaid credit bill${analytics.creditOutstandingCount === 1 ? '' : 's'}`, 'outstanding_credits', 'text-rose-600'],
-                  ] as const).map(([label, value, hint, target, tone]) => (
+                  ] as const).map(([label, value, rawHint, target, tone]) => {
+                    const hint = analyticsBillKind !== 'all' && ['Expenses', 'Supplier Purchases', 'Owed to Suppliers', 'Advance Deposits Held'].includes(label) ? `${rawHint} · all bills` : rawHint
+                    return (
                     <button key={label} type="button" onClick={() => handleTabClick(target)} className="text-left bg-white border border-black/10 rounded-xl p-4 shadow-sm hover:border-black/25 transition-colors cursor-pointer">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-[#000000]">{label}</p>
                       <p className={`mt-2 text-lg font-black break-words ${tone}`}>{value}</p>
                       <p className="mt-1 text-[10px] font-semibold text-[#000000]/60">{hint}</p>
                     </button>
-                  ))}
+                  )})}
                 </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white px-5 py-4 shadow-sm">
                   <div className="flex flex-wrap items-center gap-3 min-w-0">
