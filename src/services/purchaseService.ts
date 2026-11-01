@@ -84,6 +84,8 @@ export interface Purchase {
   totalAmount: number
   amountPaid: number
   due: number
+  /** When the balance owed to the supplier is due (null = not set) */
+  dueDate: string | null
   notes: string
   createdBy: string
   createdAt: string
@@ -104,6 +106,7 @@ const mapPurchase = (r: Record<string, unknown>): Purchase => {
     purchaseDate: str(r.purchase_date).slice(0, 10),
     items: (Array.isArray(r.items) ? r.items : []).map((it) => mapLine(it as Record<string, unknown>)),
     totalAmount: total, amountPaid: paid, due: Math.max(0, Math.round((total - paid) * 100) / 100),
+    dueDate: r.due_date ? str(r.due_date).slice(0, 10) : null,
     notes: str(r.notes), createdBy: str(r.created_by), createdAt: str(r.created_at),
   }
 }
@@ -147,6 +150,15 @@ export const purchaseService = {
     })
     if (error) throw fail(error, 'Unable to record the purchase')
     return mapPurchase((Array.isArray(data) ? data[0] : data) as Record<string, unknown>)
+  },
+  /** Sets or clears the date the supplier balance is due. */
+  async setDueDate(purchaseId: string, dueDate: string | null): Promise<Purchase> {
+    const { data, error } = await supabase.from('supplier_purchases').update({ due_date: dueDate || null }).eq('id', purchaseId).select('*').single()
+    if (error) {
+      if (/due_date/.test(error.message || '')) throw new Error('Saving a due date needs the database update: run supabase/migrations/jewellery_pos.sql again in the Supabase SQL Editor.')
+      throw fail(error, 'Unable to save the due date')
+    }
+    return mapPurchase(data as Record<string, unknown>)
   },
   async pay(purchaseId: string, amount: number, paymentMethod: string, reference: string, notes = ''): Promise<Purchase> {
     const { data, error } = await supabase.rpc('record_supplier_payment', {

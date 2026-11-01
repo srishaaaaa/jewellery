@@ -18,6 +18,7 @@ export const PurchaseBillSheet: React.FC<{ purchase: Purchase; supplier?: Suppli
     ['Status', purchase.due > 0 ? (purchase.amountPaid > 0 ? 'PART PAID' : 'UNPAID') : 'PAID'],
   ]
   if (purchase.supplierInvoiceNo) meta.push(['Supplier Bill', purchase.supplierInvoiceNo])
+  if (purchase.due > 0 && purchase.dueDate) meta.push(['Balance Due', longDate(purchase.dueDate)])
   if (purchase.createdBy) meta.push(['Recorded By', purchase.createdBy])
 
   return (

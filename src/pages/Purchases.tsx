@@ -125,7 +125,7 @@ export default function Purchases() {
 
   // ── New purchase ───────────────────────────────────────────────────────────
   const [purchaseOpen, setPurchaseOpen] = useState(false)
-  const [pForm, setPForm] = useState({ supplierId: '', invoiceNo: '', date: today(), paid: '', method: 'bank', reference: '', notes: '' })
+  const [pForm, setPForm] = useState({ supplierId: '', invoiceNo: '', date: today(), dueDate: '', paid: '', method: 'bank', reference: '', notes: '' })
   const [lines, setLines] = useState<LineForm[]>([emptyLine()])
   const purchaseTotal = Math.round(lines.reduce((s, l) => s + lineAmount(l), 0) * 100) / 100
   const setLine = (idx: number, patch: Partial<LineForm>) => setLines((cur) => cur.map((l, i) => (i === idx ? { ...l, ...patch } : l)))
@@ -137,7 +137,7 @@ export default function Purchases() {
     } : { productId: '' })
   }
   const openPurchase = () => {
-    setPForm({ supplierId: suppliers.find((s) => s.isActive)?.id || '', invoiceNo: '', date: today(), paid: '', method: 'bank', reference: '', notes: '' })
+    setPForm({ supplierId: suppliers.find((s) => s.isActive)?.id || '', invoiceNo: '', date: today(), dueDate: '', paid: '', method: 'bank', reference: '', notes: '' })
     setLines([emptyLine()])
     setModalError('')
     setPurchaseOpen(true)
@@ -165,8 +165,12 @@ export default function Purchases() {
         })),
         amountPaid: paid, paymentMethod: pForm.method, reference: pForm.reference.trim(), notes: pForm.notes.trim(),
       })
+      let saved = created
+      if (pForm.dueDate && created.due > 0) {
+        try { saved = await purchaseService.setDueDate(created.id, pForm.dueDate) } catch (err) { setError(getErrorMessage(err, 'Purchase saved, but the due date could not be saved')) }
+      }
       void auditService.log({ action: 'purchase_recorded', entityType: 'purchase', entityId: created.purchaseNumber, newValue: { supplier: supplierById.get(created.supplierId)?.name, total: created.totalAmount, paid: created.amountPaid } })
-      setPurchases((rows) => [created, ...rows])
+      setPurchases((rows) => [saved, ...rows])
       setPurchaseOpen(false)
       const restocked = created.items.filter((i) => i.product_id).length
       setNotice(`${created.purchaseNumber} recorded for ${formatCurrency(created.totalAmount)}${created.due > 0 ? `, ${formatCurrency(created.due)} still owed` : ''}.${restocked ? ` Stock added to ${restocked} catalogue item${restocked > 1 ? 's' : ''}.` : ''}`)
@@ -285,7 +289,7 @@ export default function Purchases() {
                     <td className="px-4 py-3.5 text-xs">{p.items.slice(0, 2).map((i, k) => <p key={k}>{i.description || '—'}{i.quantity > 1 ? ` × ${i.quantity}` : ''}</p>)}{p.items.length > 2 && <p className="text-[#000000]">+{p.items.length - 2} more</p>}</td>
                     <td className="px-4 py-3.5 text-xs">{formatWeight(p.items.reduce((s, i) => s + i.net_weight * i.quantity, 0))} net</td>
                     <td className="px-4 py-3.5 font-black">{formatCurrency(p.totalAmount)}</td>
-                    <td className="px-4 py-3.5 text-xs"><p className="text-emerald-700">Paid <b>{formatCurrency(p.amountPaid)}</b></p>{p.due > 0 ? <p className="text-red-600">Owed <b>{formatCurrency(p.due)}</b></p> : <p className="font-black text-emerald-700">Settled</p>}</td>
+                    <td className="px-4 py-3.5 text-xs"><p className="text-emerald-700">Paid <b>{formatCurrency(p.amountPaid)}</b></p>{p.due > 0 ? <p className="text-red-600">Owed <b>{formatCurrency(p.due)}</b>{p.dueDate && <span className={`block text-[10px] font-bold ${p.dueDate < today() ? 'text-red-700' : 'text-[#000000]/60'}`}>Due {fmtDate(p.dueDate)}{p.dueDate < today() ? ' (overdue)' : ''}</span>}</p> : <p className="font-black text-emerald-700">Settled</p>}</td>
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
                       <button className={`${iconBtn} bg-black/[0.03] text-[var(--accent-dark)] hover:bg-[var(--accent-a10)]`} title="View / pay" onClick={() => void openDetail(p)}>{p.due > 0 ? <Wallet size={15} /> : <Eye size={15} />}</button>
                     </div></td>
@@ -358,6 +362,7 @@ export default function Purchases() {
             </Field>
             <Field label="Supplier Bill No."><input className={inputClass} value={pForm.invoiceNo} onChange={(e) => setPForm((f) => ({ ...f, invoiceNo: e.target.value }))} /></Field>
             <Field label="Purchase Date"><input type="date" className={inputClass} value={pForm.date} onChange={(e) => setPForm((f) => ({ ...f, date: e.target.value }))} /></Field>
+            <Field label="Balance Due Date"><input type="date" className={inputClass} value={pForm.dueDate} min={pForm.date} onChange={(e) => setPForm((f) => ({ ...f, dueDate: e.target.value }))} /></Field>
           </div>
 
           <div className="space-y-3">
@@ -465,6 +470,19 @@ export default function Purchases() {
           {[['Total', detail.totalAmount], ['Paid', detail.amountPaid], ['Owed', detail.due]].map(([k, v]) => <div key={k} className="rounded-xl bg-black/[0.03] p-3"><p className="text-[10px] font-bold uppercase text-[#000000]">{k}</p><p className={`mt-1 text-sm font-black ${k === 'Owed' && Number(v) > 0 ? 'text-red-600' : ''}`}>{formatCurrency(Number(v))}</p></div>)}
         </div>
         {detail.notes && <p className="mt-3 rounded-xl border p-3 text-sm">{detail.notes}</p>}
+        {detail.due > 0 && (
+          <div className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-black/10 p-3">
+            <Field label="Balance due date">
+              <input type="date" className={inputClass} value={detail.dueDate || ''} onChange={(e) => {
+                const value = e.target.value
+                purchaseService.setDueDate(detail.id, value || null)
+                  .then((updated) => { setDetail(updated); setPurchases((rows) => rows.map((r) => (r.id === updated.id ? updated : r))) })
+                  .catch((err) => setModalError(getErrorMessage(err, 'Unable to save the due date')))
+              }} />
+            </Field>
+            <p className="pb-2 text-[11px] font-semibold text-[#000000]/60">{detail.dueDate ? (detail.dueDate < today() ? 'Overdue — pay the supplier.' : 'You will be reminded before this date.') : 'Set a date to get a reminder.'}</p>
+          </div>
+        )}
 
         {detail.due > 0 && (
           <form onSubmit={submitPay} className="mt-5 rounded-xl border border-black/10 p-4 space-y-3">

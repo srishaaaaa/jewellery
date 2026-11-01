@@ -2097,3 +2097,7 @@ BEGIN
   RETURN json_build_object('order_id', v_order_id::TEXT, 'invoice_no', v_invoice_no, 'completed_at', v_now);
 END;
 $$;
+
+
+-- Date the balance owed to the supplier is due (drives the purchase due alerts).
+ALTER TABLE public.supplier_purchases ADD COLUMN IF NOT EXISTS due_date DATE;
