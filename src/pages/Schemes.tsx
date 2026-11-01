@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
-  AlertTriangle, CalendarDays, CheckCircle2, Clock3, Download, Eye, Gem, MessageCircle, PiggyBank,
+  AlertTriangle, CalendarDays, CheckCircle2, Clock3, Download, Edit2, Gem, MessageCircle, PiggyBank, Trash2,
   Plus, Printer, RefreshCw, Search, Settings, Trophy, Wallet, X,
 } from 'lucide-react'
 import { getErrorMessage } from '../lib/errorMessage'
@@ -16,6 +16,8 @@ import { buildSchemeInstallmentWhatsAppMessage } from '../lib/whatsappMessage'
 import { useMetalRateStore } from '../store/metalRateStore'
 import { paymentMethodLabel, printSchemeReceipt, totalsAfterInstallment } from '../lib/schemeReceipt'
 import { PaymentModePicker } from '../components/PaymentModePicker'
+import { SchemeDashboard } from '../components/schemes/SchemeDashboard'
+import { DocIcon, EyeIcon, WhatsAppIcon, actionBtn } from '../components/ActionIcons'
 import { splitError, splitSummary, type PaymentMode, type SplitAmounts } from '../lib/paymentModes'
 import { printDepositCertificate } from '../lib/schemeCertificate'
 import {
@@ -123,7 +125,7 @@ export default function Schemes() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
-  const [view, setView] = useState<'schemes' | 'payments'>('schemes')
+  const [view, setView] = useState<'dashboard' | 'schemes' | 'payments'>('dashboard')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<SchemeStatus | 'all'>('all')
   const [saving, setSaving] = useState(false)
@@ -472,14 +474,68 @@ export default function Schemes() {
     }
   }
 
-  const deleteScheme = async () => {
-    if (!detail || !isAdmin) return
-    if (!window.confirm(`Delete scheme ${detail.schemeNumber} of ${detail.customerName || detail.phone}? This cannot be undone.`)) return
+  const [editScheme, setEditScheme] = useState<JewelleryScheme | null>(null)
+  const [editSchemeForm, setEditSchemeForm] = useState({ customerName: '', schemeName: '', notes: '' })
+  const openEdit = (scheme: JewelleryScheme) => {
+    setEditScheme(scheme)
+    setModalError('')
+    setEditSchemeForm({ customerName: scheme.customerName, schemeName: scheme.schemeName, notes: scheme.notes || '' })
+  }
+  const saveEdit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!editScheme) return
+    setSaving(true)
+    setModalError('')
+    try {
+      const updated = await schemeService.updateDetails(editScheme.id, editSchemeForm)
+      void auditService.log({ action: 'scheme_edited', entityType: 'scheme', entityId: editScheme.schemeNumber, oldValue: { customer: editScheme.customerName, plan: editScheme.schemeName, notes: editScheme.notes }, newValue: { customer: updated.customerName, plan: updated.schemeName, notes: updated.notes } })
+      replaceScheme(updated)
+      setEditScheme(null)
+    } catch (err) {
+      setModalError(getErrorMessage(err, 'Unable to save the scheme'))
+    } finally {
+      setSaving(false)
+    }
+  }
+  /** Every installment of one scheme (paid and pending) as a CSV statement. */
+  const downloadStatement = async (scheme: JewelleryScheme) => {
+    try {
+      const inst = await schemeService.fetchInstallments(scheme.id)
+      downloadCsv(`${scheme.schemeNumber}-statement.csv`, [
+        ['Scheme', scheme.schemeNumber, 'Customer', scheme.customerName, 'Phone', csvPhone(scheme.phone)],
+        [],
+        ['Installment', 'Due Date', 'Amount Due', 'Status', 'Paid On', 'Amount Paid', 'Receipt', 'Gold Rate', 'Grams', 'Paid Via', 'Notes'],
+        ...inst.map((i) => [i.installmentNumber, i.dueDate, i.amountDue.toFixed(2), i.status, csvDate(i.paymentDate, true), i.status === 'paid' ? i.amountPaid.toFixed(2) : '', i.receiptNumber || '', i.goldRate?.toFixed(2) ?? '', i.goldGrams?.toFixed(3) ?? '', i.status === 'paid' ? paymentMethodLabel(i.paymentMethod) : '', i.notes]),
+        [],
+        ['Total paid', scheme.totalPaid.toFixed(2), 'Gold saved (g)', scheme.totalGrams.toFixed(3)],
+      ])
+    } catch (err) {
+      setError(getErrorMessage(err, 'Unable to download the statement'))
+    }
+  }
+
+  const latestReceipt = async (scheme: JewelleryScheme, mode: 'print' | 'whatsapp') => {
+    try {
+      const inst = await schemeService.fetchInstallments(scheme.id)
+      const paid = inst.filter((i) => i.status === 'paid')
+      const last = paid[paid.length - 1]
+      if (!last) { setError(`${scheme.schemeNumber} has no payments yet.`); return }
+      const totals = totalsAfterInstallment(scheme, inst, last)
+      if (mode === 'print') printSchemeReceipt(scheme, last, totals)
+      else whatsappReceipt(scheme, last, totals)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Unable to load the receipt'))
+    }
+  }
+
+  const deleteScheme = async (target: JewelleryScheme | null = detail) => {
+    if (!target || !isAdmin) return
+    if (!window.confirm(`Delete scheme ${target.schemeNumber} of ${target.customerName || target.phone}? This cannot be undone.`)) return
     setSaving(true)
     try {
-      await schemeService.remove(detail.id)
-      void auditService.log({ action: 'scheme_deleted', entityType: 'scheme', entityId: detail.schemeNumber, oldValue: { customer: detail.customerName, phone: detail.phone, plan: detail.schemeName, amount: detail.monthlyAmount } })
-      setSchemes((rows) => rows.filter((row) => row.id !== detail.id))
+      await schemeService.remove(target.id)
+      void auditService.log({ action: 'scheme_deleted', entityType: 'scheme', entityId: target.schemeNumber, oldValue: { customer: target.customerName, phone: target.phone, plan: target.schemeName, amount: target.monthlyAmount } })
+      setSchemes((rows) => rows.filter((row) => row.id !== target.id))
       setDetail(null)
     } catch (err) {
       setError(getErrorMessage(err, 'Unable to delete the scheme'))
@@ -713,7 +769,7 @@ export default function Schemes() {
     </div>
 
     <div className="flex gap-2 border-b border-black/10">
-      {([['schemes', 'Schemes'], ['payments', 'Payment History']] as const).map(([key, label]) => (
+      {([['dashboard', 'Dashboard'], ['schemes', 'Schemes'], ['payments', 'Payment History']] as const).map(([key, label]) => (
         <button key={key} onClick={() => setView(key)}
           className={`px-4 py-3 font-bold text-sm transition-colors ${view === key ? 'text-[var(--accent-dark)] border-b-2 border-[var(--accent-dark)]' : 'text-[#000000] hover:text-[#000000]'}`}>
           {label}
@@ -721,7 +777,7 @@ export default function Schemes() {
       ))}
     </div>
 
-    {view === 'schemes' ? <>
+    {view === 'dashboard' ? <SchemeDashboard schemes={schemes} today={today} /> : view === 'schemes' ? <>
       <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
         <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto]">
           <label className="relative"><Search className="absolute left-3 top-3 text-[#9CA3AF]" size={17} /><input className={`${inputClass} pl-10`} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search scheme ID, customer, phone or scheme name" /></label>
@@ -793,9 +849,30 @@ export default function Schemes() {
                             Collect
                           </button>
                         )}
-                        <button type="button" onClick={() => void openDetail(s)} className="w-8 h-8 rounded-lg bg-black/[0.03] hover:bg-emerald-100 text-emerald-700 flex items-center justify-center transition-colors cursor-pointer shrink-0" title="View Details">
-                          <Eye size={15} />
+                        {s.installmentsPaid > 0 && (
+                          <>
+                            <button type="button" onClick={() => void latestReceipt(s, 'whatsapp')} title="Send latest receipt on WhatsApp" aria-label="Send latest receipt on WhatsApp" className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`}>
+                              <WhatsAppIcon className="w-4 h-4" />
+                            </button>
+                            <button type="button" onClick={() => void latestReceipt(s, 'print')} title="Print latest receipt" aria-label="Print latest receipt" className={`${actionBtn} bg-black/10 hover:bg-black/15 text-[#000000]`}>
+                              <DocIcon className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                        <button type="button" onClick={() => void openDetail(s)} title="View details" aria-label="View details" className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`}>
+                          <EyeIcon className="w-4 h-4" />
                         </button>
+                        <button type="button" onClick={() => openEdit(s)} title="Edit scheme" aria-label="Edit scheme" className={`${actionBtn} bg-[#2563EB]/10 hover:bg-[#2563EB]/20 text-[#2563EB]`}>
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button type="button" onClick={() => void downloadStatement(s)} title="Download statement (CSV)" aria-label="Download statement" className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`}>
+                          <Download className="w-4 h-4" />
+                        </button>
+                        {isAdmin && s.installmentsPaid === 0 && s.totalPaid === 0 && (
+                          <button type="button" onClick={() => void deleteScheme(s)} title="Delete scheme" aria-label="Delete scheme" className={`${actionBtn} bg-[#DC2626]/10 hover:bg-[#DC2626]/20 text-[#DC2626]`}>
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -841,8 +918,9 @@ export default function Schemes() {
                     <td className="px-4 py-3.5 text-xs text-[#000000] max-w-[200px] truncate" title={p.notes}>{p.notes || '—'}</td>
                     <td className="px-4 py-3.5">
                       {s && <div className="flex items-center gap-1.5">
-                        <button type="button" onClick={() => void reprintFromHistory(p, 'print')} className="w-8 h-8 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-700 flex items-center justify-center cursor-pointer" title="Print Receipt"><Printer size={15} /></button>
-                        <button type="button" onClick={() => void reprintFromHistory(p, 'whatsapp')} className="w-8 h-8 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 flex items-center justify-center cursor-pointer" title="Send Receipt on WhatsApp"><MessageCircle size={15} /></button>
+                        <button type="button" onClick={() => void reprintFromHistory(p, 'whatsapp')} title="Send receipt on WhatsApp" aria-label="Send receipt on WhatsApp" className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`}><WhatsAppIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => void reprintFromHistory(p, 'print')} title="Print receipt" aria-label="Print receipt" className={`${actionBtn} bg-black/10 hover:bg-black/15 text-[#000000]`}><DocIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => void openDetail(s)} title="Open scheme" aria-label="Open scheme" className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`}><EyeIcon className="w-4 h-4" /></button>
                       </div>}
                     </td>
                   </tr>
@@ -1037,6 +1115,26 @@ export default function Schemes() {
           <button disabled={saving || !nextInstallment} className="w-full rounded-xl bg-emerald-600 py-3 sm:py-3.5 font-black text-white shadow-lg shadow-emerald-600/30 transition-transform active:scale-95 disabled:opacity-50">
             {saving ? 'Processing...' : nextInstallment ? `Receive ${formatCurrency(collectTotal)}${collectSelected.length > 1 ? ` (${collectSelected.length} installments)` : ''}` : 'Nothing due'}
           </button>
+        </div>
+      </form>
+    </div></ModalPortal>}
+
+    {editScheme && <ModalPortal><div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditScheme(null) }}>
+      <form onSubmit={saveEdit} className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between bg-[#1C1C1C] px-5 py-4">
+          <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-white"><Edit2 className="w-4 h-4" /> Edit Scheme • {editScheme.schemeNumber}</h3>
+          <button type="button" onClick={() => setEditScheme(null)} aria-label="Close" className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 cursor-pointer"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="space-y-4 p-5">
+          {modalError && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
+          <Field label="Customer name"><input className={inputClass} value={editSchemeForm.customerName} onChange={(e) => setEditSchemeForm((f) => ({ ...f, customerName: e.target.value }))} /></Field>
+          <Field label="Plan name"><input className={inputClass} value={editSchemeForm.schemeName} onChange={(e) => setEditSchemeForm((f) => ({ ...f, schemeName: e.target.value }))} /></Field>
+          <Field label="Notes"><textarea rows={3} className={inputClass} value={editSchemeForm.notes} onChange={(e) => setEditSchemeForm((f) => ({ ...f, notes: e.target.value }))} /></Field>
+          <p className="rounded-lg bg-[#FEF3C7] border border-[#F59E0B]/30 px-3 py-2 text-[11px] font-semibold text-[#78350F]">Amounts, dates and payments are not changed here. To move the scheme to another mobile number, use Transfer in the scheme details.</p>
+        </div>
+        <div className="flex justify-end gap-3 border-t border-black/10 bg-[#FAFAFA] px-5 py-4">
+          <button type="button" onClick={() => setEditScheme(null)} className="rounded-xl px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-black/60 hover:bg-black/5 cursor-pointer">Cancel</button>
+          <button type="submit" disabled={saving} className="rounded-xl bg-[#111111] px-6 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:bg-black disabled:opacity-60 cursor-pointer">{saving ? 'Saving…' : 'Save Changes'}</button>
         </div>
       </form>
     </div></ModalPortal>}

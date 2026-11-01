@@ -331,6 +331,17 @@ export const schemeService = {
    * Permanently deletes a scheme entered by mistake. Only allowed while nothing has been paid
    * into it and it was never used on a bill (paid installments are permanent payment records).
    */
+  /** Edits the names and notes on a scheme. Amounts, dates and payments are not changed here. */
+  async updateDetails(schemeId: string, patch: { customerName: string; schemeName: string; notes: string }): Promise<JewelleryScheme> {
+    const { data, error } = await supabase.from('jewellery_schemes')
+      .update({ customer_name: patch.customerName.trim(), scheme_name: patch.schemeName.trim(), notes: patch.notes.trim(), updated_at: new Date().toISOString() })
+      .eq('id', schemeId)
+      .select('*')
+      .single()
+    if (error) throw toError(error, 'Unable to save the scheme')
+    return mapSchemeRow(data as Record<string, unknown>)
+  },
+
   async remove(schemeId: string): Promise<void> {
     const { data: row, error: readErr } = await supabase.from('jewellery_schemes')
       .select('id, scheme_number, installments_paid, total_paid, amount_redeemed, benefit_used').eq('id', schemeId).maybeSingle()
