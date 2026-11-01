@@ -3360,45 +3360,37 @@ export default function Dashboard() {
                 <table className="w-full text-left text-xs">
                   <thead>
                     <tr className="bg-white border-b border-black/10 select-none">
-                      {['Order ID', 'Customer Name', 'Mobile Number', 'Source', 'Offers', 'Total Due', 'Date & Time', 'Status', 'Actions'].map(h => (
-                        <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-center">{h}</th>
+                      {['Order ID', 'Date & Time', 'Customer Name', 'Mobile Number', 'Source', 'Total Due'].map(h => (
+                        <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>
                       ))}
+                      <th className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-right">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-black/5 bg-white">
                     {filteredSearchResults.slice(0, 50).map(o => {
                       const billTypeLabel = normalizeOrderType(o.order_type) === 'manual_sale' ? 'MANUAL' : normalizeOrderMode(o.order_mode) === 'online' ? 'ONLINE' : 'OFFLINE'
-                      const billTypeClass = normalizeOrderType(o.order_type) === 'manual_sale' ? 'bg-purple-50 text-purple-700' : normalizeOrderMode(o.order_mode) === 'online' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'
                       return (
                         <React.Fragment key={o.id}>
-                        <tr key={o.id} className="hover:bg-black/[0.03] text-center">
-                          <td className="whitespace-nowrap px-4 py-3 text-[11px] font-bold text-[#000000]">{formatInvoiceNo(o.invoice_no)}</td>
-                          <td className="max-w-[100px] break-words px-4 py-3 text-[11px] font-semibold text-[#000000]">
+                        <tr key={o.id} className="hover:bg-black/[0.03] text-left">
+                          <td className="whitespace-nowrap px-4 py-4 text-xs font-semibold text-[#000000]">{formatInvoiceNo(o.invoice_no)}</td>
+                          <td className="whitespace-nowrap px-4 py-4">
+                            <p className="text-xs font-bold text-[#000000]">{new Date(o.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                            <p className="text-[10px] font-semibold text-black/60">{new Date(o.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })}</p>
+                          </td>
+                          <td className="max-w-[160px] break-words px-4 py-4 text-xs font-bold text-[#000000]">
                             {o.customer_name}
                             {o.credit_status === 'paid' && (
                               <span className="mt-1 block w-fit rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-amber-700 border border-amber-200">Credit Bill</span>
                             )}
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-[11px] text-[#000000]">
-                            <span className="font-semibold text-[#000000]">{formatPhoneWithCountryCode(o.phone).code}</span>
-                            <span className="ml-1">{formatPhoneWithCountryCode(o.phone).number}</span>
-                          </td>
+                          <td className="whitespace-nowrap px-4 py-4 text-xs font-semibold text-[#000000]">{formatPhoneWithCountryCode(o.phone).number || '—'}</td>
                           <td className="whitespace-nowrap px-4 py-3">
-                            <div className="flex flex-col items-center gap-1">
-                              <span className={`px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase ${billTypeClass}`}>{billTypeLabel}</span>
-                              <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider border ${toNumber(o.total_gst, 0) > 0 ? 'border-[var(--accent-a40)] text-[var(--accent-dark)] bg-[var(--accent-a10)]' : 'border-black/15 text-black/60 bg-black/[0.03]'}`}>{toNumber(o.total_gst, 0) > 0 ? 'GST' : 'Non-GST'}</span>
+                            <div className="flex flex-col items-start gap-1">
+                              <span className="px-2 py-0.5 rounded text-[9px] font-bold tracking-widest border border-[#27272A] text-[#27272A] bg-black/[0.03] uppercase">{billTypeLabel}</span>
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold tracking-widest border uppercase ${toNumber(o.total_gst, 0) > 0 ? 'border-[var(--accent)] text-[var(--accent)] bg-[var(--accent-a10)]' : 'border-black/20 text-black/60 bg-black/[0.03]'}`}>{toNumber(o.total_gst, 0) > 0 ? 'GST' : 'Non-GST'}</span>
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-[10px] leading-relaxed">
-                            {o.coupon_code || o.discount_amount > 0 || o.delivery_charge > 0 ? (
-                              <div className="flex flex-col items-center gap-0.5">
-                                {o.coupon_code && <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-bold text-emerald-700">{o.coupon_code}</span>}
-                                {o.discount_amount > 0 && <span className="whitespace-nowrap font-bold text-emerald-700">−{formatCurrency(o.discount_amount)}</span>}
-                                {o.delivery_charge > 0 && <span className="whitespace-nowrap font-semibold text-[#000000]">+{formatCurrency(o.delivery_charge)} delivery</span>}
-                              </div>
-                            ) : <span className="text-[#9BAB9A]">—</span>}
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-[11px] font-bold text-[#000000]">
+                          <td className="whitespace-nowrap px-4 py-4 text-sm font-black text-[var(--accent)]">
                             {formatCurrency(getOrderTotal(o))}
                             {o.credit_status === 'outstanding' && (
                               <span className="mt-1 block rounded-full bg-red-50 px-1.5 py-0.5 text-[9px] font-black uppercase text-red-700">Credit Due</span>
@@ -3409,9 +3401,8 @@ export default function Dashboard() {
                               </span>
                             )}
                           </td>
-                          <td className="whitespace-nowrap px-4 py-3 text-[11px] text-[#000000]">{new Date(o.created_at).toLocaleDateString('en-IN')}</td>
-                          <td className="whitespace-nowrap px-4 py-3">
-                            <div className="flex items-center justify-center gap-1.5">
+                          <td className="whitespace-nowrap px-4 py-4 text-right">
+                            <div className="flex flex-row items-center justify-end gap-1.5">
                               {role === 'admin' ? (
                                 <select value={normalizeStatus(o.status)} disabled={normalizeStatus(o.status) === 'cancelled'} onChange={e => void updateOrderStatus(o.id, e.target.value)}
                                   className={`cursor-pointer rounded border px-3 py-1 text-[10px] font-bold uppercase tracking-wider outline-none ${statusTone(o.status)}`}>
@@ -3424,10 +3415,6 @@ export default function Dashboard() {
                                   {normalizeStatus(o.status) === 'completed' ? l('Completed', 'முடிந்தது') : normalizeStatus(o.status) === 'cancelled' ? l('Cancelled', 'ரத்து') : l('Pending', 'நிலுவை')}
                                 </span>
                               )}
-                            </div>
-                          </td>
-                          <td className="whitespace-nowrap px-4 py-3">
-                            <div className="flex flex-row items-center justify-end gap-1.5">
                               <button onClick={() => handleShareViaWhatsApp(o)} title="Send on WhatsApp" aria-label="Send on WhatsApp" className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`}>
                                 <WhatsAppIcon className="w-4 h-4" />
                               </button>
@@ -3528,7 +3515,7 @@ export default function Dashboard() {
                       )
                     })}
                     {filteredSearchResults.length === 0 && (
-                      <tr><td colSpan={9} className="px-4 py-8 text-center text-[#000000]">{l('No matching bills', 'பில்கள் இல்லை')}</td></tr>
+                      <tr><td colSpan={7} className="px-4 py-8 text-center text-[#000000]">{l('No matching bills', 'பில்கள் இல்லை')}</td></tr>
                     )}
                   </tbody>
                 </table>
