@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-export type AlarmId = 'lowStock' | 'expiry' | 'creditDue' | 'customerEvent'
+export type AlarmId = 'lowStock' | 'expiry' | 'creditDue' | 'customerEvent' | 'dueAlerts'
 
 interface AlarmQueueState {
   /** Alarms currently wanting to show, in the order they asked. Only the front one renders. */

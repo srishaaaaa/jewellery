@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
+import { ALERT_KINDS, LEAD_LABELS, type AlertLead } from '../../lib/alertSettings'
 import { Store, Phone, MapPin, Palette, Package, SlidersHorizontal, Lock, RefreshCw, Camera, Trash2, X, Check, AlertCircle, Save, Receipt, ShieldCheck } from 'lucide-react'
 import { useSettingsStore, useAdminAuthStore, useProductStore, DEFAULT_POS_PERMISSIONS } from '../../store/store'
 import { auditService } from '../../services/auditService'
@@ -474,6 +475,48 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                   </span>
                 </label>
                 <p className="text-[11px] text-[#000000]">Staff never change metal rates, Schema rules, invoices, completed payments, stock quantities or settings.</p>
+                <div className="pt-3 border-t border-black/10 space-y-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Alerts & Reminders</p>
+                  {([
+                    ['notifications', 'Notifications', 'On: a pop-up (and a phone / desktop notification) when something is due. Off: no alerts at all.'],
+                    ['sound', 'Alert sound', 'On: an alarm sounds with the pop-up until you press Done. Off: pop-up only.'],
+                  ] as const).map(([key, label, hint]) => {
+                    const on = form.posPermissions.alerts[key]
+                    const disabled = key === 'sound' && !form.posPermissions.alerts.notifications
+                    return (
+                      <div key={key} className={`flex items-start justify-between gap-4 ${disabled ? 'opacity-50' : ''}`}>
+                        <span>
+                          <span className="block text-xs font-bold text-[#000000]">{label}</span>
+                          <span className="block text-[11px] text-[#000000]">{hint}</span>
+                        </span>
+                        <button
+                          type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled}
+                          onClick={() => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, alerts: { ...f.posPermissions.alerts, [key]: !f.posPermissions.alerts[key] } } }))}
+                          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors cursor-pointer disabled:cursor-not-allowed ${on ? 'bg-[var(--accent)]' : 'bg-black/20'}`}
+                        >
+                          <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                        </button>
+                      </div>
+                    )
+                  })}
+                  <div className={`rounded-xl border border-black/10 divide-y divide-black/5 ${form.posPermissions.alerts.notifications ? '' : 'opacity-50 pointer-events-none'}`}>
+                    {ALERT_KINDS.map(([kind, label, hint]) => (
+                      <div key={kind} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                        <span className="min-w-0">
+                          <span className="block text-xs font-bold text-[#000000]">{label}</span>
+                          <span className="block text-[10px] text-[#000000]/60">{hint}</span>
+                        </span>
+                        <select
+                          value={form.posPermissions.alerts.leads[kind]}
+                          onChange={e => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, alerts: { ...f.posPermissions.alerts, leads: { ...f.posPermissions.alerts.leads, [kind]: e.target.value as AlertLead } } } }))}
+                          className="shrink-0 rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-xs font-bold text-[#000000] focus:border-[var(--accent)] focus:outline-none cursor-pointer"
+                        >
+                          {(['day', 'week', 'month', 'off'] as AlertLead[]).map(l => <option key={l} value={l}>{LEAD_LABELS[l]}</option>)}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </div>
                 <div className="pt-3 border-t border-black/10 space-y-3">
                   <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Net Profit calculation</p>
                   {([

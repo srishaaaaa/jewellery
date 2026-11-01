@@ -754,6 +754,7 @@ export default function Schemes() {
     {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
     {notice && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</div>}
 
+    {view === 'schemes' && (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {cards.map(([label, value, Icon, color]) => (
         <div key={label} className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
@@ -767,6 +768,7 @@ export default function Schemes() {
         </div>
       ))}
     </div>
+    )}
 
     <div className="flex gap-2 border-b border-black/10">
       {([['dashboard', 'Dashboard'], ['schemes', 'Schemes'], ['payments', 'Payment History']] as const).map(([key, label]) => (

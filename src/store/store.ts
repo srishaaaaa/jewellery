@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { DEFAULT_ALERT_SETTINGS, normalizeAlertSettings, type AlertSettings } from '../lib/alertSettings'
 import { persist } from 'zustand/middleware'
 import { isSupabaseConfigured } from '../lib/supabase'
 import { getErrorMessage } from '../lib/errorMessage'
@@ -182,9 +183,11 @@ export interface PosPermissions {
   netProfitIncludeExpenses: boolean
   /** Net Profit subtracts old gold taken in (exchanged on bills and bought at the counter). */
   netProfitIncludeOldGold: boolean
+  /** Due-date reminders: pop-up, sound and how early each kind shows */
+  alerts: AlertSettings
 }
 
-export const DEFAULT_POS_PERMISSIONS: PosPermissions = { staffMaxDiscountPercent: 5, staffCanCustomiseSchemes: false, cashLimit: 199500, allowCashAboveLimit: false, netProfitIncludeExpenses: true, netProfitIncludeOldGold: true }
+export const DEFAULT_POS_PERMISSIONS: PosPermissions = { staffMaxDiscountPercent: 5, staffCanCustomiseSchemes: false, cashLimit: 199500, allowCashAboveLimit: false, netProfitIncludeExpenses: true, netProfitIncludeOldGold: true, alerts: DEFAULT_ALERT_SETTINGS }
 
 export const normalizePosPermissions = (raw: unknown): PosPermissions => {
   const r = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
@@ -196,6 +199,7 @@ export const normalizePosPermissions = (raw: unknown): PosPermissions => {
     allowCashAboveLimit: typeof r.allowCashAboveLimit === 'boolean' ? r.allowCashAboveLimit : DEFAULT_POS_PERMISSIONS.allowCashAboveLimit,
     netProfitIncludeExpenses: typeof r.netProfitIncludeExpenses === 'boolean' ? r.netProfitIncludeExpenses : DEFAULT_POS_PERMISSIONS.netProfitIncludeExpenses,
     netProfitIncludeOldGold: typeof r.netProfitIncludeOldGold === 'boolean' ? r.netProfitIncludeOldGold : DEFAULT_POS_PERMISSIONS.netProfitIncludeOldGold,
+    alerts: normalizeAlertSettings(r.alerts),
   }
 }
 

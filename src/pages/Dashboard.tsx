@@ -66,7 +66,7 @@ import { oldGoldService, type OldGoldRecord } from '../services/salesDeskService
 import { useNavigationStore } from '../store/navigationStore'
 import { useHardwareBarcodeScanner } from '../hooks/useHardwareBarcodeScanner'
 import { BarcodeRedirectDialog } from '../components/pos/BarcodeRedirectDialog'
-import CreditDueAlarmModal from '../components/dashboard/CreditDueAlarmModal'
+import DueAlertsCenter from '../components/dashboard/DueAlertsCenter'
 import CustomerEventAlarmModal from '../components/dashboard/CustomerEventAlarmModal'
 import { OutstandingCreditsView } from '../components/dashboard/OutstandingCreditsView'
 import { creditService } from '../services/creditService'
@@ -1538,7 +1538,7 @@ export default function Dashboard() {
   return (
     <div className="admin-shell h-dvh max-h-dvh min-h-dvh bg-white flex overflow-hidden">
       <LowStockAlarmModal triggerKey={tab} />
-      <CreditDueAlarmModal triggerKey={tab} />
+      <DueAlertsCenter onOpenTab={(t) => handleTabClick(t as TabKey)} />
       <CustomerEventAlarmModal triggerKey={tab} />
 
       {/* Mobile / tablet sidebar backdrop */}
