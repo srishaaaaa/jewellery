@@ -17,7 +17,12 @@ export type DeskReceipt = {
 }
 
 /** Prints an 80mm thermal slip for advances, repairs, returns etc. (same layout as the advance receipt). */
-export function printDeskReceipt(r: DeskReceipt) {
+const STORE_KEY = 'jewellery_desk_doc'
+/** Keeps the slip for the full-page view (/document) opened from its preview. */
+export const storeDeskDoc = (r: DeskReceipt) => { try { sessionStorage.setItem(STORE_KEY, JSON.stringify(r)) } catch { /* storage blocked */ } }
+export const readStoredDeskDoc = (): DeskReceipt | null => { try { return JSON.parse(sessionStorage.getItem(STORE_KEY) || 'null') as DeskReceipt | null } catch { return null } }
+
+export function printDeskReceipt(r: DeskReceipt, paperWidth: 58 | 80 = 80) {
   const settings = useSettingsStore.getState().settings
   const shop = { name: settings?.name || BRAND_EN, address: settings?.address || BRAND_ADDRESS, phone: settings?.phone || BRAND_PHONE_DISPLAY, gstin: settings?.gstin || '' }
   const frame = document.createElement('iframe')
@@ -29,9 +34,9 @@ export function printDeskReceipt(r: DeskReceipt) {
   const html = `<!doctype html><html><head><title>${esc(r.title)} ${esc(r.number)}</title>
 <meta charset="utf-8"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-  @page { size: 80mm auto; margin: 0; }
+  @page { size: ${paperWidth}mm auto; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Poppins', system-ui, sans-serif; font-size: 12px; font-weight: 600; width: 72mm; padding: 4mm; color: #000; }
+  body { font-family: 'Poppins', system-ui, sans-serif; font-size: ${paperWidth === 58 ? 10.5 : 12}px; font-weight: 600; width: ${paperWidth - 8}mm; padding: ${paperWidth === 58 ? 2 : 4}mm; color: #000; }
   .c { text-align: center; }
   .r { display: flex; justify-content: space-between; gap: 4px; margin: 5px 0; word-break: break-word; }
   .r span:first-child { flex-shrink: 0; max-width: 50%; }

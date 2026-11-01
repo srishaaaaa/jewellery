@@ -417,3 +417,9 @@ export async function deleteDeskRecord(table: DeskTable, id: string): Promise<vo
   }
   if (!data || data.length === 0) throw new Error('The record was not deleted (it may already be gone).')
 }
+
+/** Edits the customer name, phone and the note-like field of a Sales Desk record (amounts are not touched). */
+export async function updateDeskRecord(table: DeskTable, id: string, patch: Record<string, string>): Promise<void> {
+  const { error } = await supabase.from(table).update(patch).eq('id', id)
+  if (error) throw fail(error, 'Unable to save the changes')
+}

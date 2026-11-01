@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
-  CheckCircle2, Download, FileText, Hammer, MessageCircle, Plus, Printer, Receipt, RefreshCw, RotateCcw, Scale, Search, Trash2, Wallet, X, XCircle,
+  CheckCircle2, Download, Edit2, FileText, Hammer, MessageCircle, Plus, Printer, Receipt, RefreshCw, RotateCcw, Scale, Trash2, Wallet, X, XCircle,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { getErrorMessage } from '../lib/errorMessage'
@@ -12,9 +12,17 @@ import { useMetalRateStore } from '../store/metalRateStore'
 import { ModalPortal } from '../components/ModalPortal'
 import { cashLimitCheck, useAdminAuthStore, useSettingsStore } from '../store/store'
 import { invoicePdfFile } from '../lib/invoicePdf'
-import { printDeskReceipt } from '../lib/deskReceipt'
+import { printDeskReceipt, storeDeskDoc, type DeskReceipt } from '../lib/deskReceipt'
+import { useNavigate } from 'react-router-dom'
+import { DocIcon, EyeIcon, WhatsAppIcon } from '../components/ActionIcons'
+import { DocumentPreviewModal } from '../components/invoice/InvoiceParts'
+import { DeskDocSheet } from '../components/invoice/DeskDocSheet'
+import { PrintSettingsModal } from '../components/invoice/PrintSettingsModal'
+import { thermalWidth } from '../lib/printPrefs'
+import { FilterCard, FilterField, PeriodBar } from '../components/filters/PageFilters'
+import { filterInput, inRange, periodRange, type PeriodPreset } from '../components/filters/filterStyles'
 import { auditService } from '../services/auditService'
-import { deleteDeskRecord, type DeskTable,
+import { deleteDeskRecord, updateDeskRecord, type DeskTable,
   advanceService, oldGoldService, quotationService, repairService, returnService, REPAIR_STATUS_LABELS,
   type CustomerAdvance, type OldGoldRecord, type Quotation, type Repair, type RepairStatus, type ReturnLine, type SalesReturn,
 } from '../services/salesDeskService'
@@ -50,11 +58,12 @@ const thead = (cols: string[]) => (
   </thead>
 )
 const emptyRow = (cols: number, text: string) => <tr><td colSpan={cols} className="px-4 py-12 text-center text-[#000000]">{text}</td></tr>
-const iconBtn = 'w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer shrink-0'
+const iconBtn = 'w-8 h-8 rounded-md flex items-center justify-center transition-colors cursor-pointer shrink-0'
 
 export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quotation: Quotation) => void } = {}) {
   const role = useAdminAuthStore((s) => s.role)
   const isAdmin = role === 'admin'
+  const navigate = useNavigate()
   const [tab, setTab] = useState<DeskTab>('quotations')
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
@@ -86,9 +95,26 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
   }, [tab])
 
   useEffect(() => { void load() }, [load])
-  useEffect(() => { setSearch(''); setNotice('') }, [tab])
+  useEffect(() => { setSearch(''); setNotice(''); setStatusTab('all'); setDraft({ number: '', name: '', phone: '' }); setQuery({ number: '', name: '', phone: '' }) }, [tab])
 
   const q = search.trim().toLowerCase()
+  const [previewDoc, setPreviewDoc] = useState<DeskReceipt | null>(null)
+  const [printDoc, setPrintDoc] = useState<DeskReceipt | null>(null)
+  const viewDoc = (d: DeskReceipt) => setPreviewDoc(d)
+  const [period, setPeriod] = useState<PeriodPreset>('all')
+  const [periodFrom, setPeriodFrom] = useState('')
+  const [periodTo, setPeriodTo] = useState('')
+  const range = periodRange(period, periodFrom, periodTo)
+  const [statusTab, setStatusTab] = useState('all')
+  const [draft, setDraft] = useState({ number: '', name: '', phone: '' })
+  const [query, setQuery] = useState({ number: '', name: '', phone: '' })
+  const has = (value: string | null | undefined, needle: string) => !needle.trim() || String(value || '').toLowerCase().includes(needle.trim().toLowerCase())
+  /** Date range + number / name / phone search + the tab's status pill. */
+  const pass = (date: string | null | undefined, numbers: Array<string | null | undefined>, name: string | null | undefined, phone: string | null | undefined, status: string) =>
+    inRange(String(date || '').slice(0, 10), range.from, range.to)
+    && (!query.number.trim() || numbers.some((n) => has(n, query.number)))
+    && has(name, query.name) && has(phone, query.phone)
+    && (statusTab === 'all' || statusTab === status)
   const matches = (...vals: Array<string | null | undefined>) => !q || vals.some((v) => String(v || '').toLowerCase().includes(q))
 
   // ── Quotations ───────────────────────────────────────────────────────────
@@ -110,6 +136,57 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     }).join('\n')
     sendWhatsApp(qt.phone, `💎 *Quotation — ${shopName()}*\n\nDear ${qt.customerName || 'Customer'},\n\n📌 *Quotation No:* ${qt.quotationNumber}\n📅 *Date:* ${fmtDate(qt.createdAt)}${qt.validUntil ? `\n⏳ *Valid until:* ${fmtDate(qt.validUntil)}` : ''}\n\n${lines}\n\n💰 *Estimated Total:* ₹ ${qt.total.toFixed(2)}\n\nPrices are at today's metal rate and may change with the rate. This is not an invoice.`)
   }
+  const quotationDoc = (qt: Quotation): DeskReceipt => ({
+    title: 'Quotation', number: qt.quotationNumber, date: fmtDate(qt.createdAt, true), customerName: qt.customerName, phone: qt.phone,
+    rows: [...qt.items.map((raw): [string, string] => {
+      const it = normalizeStructuredOrderItem(raw)
+      const j = it.jewellery
+      return [`${it.name} × ${it.quantity}`, `${formatCurrency(it.line_total)}${j && j.net_weight ? ` (${formatWeight(j.net_weight)}${j.rate_per_gram ? ` @ ${formatCurrency(j.rate_per_gram)}/g` : ''})` : ''}`]
+    }), ['Valid until', fmtDate(qt.validUntil)], ...(qt.discount > 0 ? [['Discount', `− ${formatCurrency(qt.discount)}`] as [string, string]] : []), ...(qt.gst > 0 ? [['GST', formatCurrency(qt.gst)] as [string, string]] : [])],
+    totals: [['Subtotal', formatCurrency(qt.subtotal)], ['Quotation Total', formatCurrency(qt.total)]],
+    footer: 'This is an estimate at today\'s metal rate, not an invoice.',
+  })
+
+  // ── Edit customer details / notes on any record ──
+  const EDIT_NOTE: Record<DeskTable, [string, string]> = {
+    quotations: ['notes', 'Notes'], sales_returns: ['reason', 'Reason'], old_gold_exchanges: ['description', 'Description'],
+    customer_advances: ['purpose', 'Purpose'], repairs: ['notes', 'Notes'],
+  }
+  const [editRec, setEditRec] = useState<{ table: DeskTable; id: string; number: string; name: string; phone: string; note: string } | null>(null)
+  const saveEdit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!editRec) return
+    setSaving(true); setModalError('')
+    try {
+      const [noteKey] = EDIT_NOTE[editRec.table]
+      const patch = { customer_name: editRec.name.trim(), phone: editRec.phone.trim(), [noteKey]: editRec.note.trim() }
+      await updateDeskRecord(editRec.table, editRec.id, patch)
+      void auditService.log({ action: 'record_edited', entityType: editRec.table, entityId: editRec.number, newValue: patch })
+      setEditRec(null)
+      setNotice(`${editRec.number} updated.`)
+      void load()
+    } catch (err) { setModalError(getErrorMessage(err, 'Unable to save the changes')) } finally { setSaving(false) }
+  }
+  const editBtn = (table: DeskTable, id: string, number: string, name: string, phone: string, note: string) => (
+    <button className={`${iconBtn} bg-[#2563EB]/10 text-[#2563EB] hover:bg-[#2563EB]/20`} title="Edit details" onClick={() => { setModalError(''); setEditRec({ table, id, number, name, phone, note }) }}><Edit2 className="w-4 h-4" /></button>
+  )
+  const viewBtn = (d: DeskReceipt) => (
+    <button className={`${iconBtn} bg-black/10 text-[#000000] hover:bg-black/15`} title="View slip / invoice" onClick={() => viewDoc(d)}><DocIcon className="w-4 h-4" /></button>
+  )
+  const eyeBtn = (d: DeskReceipt) => (
+    <button className={`${iconBtn} bg-black/5 text-[#000000] hover:bg-black/10`} title="Open full page (print from there)" onClick={() => { storeDeskDoc(d); navigate('/document') }}><EyeIcon className="w-4 h-4" /></button>
+  )
+  const slipText = (d: DeskReceipt) => [
+    `🧾 *${d.title} — ${shopName()}*`, '', `Dear ${d.customerName || 'Customer'},`, '', `*No:* ${d.number}`, `*Date:* ${d.date}`,
+    ...d.rows.filter(([, v]) => v).map(([k, v]) => `*${k}:* ${v}`),
+    ...(d.totals?.length ? ['', ...d.totals.map(([k, v]) => `*${k}:* ${v}`)] : []),
+    '', 'Thank you!',
+  ].join('\n')
+  const waBtn = (d: DeskReceipt, send?: () => void) => (
+    <button className={`${iconBtn} bg-[#10B981]/10 text-[#10B981] hover:bg-[#10B981]/20 disabled:opacity-30 disabled:cursor-not-allowed`} title={d.phone ? 'Send on WhatsApp' : 'No phone number'} disabled={!d.phone}
+      onClick={() => send ? send() : sendWhatsApp(d.phone || '', slipText(d))}><WhatsAppIcon className="w-4 h-4" /></button>
+  )
+
   // Admin only: permanently remove a record from one of the lists below.
   const deleteRecord = async (table: DeskTable, id: string, number: string, what: string, warning = '') => {
     if (!isAdmin) return
@@ -127,7 +204,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     } catch (err) { setError(getErrorMessage(err, 'Unable to delete')) }
   }
   const deleteBtn = (onClick: () => void) => (
-    <button className={`${iconBtn} bg-red-50 text-red-600 hover:bg-red-100`} title="Delete" onClick={onClick}><Trash2 size={15} /></button>
+    <button className={`${iconBtn} bg-[#DC2626]/10 text-[#DC2626] hover:bg-[#DC2626]/20`} title="Delete" onClick={onClick}><Trash2 size={15} /></button>
   )
 
   const setQuotationStatus = async (qt: Quotation, status: Quotation['status']) => {
@@ -275,7 +352,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
       setReturns((rows) => rows.map((x) => (x.id === r.id ? updated : x)))
     } catch (err) { setError(getErrorMessage(err, 'Unable to update the return')) }
   }
-  const printReturn = (r: SalesReturn) => printDeskReceipt({
+  const returnDoc = (r: SalesReturn): DeskReceipt => ({
     title: r.returnType === 'exchange' ? 'Exchange Slip' : 'Return Slip', number: r.returnNumber, date: fmtDate(r.createdAt, true),
     customerName: r.customerName, phone: r.phone,
     rows: [['Original Invoice', r.invoiceNo ? formatInvoiceNo(r.invoiceNo) : 'Not given'], ...r.items.map((l): [string, string] => {
@@ -299,9 +376,9 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
   const ogRate = ogForm.exchangeRate.trim() === '' ? ogSuggestedRate : Number(ogForm.exchangeRate) || 0
   const ogPreview = calculateOldGoldValue({ netWeight: ogNet, meltingDeductionPercent: Number(ogForm.meltingDeduction) || 0, exchangeRate: ogRate, otherDeduction: Number(ogForm.otherDeduction) || 0 })
   const ogSourceCounts = { all: oldGold.length, billing: oldGold.filter((x) => x.source === 'billing').length, counter: oldGold.filter((x) => x.source === 'counter').length }
-  const visibleOldGold = oldGold.filter((x) => (ogFilter === 'all' || x.source === ogFilter) && matches(x.exchangeNumber, x.invoiceNo, x.customerName, x.phone))
+  const visibleOldGold = oldGold.filter((x) => (ogFilter === 'all' || x.source === ogFilter) && matches(x.exchangeNumber, x.invoiceNo, x.customerName, x.phone) && pass(x.createdAt, [x.exchangeNumber, x.invoiceNo], x.customerName, x.phone, x.settlement || 'billing'))
 
-  const printOldGold = (x: OldGoldRecord, creditReceipt?: string) => printDeskReceipt({
+  const oldGoldDoc = (x: OldGoldRecord, creditReceipt?: string): DeskReceipt => ({
     title: x.source === 'counter' ? 'Old Gold Purchase' : 'Old Gold Exchange', number: x.exchangeNumber, date: fmtDate(x.createdAt, true),
     customerName: x.customerName, phone: x.phone,
     rows: [
@@ -337,7 +414,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
       setNotice(advance
         ? `${exchange.exchangeNumber} recorded. ${formatCurrency(exchange.netValue)} added as store credit ${advance.receiptNumber} — apply it on the customer's next bill (Advances).`
         : `${exchange.exchangeNumber} recorded. Pay the customer ${formatCurrency(exchange.netValue)} by ${formatPaymentMode(exchange.payoutMethod)}.`)
-      printOldGold(exchange, advance?.receiptNumber)
+      viewDoc(oldGoldDoc(exchange, advance?.receiptNumber))
     } catch (err) {
       setModalError(getErrorMessage(err, 'Unable to record the old gold purchase'))
     } finally {
@@ -373,7 +450,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
       setSaving(false)
     }
   }
-  const printAdvance = (a: CustomerAdvance) => printDeskReceipt({
+  const advanceDoc = (a: CustomerAdvance): DeskReceipt => ({
     title: a.source === 'exchange' ? 'Exchange Credit' : a.source === 'old_gold' ? 'Old Gold Credit' : a.source === 'gift_voucher' ? 'Gift Voucher' : 'Advance Receipt', number: a.receiptNumber, date: fmtDate(a.createdAt, true),
     customerName: a.customerName, phone: a.phone,
     rows: [['Purpose', a.purpose || '—'], ['Payment', formatPaymentMode(a.paymentMethod)], ['Used on bills', formatCurrency(a.amountUsed)]],
@@ -417,7 +494,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
       setRepairs((rows) => [created, ...rows])
       setRepairOpen(false)
       setNotice(`${created.repairNumber} received for ${created.customerName || created.phone}.`)
-      printRepair(created)
+      viewDoc(repairDoc(created))
     } catch (err) {
       setModalError(getErrorMessage(err, 'Unable to save the repair'))
     } finally {
@@ -440,7 +517,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     })
     if (updated) setRepairEdit(null)
   }
-  const printRepair = (r: Repair) => printDeskReceipt({
+  const repairDoc = (r: Repair): DeskReceipt => ({
     title: 'Repair Receipt', number: r.repairNumber, date: fmtDate(r.receivedDate), customerName: r.customerName, phone: r.phone,
     rows: [['Item', r.itemName], ...(r.weight ? [['Weight', formatWeight(r.weight)] as [string, string]] : []), ['Work', r.description || '—'],
       ...(r.invoiceNo ? [['Bought on', formatInvoiceNo(r.invoiceNo)] as [string, string]] : []),
@@ -506,16 +583,91 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
       ))}
     </div>
 
+    {/* Summary boxes for the open section */}
+    {(() => {
+      const today = new Date().toISOString().slice(0, 10)
+      const sum = (n: number[]) => n.reduce((a, b) => a + b, 0)
+      const cards: Array<[string, string, React.ReactNode, string]> =
+        tab === 'quotations' ? [
+          ['Total Quotations', String(quotations.length), <FileText key="a" className="w-5 h-5 text-[#000000]" />, 'bg-black/5'],
+          ['Open', `${quotations.filter((x) => x.status === 'open').length} · ${formatCurrency(sum(quotations.filter((x) => x.status === 'open').map((x) => x.total)))}`, <Receipt key="b" className="w-5 h-5 text-[#2563EB]" />, 'bg-[#DBEAFE]'],
+          ['Billed', String(quotations.filter((x) => x.status === 'converted').length), <CheckCircle2 key="c" className="w-5 h-5 text-[#16A34A]" />, 'bg-[#DCFCE7]'],
+          ['Cancelled', String(quotations.filter((x) => x.status === 'cancelled').length), <XCircle key="d" className="w-5 h-5 text-[#DC2626]" />, 'bg-[#FEE2E2]'],
+        ] : tab === 'returns' ? [
+          ['Total Returns', String(returns.length), <RotateCcw key="a" className="w-5 h-5 text-[#000000]" />, 'bg-black/5'],
+          ['Pending Approval', String(returns.filter((x) => x.status === 'pending').length), <Receipt key="b" className="w-5 h-5 text-[#D97706]" />, 'bg-[#FEF3C7]'],
+          ['Refunded', formatCurrency(sum(returns.filter((x) => x.status === 'approved' && x.returnType !== 'exchange').map((x) => x.refundAmount))), <Wallet key="c" className="w-5 h-5 text-[#DC2626]" />, 'bg-[#FEE2E2]'],
+          ['Exchange Credit', formatCurrency(sum(returns.filter((x) => x.status === 'approved' && x.returnType === 'exchange').map((x) => x.refundAmount))), <CheckCircle2 key="d" className="w-5 h-5 text-[#16A34A]" />, 'bg-[#DCFCE7]'],
+        ] : tab === 'old_gold' ? [
+          ['Old Gold Records', String(oldGold.length), <Scale key="a" className="w-5 h-5 text-[#000000]" />, 'bg-black/5'],
+          ['Value Taken In', formatCurrency(sum(oldGold.map((x) => x.netValue))), <Wallet key="b" className="w-5 h-5 text-[#B45309]" />, 'bg-[#FEF3C7]'],
+          ['Net Weight', formatWeight(sum(oldGold.map((x) => x.netWeight))), <Scale key="c" className="w-5 h-5 text-[#2563EB]" />, 'bg-[#DBEAFE]'],
+          ['Paid Out / Credit', `${formatCurrency(sum(oldGold.filter((x) => x.settlement === 'paid').map((x) => x.netValue)))} / ${formatCurrency(sum(oldGold.filter((x) => x.settlement === 'credit').map((x) => x.netValue)))}`, <Receipt key="d" className="w-5 h-5 text-[#16A34A]" />, 'bg-[#DCFCE7]'],
+        ] : tab === 'advances' ? [
+          ['Available Balance', formatCurrency(sum(advances.filter((x) => x.status === 'active').map((x) => x.balance))), <Wallet key="a" className="w-5 h-5 text-[#16A34A]" />, 'bg-[#DCFCE7]'],
+          ['Total Received', formatCurrency(sum(advances.filter((x) => x.status !== 'cancelled').map((x) => x.amount))), <Receipt key="b" className="w-5 h-5 text-[#000000]" />, 'bg-black/5'],
+          ['Used on Bills', formatCurrency(sum(advances.map((x) => x.amountUsed))), <CheckCircle2 key="c" className="w-5 h-5 text-[#2563EB]" />, 'bg-[#DBEAFE]'],
+          ['Active Advances', String(advances.filter((x) => x.status === 'active').length), <FileText key="d" className="w-5 h-5 text-[#B45309]" />, 'bg-[#FEF3C7]'],
+        ] : [
+          ['Open Repairs', String(repairs.filter((x) => x.status !== 'delivered' && x.status !== 'cancelled').length), <Hammer key="a" className="w-5 h-5 text-[#000000]" />, 'bg-black/5'],
+          ['Ready to Collect', String(repairs.filter((x) => x.status === 'ready').length), <CheckCircle2 key="b" className="w-5 h-5 text-[#16A34A]" />, 'bg-[#DCFCE7]'],
+          ['Overdue', String(repairs.filter((x) => x.expectedDate && x.expectedDate < today && x.status !== 'delivered' && x.status !== 'cancelled').length), <XCircle key="c" className="w-5 h-5 text-[#DC2626]" />, 'bg-[#FEE2E2]'],
+          ['Charges to Collect', formatCurrency(sum(repairs.filter((x) => x.status !== 'delivered' && x.status !== 'cancelled').map((x) => Math.max(0, x.repairCharge - x.advancePaid)))), <Wallet key="d" className="w-5 h-5 text-[#B45309]" />, 'bg-[#FEF3C7]'],
+        ]
+      return (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {cards.map(([label, value, icon, bg]) => (
+            <div key={label} className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">{label}</p>
+                  <p className="mt-2 text-base sm:text-2xl font-black text-[#000000] break-words">{value}</p>
+                </div>
+                <div className={`rounded-xl p-3 ${bg} shrink-0`}>{icon}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )
+    })()}
+
     {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
     {notice && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</div>}
 
-    <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
-      <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-        <label className="relative"><Search className="absolute left-3 top-3 text-[#9CA3AF]" size={17} /><input className={`${inputClass} pl-10`} value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search number, customer, phone or invoice" /></label>
-        <button onClick={exportCsv} className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-200 cursor-pointer">
-          <Download size={13} /> Export CSV
-        </button>
-      </div>
+    <div className="flex justify-end">
+      <PeriodBar
+        preset={period}
+        from={range.from}
+        to={range.to}
+        onPreset={setPeriod}
+        onFrom={(v) => { setPeriodFrom(v); setPeriodTo(range.to); setPeriod('custom') }}
+        onTo={(v) => { setPeriodTo(v); setPeriodFrom(range.from); setPeriod('custom') }}
+        onExport={exportCsv}
+      />
+    </div>
+    <FilterCard
+      tabs={{
+          quotations: [['all', 'All'], ['open', 'Open'], ['converted', 'Billed'], ['cancelled', 'Cancelled']],
+          returns: [['all', 'All'], ['pending', 'Pending'], ['approved', 'Approved'], ['rejected', 'Rejected']],
+          old_gold: [['all', 'All'], ['billing', 'On a bill'], ['paid', 'Paid out'], ['credit', 'Store credit']],
+          advances: [['all', 'All'], ['active', 'Available'], ['used', 'Fully used'], ['cancelled', 'Cancelled']],
+          repairs: [['all', 'All'], ['received', 'Received'], ['in_repair', 'In repair'], ['ready', 'Ready'], ['delivered', 'Delivered'], ['cancelled', 'Cancelled']],
+        }[tab].map(([id, label]) => ({ id, label }))}
+      activeTab={statusTab}
+      onTab={setStatusTab}
+      onSearch={() => setQuery(draft)}
+    >
+      <FilterField label="Search Number / Invoice" search>
+        <input className={`${filterInput} pl-9`} placeholder="e.g. QT000001, INV…" value={draft.number} onChange={(e) => setDraft((d) => ({ ...d, number: e.target.value }))} />
+      </FilterField>
+      <FilterField label="Customer Name">
+        <input className={filterInput} placeholder="Search name..." value={draft.name} onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))} />
+      </FilterField>
+      <FilterField label="Customer Phone">
+        <input className={filterInput} inputMode="tel" placeholder="Search phone..." value={draft.phone} onChange={(e) => setDraft((d) => ({ ...d, phone: e.target.value }))} />
+      </FilterField>
+    </FilterCard>
+    <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm empty:hidden">
       {tab === 'quotations' && <p className="mt-2 text-[11px] font-semibold text-[#000000]">Create a quotation from the Billing Panel with "Save as Quotation". It uses today's metal rate and is not an invoice. Use the bill button to load it into the Billing Panel: quoted prices are kept until it expires.</p>}
       {tab === 'old_gold' && <>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -537,8 +689,8 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
           {tab === 'quotations' && <>
             {thead(['Quotation', 'Customer', 'Items', 'Total', 'Valid Until', 'Status', 'Actions'])}
             <tbody className="divide-y divide-black/5">
-              {loading ? emptyRow(7, 'Loading…') : quotations.filter((x) => matches(x.quotationNumber, x.customerName, x.phone)).length === 0 ? emptyRow(7, 'No quotations yet.')
-                : quotations.filter((x) => matches(x.quotationNumber, x.customerName, x.phone)).map((x) => (
+              {loading ? emptyRow(7, 'Loading…') : quotations.filter((x) => matches(x.quotationNumber, x.customerName, x.phone) && pass(x.createdAt, [x.quotationNumber], x.customerName, x.phone, x.status)).length === 0 ? emptyRow(7, 'No quotations yet.')
+                : quotations.filter((x) => matches(x.quotationNumber, x.customerName, x.phone) && pass(x.createdAt, [x.quotationNumber], x.customerName, x.phone, x.status)).map((x) => (
                   <tr key={x.id} className="hover:bg-[var(--accent-a5)] transition-colors">
                     <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.quotationNumber}</p><p className="text-[11px] text-[#000000]">{fmtDate(x.createdAt, true)} • {x.createdBy}</p></td>
                     <td className="px-4 py-3.5"><p className="font-bold text-[#000000]">{x.customerName || '—'}</p><p className="text-xs text-[#000000]">{x.phone}</p></td>
@@ -547,11 +699,11 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                     <td className="px-4 py-3.5 text-xs">{fmtDate(x.validUntil)}</td>
                     <td className="px-4 py-3.5">{statusChip(x.status === 'open' ? 'Open' : x.status === 'converted' ? 'Billed' : 'Cancelled', x.status === 'open' ? 'blue' : x.status === 'converted' ? 'green' : 'gray')}</td>
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
-                      <button className={`${iconBtn} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`} title="Download PDF" onClick={() => quotationPdf(x)}><Download size={15} /></button>
-                      {x.phone && <button className={`${iconBtn} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`} title="Send on WhatsApp" onClick={() => quotationWhatsApp(x)}><MessageCircle size={15} /></button>}
+                      {waBtn(quotationDoc(x), () => quotationWhatsApp(x))}{viewBtn(quotationDoc(x))}{editBtn('quotations', x.id, x.quotationNumber, x.customerName, x.phone, x.notes || '')}{eyeBtn(quotationDoc(x))}
+                      <button className={`${iconBtn} bg-[#10B981]/10 text-[#10B981] hover:bg-[#10B981]/20`} title="Download PDF" onClick={() => quotationPdf(x)}><Download size={15} /></button>
                       {x.status === 'open' && onBillQuotation && <button className={`${iconBtn} bg-[#0A0A0A] text-white hover:bg-[#1A1A1A]`} title={x.validUntil && x.validUntil < new Date().toISOString().slice(0, 10) ? 'Bill now (expired: priced at today\'s rate)' : 'Bill now at the quoted prices'} onClick={() => onBillQuotation(x)}><Receipt size={15} /></button>}
-                      {x.status === 'open' && <button className={`${iconBtn} bg-[var(--accent-a10)] text-[var(--accent-dark)] hover:bg-[var(--accent-a20)]`} title="Mark as billed" onClick={() => void setQuotationStatus(x, 'converted')}><CheckCircle2 size={15} /></button>}
-                      {x.status === 'open' && <button className={`${iconBtn} bg-red-50 text-red-600 hover:bg-red-100`} title="Cancel quotation" onClick={() => void setQuotationStatus(x, 'cancelled')}><XCircle size={15} /></button>}
+                      {x.status === 'open' && <button className={`${iconBtn} bg-[#F59E0B]/10 text-[#D97706] hover:bg-[#F59E0B]/20`} title="Mark as billed" onClick={() => void setQuotationStatus(x, 'converted')}><CheckCircle2 size={15} /></button>}
+                      {x.status === 'open' && <button className={`${iconBtn} bg-[#DC2626]/10 text-[#DC2626] hover:bg-[#DC2626]/20`} title="Cancel quotation" onClick={() => void setQuotationStatus(x, 'cancelled')}><XCircle size={15} /></button>}
                       {isAdmin && deleteBtn(() => void deleteRecord('quotations', x.id, x.quotationNumber, 'quotation'))}
                     </div></td>
                   </tr>
@@ -562,8 +714,8 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
           {tab === 'returns' && <>
             {thead(['Return', 'Invoice / Customer', 'Items', 'Type', 'Amount', 'Status', 'Actions'])}
             <tbody className="divide-y divide-black/5">
-              {loading ? emptyRow(7, 'Loading…') : returns.filter((x) => matches(x.returnNumber, x.invoiceNo, x.customerName, x.phone)).length === 0 ? emptyRow(7, 'No returns or exchanges yet.')
-                : returns.filter((x) => matches(x.returnNumber, x.invoiceNo, x.customerName, x.phone)).map((x) => (
+              {loading ? emptyRow(7, 'Loading…') : returns.filter((x) => matches(x.returnNumber, x.invoiceNo, x.customerName, x.phone) && pass(x.createdAt, [x.returnNumber, x.invoiceNo], x.customerName, x.phone, x.status)).length === 0 ? emptyRow(7, 'No returns or exchanges yet.')
+                : returns.filter((x) => matches(x.returnNumber, x.invoiceNo, x.customerName, x.phone) && pass(x.createdAt, [x.returnNumber, x.invoiceNo], x.customerName, x.phone, x.status)).map((x) => (
                   <tr key={x.id} className="hover:bg-[var(--accent-a5)] transition-colors">
                     <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.returnNumber}</p><p className="text-[11px] text-[#000000]">{fmtDate(x.createdAt, true)} • {x.createdBy}</p></td>
                     <td className="px-4 py-3.5"><p className="font-bold text-[#000000]">{x.invoiceNo ? formatInvoiceNo(x.invoiceNo) : 'No invoice'}</p><p className="text-xs text-[#000000]">{x.customerName} {x.phone && `• ${x.phone}`}</p></td>
@@ -572,10 +724,10 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                     <td className="px-4 py-3.5 font-black">{formatCurrency(x.refundAmount)}</td>
                     <td className="px-4 py-3.5">{statusChip(x.status === 'approved' ? 'Approved' : x.status === 'rejected' ? 'Rejected' : 'Pending approval', x.status === 'approved' ? 'green' : x.status === 'rejected' ? 'gray' : 'amber')}{x.approvedBy && <p className="mt-1 text-[10px] text-[#000000]">by {x.approvedBy}</p>}</td>
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
-                      <button className={`${iconBtn} bg-amber-50 text-amber-700 hover:bg-amber-100`} title="Print slip" onClick={() => printReturn(x)}><Printer size={15} /></button>
+                      {waBtn(returnDoc(x))}{viewBtn(returnDoc(x))}{editBtn('sales_returns', x.id, x.returnNumber, x.customerName, x.phone, x.reason)}{eyeBtn(returnDoc(x))}
                       {isAdmin && x.status === 'pending' && <>
-                        <button className={`${iconBtn} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`} title="Approve" onClick={() => void decideReturn(x, true)}><CheckCircle2 size={15} /></button>
-                        <button className={`${iconBtn} bg-red-50 text-red-600 hover:bg-red-100`} title="Reject" onClick={() => void decideReturn(x, false)}><XCircle size={15} /></button>
+                        <button className={`${iconBtn} bg-[#10B981]/10 text-[#10B981] hover:bg-[#10B981]/20`} title="Approve" onClick={() => void decideReturn(x, true)}><CheckCircle2 size={15} /></button>
+                        <button className={`${iconBtn} bg-[#DC2626]/10 text-[#DC2626] hover:bg-[#DC2626]/20`} title="Reject" onClick={() => void decideReturn(x, false)}><XCircle size={15} /></button>
                       </>}
                       {isAdmin && x.status !== 'approved' && deleteBtn(() => void deleteRecord('sales_returns', x.id, x.returnNumber, 'return'))}
                     </div></td>
@@ -601,7 +753,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                     <td className="px-4 py-3.5 text-xs">Melting {x.meltingDeductionPercent}%<br />Other {formatCurrency(x.otherDeduction)}</td>
                     <td className="px-4 py-3.5 font-black">{formatCurrency(x.netValue)}</td>
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
-                      <button className={`${iconBtn} bg-amber-50 text-amber-700 hover:bg-amber-100`} title="Print slip" onClick={() => printOldGold(x)}><Printer size={15} /></button>
+                      {waBtn(oldGoldDoc(x))}{viewBtn(oldGoldDoc(x))}{editBtn('old_gold_exchanges', x.id, x.exchangeNumber, x.customerName, x.phone, x.description)}{eyeBtn(oldGoldDoc(x))}
                       {isAdmin && (x.source === 'billing'
                         ? <span className="text-[10px] font-semibold text-[#000000]" title="Part-payment on a bill: delete the bill to remove it">On bill</span>
                         : deleteBtn(() => void deleteRecord('old_gold_exchanges', x.id, x.exchangeNumber, 'old gold purchase', x.settlement === 'credit' ? 'Its store credit is removed too (not allowed once the credit is used on a bill).' : '')))}
@@ -614,8 +766,8 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
           {tab === 'advances' && <>
             {thead(['Receipt', 'Customer', 'Purpose', 'Amount', 'Used / Balance', 'Status', 'Actions'])}
             <tbody className="divide-y divide-black/5">
-              {loading ? emptyRow(7, 'Loading…') : advances.filter((x) => matches(x.receiptNumber, x.customerName, x.phone, x.purpose)).length === 0 ? emptyRow(7, 'No advances yet.')
-                : advances.filter((x) => matches(x.receiptNumber, x.customerName, x.phone, x.purpose)).map((x) => (
+              {loading ? emptyRow(7, 'Loading…') : advances.filter((x) => matches(x.receiptNumber, x.customerName, x.phone, x.purpose) && pass(x.createdAt, [x.receiptNumber, x.sourceRef], x.customerName, x.phone, x.status)).length === 0 ? emptyRow(7, 'No advances yet.')
+                : advances.filter((x) => matches(x.receiptNumber, x.customerName, x.phone, x.purpose) && pass(x.createdAt, [x.receiptNumber, x.sourceRef], x.customerName, x.phone, x.status)).map((x) => (
                   <tr key={x.id} className="hover:bg-[var(--accent-a5)] transition-colors">
                     <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.receiptNumber}</p><p className="text-[11px] text-[#000000]">{fmtDate(x.createdAt, true)} • {x.createdBy}</p></td>
                     <td className="px-4 py-3.5"><p className="font-bold text-[#000000]">{x.customerName || '—'}</p><p className="text-xs text-[#000000]">{x.phone}</p></td>
@@ -624,9 +776,8 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                     <td className="px-4 py-3.5 text-xs"><p>Used {formatCurrency(x.amountUsed)}</p><p className="font-black text-emerald-700">Balance {formatCurrency(x.balance)}</p></td>
                     <td className="px-4 py-3.5">{statusChip(x.status === 'active' ? 'Available' : x.status === 'used' ? 'Fully used' : 'Cancelled', x.status === 'active' ? 'green' : 'gray')}</td>
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
-                      <button className={`${iconBtn} bg-amber-50 text-amber-700 hover:bg-amber-100`} title="Print receipt" onClick={() => printAdvance(x)}><Printer size={15} /></button>
-                      <button className={`${iconBtn} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`} title="Send on WhatsApp" onClick={() => whatsappAdvance(x)}><MessageCircle size={15} /></button>
-                      {isAdmin && x.status === 'active' && x.amountUsed === 0 && <button className={`${iconBtn} bg-red-50 text-red-600 hover:bg-red-100`} title="Cancel / refund advance" onClick={() => void cancelAdvance(x)}><XCircle size={15} /></button>}
+                      {waBtn(advanceDoc(x), () => whatsappAdvance(x))}{viewBtn(advanceDoc(x))}{editBtn('customer_advances', x.id, x.receiptNumber, x.customerName, x.phone, x.purpose)}{eyeBtn(advanceDoc(x))}
+                      {isAdmin && x.status === 'active' && x.amountUsed === 0 && <button className={`${iconBtn} bg-[#DC2626]/10 text-[#DC2626] hover:bg-[#DC2626]/20`} title="Cancel / refund advance" onClick={() => void cancelAdvance(x)}><XCircle size={15} /></button>}
                       {isAdmin && x.amountUsed === 0 && x.source !== 'old_gold' && deleteBtn(() => void deleteRecord('customer_advances', x.id, x.receiptNumber, 'advance', x.status === 'active' ? 'Only delete an advance entered by mistake. To give money back, use Cancel / refund instead.' : ''))}
                     </div></td>
                   </tr>
@@ -637,8 +788,8 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
           {tab === 'repairs' && <>
             {thead(['Repair', 'Customer', 'Item', 'Expected', 'Charge / Balance', 'Status', 'Actions'])}
             <tbody className="divide-y divide-black/5">
-              {loading ? emptyRow(7, 'Loading…') : repairs.filter((x) => matches(x.repairNumber, x.customerName, x.phone, x.itemName, x.invoiceNo, x.assignedTo)).length === 0 ? emptyRow(7, 'No repairs yet.')
-                : repairs.filter((x) => matches(x.repairNumber, x.customerName, x.phone, x.itemName, x.invoiceNo, x.assignedTo)).map((x) => (
+              {loading ? emptyRow(7, 'Loading…') : repairs.filter((x) => matches(x.repairNumber, x.customerName, x.phone, x.itemName, x.invoiceNo, x.assignedTo) && pass(x.receivedDate, [x.repairNumber, x.invoiceNo], x.customerName, x.phone, x.status)).length === 0 ? emptyRow(7, 'No repairs yet.')
+                : repairs.filter((x) => matches(x.repairNumber, x.customerName, x.phone, x.itemName, x.invoiceNo, x.assignedTo) && pass(x.receivedDate, [x.repairNumber, x.invoiceNo], x.customerName, x.phone, x.status)).map((x) => (
                   <tr key={x.id} className="hover:bg-[var(--accent-a5)] transition-colors">
                     <td className="px-4 py-3.5"><p className="font-black text-[var(--accent-dark)]">{x.repairNumber}</p><p className="text-[11px] text-[#000000]">Received {fmtDate(x.receivedDate)}</p></td>
                     <td className="px-4 py-3.5"><p className="font-bold text-[#000000]">{x.customerName || '—'}</p><p className="text-xs text-[#000000]">{x.phone}</p></td>
@@ -652,9 +803,8 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                       </select>
                     </td>
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
-                      <button className={`${iconBtn} bg-[var(--accent-a10)] text-[var(--accent-dark)] hover:bg-[var(--accent-a20)]`} title="Update charges" onClick={() => { setRepairEdit(x); setRepairEditForm({ charge: String(x.repairCharge), advance: String(x.advancePaid), expectedDate: x.expectedDate || '', assignedTo: x.assignedTo }); setModalError('') }}><Wallet size={15} /></button>
-                      <button className={`${iconBtn} bg-amber-50 text-amber-700 hover:bg-amber-100`} title="Print receipt" onClick={() => printRepair(x)}><Printer size={15} /></button>
-                      <button className={`${iconBtn} bg-emerald-50 text-emerald-700 hover:bg-emerald-100`} title="Send on WhatsApp" onClick={() => whatsappRepair(x)}><MessageCircle size={15} /></button>
+                      {waBtn(repairDoc(x), () => whatsappRepair(x))}{viewBtn(repairDoc(x))}{editBtn('repairs', x.id, x.repairNumber, x.customerName, x.phone, x.notes)}{eyeBtn(repairDoc(x))}
+                      <button className={`${iconBtn} bg-[#F59E0B]/10 text-[#D97706] hover:bg-[#F59E0B]/20`} title="Update charges" onClick={() => { setRepairEdit(x); setRepairEditForm({ charge: String(x.repairCharge), advance: String(x.advancePaid), expectedDate: x.expectedDate || '', assignedTo: x.assignedTo }); setModalError('') }}><Wallet size={15} /></button>
                       {isAdmin && deleteBtn(() => void deleteRecord('repairs', x.id, x.repairNumber, 'repair'))}
                     </div></td>
                   </tr>
@@ -849,7 +999,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
         <h3 className="mt-1 text-2xl font-black text-[#000000]">{advanceCreated.receiptNumber}</h3>
         <p className="mt-2 text-sm text-[#000000]">{formatCurrency(advanceCreated.amount)} from {advanceCreated.customerName || advanceCreated.phone}</p>
         <div className="mt-5 grid grid-cols-2 gap-2">
-          <button onClick={() => printAdvance(advanceCreated)} className="rounded-xl border border-emerald-200 py-3 text-sm font-black text-emerald-700"><Printer size={16} className="mr-1 inline" />Print Receipt</button>
+          <button onClick={() => viewDoc(advanceDoc(advanceCreated))} className="rounded-xl border border-emerald-200 py-3 text-sm font-black text-emerald-700"><Printer size={16} className="mr-1 inline" />Print Receipt</button>
           <button onClick={() => whatsappAdvance(advanceCreated)} className="rounded-xl bg-[#25D366] py-3 text-sm font-black text-white"><MessageCircle size={16} className="mr-1 inline -mt-0.5" />WhatsApp</button>
         </div>
         <button onClick={() => setAdvanceCreated(null)} className="mt-3 w-full rounded-xl bg-[#111111] py-3 text-sm font-black text-white">Done</button>
@@ -903,6 +1053,33 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
           <div className="col-span-2"><Field label="Assigned To"><input className={inputClass} value={repairEditForm.assignedTo} onChange={(e) => setRepairEditForm((f) => ({ ...f, assignedTo: e.target.value }))} placeholder="Staff / goldsmith name" /></Field></div>
         </div>
         <button className="w-full rounded-xl bg-[var(--accent-dark)] py-3 text-xs font-black uppercase tracking-wider text-white">Save</button>
+      </form>
+    </div></ModalPortal>}
+    {previewDoc && (
+      <DocumentPreviewModal title={`${previewDoc.title} Preview • #${previewDoc.number}`} onClose={() => setPreviewDoc(null)} onOpenFull={() => { storeDeskDoc(previewDoc); navigate('/document') }}>
+        <DeskDocSheet doc={previewDoc} />
+      </DocumentPreviewModal>
+    )}
+    {printDoc && (
+      <PrintSettingsModal onClose={() => setPrintDoc(null)} onPrint={(prefs) => { if (prefs.paper === 'thermal') printDeskReceipt(printDoc, thermalWidth(prefs)); else { storeDeskDoc(printDoc); navigate(`/document?print=${prefs.size}`) } }} />
+    )}
+    {editRec && <ModalPortal><div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditRec(null) }}>
+      <form onSubmit={saveEdit} className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between bg-[#1C1C1C] px-5 py-4">
+          <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-white"><Edit2 className="w-4 h-4" /> Edit • {editRec.number}</h3>
+          <button type="button" onClick={() => setEditRec(null)} aria-label="Close" className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 cursor-pointer"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="space-y-4 p-5">
+          {modalError && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
+          <Field label="Customer Name"><input className={inputClass} value={editRec.name} onChange={(e) => setEditRec((r) => r && ({ ...r, name: e.target.value }))} /></Field>
+          <Field label="Mobile Number"><input className={inputClass} inputMode="tel" value={editRec.phone} onChange={(e) => setEditRec((r) => r && ({ ...r, phone: e.target.value }))} /></Field>
+          <Field label={EDIT_NOTE[editRec.table][1]}><textarea rows={3} className={inputClass} value={editRec.note} onChange={(e) => setEditRec((r) => r && ({ ...r, note: e.target.value }))} /></Field>
+          <p className="rounded-lg bg-[#FEF3C7] border border-[#F59E0B]/30 px-3 py-2 text-[11px] font-semibold text-[#78350F]">Amounts and items are not changed here.</p>
+        </div>
+        <div className="flex justify-end gap-3 border-t border-black/10 bg-[#FAFAFA] px-5 py-4">
+          <button type="button" onClick={() => setEditRec(null)} className="rounded-xl px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-black/60 hover:bg-black/5 cursor-pointer">Cancel</button>
+          <button type="submit" disabled={saving} className="rounded-xl bg-[#111111] px-6 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:bg-black disabled:opacity-60 cursor-pointer">{saving ? 'Saving…' : 'Save Changes'}</button>
+        </div>
       </form>
     </div></ModalPortal>}
   </div>
