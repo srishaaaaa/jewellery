@@ -7,6 +7,8 @@ import { toWhatsAppUrl } from '../../lib/phone'
 import EventOfferPanel from './EventOfferPanel'
 import { getPresetRange, yearlyDateInRange, type RangePreset } from '../../lib/dateRanges'
 import { csvDate, csvPhone, toCsv } from '../../lib/csv'
+import { FilterCard, FilterField, PeriodBar } from '../filters/PageFilters'
+import { filterInput } from '../filters/filterStyles'
 
 type PageType = 'calendar' | 'customers'
 
@@ -19,6 +21,9 @@ export default function BirthdayView() {
   const [filterFromDate, setFilterFromDate] = useState('')
   const [filterToDate, setFilterToDate] = useState('')
   const [filterPreset, setFilterPreset] = useState<RangePreset | ''>('')
+  const [dateTab, setDateTab] = useState<'with' | 'missing' | 'all'>('with')
+  const [draft, setDraft] = useState({ name: '', phone: '' })
+  const [query, setQuery] = useState({ name: '', phone: '' })
   const applyFilterPreset = (preset: RangePreset | '') => {
     setFilterPreset(preset)
     if (!preset) { setFilterFromDate(''); setFilterToDate(''); return }
@@ -77,14 +82,17 @@ export default function BirthdayView() {
   }
 
   const getFilteredCustomers = () => {
+    const has = (value: string | null | undefined, needle: string) => !needle.trim() || String(value || '').toLowerCase().includes(needle.trim().toLowerCase())
     return customers
-      .filter(c => c.birthday)
+      .filter(c => dateTab === 'all' || (dateTab === 'with' ? Boolean(c.birthday) : !c.birthday))
       .filter(c => {
-        if (!filterFromDate && !filterToDate) return true
+        if (!c.birthday || (!filterFromDate && !filterToDate)) return true
         // Match on day + month within the chosen dates (the stored year is the original year)
         return yearlyDateInRange(c.birthday, filterFromDate, filterToDate)
       })
+      .filter(c => has(c.name, query.name) && has(c.phone, query.phone))
   }
+
 
   const sendOffer = async (customer: CustomerRecord) => {
     const message = offerSettings.buildMessage(customer.name)
@@ -120,7 +128,7 @@ export default function BirthdayView() {
     const rows = filtered.map(c => [
       c.name,
       csvPhone(c.phone),
-      csvDate(c.birthday),
+      c.birthday ? csvDate(c.birthday) : 'Not saved',
       '₹0'
     ])
     const csv = toCsv([headers, ...rows])
@@ -231,30 +239,35 @@ export default function BirthdayView() {
       {/* Customers Page */}
       {currentPage === 'customers' && (
         <div className="space-y-4">
-          <div className="rounded-xl border border-black/10 bg-white p-4">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-[#000000] text-sm">Filter by upcoming birthday</h3>
-              {filtered.length > 0 && (
-                <button
-                  onClick={exportToCSV}
-                  className="px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 font-bold text-xs transition-colors"
-                >
-                  📥 Export CSV
-                </button>
-              )}
-            </div>
-            {presetButtons}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <label className="block text-xs font-bold text-[#000000] mb-1">FROM</label>
-                <input type="date" value={filterFromDate} onChange={(e) => { setFilterFromDate(e.target.value); setFilterPreset('') }} className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-xs font-semibold" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-[#000000] mb-1">TO</label>
-                <input type="date" value={filterToDate} onChange={(e) => { setFilterToDate(e.target.value); setFilterPreset('') }} className="w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-xs font-semibold" />
-              </div>
-            </div>
+          <div className="flex justify-end">
+            <PeriodBar
+              preset={filterPreset || (filterFromDate || filterToDate ? 'custom' : 'all')}
+              from={filterFromDate}
+              to={filterToDate}
+              onPreset={p => applyFilterPreset(p === 'all' ? '' : p)}
+              onFrom={v => { setFilterFromDate(v); setFilterPreset('') }}
+              onTo={v => { setFilterToDate(v); setFilterPreset('') }}
+              onExport={exportToCSV}
+              exportDisabled={filtered.length === 0}
+            />
           </div>
+          <FilterCard
+            tabs={[
+              { id: 'with' as const, label: 'With Date', count: customers.filter(c => c.birthday).length },
+              { id: 'missing' as const, label: 'No Date Saved', count: customers.length - customers.filter(c => c.birthday).length },
+              { id: 'all' as const, label: 'All Customers', count: customers.length },
+            ]}
+            activeTab={dateTab}
+            onTab={setDateTab}
+            onSearch={() => setQuery(draft)}
+          >
+            <FilterField label="Customer Name" search>
+              <input className={`${filterInput} pl-9`} placeholder="Search name..." value={draft.name} onChange={e => setDraft(d => ({ ...d, name: e.target.value }))} />
+            </FilterField>
+            <FilterField label="Customer Phone">
+              <input className={filterInput} inputMode="tel" placeholder="Search phone..." value={draft.phone} onChange={e => setDraft(d => ({ ...d, phone: e.target.value }))} />
+            </FilterField>
+          </FilterCard>
 
           <div className="rounded-xl border border-black/10 bg-white p-4 overflow-hidden">
             <div className="overflow-x-auto">
@@ -278,7 +291,7 @@ export default function BirthdayView() {
                       <tr key={customer.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3 font-bold text-[#000000]">{customer.name}</td>
                         <td className="px-4 py-3 text-[#000000]">{customer.phone}</td>
-                        <td className="px-4 py-3 text-[#000000]">{new Date(`${customer.birthday}T00:00:00`).toLocaleDateString('en-IN')}</td>
+                        <td className="px-4 py-3 text-[#000000]">{customer.birthday ? new Date(`${customer.birthday}T00:00:00`).toLocaleDateString('en-IN') : <span className="text-[10px] font-bold uppercase tracking-wider text-black/40">Not saved</span>}</td>
                         <td className="px-4 py-3 font-black text-[#000000]">₹0</td>
                         <td className="px-4 py-3">
                           <button onClick={() => sendOffer(customer)} className="flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-[10px] font-black text-white cursor-pointer">
