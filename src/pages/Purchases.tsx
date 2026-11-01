@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Download, Eye, Plus, Printer, RefreshCw, Search, Truck, Users, Wallet, X } from 'lucide-react'
+import { Check, Edit2, Eye, IndianRupee, LayoutDashboard, Plus, Printer, RefreshCw, Truck, Users, X } from 'lucide-react'
 import { getErrorMessage } from '../lib/errorMessage'
 import { formatCurrency, formatPaymentMode, COUNTER_PAYMENT_METHODS } from '../lib/retail'
 import { csvDate, csvPhone, downloadCsv } from '../lib/csv'
@@ -13,7 +13,11 @@ import { splitError, splitSummary, type PaymentMode, type SplitAmounts } from '.
 import { PrintSettingsModal } from '../components/invoice/PrintSettingsModal'
 import { DocumentPreviewModal } from '../components/invoice/InvoiceParts'
 import { PurchaseBillSheet } from '../components/invoice/PurchaseBillSheet'
-import { WhatsAppIcon } from '../components/ActionIcons'
+import { DocIcon, EyeIcon, WhatsAppIcon, actionBtn } from '../components/ActionIcons'
+import { PurchaseDashboard } from '../components/purchases/PurchaseDashboard'
+import { FilterCard, FilterField, PeriodBar } from '../components/filters/PageFilters'
+import { filterInput, inRange, periodRange, type PeriodPreset } from '../components/filters/filterStyles'
+import { toWhatsAppUrl } from '../lib/phone'
 import { thermalWidth } from '../lib/printPrefs'
 import { printPurchaseThermal, sharePurchaseWhatsApp } from '../lib/purchaseDocs'
 import { auditService } from '../services/auditService'
@@ -32,7 +36,6 @@ const thead = (cols: string[]) => (
   </thead>
 )
 const emptyRow = (cols: number, text: string) => <tr><td colSpan={cols} className="px-4 py-12 text-center text-[#000000]">{text}</td></tr>
-const iconBtn = 'w-8 h-8 rounded-lg flex items-center justify-center transition-colors cursor-pointer shrink-0'
 const fmtDate = (iso: string | null | undefined) => {
   if (!iso) return '—'
   const d = new Date(iso.length === 10 ? `${iso}T00:00:00` : iso)
@@ -53,7 +56,14 @@ const emptySupplier: SupplierInput = { name: '', phone: '', gstin: '', address: 
 
 export default function Purchases() {
   const products = useProductStore((s) => s.products)
-  const [tab, setTab] = useState<'purchases' | 'suppliers'>('purchases')
+  const [tab, setTab] = useState<'dashboard' | 'purchases' | 'suppliers'>('dashboard')
+  const [period, setPeriod] = useState<PeriodPreset>('all')
+  const [periodFrom, setPeriodFrom] = useState('')
+  const [periodTo, setPeriodTo] = useState('')
+  const [payFilter, setPayFilter] = useState<'all' | 'owed' | 'paid'>('all')
+  const [supplierFilter, setSupplierFilter] = useState('')
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [searchDraft, setSearchDraft] = useState('')
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [purchases, setPurchases] = useState<Purchase[]>([])
   const [loading, setLoading] = useState(false)
@@ -92,8 +102,13 @@ export default function Purchases() {
 
   const q = search.trim().toLowerCase()
   const matches = (...vals: Array<string | null | undefined>) => !q || vals.some((v) => String(v || '').toLowerCase().includes(q))
-  const visiblePurchases = purchases.filter((p) => matches(p.purchaseNumber, p.supplierInvoiceNo, supplierById.get(p.supplierId)?.name, ...p.items.map((i) => i.description)))
-  const visibleSuppliers = suppliers.filter((s) => matches(s.name, s.phone, s.gstin))
+  const range = periodRange(period, periodFrom, periodTo)
+  const visiblePurchases = purchases.filter((p) =>
+    matches(p.purchaseNumber, p.supplierInvoiceNo, supplierById.get(p.supplierId)?.name, ...p.items.map((i) => i.description))
+    && inRange(p.purchaseDate, range.from, range.to)
+    && (payFilter === 'all' || (payFilter === 'owed' ? p.due > 0 : p.due <= 0))
+    && (!supplierFilter || p.supplierId === supplierFilter))
+  const visibleSuppliers = suppliers.filter((s) => matches(s.name, s.phone, s.gstin) && (activeFilter === 'all' || (activeFilter === 'active') === s.isActive))
 
   // ── Supplier form ──────────────────────────────────────────────────────────
   const [supplierEdit, setSupplierEdit] = useState<{ id?: string; form: SupplierInput } | null>(null)
@@ -239,9 +254,9 @@ export default function Purchases() {
         <p className="mt-1 text-xs font-semibold text-[#000000]">Supplier bills with metal, purity, weight and rate. Linked catalogue items get the stock and cost price.</p>
       </div>
       <div className="flex gap-2">
-        <button onClick={() => (tab === 'purchases' ? openPurchase() : (setModalError(''), setSupplierEdit({ form: { ...emptySupplier } })))}
+        <button onClick={() => (tab !== 'suppliers' ? openPurchase() : (setModalError(''), setSupplierEdit({ form: { ...emptySupplier } })))}
           className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:opacity-90 cursor-pointer">
-          <Plus size={16} /> {tab === 'purchases' ? 'New Purchase' : 'New Supplier'}
+          <Plus size={16} /> {tab !== 'suppliers' ? 'New Purchase' : 'New Supplier'}
         </button>
         <button onClick={() => void load()} className="rounded-xl border bg-white p-3 text-[#000000] cursor-pointer" title="Refresh"><RefreshCw size={18} className={loading ? 'animate-spin' : ''} /></button>
       </div>
@@ -257,8 +272,8 @@ export default function Purchases() {
     </div>
 
     <div className="flex gap-2 border-b border-black/10 overflow-x-auto hide-scrollbar">
-      {([['purchases', 'Purchases', Truck], ['suppliers', 'Suppliers', Users]] as const).map(([key, label, Icon]) => (
-        <button key={key} onClick={() => { setTab(key); setSearch(''); setNotice('') }}
+      {([['dashboard', 'Dashboard', LayoutDashboard], ['purchases', 'Purchases', Truck], ['suppliers', 'Suppliers', Users]] as const).map(([key, label, Icon]) => (
+        <button key={key} onClick={() => { setTab(key); setSearch(''); setSearchDraft(''); setNotice('') }}
           className={`flex items-center gap-1.5 px-4 py-3 font-bold text-sm whitespace-nowrap transition-colors ${tab === key ? 'text-[var(--accent-dark)] border-b-2 border-[var(--accent-dark)]' : 'text-[#000000] hover:text-[#000000]'}`}>
           <Icon size={15} /> {label}
         </button>
@@ -268,12 +283,49 @@ export default function Purchases() {
     {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
     {notice && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</div>}
 
-    <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
-      <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
-        <label className="relative"><Search className="absolute left-3 top-3 text-[#9CA3AF]" size={17} /><input className={`${inputClass} pl-10`} value={search} onChange={(e) => setSearch(e.target.value)} placeholder={tab === 'purchases' ? 'Search purchase, supplier, bill or item' : 'Search supplier, phone or GSTIN'} /></label>
-        <button onClick={exportCsv} className="flex items-center justify-center gap-1.5 rounded-lg bg-emerald-100 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-200 cursor-pointer"><Download size={13} /> Export CSV</button>
-      </div>
+    {tab === 'dashboard' ? (
+      <PurchaseDashboard purchases={purchases} suppliers={suppliers} onOpen={(pu) => void openDetail(pu)} />
+    ) : <>
+    <div className="flex flex-col lg:flex-row lg:items-center justify-end gap-3">
+      <PeriodBar
+        preset={period}
+        from={range.from}
+        to={range.to}
+        onPreset={setPeriod}
+        onFrom={(v) => { setPeriodFrom(v); setPeriodTo(range.to); setPeriod('custom') }}
+        onTo={(v) => { setPeriodTo(v); setPeriodFrom(range.from); setPeriod('custom') }}
+        onExport={exportCsv}
+      />
     </div>
+    {tab === 'purchases' ? (
+      <FilterCard
+        tabs={[{ id: 'all' as const, label: 'All Purchases' }, { id: 'owed' as const, label: 'Balance Owed' }, { id: 'paid' as const, label: 'Paid' }]}
+        activeTab={payFilter}
+        onTab={setPayFilter}
+        onSearch={() => setSearch(searchDraft)}
+      >
+        <FilterField label="Search Purchase / Bill / Item" search>
+          <input className={`${filterInput} pl-9`} placeholder="e.g. PUR000001, bill no., chain…" value={searchDraft} onChange={(e) => setSearchDraft(e.target.value)} />
+        </FilterField>
+        <FilterField label="Supplier">
+          <select className={`${filterInput} cursor-pointer`} value={supplierFilter} onChange={(e) => setSupplierFilter(e.target.value)}>
+            <option value="">All Suppliers</option>
+            {suppliers.map((su) => <option key={su.id} value={su.id}>{su.name}</option>)}
+          </select>
+        </FilterField>
+      </FilterCard>
+    ) : (
+      <FilterCard
+        tabs={[{ id: 'all' as const, label: 'All Suppliers' }, { id: 'active' as const, label: 'Active' }, { id: 'inactive' as const, label: 'Inactive' }]}
+        activeTab={activeFilter}
+        onTab={setActiveFilter}
+        onSearch={() => setSearch(searchDraft)}
+      >
+        <FilterField label="Search Supplier / Phone / GSTIN" search>
+          <input className={`${filterInput} pl-9`} placeholder="Search supplier…" value={searchDraft} onChange={(e) => setSearchDraft(e.target.value)} />
+        </FilterField>
+      </FilterCard>
+    )}
 
     <div className="rounded-xl border border-black/10 bg-white shadow-sm flex flex-col">
       <div className="overflow-x-auto">
@@ -291,7 +343,11 @@ export default function Purchases() {
                     <td className="px-4 py-3.5 font-black">{formatCurrency(p.totalAmount)}</td>
                     <td className="px-4 py-3.5 text-xs"><p className="text-emerald-700">Paid <b>{formatCurrency(p.amountPaid)}</b></p>{p.due > 0 ? <p className="text-red-600">Owed <b>{formatCurrency(p.due)}</b>{p.dueDate && <span className={`block text-[10px] font-bold ${p.dueDate < today() ? 'text-red-700' : 'text-[#000000]/60'}`}>Due {fmtDate(p.dueDate)}{p.dueDate < today() ? ' (overdue)' : ''}</span>}</p> : <p className="font-black text-emerald-700">Settled</p>}</td>
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
-                      <button className={`${iconBtn} bg-black/[0.03] text-[var(--accent-dark)] hover:bg-[var(--accent-a10)]`} title="View / pay" onClick={() => void openDetail(p)}>{p.due > 0 ? <Wallet size={15} /> : <Eye size={15} />}</button>
+                      <button className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`} title="Send to supplier on WhatsApp" onClick={() => sharePurchaseWhatsApp(p, supplierById.get(p.supplierId), shopName, `${window.location.origin}/purchase/${p.id}`)}><WhatsAppIcon className="w-4 h-4" /></button>
+                      <button className={`${actionBtn} bg-black/10 hover:bg-black/15 text-[#000000]`} title="View purchase bill" onClick={() => void openDetail(p).then(() => setBillPreview(true))}><DocIcon className="w-4 h-4" /></button>
+                      <button className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`} title="Purchase details" onClick={() => void openDetail(p)}><EyeIcon className="w-4 h-4" /></button>
+                      {p.due > 0 && <button className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`} title="Pay supplier" onClick={() => void openDetail(p)}><IndianRupee className="w-4 h-4" /></button>}
+                      <button className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`} title="Print" onClick={() => void openDetail(p).then(() => setPrintOpen(true))}><Printer className="w-4 h-4" /></button>
                     </div></td>
                   </tr>
                 ))}
@@ -310,8 +366,10 @@ export default function Purchases() {
                       <td className="px-4 py-3.5 text-xs">{o?.count || 0} • {formatCurrency(o?.total || 0)}</td>
                       <td className={`px-4 py-3.5 font-black ${(o?.due || 0) > 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatCurrency(o?.due || 0)}</td>
                       <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
-                        <button className="rounded-lg border px-2.5 py-1.5 text-xs font-black text-[#000000] hover:bg-gray-50" onClick={() => { setModalError(''); setSupplierEdit({ id: s.id, form: { name: s.name, phone: s.phone, gstin: s.gstin, address: s.address, notes: s.notes } }) }}>Edit</button>
-                        <button className="rounded-lg border px-2.5 py-1.5 text-xs font-black text-[#000000] hover:bg-gray-50" onClick={() => void toggleSupplier(s)}>{s.isActive ? 'Deactivate' : 'Activate'}</button>
+                        {s.phone && <button className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`} title="Chat on WhatsApp" onClick={() => window.open(toWhatsAppUrl(s.phone, `Hello ${s.name},`), '_blank', 'noopener,noreferrer')}><WhatsAppIcon className="w-4 h-4" /></button>}
+                        <button className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`} title="View this supplier's purchases" onClick={() => { setSupplierFilter(s.id); setTab('purchases') }}><EyeIcon className="w-4 h-4" /></button>
+                        <button className={`${actionBtn} bg-[#2563EB]/10 hover:bg-[#2563EB]/20 text-[#2563EB]`} title="Edit supplier" onClick={() => { setModalError(''); setSupplierEdit({ id: s.id, form: { name: s.name, phone: s.phone, gstin: s.gstin, address: s.address, notes: s.notes } }) }}><Edit2 className="w-4 h-4" /></button>
+                        <button className={`${actionBtn} ${s.isActive ? 'bg-[#F59E0B]/10 hover:bg-[#F59E0B]/20 text-[#D97706]' : 'bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]'}`} title={s.isActive ? 'Deactivate supplier' : 'Activate supplier'} onClick={() => void toggleSupplier(s)}>{s.isActive ? <X className="w-4 h-4" /> : <Check className="w-4 h-4" />}</button>
                       </div></td>
                     </tr>
                   )
@@ -321,6 +379,7 @@ export default function Purchases() {
         </table>
       </div>
     </div>
+    </>}
 
     {/* ── Supplier form ── */}
     {supplierEdit && <ModalPortal><div className="fixed inset-0 z-[998] flex items-center justify-center bg-black/55 p-3 sm:p-4">

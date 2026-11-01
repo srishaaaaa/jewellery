@@ -183,11 +183,13 @@ export interface PosPermissions {
   netProfitIncludeExpenses: boolean
   /** Net Profit subtracts old gold taken in (exchanged on bills and bought at the counter). */
   netProfitIncludeOldGold: boolean
+  /** Net Profit subtracts supplier purchases (off by default: stock bought is not yet sold) */
+  netProfitIncludePurchases: boolean
   /** Due-date reminders: pop-up, sound and how early each kind shows */
   alerts: AlertSettings
 }
 
-export const DEFAULT_POS_PERMISSIONS: PosPermissions = { staffMaxDiscountPercent: 5, staffCanCustomiseSchemes: false, cashLimit: 199500, allowCashAboveLimit: false, netProfitIncludeExpenses: true, netProfitIncludeOldGold: true, alerts: DEFAULT_ALERT_SETTINGS }
+export const DEFAULT_POS_PERMISSIONS: PosPermissions = { staffMaxDiscountPercent: 5, staffCanCustomiseSchemes: false, cashLimit: 199500, allowCashAboveLimit: false, netProfitIncludeExpenses: true, netProfitIncludeOldGold: true, netProfitIncludePurchases: false, alerts: DEFAULT_ALERT_SETTINGS }
 
 export const normalizePosPermissions = (raw: unknown): PosPermissions => {
   const r = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
@@ -199,6 +201,7 @@ export const normalizePosPermissions = (raw: unknown): PosPermissions => {
     allowCashAboveLimit: typeof r.allowCashAboveLimit === 'boolean' ? r.allowCashAboveLimit : DEFAULT_POS_PERMISSIONS.allowCashAboveLimit,
     netProfitIncludeExpenses: typeof r.netProfitIncludeExpenses === 'boolean' ? r.netProfitIncludeExpenses : DEFAULT_POS_PERMISSIONS.netProfitIncludeExpenses,
     netProfitIncludeOldGold: typeof r.netProfitIncludeOldGold === 'boolean' ? r.netProfitIncludeOldGold : DEFAULT_POS_PERMISSIONS.netProfitIncludeOldGold,
+    netProfitIncludePurchases: typeof r.netProfitIncludePurchases === 'boolean' ? r.netProfitIncludePurchases : DEFAULT_POS_PERMISSIONS.netProfitIncludePurchases,
     alerts: normalizeAlertSettings(r.alerts),
   }
 }

@@ -522,6 +522,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                   {([
                     ['netProfitIncludeExpenses', 'Subtract expenses', 'On: Net Profit = sales − expenses from the Expense Tracker.'],
                     ['netProfitIncludeOldGold', 'Subtract old gold exchange', 'On: Net Profit also takes off old gold taken in — exchanged on bills and bought at the counter.'],
+                    ['netProfitIncludePurchases', 'Subtract supplier purchases', 'On: Net Profit also takes off what you bought from suppliers in the period.'],
                   ] as const).map(([key, label, hint]) => (
                     <div key={key} className="flex items-start justify-between gap-4">
                       <span>
