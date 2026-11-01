@@ -262,14 +262,14 @@ export default function Purchases() {
       </div>
     </div>
 
-    <div className="grid gap-3 sm:grid-cols-3">
+    {tab !== 'dashboard' && <div className="grid gap-3 sm:grid-cols-3">
       {[['Total Purchased', totals.total], ['Paid to Suppliers', totals.paid], ['Still Owed', totals.due]].map(([label, value]) => (
         <div key={label} className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
           <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">{label}</p>
           <p className={`mt-2 text-[17px] sm:text-2xl font-black break-words ${label === 'Still Owed' && Number(value) > 0 ? 'text-red-600' : 'text-[#000000]'}`}>{formatCurrency(Number(value))}</p>
         </div>
       ))}
-    </div>
+    </div>}
 
     <div className="flex gap-2 border-b border-black/10 overflow-x-auto hide-scrollbar">
       {([['dashboard', 'Dashboard', LayoutDashboard], ['purchases', 'Purchases', Truck], ['suppliers', 'Suppliers', Users]] as const).map(([key, label, Icon]) => (

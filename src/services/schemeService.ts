@@ -342,6 +342,19 @@ export const schemeService = {
     return mapSchemeRow(data as Record<string, unknown>)
   },
 
+  /** Correct the payment method / notes of a paid installment. */
+  async editPayment(installmentId: string, paymentMethod: string, notes: string): Promise<void> {
+    const { error } = await supabase.rpc('edit_scheme_payment', { p_installment_id: installmentId, p_payment_method: paymentMethod, p_notes: notes })
+    if (error) throw toError(error, 'Unable to save the payment')
+  },
+
+  /** Undo the latest payment of a scheme (entered by mistake). */
+  async voidPayment(installmentId: string): Promise<JewelleryScheme> {
+    const { data, error } = await supabase.rpc('void_scheme_payment', { p_installment_id: installmentId })
+    if (error) throw toError(error, 'Unable to remove the payment')
+    return mapSchemeRow(data as Record<string, unknown>)
+  },
+
   async remove(schemeId: string): Promise<void> {
     const { data: row, error: readErr } = await supabase.from('jewellery_schemes')
       .select('id, scheme_number, installments_paid, total_paid, amount_redeemed, benefit_used').eq('id', schemeId).maybeSingle()

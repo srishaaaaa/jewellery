@@ -2101,3 +2101,88 @@ $$;
 
 -- Date the balance owed to the supplier is due (drives the purchase due alerts).
 ALTER TABLE public.supplier_purchases ADD COLUMN IF NOT EXISTS due_date DATE;
+
+-- Paid installments stay locked, except through the two admin functions below
+-- (they switch the lock off for their own transaction only).
+CREATE OR REPLACE FUNCTION public.scheme_installments_protect_paid()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF OLD.status = 'paid' AND COALESCE(current_setting('app.scheme_payment_edit', true), '') <> 'on' THEN
+    RAISE EXCEPTION 'Installment % of this scheme is already paid and cannot be changed.', OLD.installment_number;
+  END IF;
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+-- Correct the payment method / notes of a paid installment.
+CREATE OR REPLACE FUNCTION public.edit_scheme_payment(p_installment_id UUID, p_payment_method TEXT, p_notes TEXT)
+RETURNS JSON
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_inst public.scheme_installments;
+BEGIN
+  PERFORM set_config('app.scheme_payment_edit', 'on', true);
+  UPDATE public.scheme_installments
+  SET payment_method = COALESCE(NULLIF(BTRIM(p_payment_method), ''), payment_method),
+      notes = COALESCE(p_notes, '')
+  WHERE id = p_installment_id AND status = 'paid'
+  RETURNING * INTO v_inst;
+  PERFORM set_config('app.scheme_payment_edit', 'off', true);
+  IF NOT FOUND THEN RAISE EXCEPTION 'Payment not found.'; END IF;
+  RETURN row_to_json(v_inst);
+END;
+$$;
+
+-- Undo a payment entered by mistake. Only the latest paid installment of a scheme
+-- can be undone (so the installment numbers stay in order), and never once the
+-- scheme has been redeemed or cancelled.
+CREATE OR REPLACE FUNCTION public.void_scheme_payment(p_installment_id UUID)
+RETURNS JSON
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_inst public.scheme_installments;
+  v_scheme public.jewellery_schemes;
+  v_next_due DATE;
+BEGIN
+  SELECT * INTO v_inst FROM public.scheme_installments WHERE id = p_installment_id;
+  IF NOT FOUND OR v_inst.status <> 'paid' THEN RAISE EXCEPTION 'Payment not found.'; END IF;
+  SELECT * INTO v_scheme FROM public.jewellery_schemes WHERE id = v_inst.scheme_id FOR UPDATE;
+  IF v_scheme.status IN ('redeemed', 'cancelled') THEN
+    RAISE EXCEPTION 'Scheme % is %, its payments can no longer be removed.', v_scheme.scheme_number, v_scheme.status;
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.scheme_redemptions WHERE scheme_id = v_scheme.id AND status = 'applied') THEN
+    RAISE EXCEPTION 'Scheme % has been redeemed on a bill, its payments can no longer be removed.', v_scheme.scheme_number;
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.scheme_installments WHERE scheme_id = v_scheme.id AND status = 'paid' AND installment_number > v_inst.installment_number) THEN
+    RAISE EXCEPTION 'Only the latest payment of a scheme can be removed. Remove the later payments first.';
+  END IF;
+
+  PERFORM set_config('app.scheme_payment_edit', 'on', true);
+  UPDATE public.scheme_installments
+  SET status = 'pending', amount_paid = 0, payment_date = NULL, payment_method = NULL,
+      receipt_number = NULL, notes = '', gold_rate = NULL, gold_purity = NULL, gold_grams = NULL
+  WHERE id = v_inst.id;
+  PERFORM set_config('app.scheme_payment_edit', 'off', true);
+
+  SELECT MIN(due_date) INTO v_next_due FROM public.scheme_installments
+  WHERE scheme_id = v_scheme.id AND status = 'pending';
+
+  UPDATE public.jewellery_schemes
+  SET installments_paid = GREATEST(installments_paid - 1, 0),
+      total_paid = GREATEST(total_paid - v_inst.amount_paid, 0),
+      total_grams = GREATEST(total_grams - COALESCE(v_inst.gold_grams, 0), 0),
+      next_due_date = v_next_due,
+      status = 'active',
+      updated_at = NOW()
+  WHERE id = v_scheme.id
+  RETURNING * INTO v_scheme;
+
+  RETURN row_to_json(v_scheme);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.edit_scheme_payment(UUID, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.void_scheme_payment(UUID) TO anon, authenticated;

@@ -21,7 +21,7 @@ import { DocumentPreviewModal } from '../components/invoice/InvoiceParts'
 import { SchemeReceiptSheet } from '../components/invoice/SchemeReceiptSheet'
 import { useNavigate } from 'react-router-dom'
 import { DocIcon, EyeIcon, WhatsAppIcon, actionBtn } from '../components/ActionIcons'
-import { splitError, splitSummary, type PaymentMode, type SplitAmounts } from '../lib/paymentModes'
+import { PAYMENT_MODES, splitError, splitSummary, type PaymentMode, type SplitAmounts } from '../lib/paymentModes'
 import { printDepositCertificate } from '../lib/schemeCertificate'
 import {
   BENEFIT_TYPE_LABELS,
@@ -478,6 +478,38 @@ export default function Schemes() {
     }
   }
 
+  // Payment History rows: correct method / notes, or undo the latest payment
+  const [editPay, setEditPay] = useState<{ payment: SchemeInstallment; mode: PaymentMode; split: SplitAmounts; notes: string } | null>(null)
+  const openEditPay = (payment: SchemeInstallment) => {
+    setModalError('')
+    const mode = (PAYMENT_MODES as readonly string[]).includes(payment.paymentMethod || '') ? payment.paymentMethod as PaymentMode : 'cash'
+    setEditPay({ payment, mode, split: {}, notes: payment.notes || '' })
+  }
+  const saveEditPay = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!editPay) return
+    const { payment, mode, split, notes } = editPay
+    const err = splitError(mode, split, payment.amountPaid); if (err) { setModalError(err); return }
+    const finalNotes = mode === 'mixed' ? [notes.replace(/\s*Split:.*$/, '').trim(), `Split: ${splitSummary(split)}`].filter(Boolean).join(' • ') : notes.trim()
+    setSaving(true); setModalError('')
+    try {
+      await schemeService.editPayment(payment.id, mode, finalNotes)
+      void auditService.log({ action: 'scheme_payment_edited', entityType: 'scheme_installment', entityId: payment.receiptNumber || payment.id, oldValue: { method: payment.paymentMethod, notes: payment.notes }, newValue: { method: mode, notes: finalNotes } })
+      setPayments((rows) => rows.map((p) => (p.id === payment.id ? { ...p, paymentMethod: mode, notes: finalNotes } : p)))
+      setEditPay(null)
+    } catch (err) { setModalError(getErrorMessage(err, 'Unable to save the payment')) } finally { setSaving(false) }
+  }
+  const voidPay = async (payment: SchemeInstallment) => {
+    const scheme = schemesById.get(payment.schemeId)
+    if (!window.confirm(`Remove payment ${payment.receiptNumber} (${formatCurrency(payment.amountPaid)}) from ${scheme?.schemeNumber || 'this scheme'}?\n\nUse this only for a payment entered by mistake. Only the latest payment of a scheme can be removed.`)) return
+    try {
+      const updated = await schemeService.voidPayment(payment.id)
+      void auditService.log({ action: 'scheme_payment_removed', entityType: 'scheme_installment', entityId: payment.receiptNumber || payment.id, oldValue: { amount: payment.amountPaid, method: payment.paymentMethod } })
+      replaceScheme(updated)
+      setPayments((rows) => rows.filter((p) => p.id !== payment.id))
+    } catch (err) { setError(getErrorMessage(err, 'Unable to remove the payment')) }
+  }
+
   const [editScheme, setEditScheme] = useState<JewelleryScheme | null>(null)
   const [editSchemeForm, setEditSchemeForm] = useState({ customerName: '', schemeName: '', notes: '' })
   const openEdit = (scheme: JewelleryScheme) => {
@@ -759,7 +791,7 @@ export default function Schemes() {
     {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
     {notice && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</div>}
 
-    {view === 'schemes' && (
+    {(view === 'schemes' || view === 'payments') && (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {cards.map(([label, value, Icon, color]) => (
         <div key={label} className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
@@ -926,8 +958,10 @@ export default function Schemes() {
                     <td className="px-4 py-3.5">
                       {s && <div className="flex items-center gap-1.5">
                         <button type="button" onClick={() => void reprintFromHistory(p, 'whatsapp')} title="Send receipt on WhatsApp" aria-label="Send receipt on WhatsApp" className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`}><WhatsAppIcon className="w-4 h-4" /></button>
-                        <button type="button" onClick={() => void reprintFromHistory(p, 'print')} title="Print receipt" aria-label="Print receipt" className={`${actionBtn} bg-black/10 hover:bg-black/15 text-[#000000]`}><DocIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => void reprintFromHistory(p, 'print')} title="View / print receipt" aria-label="View receipt" className={`${actionBtn} bg-black/10 hover:bg-black/15 text-[#000000]`}><DocIcon className="w-4 h-4" /></button>
+                        <button type="button" onClick={() => openEditPay(p)} title="Edit payment method / notes" aria-label="Edit payment" className={`${actionBtn} bg-[#2563EB]/10 hover:bg-[#2563EB]/20 text-[#2563EB]`}><Edit2 className="w-4 h-4" /></button>
                         <button type="button" onClick={() => void openDetail(s)} title="Open scheme" aria-label="Open scheme" className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`}><EyeIcon className="w-4 h-4" /></button>
+                        {isAdmin && <button type="button" onClick={() => void voidPay(p)} title="Remove payment (entered by mistake)" aria-label="Remove payment" className={`${actionBtn} bg-[#DC2626]/10 hover:bg-[#DC2626]/20 text-[#DC2626]`}><Trash2 className="w-4 h-4" /></button>}
                       </div>}
                     </td>
                   </tr>
@@ -1122,6 +1156,26 @@ export default function Schemes() {
           <button disabled={saving || !nextInstallment} className="w-full rounded-xl bg-emerald-600 py-3 sm:py-3.5 font-black text-white shadow-lg shadow-emerald-600/30 transition-transform active:scale-95 disabled:opacity-50">
             {saving ? 'Processing...' : nextInstallment ? `Receive ${formatCurrency(collectTotal)}${collectSelected.length > 1 ? ` (${collectSelected.length} installments)` : ''}` : 'Nothing due'}
           </button>
+        </div>
+      </form>
+    </div></ModalPortal>}
+
+    {editPay && <ModalPortal><div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditPay(null) }}>
+      <form onSubmit={saveEditPay} className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between bg-[#1C1C1C] px-5 py-4">
+          <h3 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-white"><Edit2 className="w-4 h-4" /> Edit Payment • {editPay.payment.receiptNumber}</h3>
+          <button type="button" onClick={() => setEditPay(null)} aria-label="Close" className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 cursor-pointer"><X className="w-4 h-4" /></button>
+        </div>
+        <div className="space-y-4 p-5">
+          {modalError && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
+          <p className="text-xs font-semibold text-[#000000]">Amount {formatCurrency(editPay.payment.amountPaid)} • Installment {editPay.payment.installmentNumber}</p>
+          <PaymentModePicker mode={editPay.mode} onMode={(mode) => setEditPay((f) => f && ({ ...f, mode }))} split={editPay.split} onSplit={(split) => setEditPay((f) => f && ({ ...f, split }))} total={editPay.payment.amountPaid} />
+          <Field label="Notes"><textarea rows={3} className={inputClass} value={editPay.notes} onChange={(e) => setEditPay((f) => f && ({ ...f, notes: e.target.value }))} /></Field>
+          <p className="rounded-lg bg-[#FEF3C7] border border-[#F59E0B]/30 px-3 py-2 text-[11px] font-semibold text-[#78350F]">The amount cannot be changed. To fix a wrong amount, remove the payment and collect it again.</p>
+        </div>
+        <div className="flex justify-end gap-3 border-t border-black/10 bg-[#FAFAFA] px-5 py-4">
+          <button type="button" onClick={() => setEditPay(null)} className="rounded-xl px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-black/60 hover:bg-black/5 cursor-pointer">Cancel</button>
+          <button type="submit" disabled={saving} className="rounded-xl bg-[#111111] px-6 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:bg-black disabled:opacity-60 cursor-pointer">{saving ? 'Saving…' : 'Save Changes'}</button>
         </div>
       </form>
     </div></ModalPortal>}
