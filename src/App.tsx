@@ -15,6 +15,7 @@ const DigitalInvoice = lazy(() => import('./pages/DigitalInvoice'))
 const CouponPage = lazy(() => import('./pages/CouponPage'))
 const AdvanceReceiptPage = lazy(() => import('./pages/AdvanceReceiptPage'))
 const PurchaseBillPage = lazy(() => import('./pages/PurchaseBillPage'))
+const SchemeReceiptPage = lazy(() => import('./pages/SchemeReceiptPage'))
 const Login = lazy(() => import('./pages/Login'))
 const AdminLogin = lazy(() => import('./pages/AdminLogin'))
 
@@ -228,6 +229,16 @@ function AppShell() {
               <Suspense fallback={<LoadingSpinner />}>
                 <CouponPage />
               </Suspense>
+            }
+          />
+          <Route
+            path="/scheme-receipt/:schemeId/:installmentId?"
+            element={
+              <AdminGuard>
+                <Suspense fallback={<LoadingSpinner />}>
+                  <SchemeReceiptPage />
+                </Suspense>
+              </AdminGuard>
             }
           />
           <Route

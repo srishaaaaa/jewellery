@@ -14,9 +14,12 @@ import { customerService, type CustomerRecord } from '../services/customerServic
 import { schemeService, type SchemeInstallment, type SchemeRedemption, type SchemeVoucher } from '../services/schemeService'
 import { buildSchemeInstallmentWhatsAppMessage } from '../lib/whatsappMessage'
 import { useMetalRateStore } from '../store/metalRateStore'
-import { paymentMethodLabel, printSchemeReceipt, totalsAfterInstallment } from '../lib/schemeReceipt'
+import { paymentMethodLabel, printSchemeReceipt, totalsAfterInstallment, type ReceiptTotals } from '../lib/schemeReceipt'
 import { PaymentModePicker } from '../components/PaymentModePicker'
 import { SchemeDashboard } from '../components/schemes/SchemeDashboard'
+import { DocumentPreviewModal } from '../components/invoice/InvoiceParts'
+import { SchemeReceiptSheet } from '../components/invoice/SchemeReceiptSheet'
+import { useNavigate } from 'react-router-dom'
 import { DocIcon, EyeIcon, WhatsAppIcon, actionBtn } from '../components/ActionIcons'
 import { splitError, splitSummary, type PaymentMode, type SplitAmounts } from '../lib/paymentModes'
 import { printDepositCertificate } from '../lib/schemeCertificate'
@@ -126,6 +129,7 @@ export default function Schemes() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [view, setView] = useState<'dashboard' | 'schemes' | 'payments'>('dashboard')
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState<SchemeStatus | 'all'>('all')
   const [saving, setSaving] = useState(false)
@@ -467,7 +471,7 @@ export default function Schemes() {
     try {
       const inst = await schemeService.fetchInstallments(scheme.id)
       const totals = totalsAfterInstallment(scheme, inst, payment)
-      if (mode === 'print') printSchemeReceipt(scheme, payment, totals)
+      if (mode === 'print') setReceiptPreview({ scheme, installment: payment, totals })
       else whatsappReceipt(scheme, payment, totals)
     } catch (err) {
       setError(getErrorMessage(err, 'Unable to load the receipt'))
@@ -514,6 +518,7 @@ export default function Schemes() {
     }
   }
 
+  const [receiptPreview, setReceiptPreview] = useState<{ scheme: JewelleryScheme; installment: SchemeInstallment; totals: ReceiptTotals } | null>(null)
   const latestReceipt = async (scheme: JewelleryScheme, mode: 'print' | 'whatsapp') => {
     try {
       const inst = await schemeService.fetchInstallments(scheme.id)
@@ -521,7 +526,7 @@ export default function Schemes() {
       const last = paid[paid.length - 1]
       if (!last) { setError(`${scheme.schemeNumber} has no payments yet.`); return }
       const totals = totalsAfterInstallment(scheme, inst, last)
-      if (mode === 'print') printSchemeReceipt(scheme, last, totals)
+      if (mode === 'print') setReceiptPreview({ scheme, installment: last, totals })
       else whatsappReceipt(scheme, last, totals)
     } catch (err) {
       setError(getErrorMessage(err, 'Unable to load the receipt'))
@@ -1140,6 +1145,16 @@ export default function Schemes() {
         </div>
       </form>
     </div></ModalPortal>}
+
+    {receiptPreview && (
+      <DocumentPreviewModal
+        title={`Receipt Preview • #${receiptPreview.installment.receiptNumber || receiptPreview.scheme.schemeNumber}`}
+        onClose={() => setReceiptPreview(null)}
+        onOpenFull={() => navigate(`/scheme-receipt/${receiptPreview.scheme.id}/${receiptPreview.installment.id}`)}
+      >
+        <SchemeReceiptSheet scheme={receiptPreview.scheme} installment={receiptPreview.installment} totals={receiptPreview.totals} />
+      </DocumentPreviewModal>
+    )}
 
     {/* ── Receipt after payment ── */}
     {receipt && <ModalPortal><div className="fixed inset-0 z-[95] flex items-center justify-center bg-black/55 p-4">

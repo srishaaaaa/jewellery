@@ -287,6 +287,27 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
     {error && <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
     {notice && <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</div>}
 
+    {/* Summary cards */}
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+      {([
+        ['Pending Deposit Amount Received', money(analytics.openDeposits), `${analytics.openDepositCount} bill${analytics.openDepositCount === 1 ? '' : 's'} with pending deposits`, <IndianRupee key="d" className="w-3.5 h-3.5 text-emerald-700" />],
+        ['Needed to Receive (Pending)', money(analytics.outstanding), `${analytics.balanceDueCount} bill${analytics.balanceDueCount === 1 ? '' : 's'} with balance due`, <Wallet key="r" className="w-3.5 h-3.5 text-orange-700" />],
+        ['Total Advance Orders Value', money(analytics.totalValue), `${analytics.liveCount} total advance order${analytics.liveCount === 1 ? '' : 's'}`, <FileText key="v" className="w-3.5 h-3.5 text-fuchsia-700" />],
+        ['Ready for Delivery', String(analytics.ready), 'Ready for customer pickup/delivery', <Box key="p" className="w-3.5 h-3.5 text-blue-700" />],
+        ['Pending Orders', String(analytics.pending), 'Awaiting balance or confirmation', <Clock key="c" className="w-3.5 h-3.5 text-rose-700" />],
+        ['Completed Deposits', String(analytics.completed), 'Balance collected and billed', <Check key="k" className="w-3.5 h-3.5 text-green-700" />],
+      ] as const).map(([label, value, note, icon]) => (
+        <div key={label} className="bg-white border border-black/10 rounded-xl px-3.5 py-3 shadow-xs flex flex-col min-w-0" title={note}>
+          <div className="flex items-start gap-1.5 min-w-0">
+            <span className="mt-px shrink-0">{icon}</span>
+            <p className="text-[10px] font-black text-[#000000]/80 uppercase tracking-wide leading-snug min-w-0">{label}</p>
+          </div>
+          <p className="mt-2 text-xl font-black text-[#000000] leading-tight break-words">{value}</p>
+          <p className="mt-auto pt-2 text-[10.5px] font-medium text-[#000000]/65 leading-snug">{note}</p>
+        </div>
+      ))}
+    </div>
+
     <FilterCard
       tabs={(['all', 'pending', 'ready', 'completed', 'cancelled'] as StatusFilter[]).map(st => ({
         id: st,
@@ -310,27 +331,6 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
         <input className={filterInput} placeholder="Search product..." value={draft.product} onChange={e => setDraft(d => ({ ...d, product: e.target.value }))} />
       </FilterField>
     </FilterCard>
-
-    {/* Summary cards */}
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-      {([
-        ['Pending Deposit Amount Received', money(analytics.openDeposits), `${analytics.openDepositCount} bill${analytics.openDepositCount === 1 ? '' : 's'} with pending deposits`, <IndianRupee key="d" className="w-3.5 h-3.5 text-emerald-700" />],
-        ['Needed to Receive (Pending)', money(analytics.outstanding), `${analytics.balanceDueCount} bill${analytics.balanceDueCount === 1 ? '' : 's'} with balance due`, <Wallet key="r" className="w-3.5 h-3.5 text-orange-700" />],
-        ['Total Advance Orders Value', money(analytics.totalValue), `${analytics.liveCount} total advance order${analytics.liveCount === 1 ? '' : 's'}`, <FileText key="v" className="w-3.5 h-3.5 text-fuchsia-700" />],
-        ['Ready for Delivery', String(analytics.ready), 'Ready for customer pickup/delivery', <Box key="p" className="w-3.5 h-3.5 text-blue-700" />],
-        ['Pending Orders', String(analytics.pending), 'Awaiting balance or confirmation', <Clock key="c" className="w-3.5 h-3.5 text-rose-700" />],
-        ['Completed Deposits', String(analytics.completed), 'Balance collected and billed', <Check key="k" className="w-3.5 h-3.5 text-green-700" />],
-      ] as const).map(([label, value, note, icon]) => (
-        <div key={label} className="bg-white border border-black/10 rounded-xl px-3.5 py-3 shadow-xs flex flex-col min-w-0" title={note}>
-          <div className="flex items-start gap-1.5 min-w-0">
-            <span className="mt-px shrink-0">{icon}</span>
-            <p className="text-[10px] font-black text-[#000000]/80 uppercase tracking-wide leading-snug min-w-0">{label}</p>
-          </div>
-          <p className="mt-2 text-xl font-black text-[#000000] leading-tight break-words">{value}</p>
-          <p className="mt-auto pt-2 text-[10.5px] font-medium text-[#000000]/65 leading-snug">{note}</p>
-        </div>
-      ))}
-    </div>
 
     {/* Rows */}
     <div className="bg-white border border-black/10 rounded-xl overflow-hidden">

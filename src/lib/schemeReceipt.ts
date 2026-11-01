@@ -31,7 +31,7 @@ export const totalsAfterInstallment = (scheme: JewelleryScheme, installments: Sc
 }
 
 /** Prints an 80mm thermal receipt for one scheme installment (same layout as the advance receipt). */
-export function printSchemeReceipt(scheme: JewelleryScheme, installment: SchemeInstallment, totals?: ReceiptTotals) {
+export function printSchemeReceipt(scheme: JewelleryScheme, installment: SchemeInstallment, totals?: ReceiptTotals, paperWidth: 58 | 80 = 80) {
   const t: ReceiptTotals = totals || { totalPaid: scheme.totalPaid, remaining: schemeRemaining(scheme), nextDueDate: scheme.nextDueDate, totalGrams: scheme.totalGrams }
   const settings = useSettingsStore.getState().settings
   const shop = {
@@ -48,9 +48,9 @@ export function printSchemeReceipt(scheme: JewelleryScheme, installment: SchemeI
   const html = `<!doctype html><html><head><title>Scheme Receipt ${esc(installment.receiptNumber || '')}</title>
 <meta charset="utf-8"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
-  @page { size: 80mm auto; margin: 0; }
+  @page { size: ${paperWidth}mm auto; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Poppins', system-ui, sans-serif; font-size: 12px; font-weight: 600; width: 72mm; padding: 4mm; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { font-family: 'Poppins', system-ui, sans-serif; font-size: ${paperWidth === 58 ? 10.5 : 12}px; font-weight: 600; width: ${paperWidth - 8}mm; padding: ${paperWidth === 58 ? 2 : 4}mm; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .c { text-align: center; }
   .r { display: flex; justify-content: space-between; gap: 4px; margin: 5px 0; word-break: break-word; }
   .r span:first-child { flex-shrink: 0; max-width: 55%; }
