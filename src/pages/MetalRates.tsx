@@ -11,6 +11,7 @@ import { useMetalRateStore } from '../store/metalRateStore'
 import { metalRateService, type NewRateEntry } from '../services/metalRateService'
 import {
   GOLD_PURITIES,
+  isCustomGoldPurity,
   METAL_LABELS,
   RATE_SLOTS,
   STANDARD_PURITY,
@@ -48,6 +49,10 @@ function MetalRatesPanel() {
 
   const [updateOpen, setUpdateOpen] = useState(false)
   const [form, setForm] = useState<Record<string, string>>({})
+  // Extra gold purities (e.g. 23K, 9K) next to the standard five
+  const [customRows, setCustomRows] = useState<Array<{ purity: string; rate: string }>>([])
+  const customPurities = useMemo(() => Object.values(rates).filter((r) => r.metalType === 'gold' && isCustomGoldPurity(r.purity)).map((r) => r.purity)
+    .sort((a, b) => parseFloat(b) - parseFloat(a)), [rates])
   const [note, setNote] = useState('')
   const [effectiveFrom, setEffectiveFrom] = useState('')
   const [confirming, setConfirming] = useState<PendingChange[] | null>(null)
@@ -78,6 +83,7 @@ function MetalRatesPanel() {
       initial[rateKey(slot.metal, slot.purity)] = current ? String(current.ratePerGram) : ''
     }
     setForm(initial)
+    setCustomRows(customPurities.map((p) => ({ purity: p, rate: String(rates[rateKey('gold', p)]?.ratePerGram ?? '') })))
     setNote('')
     setEffectiveFrom('')
     setConfirming(null)
@@ -98,6 +104,23 @@ function MetalRatesPanel() {
       if (!checked.ok) { setError(checked.error); return }
       if (current && current.ratePerGram === checked.value) continue
       changes.push({ metal: slot.metal, purity: slot.purity, from: current ? current.ratePerGram : null, to: checked.value })
+    }
+    const seenCustom = new Set<string>()
+    for (const row of customRows) {
+      const purity = row.purity.trim().toUpperCase().replace(/\s+/g, '').replace(/KT?$|CT$/, 'K')
+      if (!purity && !row.rate.trim()) continue
+      if (!isCustomGoldPurity(purity)) {
+        setError((GOLD_PURITIES as readonly string[]).includes(purity) ? `${purity} is already in the list above.` : `"${row.purity}" is not a gold purity. Use a karat like 23K, 19K or 9K (up to 24K).`)
+        return
+      }
+      if (seenCustom.has(purity)) { setError(`${purity} is entered twice.`); return }
+      seenCustom.add(purity)
+      const key = rateKey('gold', purity)
+      const current = rates[key]
+      const checked = validateRateInput('gold', purity, row.rate)
+      if (!checked.ok) { setError(checked.error); return }
+      if (current && current.ratePerGram === checked.value) continue
+      changes.push({ metal: 'gold', purity, from: current ? current.ratePerGram : null, to: checked.value })
     }
     if (!changes.length) { setError('No rate was changed.'); return }
     setError('')
@@ -196,7 +219,7 @@ function MetalRatesPanel() {
           <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Gold</p>
           <div className="rounded-xl p-2 text-amber-700 bg-amber-50"><Gem size={18} /></div>
         </div>
-        {GOLD_PURITIES.map((purity) => renderRateRow('gold', purity))}
+        {[...GOLD_PURITIES, ...customPurities].map((purity) => renderRateRow('gold', purity))}
       </div>
       <div className="rounded-xl border border-black/10 bg-white p-4 shadow-sm">
         <div className="flex items-center justify-between mb-1">
@@ -317,6 +340,20 @@ function MetalRatesPanel() {
                         onChange={(e) => setForm((f) => ({ ...f, [rateKey('gold', purity)]: e.target.value }))} />
                     </Field>
                   ))}
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Other gold purities (₹ per gram)</p>
+                <div className="space-y-2">
+                  {customRows.map((row, i) => (
+                    <div key={i} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
+                      <Field label="Purity"><input className={inputClass} placeholder="e.g. 23K" value={row.purity} onChange={(e) => setCustomRows((rows) => rows.map((r, k) => (k === i ? { ...r, purity: e.target.value } : r)))} /></Field>
+                      <Field label="Rate"><input type="number" min="0.01" step="0.01" inputMode="decimal" className={inputClass} placeholder="0.00" value={row.rate} onChange={(e) => setCustomRows((rows) => rows.map((r, k) => (k === i ? { ...r, rate: e.target.value } : r)))} /></Field>
+                      <button type="button" title="Remove this row (the saved rate stays in history)" onClick={() => setCustomRows((rows) => rows.filter((_, k) => k !== i))} className="mb-1 flex h-9 w-9 items-center justify-center rounded-lg bg-[#DC2626]/10 text-[#DC2626] cursor-pointer"><X size={16} /></button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setCustomRows((rows) => [...rows, { purity: '', rate: '' }])} className="rounded-lg border border-dashed border-black/30 px-3 py-2 text-[11px] font-black uppercase tracking-wider hover:bg-black/5 cursor-pointer">+ Add purity (e.g. 23K, 9K)</button>
+                  <p className="text-[10px] font-semibold text-[#000000]/60">Items in a purity without its own rate are priced from the 24K rate × karat / 24.</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">

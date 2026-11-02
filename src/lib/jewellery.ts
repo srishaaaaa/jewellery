@@ -185,10 +185,18 @@ export const resolveRate = (
 export type RateValidation = { ok: true; value: number } | { ok: false; error: string }
 
 /** Rejects empty, zero, negative or non-numeric rates, and unknown metal/purity pairs. */
+/** A gold purity outside the standard list, e.g. 23K, 19K or 9K (karat 1–24, up to 2 decimals). */
+export const isCustomGoldPurity = (purity: string) => {
+  const m = /^(\d{1,2}(?:\.\d{1,2})?)K$/.exec(String(purity || '').trim())
+  if (!m) return false
+  const k = Number(m[1])
+  return k > 0 && k <= 24 && !(GOLD_PURITIES as readonly string[]).includes(purity)
+}
+
 export const validateRateInput = (metal: string, purity: string, raw: string): RateValidation => {
   if (!isRatedMetal(normalizeMetalType(metal))) return { ok: false, error: `Invalid metal type "${metal}".` }
   const validPurity = metal === 'gold'
-    ? (GOLD_PURITIES as readonly string[]).includes(purity)
+    ? (GOLD_PURITIES as readonly string[]).includes(purity) || isCustomGoldPurity(purity)
     : purity === STANDARD_PURITY
   if (!validPurity) return { ok: false, error: `Invalid purity "${purity}" for ${METAL_LABELS[metal as RatedMetal]}.` }
   const text = String(raw ?? '').trim()

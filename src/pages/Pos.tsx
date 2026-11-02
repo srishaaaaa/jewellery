@@ -1,3 +1,5 @@
+import { LooseStonePicker } from '../components/pos/LooseStonePicker'
+import { looseStoneService, type LooseStone } from '../services/stoneRateService'
 import { couponAllowsPhone } from '../lib/couponShare'
 import { useEffect, useMemo, useRef, useState, useCallback, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -5,7 +7,8 @@ import { createPortal } from 'react-dom'
 import {
   Search, Trash2, Plus, Receipt, Printer,
   ShoppingBag, MessageCircle,
-  X, ChevronDown, Power, Calculator, Check, Clock, Loader2, ArrowLeft, Copy
+  X, ChevronDown, Power, Calculator, Check, Clock, Loader2, ArrowLeft, Copy,
+  Gem,
 } from 'lucide-react'
 import { toolbarBtn, toolbarBtnDark } from '../components/invoice/invoiceStyle'
 import { PrintSettingsModal } from '../components/invoice/PrintSettingsModal'
@@ -90,6 +93,8 @@ type PosItem = Product & {
   piece?: JewelleryPiece | null
   /** Given free: on the bill at ₹0, still taken out of stock */
   isFree?: boolean
+  /** A loose stone sold on this line: marked sold in Loose Stones when the bill is completed */
+  looseStone?: { id: string; code: string; quantity: number; carat: number } | null
 }
 
 type InvoiceSnap = {
@@ -457,6 +462,7 @@ export default function Pos(props: PosProps = {}) {
   const [catalogOpen, setCatalogOpen] = useState(false)
   const [calculatorOpen, setCalculatorOpen] = useState(false)
   const [addUnregisteredOpen, setAddUnregisteredOpen] = useState(false)
+  const [loosePickerOpen, setLoosePickerOpen] = useState(false)
   const [depositOpen, setDepositOpen] = useState(false)
   const [depositCreated, setDepositCreated] = useState<AdvanceOrder | null>(null)
   const [depositForm, setDepositForm] = useState({ amount: '', expectedDeliveryDate: '', paymentMethod: 'cash' as AdvancePaymentMethod, address: '', remarks: '', referenceNumber: '' })
@@ -923,6 +929,26 @@ export default function Pos(props: PosProps = {}) {
   }, [props.externalScannedCode, externalCodeFromStore, processIncomingCode, setExternalScannedCode, props])
 
 
+
+  /** Adds a loose stone (or part of a lot) as its own bill line. */
+  const addLooseStone = async (stone: LooseStone, quantity: number, carat: number, price: number) => {
+    try {
+      const name = `${stone.name}${stone.variety ? ` ${stone.variety}` : ''} (${stone.stoneCode})`
+      const product = await getOrCreateUnregisteredProduct(name, price)
+      const base = makePosItem({
+        id: `${product.id}-loose-${stone.id}`, name, category: 'Unregistered', remedy: [],
+        price, offerPrice: null, stock: 999999, stockQuantity: 999999, hasVariants: false,
+        unitType: 'unit', unitLabel: 'pcs', baseQuantity: 1, stockUnit: 'pcs', allowDecimalQuantity: false,
+        predefinedOptions: [], isActive: true, sortOrder: 999, unit: 'pcs', rating: 5, description: '', benefits: '',
+        image: '/product-placeholder.svg', imageUrl: '/product-placeholder.svg',
+      }, 1)
+      const note = [carat ? `${carat.toFixed(3)} ct` : '', quantity ? `${quantity} pc` : '', ...Object.values(stone.specs), stone.certificateNo ? `Cert ${stone.lab} ${stone.certificateNo}` : ''].filter(Boolean).join(' · ')
+      setItems((cur) => [{ ...base, source: 'manual', note, parentProductId: String(product.id), looseStone: { id: stone.id, code: stone.stoneCode, quantity, carat } }, ...cur])
+      setLoosePickerOpen(false)
+    } catch (err) {
+      setError(getErrorMessage(err, 'Unable to add the stone'))
+    }
+  }
 
   const handleAddUnregisteredItem = async (input: {
     name: string
@@ -1553,6 +1579,13 @@ export default function Pos(props: PosProps = {}) {
       }
       setInvoice(createdInvoice)
       void persistInvoicePdf(createdInvoice)
+      // Loose stones sold on this bill leave the loose stock (logged against the invoice)
+      for (const it of billItems) {
+        if (!it.looseStone) continue
+        const ls = it.looseStone
+        looseStoneService.move(ls.id, 'sell', { quantity: ls.quantity, carat: ls.carat, reference: createdInvoice.invoiceNo, note: createdInvoice.customerName })
+          .catch((err) => setError(`Bill saved, but ${ls.code} could not be marked sold in Loose Stones: ${getErrorMessage(err, 'error')}. Mark it sold there.`))
+      }
       void customerService.upsertFromSale({
         phone: normalizedPhone,
         name: customer.name,
@@ -2077,6 +2110,15 @@ export default function Pos(props: PosProps = {}) {
                 >
                   <Search className="w-3.5 h-3.5 text-[var(--accent)]" />
                   <span>Search Catalog</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLoosePickerOpen(true)}
+                  className="text-[10px] font-bold uppercase tracking-wider px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 text-[var(--accent)] bg-[var(--accent-a5)] hover:bg-[var(--accent-a10)] border border-[var(--accent-a20)]"
+                >
+                  <Gem className="w-3.5 h-3.5" />
+                  <span>Loose Stone</span>
                 </button>
 
                 {/* Button 2: Add Item (Ad-Hoc Unregistered) */}
@@ -3188,6 +3230,10 @@ export default function Pos(props: PosProps = {}) {
         </div></ModalPortal>
       )}
 
+      {loosePickerOpen && (
+        <LooseStonePicker onClose={() => setLoosePickerOpen(false)} onAdd={(st, q, c, pr) => void addLooseStone(st, q, c, pr)}
+          alreadyOnBill={items.filter((i) => i.looseStone).map((i) => i.looseStone!.id)} />
+      )}
       {addUnregisteredOpen && (
         <AddUnregisteredItemModal
           isOpen={addUnregisteredOpen}
