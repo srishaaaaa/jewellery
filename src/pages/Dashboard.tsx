@@ -1642,8 +1642,8 @@ export default function Dashboard() {
 
       {/* Main content area */}
       <main className="flex-1 h-dvh overflow-y-auto overflow-x-hidden min-w-0 px-3 sm:px-8 lg:px-12 pt-3 pb-8 relative flex flex-col">
-        {/* Global top navbar */}
-        <header className="flex-shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center py-4 border-b border-black/10 w-full mb-6 gap-4 print:hidden">
+        {/* Top bar: only the menu button (sidebar closed) and the billing actions — no title or divider line */}
+        <header className={`flex-shrink-0 flex flex-col sm:flex-row justify-between items-start sm:items-center w-full gap-3 print:hidden ${!sidebarOpen || tab === 'billing' ? 'mb-3' : 'hidden'}`}>
           <div className="flex items-center gap-4">
             {!sidebarOpen && (
               <button
@@ -1655,7 +1655,6 @@ export default function Dashboard() {
                 <Menu className="w-[18px] h-[18px] text-[var(--accent)]" />
               </button>
             )}
-            <h1 className="text-lg font-black text-[#000000] tracking-tight">{shopName}</h1>
           </div>
           <div id="dashboard-header-actions" className={tab === 'billing' ? '' : 'hidden'} />
         </header>

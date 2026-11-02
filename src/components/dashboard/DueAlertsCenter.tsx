@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { BellRing, CalendarClock, Clock, PiggyBank, Truck, Volume2, VolumeX, Wallet, Wrench } from 'lucide-react'
+import { BellRing, Cake, CalendarClock, Clock, Heart, PiggyBank, Truck, Volume2, VolumeX, Wallet, Wrench } from 'lucide-react'
 import { creditService } from '../../services/creditService'
 import { listAdvanceOrders } from '../../services/advanceOrderService'
 import { schemeService } from '../../services/schemeService'
 import { purchaseService, supplierService } from '../../services/purchaseService'
 import { repairService } from '../../services/salesDeskService'
+import { customerService } from '../../services/customerService'
 import { useSettingsStore } from '../../store/store'
 import { useAlarmQueueStore } from '../../store/alarmQueueStore'
 import { LEAD_DAYS, normalizeAlertSettings, type AlertKind, type AlertSettings } from '../../lib/alertSettings'
@@ -30,12 +31,25 @@ type DueItem = {
 
 const ACK_KEY = 'jewellery_due_alerts_ack'
 const CHECK_EVERY_MS = 30 * 60 * 1000
-const ICONS: Record<AlertKind, typeof Wallet> = { credit: Wallet, advance: Clock, scheme: PiggyBank, purchase: Truck, repair: Wrench }
-const KIND_LABEL: Record<AlertKind, string> = { credit: 'Credit', advance: 'Advance Order', scheme: 'Scheme', purchase: 'Supplier', repair: 'Repair' }
+const ICONS: Record<AlertKind, typeof Wallet> = { credit: Wallet, advance: Clock, scheme: PiggyBank, purchase: Truck, repair: Wrench, birthday: Cake, anniversary: Heart }
+const KIND_LABEL: Record<AlertKind, string> = { credit: 'Credit', advance: 'Advance Order', scheme: 'Scheme', purchase: 'Supplier', repair: 'Repair', birthday: 'Birthday', anniversary: 'Anniversary' }
+const isEvent = (k: AlertKind) => k === 'birthday' || k === 'anniversary'
 
 const daysBetween = (from: string, to: string) => Math.round((new Date(`${to}T00:00:00`).getTime() - new Date(`${from}T00:00:00`).getTime()) / 86400000)
 const fmt = (iso: string) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
-const whenText = (d: number) => (d < 0 ? `Overdue ${-d} day${d === -1 ? '' : 's'}` : d === 0 ? 'Due today' : `Due in ${d} day${d === 1 ? '' : 's'}`)
+const whenText = (d: number, kind?: AlertKind) => kind && isEvent(kind)
+  ? (d === 0 ? 'Today' : `In ${d} day${d === 1 ? '' : 's'}`)
+  : (d < 0 ? `Overdue ${-d} day${d === -1 ? '' : 's'}` : d === 0 ? 'Due today' : `Due in ${d} day${d === 1 ? '' : 's'}`)
+
+/** Next date (today or later) a yearly event falls on, from a saved date (any year) or MM-DD. */
+function nextOccurrence(saved: string, today: string): string | null {
+  const m = /(\d{1,2})-(\d{1,2})$/.exec(saved.trim().slice(0, 10))
+  if (!m) return null
+  const mm = m[1].padStart(2, '0'), dd = m[2].padStart(2, '0')
+  const year = Number(today.slice(0, 4))
+  const thisYear = `${year}-${mm}-${dd}`
+  return thisYear >= today ? thisYear : `${year + 1}-${mm}-${dd}`
+}
 
 function readAck(today: string): Set<string> {
   try {
@@ -120,6 +134,26 @@ async function loadDueItems(cfg: AlertSettings): Promise<DueItem[]> {
     }
   }))
 
+  if (cfg.leads.birthday !== 'off' || cfg.leads.anniversary !== 'off') jobs.push(customerService.fetchAll().then(rows => {
+    for (const c of rows) {
+      for (const kind of ['birthday', 'anniversary'] as const) {
+        const saved = c[kind]
+        if (!saved || cfg.leads[kind] === 'off') continue
+        const next = nextOccurrence(saved, today)
+        const d = next ? within(kind, next) : null
+        if (d === null || !next) continue
+        const name = c.name || 'Customer'
+        found.push({
+          key: `${kind}:${c.id}:${next}`, kind, tab: 'customer_events', title: name,
+          detail: `${kind === 'birthday' ? 'Birthday' : 'Anniversary'} on ${fmt(next)}`, date: next, daysLeft: d, amount: 0, phone: c.phone,
+          message: kind === 'birthday'
+            ? `🎉 Happy Birthday, ${name}! 🎂\n\nWishing you a wonderful year ahead filled with joy and sparkle.\n\nWith warm wishes,\n${useSettingsStore.getState().settings?.name || 'Team'}`
+            : `💐 Happy Anniversary, ${name}! 💍\n\nWishing you both many more beautiful years together.\n\nWith warm wishes,\n${useSettingsStore.getState().settings?.name || 'Team'}`,
+        })
+      }
+    }
+  }))
+
   await Promise.allSettled(jobs)
   const acked = readAck(today)
   return found.filter(i => !acked.has(i.key)).sort((a, b) => a.daysLeft - b.daysLeft)
@@ -183,7 +217,7 @@ export default function DueAlertsCenter({ onOpenTab }: { onOpenTab: (tab: string
     const sig = items.map(i => i.key).join('|')
     if (alertSettings.notifications && notifiedRef.current !== sig && 'Notification' in window) {
       notifiedRef.current = sig
-      const show = () => { try { new Notification(`${items.length} reminder${items.length === 1 ? '' : 's'} due`, { body: items.slice(0, 4).map(i => `${KIND_LABEL[i.kind]}: ${i.title} — ${whenText(i.daysLeft)}`).join('\n') }) } catch { /* not allowed here */ } }
+      const show = () => { try { new Notification(`${items.length} reminder${items.length === 1 ? '' : 's'} due`, { body: items.slice(0, 4).map(i => `${KIND_LABEL[i.kind]}: ${i.title} — ${whenText(i.daysLeft, i.kind)}`).join('\n') }) } catch { /* not allowed here */ } }
       if (Notification.permission === 'granted') show()
       else if (Notification.permission === 'default') void Notification.requestPermission().then(p => { if (p === 'granted') show() })
     }
@@ -234,7 +268,7 @@ export default function DueAlertsCenter({ onOpenTab }: { onOpenTab: (tab: string
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  <span className={`flex items-center gap-1 text-[10px] font-black uppercase ${i.daysLeft < 0 ? 'text-[#DC2626]' : 'text-[#000000]'}`}><CalendarClock className="w-3 h-3" />{whenText(i.daysLeft)}</span>
+                  <span className={`flex items-center gap-1 text-[10px] font-black uppercase ${i.daysLeft < 0 ? 'text-[#DC2626]' : 'text-[#000000]'}`}><CalendarClock className="w-3 h-3" />{whenText(i.daysLeft, i.kind)}</span>
                   <div className="flex gap-1.5">
                     {i.phone && i.message && (
                       <button type="button" title="Send reminder on WhatsApp" onClick={() => window.open(toWhatsAppUrl(i.phone!, i.message!), '_blank', 'noopener,noreferrer')}
