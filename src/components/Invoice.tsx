@@ -86,7 +86,14 @@ const JewelleryLineDetails: React.FC<{ j: JewellerySnapshot }> = ({ j }) => {
     j.metal_value > 0 ? `Metal ${formatCurrency(j.metal_value)}` : '',
     j.making_amount > 0 ? `Making ${formatCurrency(j.making_amount)}${j.making_charge_type !== 'fixed' ? ` (${j.making_charge_type === 'percentage' ? `${j.making_charge}%` : `${formatCurrency(j.making_charge)}/g`})` : ''}` : '',
     j.wastage_amount > 0 ? `Wastage ${formatCurrency(j.wastage_amount)}${j.wastage_type === 'percentage' ? ` (${j.wastage}%)` : ` (${formatWeight(j.wastage)})`}` : '',
-    j.stone_charge > 0 ? `Stone ${formatCurrency(j.stone_charge)}` : '',
+    ...(j.diamond_value || j.gemstone_value
+      ? [
+          j.diamond_value ? `Diamonds ${formatCurrency(j.diamond_value)}` : '',
+          (j.gemstone_value || 0) - (j.pearl_value || 0) - (j.traditional_value || 0) > 0.009 ? `Gemstones ${formatCurrency((j.gemstone_value || 0) - (j.pearl_value || 0) - (j.traditional_value || 0))}` : '',
+          j.pearl_value ? `Pearls ${formatCurrency(j.pearl_value)}` : '',
+          j.traditional_value ? `Polki/Kundan ${formatCurrency(j.traditional_value)}` : '',
+        ]
+      : [j.stone_charge > 0 ? `Stone ${formatCurrency(j.stone_charge)}` : '']),
     j.other_charge > 0 ? `Other ${formatCurrency(j.other_charge)}` : '',
   ].filter(Boolean)
   return (

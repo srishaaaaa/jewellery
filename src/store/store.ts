@@ -175,6 +175,8 @@ export interface PosPermissions {
   staffMaxDiscountPercent: number
   /** Whether staff may change a scheme type's terms when enrolling a customer. */
   staffCanCustomiseSchemes: boolean
+  /** Staff may replace a stone's price-list rate with a negotiated price (always with a reason). */
+  staffCanOverrideStonePrice: boolean
   /** Most cash accepted on one bill / advance (Income Tax s.269ST: below ₹2,00,000). */
   cashLimit: number
   /** Admin may accept cash above cashLimit (staff never can). */
@@ -189,7 +191,7 @@ export interface PosPermissions {
   alerts: AlertSettings
 }
 
-export const DEFAULT_POS_PERMISSIONS: PosPermissions = { staffMaxDiscountPercent: 5, staffCanCustomiseSchemes: false, cashLimit: 199500, allowCashAboveLimit: false, netProfitIncludeExpenses: true, netProfitIncludeOldGold: true, netProfitIncludePurchases: false, alerts: DEFAULT_ALERT_SETTINGS }
+export const DEFAULT_POS_PERMISSIONS: PosPermissions = { staffMaxDiscountPercent: 5, staffCanCustomiseSchemes: false, staffCanOverrideStonePrice: false, cashLimit: 199500, allowCashAboveLimit: false, netProfitIncludeExpenses: true, netProfitIncludeOldGold: true, netProfitIncludePurchases: false, alerts: DEFAULT_ALERT_SETTINGS }
 
 export const normalizePosPermissions = (raw: unknown): PosPermissions => {
   const r = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
@@ -197,6 +199,7 @@ export const normalizePosPermissions = (raw: unknown): PosPermissions => {
   return {
     staffMaxDiscountPercent: Number.isFinite(pct) ? Math.min(100, Math.max(0, pct)) : DEFAULT_POS_PERMISSIONS.staffMaxDiscountPercent,
     staffCanCustomiseSchemes: typeof r.staffCanCustomiseSchemes === 'boolean' ? r.staffCanCustomiseSchemes : DEFAULT_POS_PERMISSIONS.staffCanCustomiseSchemes,
+    staffCanOverrideStonePrice: typeof r.staffCanOverrideStonePrice === 'boolean' ? r.staffCanOverrideStonePrice : DEFAULT_POS_PERMISSIONS.staffCanOverrideStonePrice,
     cashLimit: Number(r.cashLimit) > 0 ? Number(r.cashLimit) : DEFAULT_POS_PERMISSIONS.cashLimit,
     allowCashAboveLimit: typeof r.allowCashAboveLimit === 'boolean' ? r.allowCashAboveLimit : DEFAULT_POS_PERMISSIONS.allowCashAboveLimit,
     netProfitIncludeExpenses: typeof r.netProfitIncludeExpenses === 'boolean' ? r.netProfitIncludeExpenses : DEFAULT_POS_PERMISSIONS.netProfitIncludeExpenses,

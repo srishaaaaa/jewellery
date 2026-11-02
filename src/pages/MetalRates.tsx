@@ -5,6 +5,8 @@ import { formatCurrency } from '../lib/retail'
 import { csvDate, downloadCsv } from '../lib/csv'
 import { ModalPortal } from '../components/ModalPortal'
 import { useAdminAuthStore } from '../store/store'
+import { PriceListView, StoneRateHistory } from '../components/rates/RateManagement'
+import { CATEGORY_LABELS, materialRateService, type MaterialCategory, type MaterialRate } from '../services/stoneRateService'
 import { useMetalRateStore } from '../store/metalRateStore'
 import { metalRateService, type NewRateEntry } from '../services/metalRateService'
 import {
@@ -31,7 +33,7 @@ const fmtDateTime = (iso: string) => {
 
 type PendingChange = { metal: RatedMetal; purity: string; from: number | null; to: number }
 
-export default function MetalRates() {
+function MetalRatesPanel() {
   const role = useAdminAuthStore((s) => s.role)
   const adminId = useAdminAuthStore((s) => s.adminId)
   const { rates, fetchRates, error: rateError, loading: ratesLoading } = useMetalRateStore()
@@ -351,4 +353,51 @@ export default function MetalRates() {
       </form>
     </div></ModalPortal>}
   </div>
+}
+
+type RateTab = 'metal' | MaterialCategory | 'history'
+
+/** Rate Management: metal rates plus price lists for diamonds, gemstones, pearls and traditional work. */
+export default function MetalRates() {
+  const role = useAdminAuthStore((s) => s.role)
+  const [tab, setTab] = useState<RateTab>('metal')
+  const [stoneRates, setStoneRates] = useState<MaterialRate[]>([])
+  const [loadError, setLoadError] = useState('')
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    if (tab === 'metal' || loaded) return
+    let live = true
+    materialRateService.list()
+      .then((rows) => { if (live) { setStoneRates(rows); setLoaded(true) } })
+      .catch((err) => { if (live) setLoadError(getErrorMessage(err, 'Unable to load price lists')) })
+    return () => { live = false }
+  }, [tab, loaded])
+
+  const tabs: Array<[RateTab, string]> = [['metal', 'Metal Rates'], ...(Object.keys(CATEGORY_LABELS) as MaterialCategory[]).map((c) => [c, CATEGORY_LABELS[c]] as [RateTab, string]), ['history', 'Stone Rate History']]
+  return (
+    <div className="space-y-5">
+      <div className="flex gap-1 overflow-x-auto border-b border-black/10 hide-scrollbar">
+        {tabs.map(([id, label]) => (
+          <button key={id} type="button" onClick={() => setTab(id)}
+            className={`whitespace-nowrap border-b-2 px-4 py-2.5 text-xs font-black uppercase tracking-wider transition-colors cursor-pointer ${tab === id ? 'border-[#111111] text-[#000000]' : 'border-transparent text-[#000000]/50 hover:text-[#000000]'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === 'metal' ? <MetalRatesPanel /> : (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-[28px] font-black text-[#000000] tracking-tight">{tab === 'history' ? 'Stone Rate History' : `${CATEGORY_LABELS[tab]} Price List`}</h2>
+            <p className="mt-1 text-xs font-semibold text-[#000000]">
+              {tab === 'history' ? 'Every stone rate entered, with the change from the previous price. Nothing is overwritten.'
+                : 'Rates by grade and size. Stones on items pick the matching rate; a stone with no matching rate is flagged instead of guessing.'}
+            </p>
+          </div>
+          {loadError && <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{loadError}</p>}
+          {tab === 'history' ? <StoneRateHistory rates={stoneRates} /> : <PriceListView key={tab} category={tab} rates={stoneRates} onChange={setStoneRates} isAdmin={role === 'admin'} />}
+        </div>
+      )}
+    </div>
+  )
 }

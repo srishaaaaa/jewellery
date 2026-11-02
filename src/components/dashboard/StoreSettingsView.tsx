@@ -454,6 +454,17 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                     <span className="block text-[11px] text-[#000000]">Off: staff enrol customers only on the scheme types set up by admin, with their fixed terms.</span>
                   </span>
                 </label>
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox" checked={form.posPermissions.staffCanOverrideStonePrice}
+                    onChange={e => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, staffCanOverrideStonePrice: e.target.checked } }))}
+                    className="mt-0.5 w-4 h-4 accent-[var(--accent)]"
+                  />
+                  <span>
+                    <span className="block text-xs font-bold text-[#000000]">Staff may change stone price-list rates</span>
+                    <span className="block text-[11px] text-[#000000]">Off: only the admin can replace a diamond / gemstone / pearl list rate with a negotiated price. Every change needs a reason and is logged.</span>
+                  </span>
+                </label>
                 <div>
                   <Field label="Cash limit per bill / advance (₹)">
                     <NumberInput

@@ -16,7 +16,8 @@ import {
   ImagePlus,
 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
-import { useAdminAuthStore, useProductStore, type Product } from '../../store/store'
+import { useAdminAuthStore, useProductStore, useSettingsStore, type Product } from '../../store/store'
+import { CATEGORY_CONFIG, findStoneRate, materialRateService, overrideService, UNIT_LABELS, type MaterialRate } from '../../services/stoneRateService'
 import { fetchVariantsByProduct } from '../../services/variantService'
 import { inventoryService, type CategoryRecord } from '../../services/inventoryService'
 import { useSound } from '../../context/SoundContext'
@@ -59,6 +60,7 @@ import {
   caratToGrams,
   isDiamondKind,
   STONE_KIND_LABELS,
+  describeStones,
   STONE_ROLE_LABELS,
   STONE_PRICE_BASIS_LABELS,
   CERTIFICATE_STATUS_LABELS,
@@ -207,6 +209,15 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
   /** Status when the form opened: item_status is only sent when it changes, so saving works before the database update. */
   const [loadedItemStatus, setLoadedItemStatus] = useState<ItemStatus>('available')
   const [stones, setStones] = useState<StoneDetails[]>([EMPTY_STONE_DETAILS])
+  // Stone price lists (Metal Rates → Diamonds / Gemstones / Pearls / Traditional)
+  const [stoneRates, setStoneRates] = useState<MaterialRate[]>([])
+  const [rateNotes, setRateNotes] = useState<Record<number, string>>({})
+  const [originalStones, setOriginalStones] = useState<StoneDetails[]>([])
+  useEffect(() => {
+    let live = true
+    materialRateService.list().then((rows) => { if (live) setStoneRates(rows) }).catch(() => undefined)
+    return () => { live = false }
+  }, [])
   const [showStones, setShowStones] = useState(false)
   /** One stone, or several stones each with their own details and value */
   const [stoneMode, setStoneMode] = useState<'single' | 'multiple'>('single')
@@ -281,6 +292,8 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     setOtherWeight('')
     setHallmarkStatus('')
     setStones([EMPTY_STONE_DETAILS])
+    setOriginalStones([])
+    setRateNotes({})
     setShowStones(false)
     setStoneMode('single')
     setImageUrl('')
@@ -348,6 +361,8 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     setItemStatus(p.itemStatus || 'available')
     setLoadedItemStatus(p.itemStatus || 'available')
     setStones(p.stoneDetails?.length ? p.stoneDetails : [EMPTY_STONE_DETAILS])
+    setOriginalStones(p.stoneDetails || [])
+    setRateNotes({})
     setShowStones(Boolean(p.stoneDetails?.length))
     setStoneMode((p.stoneDetails?.length ?? 0) > 1 ? 'multiple' : 'single')
     setImageUrl(p.imageUrl && !p.imageUrl.includes('placeholder') ? p.imageUrl : '')
@@ -449,12 +464,33 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     if (total > 0) setStoneCharge(String(total))
   }
   const updateStone = (idx: number, patch: Partial<StoneDetails>) => {
+    const cur = stones[idx]
+    if (cur && cur.rateSource === 'list' && ['value', 'rate', 'priceBasis'].some((k) => k in patch)) {
+      patch = { ...patch, rateSource: 'override', overrideBy: isAdminUser ? 'Admin' : 'Staff' }
+    }
+    // Grade / size changes after a list rate was applied: the rate may no longer fit, so check again
+    if (cur && cur.rateSource === 'list' && ['kind', 'type', 'shape', 'colour', 'clarity', 'cut', 'carat', 'count', 'variety', 'origin', 'measurements', 'lustre', 'polish', 'symmetry', 'fluorescence', 'lab', 'treatment'].some((k) => k in patch)) {
+      patch = { ...patch, rateSource: '', rateId: '' }
+      setRateNotes((n) => ({ ...n, [idx]: 'Details changed — press "Use price-list rate" again.' }))
+    }
     const next = stones.map((d, i) => (i === idx ? { ...d, ...patch } : d))
     // Anything that changes a line's price refills Stone Charge.
     if (['value', 'rate', 'carat', 'count', 'priceBasis'].some((k) => k in patch)) applyStones(next)
     else setStones(next)
   }
   const addStone = () => setStones([...stones, EMPTY_STONE_DETAILS])
+  /** Fills a stone line from the matching price-list rate, or explains why there is none. */
+  const applyListRate = (idx: number) => {
+    const d = stones[idx]
+    const m = findStoneRate(d, stoneRates)
+    if (!m.ok) { setRateNotes((n) => ({ ...n, [idx]: m.reason })); return }
+    const patch: Partial<StoneDetails> = m.basis === 'total'
+      ? { priceBasis: 'total', value: m.value, rate: 0 }
+      : { priceBasis: m.basis, rate: m.unitRate }
+    const next = stones.map((x, i) => (i === idx ? { ...x, ...patch, rateId: m.rate.id, rateSource: 'list' as const, listRate: m.unitRate, overrideReason: '', overrideBy: '' } : x))
+    applyStones(next)
+    setRateNotes((n) => ({ ...n, [idx]: `Price list: ${m.rate.name}${m.rate.variety ? ` ${m.rate.variety}` : ''} @ ₹${m.rate.price.toLocaleString('en-IN')} ${UNIT_LABELS[m.rate.pricingUnit].toLowerCase()} (from ${new Date(m.rate.effectiveFrom).toLocaleDateString('en-IN')})` }))
+  }
   const chooseStoneMode = (mode: 'single' | 'multiple') => {
     if (mode === stoneMode) return
     if (mode === 'multiple') {
@@ -551,6 +587,9 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
         if (d.priceBasis === 'per_carat' && d.rate > 0 && d.carat <= 0) return `Stone ${i + 1}: enter the carat weight to price it per carat.`
         if (d.priceBasis === 'per_stone' && d.rate > 0 && d.count <= 0) return `Stone ${i + 1}: enter the number of stones to price it per stone.`
         if (d.certificateStatus === 'verified' && !d.certificate.trim()) return `Stone ${i + 1}: a certificate can only be marked verified when its number is entered.`
+        if (d.carat < 0 || d.count < 0 || d.rate < 0 || d.value < 0) return `Stone ${i + 1}: carat, count and price cannot be negative.`
+        if (d.rateSource === 'override' && !d.overrideReason.trim()) return `Stone ${i + 1}: enter the reason for changing the price-list rate (negotiated price).`
+        if (d.rateSource === 'override' && !isAdminUser && !(useSettingsStore.getState().settings?.posPermissions?.staffCanOverrideStonePrice)) return `Stone ${i + 1}: only the admin can change a price-list rate.`
       }
       const stoneGrams = stoneTotals(stones).grams
       if (stoneGrams > 0 && gross > 0 && stoneGrams > gross) return 'The stones weigh more than the gross weight. Check the carat weights.'
@@ -622,6 +661,19 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
     if (jewelleryError) {
       setStatusMessage({ type: 'error', text: jewelleryError })
       return
+    }
+    // Record negotiated stone prices (who, why, list price replaced) — only new or changed ones
+    if (showStones) {
+      const key = (d: StoneDetails) => `${d.rateId}|${d.priceBasis}|${d.rate}|${d.value}|${d.overrideReason.trim()}`
+      const before = new Set(originalStones.filter((d) => d.rateSource === 'override').map(key))
+      const fresh = stones.filter((d) => d.rateSource === 'override' && !before.has(key(d)))
+      if (fresh.length) {
+        void overrideService.log(fresh.map((d) => ({
+          productId: selectedProductId ?? null, productName: trimmedName, invoiceNo: '',
+          stoneLabel: describeStones([d]) || STONE_KIND_LABELS[d.kind], rateId: d.rateId || null, listPrice: d.listRate || null,
+          overridePrice: d.priceBasis === 'total' ? d.value : d.rate, pricingUnit: d.priceBasis, reason: d.overrideReason.trim(),
+        }))).catch(() => undefined)
+      }
     }
 
     if (unitChoice === 'custom' && !customUnitLabel.trim()) {
@@ -1743,13 +1795,31 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                                   {(Object.keys(STONE_ROLE_LABELS) as Array<Exclude<StoneRole, ''>>).map((r) => <option key={r} value={r}>{STONE_ROLE_LABELS[r]}</option>)}
                                 </select>
                               </div>
-                              <div><label className={lbl}>{diamond ? 'Name (optional)' : 'Stone name'}</label><input className={field} placeholder={diamond ? 'e.g. Solitaire' : 'e.g. Ruby, Emerald'} value={d.type} onChange={(e) => set({ type: e.target.value })} /></div>
+                              <div><label className={lbl}>{diamond ? 'Name (optional)' : d.kind === 'pearl' ? 'Pearl type' : d.kind === 'traditional' ? 'Work (Polki, Kundan…)' : 'Stone name'}</label>
+                                <input list={`stone-names-${d.kind}`} className={field} placeholder={diamond ? 'e.g. Solitaire' : d.kind === 'pearl' ? 'e.g. South Sea Pearl' : d.kind === 'traditional' ? 'e.g. Polki' : 'e.g. Ruby, Emerald'} value={d.type} onChange={(e) => set({ type: e.target.value })} />
+                                <datalist id={`stone-names-${d.kind}`}>{(d.kind === 'pearl' ? CATEGORY_CONFIG.pearl.names : d.kind === 'traditional' ? CATEGORY_CONFIG.traditional.names : d.kind === 'gemstone' ? CATEGORY_CONFIG.gemstone.names : []).map((n) => <option key={n} value={n} />)}</datalist>
+                              </div>
                               <div><label className={lbl}>Shape</label>{pick(d.shape, DIAMOND_SHAPES, (v) => set({ shape: v }))}</div>
                               <div><label className={lbl}>No. of stones</label><input type="number" min="0" step="1" className={field} placeholder="0" value={d.count || ''} onChange={(e) => set({ count: Math.max(0, Math.round(Number(e.target.value) || 0)) })} /></div>
                               <div><label className={lbl}>Carat (total of this row)</label><input type="number" min="0" step="0.001" className={field} placeholder="0.000" value={d.carat || ''} onChange={(e) => set({ carat: Math.max(0, Number(e.target.value) || 0) })} /></div>
                               <div><label className={lbl}>Colour</label>{pick(d.colour, COLOUR_GRADES, (v) => set({ colour: v }))}</div>
                               <div><label className={lbl}>Clarity</label>{pick(d.clarity, CLARITY_GRADES, (v) => set({ clarity: v }))}</div>
-                              <div><label className={lbl}>Cut grade</label>{pick(d.cut, CUT_GRADES, (v) => set({ cut: v }))}</div>
+                              <div><label className={lbl}>{d.kind === 'traditional' ? 'Finish / work' : 'Cut grade'}</label>{d.kind === 'traditional' ? <input className={field} value={d.cut} onChange={(e) => set({ cut: e.target.value })} /> : pick(d.cut, CUT_GRADES, (v) => set({ cut: v }))}</div>
+                              {(d.kind === 'gemstone' || d.kind === 'pearl') && <>
+                                <div><label className={lbl}>{d.kind === 'pearl' ? 'Variety' : 'Variety / origin'}</label><input className={field} placeholder={d.kind === 'pearl' ? 'e.g. Japanese' : 'e.g. Burmese, Colombian'} value={d.variety} onChange={(e) => set({ variety: e.target.value })} /></div>
+                                <div><label className={lbl}>Natural / lab / other</label>
+                                  <select className={field} value={d.origin} onChange={(e) => set({ origin: e.target.value })}>
+                                    <option value="">Not set</option>
+                                    {CATEGORY_CONFIG[d.kind === 'pearl' ? 'pearl' : 'gemstone'].origins.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                                  </select></div>
+                              </>}
+                              {d.kind === 'pearl' && <>
+                                <div><label className={lbl}>Size (mm)</label><input className={field} placeholder="e.g. 8-8.5" value={d.measurements} onChange={(e) => set({ measurements: e.target.value })} /></div>
+                                <div><label className={lbl}>Lustre</label>{pick(d.lustre, ['Excellent', 'Very Good', 'Good', 'Fair'], (v) => set({ lustre: v }))}</div>
+                                <div><label className={lbl}>Overtone</label><input className={field} placeholder="e.g. Rose" value={d.overtone} onChange={(e) => set({ overtone: e.target.value })} /></div>
+                                <div><label className={lbl}>Surface</label>{pick(d.surface, ['Clean', 'Lightly spotted', 'Moderately spotted', 'Heavily spotted'], (v) => set({ surface: v }))}</div>
+                                <div><label className={lbl}>Nacre</label>{pick(d.nacre, ['Thick', 'Medium', 'Thin'], (v) => set({ nacre: v }))}</div>
+                              </>}
                               <div>
                                 <label className={lbl}>Price method</label>
                                 <select className={field} value={d.priceBasis} onChange={(e) => set({ priceBasis: e.target.value as StonePriceBasis, ...(e.target.value === 'total' ? { value: lineValue } : {}) })}>
@@ -1782,6 +1852,24 @@ export const AddEditProductView: React.FC<{ onStockUpdated?: () => void }> = ({ 
                                   <p className="mt-1 text-[10px] font-medium text-gray-500">Mark verified only after checking the number on the lab's website.</p>
                                 )}
                               </div>
+                            </div>
+                            {/* Price-list rate, missing-rate warning and negotiated price */}
+                            <div className={`mt-3 rounded-lg border p-3 ${d.rateSource === 'override' ? 'border-amber-300 bg-amber-50' : d.rateSource === 'list' ? 'border-emerald-200 bg-emerald-50' : lineValue <= 0 ? 'border-red-200 bg-red-50' : 'border-black/10 bg-white'}`}>
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-[11px] font-bold text-gray-800">
+                                  {d.rateSource === 'list' ? 'Priced from the price list'
+                                    : d.rateSource === 'override' ? `Negotiated price${d.listRate ? ` (list rate ₹${d.listRate.toLocaleString('en-IN')})` : ''}`
+                                      : lineValue <= 0 ? '⚠ No price for this stone yet' : 'Price entered by hand'}
+                                </p>
+                                {d.kind !== 'other' && (
+                                  <button type="button" onClick={() => applyListRate(idx)} className="rounded-lg bg-[#111111] px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-white hover:bg-black cursor-pointer">Use price-list rate</button>
+                                )}
+                              </div>
+                              {rateNotes[idx] && <p className={`mt-1 text-[10px] font-semibold ${rateNotes[idx].startsWith('Price list') ? 'text-emerald-700' : 'text-red-700'}`}>{rateNotes[idx]}</p>}
+                              {d.rateSource === 'override' && (
+                                <div className="mt-2"><label className={lbl}>Reason for the negotiated price *</label>
+                                  <input className={field} placeholder="e.g. Supplier invoice price, customer negotiation" value={d.overrideReason} onChange={(e) => set({ overrideReason: e.target.value })} /></div>
+                              )}
                             </div>
                             <button type="button" onClick={() => setOpenStoneExtras((o) => ({ ...o, [idx]: !extrasOpen }))}
                               className="mt-3 text-[11px] font-bold text-blue-700 hover:underline cursor-pointer">

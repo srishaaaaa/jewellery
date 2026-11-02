@@ -69,7 +69,7 @@ import { advanceService, oldGoldService, quotationService, type CustomerAdvance,
 import { auditService } from '../services/auditService'
 import { cashLimitCheck, useSettingsStore } from '../store/store'
 import { COUNTER_PAYMENT_METHODS, PAYMENT_REFERENCE_KEY, type CounterPaymentMethod } from '../lib/retail'
-import { calculateNetWeight, calculateOldGoldValue, normalizeMetalType, suggestOldGoldRate, STANDARD_PURITY, GOLD_PURITIES, ITEM_STATUS_LABELS, pieceLabel, samePiece, type JewelleryPiece } from '../lib/jewellery'
+import { calculateNetWeight, calculateOldGoldValue, normalizeMetalType, suggestOldGoldRate, STANDARD_PURITY, GOLD_PURITIES, ITEM_STATUS_LABELS, pieceLabel, samePiece, stoneTotals, type JewelleryPiece } from '../lib/jewellery'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 type PosItem = Product & {
@@ -684,7 +684,9 @@ export default function Pos(props: PosProps = {}) {
   }
 
   const addItem = async (product: Product, specificVariant?: ProductVariant) => {
-    setError('')
+    // Stones with no price (no list rate and nothing entered) are flagged, never guessed
+    const unpriced = stoneTotals(product.stoneDetails).unpriced
+    setError(unpriced ? `Check ${product.name}: ${unpriced} stone line${unpriced === 1 ? ' has' : 's have'} no price. Set a price-list rate or a negotiated price in Inventory before billing.` : '')
     setMobilePanelView('catalogue')
 
     // Pieces with their own serial / HUID: pick which one is sold.

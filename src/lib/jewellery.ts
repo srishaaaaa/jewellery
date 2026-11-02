@@ -273,13 +273,14 @@ export const normalizeHallmarkStatus = (v: unknown): HallmarkStatus | null =>
 
 // ── Stones: diamonds, gemstones, pearls ────────────────────────────────────
 /** What a stone is. Natural, lab-grown and simulant are always kept apart and named on bills. */
-export type StoneKind = 'natural_diamond' | 'lab_diamond' | 'simulant' | 'gemstone' | 'pearl' | 'other'
+export type StoneKind = 'natural_diamond' | 'lab_diamond' | 'simulant' | 'gemstone' | 'pearl' | 'traditional' | 'other'
 export const STONE_KIND_LABELS: Record<StoneKind, string> = {
   natural_diamond: 'Natural Diamond',
   lab_diamond: 'Lab-Grown Diamond',
   simulant: 'Diamond Simulant',
   gemstone: 'Gemstone',
   pearl: 'Pearl',
+  traditional: 'Polki / Kundan / Jadau / Navaratna',
   other: 'Other Stone',
 }
 export const isDiamondKind = (k: StoneKind) => k === 'natural_diamond' || k === 'lab_diamond'
@@ -346,12 +347,31 @@ export interface StoneDetails {
   certificateStatus: CertificateStatus
   treatment: string
   notes: string
+  /** Gemstone variety (e.g. Burmese, Colombian), pearl type (Akoya, South Sea) or traditional style */
+  variety: string
+  /** Natural / lab-grown / synthetic / imitation / cultured ... */
+  origin: string
+  /** Pearl quality */
+  lustre: string
+  overtone: string
+  surface: string
+  nacre: string
+  /** Price-list entry the rate came from ('' = entered by hand) */
+  rateId: string
+  /** 'list' = rate from the price list; 'override' = negotiated / manual price with a reason */
+  rateSource: '' | 'list' | 'override'
+  /** List rate at the time (kept when it was overridden) */
+  listRate: number
+  overrideReason: string
+  overrideBy: string
 }
 
 export const EMPTY_STONE_DETAILS: StoneDetails = {
   kind: 'natural_diamond', role: '', type: '', shape: '', count: 0, carat: 0, colour: '', clarity: '', cut: '',
   polish: '', symmetry: '', fluorescence: '', measurements: '', priceBasis: 'total', rate: 0, value: 0, cost: 0,
   lab: '', certificate: '', certificateStatus: 'none', treatment: '', notes: '',
+  variety: '', origin: '', lustre: '', overtone: '', surface: '', nacre: '',
+  rateId: '', rateSource: '', listRate: 0, overrideReason: '', overrideBy: '',
 }
 
 const STONE_KINDS = Object.keys(STONE_KIND_LABELS) as StoneKind[]
@@ -402,9 +422,20 @@ const normalizeStoneLine = (raw: unknown): StoneDetails | null => {
     certificateStatus: !certificate ? 'none' : r.certificateStatus === 'verified' ? 'verified' : 'not_verified',
     treatment: str(r.treatment),
     notes: str(r.notes),
+    variety: str(r.variety),
+    origin: str(r.origin),
+    lustre: str(r.lustre),
+    overtone: str(r.overtone),
+    surface: str(r.surface),
+    nacre: str(r.nacre),
+    rateId: str(r.rateId),
+    rateSource: r.rateSource === 'list' || r.rateSource === 'override' ? r.rateSource : '',
+    listRate: Math.max(0, toNumber(r.listRate, 0)),
+    overrideReason: str(r.overrideReason),
+    overrideBy: str(r.overrideBy),
   }
   d.value = stoneLineValue(d)
-  const filled = d.type || d.shape || d.count || d.carat || d.value || d.colour || d.clarity || d.cut || d.certificate || d.notes
+  const filled = d.type || d.shape || d.count || d.carat || d.value || d.colour || d.clarity || d.cut || d.certificate || d.notes || d.variety
   return filled ? d : null
 }
 
@@ -425,6 +456,10 @@ export const stoneTotals = (lines: StoneDetails[] | null | undefined) => {
     value: roundTo(sum(stoneLineValue), 2),
     diamondValue: roundTo(sum(stoneLineValue, diamond), 2),
     gemstoneValue: roundTo(sum(stoneLineValue, (d) => !diamond(d)), 2),
+    pearlValue: roundTo(sum(stoneLineValue, (d) => d.kind === 'pearl'), 2),
+    traditionalValue: roundTo(sum(stoneLineValue, (d) => d.kind === 'traditional'), 2),
+    /** Lines with no price yet (no list rate and nothing entered) */
+    unpriced: all.filter((d) => stoneLineValue(d) <= 0).length,
     cost: roundTo(sum((d) => d.cost), 2),
     count: sum((d) => d.count),
     carat,
@@ -436,11 +471,12 @@ export const stoneTotals = (lines: StoneDetails[] | null | undefined) => {
 }
 
 const describeStoneLine = (d: StoneDetails) => {
-  const name = d.type && !isDiamondKind(d.kind) ? d.type : STONE_KIND_LABELS[d.kind]
+  const name = [d.variety, d.type && !isDiamondKind(d.kind) ? d.type : STONE_KIND_LABELS[d.kind]].filter(Boolean).join(' ')
   const head = [d.role ? STONE_ROLE_LABELS[d.role] : '', name].filter(Boolean).join(' ') + (d.count ? ` × ${d.count}` : '')
   const grade = d.colour || d.clarity ? [d.colour, d.clarity].filter(Boolean).join('/') : ''
   const cert = d.certificate ? `Cert ${[d.lab, d.certificate].filter(Boolean).join(' ')}${d.certificateStatus === 'verified' ? ' (verified)' : ''}` : ''
-  return [head, d.shape, d.carat ? `${d.carat} ct` : '', grade, d.cut ? `Cut ${d.cut}` : '', d.treatment ? `Treated: ${d.treatment}` : '', cert]
+  const pearl = d.kind === 'pearl' ? [d.measurements ? `${d.measurements} mm` : '', d.lustre ? `Lustre ${d.lustre}` : ''].filter(Boolean).join(', ') : ''
+  return [head, d.origin, d.shape, d.carat ? `${d.carat} ct` : '', grade, pearl, d.cut ? `Cut ${d.cut}` : '', d.treatment ? `Treated: ${d.treatment}` : '', cert]
     .filter(Boolean).join(', ')
 }
 
@@ -577,7 +613,10 @@ export interface JewellerySnapshot {
   /** Every stone as it was at billing time (no purchase cost) */
   stones?: ReturnType<typeof stonesForSnapshot> | null
   diamond_value?: number
+  /** All non-diamond stones (gemstones + pearls + traditional) */
   gemstone_value?: number
+  pearl_value?: number
+  traditional_value?: number
   diamond_carat?: number
   centre_carat?: number
 }
@@ -672,6 +711,8 @@ export const priceJewelleryItem = (
           stones: stonesForSnapshot(attrs.stoneDetails),
           diamond_value: t.diamondValue,
           gemstone_value: t.gemstoneValue,
+          ...(t.pearlValue ? { pearl_value: t.pearlValue } : {}),
+          ...(t.traditionalValue ? { traditional_value: t.traditionalValue } : {}),
           diamond_carat: t.diamondCarat,
           ...(t.centreCarat ? { centre_carat: t.centreCarat } : {}),
         }
@@ -720,6 +761,8 @@ export const readJewellerySnapshot = (raw: unknown): JewellerySnapshot | null =>
     stones: Array.isArray(r.stones) ? stonesForSnapshot(normalizeStoneDetails(r.stones)) : null,
     diamond_value: toNumber(r.diamond_value, 0) || undefined,
     gemstone_value: toNumber(r.gemstone_value, 0) || undefined,
+    pearl_value: toNumber(r.pearl_value, 0) || undefined,
+    traditional_value: toNumber(r.traditional_value, 0) || undefined,
     diamond_carat: toNumber(r.diamond_carat, 0) || undefined,
     centre_carat: toNumber(r.centre_carat, 0) || undefined,
   }
