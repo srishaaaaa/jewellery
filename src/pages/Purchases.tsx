@@ -1,3 +1,4 @@
+import { looseStoneService, type MaterialCategory } from '../services/stoneRateService'
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Check, Edit2, Eye, IndianRupee, LayoutDashboard, Plus, Printer, RefreshCw, Truck, Users, X } from 'lucide-react'
 import { getErrorMessage } from '../lib/errorMessage'
@@ -46,6 +47,9 @@ const today = () => new Date().toISOString().slice(0, 10)
 type LineForm = { productId: string; description: string; metalType: string; purity: string; gross: string; stone: string; rate: string; making: string; other: string; stones: string; qty: string; amount: string }
 const emptyLine = (): LineForm => ({ productId: '', description: '', metalType: 'gold', purity: '22K', gross: '', stone: '', rate: '', making: '', other: '', stones: '', qty: '1', amount: '' })
 const n = (v: string) => Math.max(0, Number(v) || 0)
+/** Purchase lines of loose stones are entered in carats and go into Loose Stones, never metal stock. */
+const STONE_MATERIALS: Record<string, MaterialCategory> = { diamond: 'diamond', gemstone: 'gemstone', pearl: 'pearl', traditional: 'traditional' }
+const isStoneLine = (l: { metalType: string }) => l.metalType in STONE_MATERIALS
 /** Same rule as the database: weighed metal = net × rate + making + other, else the amount typed. */
 const lineNet = (l: LineForm) => Math.max(0, Math.round((n(l.gross) - n(l.stone)) * 1000) / 1000)
 const lineAmount = (l: LineForm) => (lineNet(l) > 0 && n(l.rate) > 0
@@ -188,6 +192,20 @@ export default function Purchases() {
         amountPaid: paid, paymentMethod: pForm.method, reference: pForm.reference.trim(), notes: purchaseNotes, gstRate: purchaseGstRate,
       })
       let saved = created
+      // Loose stones bought on this bill go into Loose Stones stock (one lot per line)
+      const stoneLines = lines.map((l, i) => ({ l, i })).filter(({ l }) => isStoneLine(l))
+      let stoneNote = ''
+      if (stoneLines.length) {
+        const supplierName = supplierById.get(created.supplierId)?.name || ''
+        const results = await Promise.allSettled(stoneLines.map(({ l, i }) => looseStoneService.create({
+          stoneCode: `${created.purchaseNumber}-${i + 1}`, category: STONE_MATERIALS[l.metalType], name: l.description.trim() || (l.metalType === 'diamond' ? 'Diamond' : 'Stone'),
+          variety: '', originType: l.metalType === 'diamond' ? 'natural' : '', specs: l.purity.trim() ? { quality: l.purity.trim() } : {}, isLot: n(l.qty) > 1,
+          quantity: Math.round(n(l.qty)) || 1, carat: n(l.gross), costPrice: lineAmount(l), sellingPrice: 0, supplier: supplierName,
+          purchaseDate: pForm.date || today(), lab: '', certificateNo: '', notes: [l.stones.trim(), `Purchase ${created.purchaseNumber}`].filter(Boolean).join(' · '),
+        })))
+        const failed = results.filter((r) => r.status === 'rejected').length
+        stoneNote = failed ? ` ${failed} stone line${failed > 1 ? 's' : ''} could not be added to Loose Stones (run the database update, then add them in Inventory → Loose Stones).` : ` ${stoneLines.length} stone lot${stoneLines.length > 1 ? 's' : ''} added to Loose Stones.`
+      }
       if (pForm.dueDate && created.due > 0) {
         try { saved = await purchaseService.setDueDate(created.id, pForm.dueDate) } catch (err) { setError(getErrorMessage(err, 'Purchase saved, but the due date could not be saved')) }
       }
@@ -195,7 +213,7 @@ export default function Purchases() {
       setPurchases((rows) => [saved, ...rows])
       setPurchaseOpen(false)
       const restocked = created.items.filter((i) => i.product_id).length
-      setNotice(`${created.purchaseNumber} recorded for ${formatCurrency(created.totalAmount)}${created.due > 0 ? `, ${formatCurrency(created.due)} still owed` : ''}.${restocked ? ` Stock added to ${restocked} catalogue item${restocked > 1 ? 's' : ''}.` : ''}`)
+      setNotice(`${created.purchaseNumber} recorded for ${formatCurrency(created.totalAmount)}${created.due > 0 ? `, ${formatCurrency(created.due)} still owed` : ''}.${restocked ? ` Stock added to ${restocked} catalogue item${restocked > 1 ? 's' : ''}.` : ''}${stoneNote}`)
       if (restocked) void useProductStore.getState().fetchProducts()
     } catch (err) {
       setModalError(getErrorMessage(err, 'Unable to record the purchase'))
@@ -440,25 +458,26 @@ export default function Purchases() {
                 </div>
                 <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
                   <label className="col-span-2"><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Catalogue item (adds stock)</span>
-                    <select className={cellInput} value={l.productId} onChange={(e) => pickProduct(idx, e.target.value)}>
+                    <select className={cellInput} value={l.productId} disabled={isStoneLine(l)} onChange={(e) => pickProduct(idx, e.target.value)}>
                       <option value="">Not linked</option>
                       {products.filter((p) => p.category !== 'Unregistered').map((p) => <option key={p.id} value={String(p.id)}>{p.name}{p.huid ? ` (${p.huid})` : p.sku ? ` (${p.sku})` : ''}</option>)}
                     </select>
                   </label>
                   <label className="col-span-2"><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Description</span><input className={cellInput} value={l.description} onChange={(e) => setLine(idx, { description: e.target.value })} placeholder="e.g. 22K chains, 24K bar" /></label>
-                  <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Metal</span>
-                    <select className={cellInput} value={l.metalType} onChange={(e) => setLine(idx, { metalType: e.target.value, purity: e.target.value === 'gold' ? '22K' : '' })}>
-                      <option value="gold">Gold</option><option value="silver">Silver</option><option value="platinum">Platinum</option><option value="other">Other</option>
+                  <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Material</span>
+                    <select className={cellInput} value={l.metalType} onChange={(e) => setLine(idx, { metalType: e.target.value, purity: e.target.value === 'gold' ? '22K' : '', ...(e.target.value in STONE_MATERIALS ? { productId: '', stone: '' } : {}) })}>
+                      <optgroup label="Metal"><option value="gold">Gold</option><option value="silver">Silver</option><option value="platinum">Platinum</option><option value="other">Other</option></optgroup>
+                      <optgroup label="Loose stones (to Loose Stones stock)"><option value="diamond">Diamonds</option><option value="gemstone">Gemstones</option><option value="pearl">Pearls</option><option value="traditional">Polki / Kundan / other</option></optgroup>
                     </select>
                   </label>
-                  <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Purity</span>
+                  <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">{isStoneLine(l) ? 'Grade / quality' : 'Purity'}</span>
                     {l.metalType === 'gold'
                       ? <select className={cellInput} value={l.purity} onChange={(e) => setLine(idx, { purity: e.target.value })}>{GOLD_PURITIES.map((p) => <option key={p} value={p}>{p}</option>)}</select>
                       : <input className={cellInput} value={l.purity} onChange={(e) => setLine(idx, { purity: e.target.value })} placeholder="e.g. 925" />}
                   </label>
-                  <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Gross (g)</span><input type="number" min="0" step="0.001" className={cellInput} value={l.gross} onChange={(e) => setLine(idx, { gross: e.target.value })} /></label>
-                  <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Stone (g)</span><input type="number" min="0" step="0.001" className={cellInput} value={l.stone} onChange={(e) => setLine(idx, { stone: e.target.value })} /></label>
-                  <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Rate ₹/g (net)</span><input type="number" min="0" step="0.01" className={cellInput} value={l.rate} onChange={(e) => setLine(idx, { rate: e.target.value })} /></label>
+                  <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">{isStoneLine(l) ? 'Total carat' : 'Gross (g)'}</span><input type="number" min="0" step="0.001" className={cellInput} value={l.gross} onChange={(e) => setLine(idx, { gross: e.target.value })} /></label>
+                  {!isStoneLine(l) && <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Stone (g)</span><input type="number" min="0" step="0.001" className={cellInput} value={l.stone} onChange={(e) => setLine(idx, { stone: e.target.value })} /></label>}
+                  <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">{isStoneLine(l) ? 'Rate ₹/carat' : 'Rate ₹/g (net)'}</span><input type="number" min="0" step="0.01" className={cellInput} value={l.rate} onChange={(e) => setLine(idx, { rate: e.target.value })} /></label>
                   <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Making ₹</span><input type="number" min="0" step="0.01" className={cellInput} value={l.making} onChange={(e) => setLine(idx, { making: e.target.value })} /></label>
                   <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Other cost ₹</span><input type="number" min="0" step="0.01" className={cellInput} value={l.other} onChange={(e) => setLine(idx, { other: e.target.value })} /></label>
                   <label><span className="mb-1 block text-[10px] font-bold uppercase text-[#000000]">Pieces</span><input type="number" min="1" step="1" className={cellInput} value={l.qty} onChange={(e) => setLine(idx, { qty: e.target.value })} /></label>

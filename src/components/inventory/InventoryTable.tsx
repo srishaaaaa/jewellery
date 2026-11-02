@@ -1,3 +1,6 @@
+import LooseStonesView from './LooseStonesView'
+import CertificatesView from './CertificatesView'
+import StoneReportsView from './StoneReportsView'
 import React, { useState, useEffect, useCallback } from 'react'
 import {
   Search,
@@ -16,6 +19,8 @@ import {
   Edit2,
   Trash2,
   MapPin,
+  BadgeCheck,
+  Gem,
 } from 'lucide-react'
 import { inventoryService, type InventoryStockItem } from '../../services/inventoryService'
 import { CreateBarcodeModal } from '../barcode/CreateBarcodeModal'
@@ -36,7 +41,7 @@ import { useMetalRateStore } from '../../store/metalRateStore'
 import { currentProductPrice } from '../../lib/jewelleryProduct'
 import { formatWeight, isRatedMetal, ITEM_STATUS_LABELS, metalLabel } from '../../lib/jewellery'
 
-type InventoryTab = 'stock' | 'products' | 'categories' | 'analytics'
+type InventoryTab = 'stock' | 'products' | 'categories' | 'analytics' | 'loose' | 'certificates' | 'stone_reports'
 
 export const InventoryTable: React.FC = () => {
   const role = useAdminAuthStore((state) => state.role)
@@ -259,6 +264,12 @@ export const InventoryTable: React.FC = () => {
             >
               <BarChart3 className="w-4 h-4" /> Analytics &amp; Reports
             </button>
+            {([['loose', 'Loose Stones', Gem], ['certificates', 'Certificates', BadgeCheck], ['stone_reports', 'Stone Reports', BarChart3]] as const).map(([id, text, Icon]) => (
+              <button key={id} type="button" onClick={() => setActiveTab(id)}
+                className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer ${activeTab === id ? 'bg-[var(--accent)] text-white shadow-sm' : 'text-[#000000]/70 hover:bg-[var(--accent-a10)] hover:text-[#000000]'}`}>
+                <Icon className="w-4 h-4" /> {text}
+              </button>
+            ))}
         </div>
       )}
 
@@ -589,6 +600,10 @@ export const InventoryTable: React.FC = () => {
       )}
 
       {/* TAB 4: ANALYTICS & REPORTS VIEW */}
+      {activeTab === 'loose' && <LooseStonesView />}
+      {activeTab === 'certificates' && <CertificatesView />}
+      {activeTab === 'stone_reports' && <StoneReportsView />}
+
       {activeTab === 'analytics' && (
         <div className="animate-in fade-in duration-150">
           <InventoryAnalyticsView />
