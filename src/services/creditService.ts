@@ -68,7 +68,13 @@ export const creditService = {
   /**
    * Settle an outstanding credit sale: marks it paid and stamps when.
    */
-  async markAsPaid(orderId: string): Promise<void> {
+  async markAsPaid(orderId: string, method?: string, note = ''): Promise<void> {
+    if (method) {
+      const { error } = await supabase.rpc('settle_credit_order', { p_order_id: orderId, p_method: method, p_note: note })
+      if (!error) return
+      // Database not updated yet: settle without the payment details.
+      if (!/settle_credit_order|function/i.test(error.message || '')) throw error
+    }
     const { error } = await supabase.rpc('mark_credit_order_paid', { p_order_id: orderId })
     if (error) {
       console.error('[creditService.markAsPaid] Error:', error)

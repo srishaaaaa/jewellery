@@ -10,6 +10,9 @@ import { getPresetRange, toLocalDateStr } from '../../lib/dateRanges'
 import { csvDate, csvPhone, downloadCsv } from '../../lib/csv'
 import { FilterCard, FilterField, PeriodBar } from '../filters/PageFilters'
 import { filterInput } from '../filters/filterStyles'
+import { ModalPortal } from '../ModalPortal'
+import { PaymentModePicker } from '../PaymentModePicker'
+import { splitError, splitSummary, type PaymentMode, type SplitAmounts } from '../../lib/paymentModes'
 
 export interface OutstandingCreditsViewProps {
   orders: DashboardOrder[]
@@ -114,13 +117,23 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
     [historyOrders, search, fromDate, toDate]
   )
 
+  // Mark paid: ask how the customer paid (any mode, or mixed with the split)
+  const [settleFor, setSettleFor] = useState<DashboardOrder | null>(null)
+  const [settleMode, setSettleMode] = useState<PaymentMode>('cash')
+  const [settleSplit, setSettleSplit] = useState<SplitAmounts>({})
+  const [settleError, setSettleError] = useState('')
   const handleMarkAsPaid = async (order: DashboardOrder) => {
-    if (!window.confirm(`Mark ${formatCurrency(order.total)} from "${order.customer_name}" (${formatInvoiceNo(order.invoice_no)}) as paid?`)) {
-      return
-    }
+    setSettleFor(order); setSettleMode('cash'); setSettleSplit({}); setSettleError('')
+  }
+  const confirmSettle = async () => {
+    const order = settleFor
+    if (!order) return
+    const err = splitError(settleMode, settleSplit, order.total)
+    if (err) { setSettleError(err); return }
+    setSettleFor(null)
     setSettlingId(order.id)
     try {
-      await creditService.markAsPaid(order.id)
+      await creditService.markAsPaid(order.id, settleMode, settleMode === 'mixed' ? `Split: ${splitSummary(settleSplit)}` : '')
       play('success')
       onSettled(order.id, new Date().toISOString())
     } catch (err) {
@@ -444,6 +457,25 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
           </>
         )}
       </div>
+      )}
+
+      {settleFor && (
+        <ModalPortal><div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setSettleFor(null) }}>
+          <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="bg-[#1C1C1C] px-5 py-4">
+              <h3 className="text-sm font-black uppercase tracking-wider text-white">Mark Credit Paid • {formatInvoiceNo(settleFor.invoice_no)}</h3>
+              <p className="text-[11px] font-semibold text-white/70">{settleFor.customer_name} • {formatCurrency(settleFor.total)}</p>
+            </div>
+            <div className="space-y-4 p-5">
+              {settleError && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{settleError}</div>}
+              <PaymentModePicker label="Paid by" mode={settleMode} onMode={setSettleMode} split={settleSplit} onSplit={setSettleSplit} total={settleFor.total} />
+            </div>
+            <div className="flex justify-end gap-3 border-t border-black/10 bg-[#FAFAFA] px-5 py-4">
+              <button type="button" onClick={() => setSettleFor(null)} className="rounded-xl px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-black/60 hover:bg-black/5 cursor-pointer">Cancel</button>
+              <button type="button" onClick={() => void confirmSettle()} className="rounded-xl bg-[#111111] px-6 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:bg-black cursor-pointer">Mark as Paid</button>
+            </div>
+          </div>
+        </div></ModalPortal>
       )}
     </div>
   )

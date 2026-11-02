@@ -1852,8 +1852,8 @@ export default function Pos(props: PosProps = {}) {
       )}
 
       {/* Subheader accent bar and title */}
-      <div className="shrink-0 mb-6">
-        <div className="flex flex-wrap justify-between items-center gap-3 py-2 border-b border-black/10 w-full">
+      <div className="shrink-0 mb-4">
+        <div className="flex flex-wrap justify-between items-center gap-3 w-full">
           <div className="flex items-center gap-4">
             <span className="w-1.5 h-8 bg-[var(--accent)] rounded-full"></span>
             <div>

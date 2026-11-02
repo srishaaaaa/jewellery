@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Download } from 'lucide-react'
+import { csvDate, csvPhone, downloadCsv } from '../../lib/csv'
 import { ChevronRight, Plus, Search, Users } from 'lucide-react'
 import { customerService, maskAadhaar, type CustomerRecord } from '../../services/customerService'
 import { formatPhoneDisplay } from '../../lib/phone'
@@ -65,10 +67,19 @@ export default function CustomersView() {
             <p className="text-xs font-semibold text-[#000000]">{loading ? 'Loading…' : `${customers.length} saved customer${customers.length === 1 ? '' : 's'}`}</p>
           </div>
         </div>
-        <button type="button" onClick={() => setAdding(true)}
-          className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:opacity-90 cursor-pointer">
-          <Plus size={16} /> Add Customer
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className="flex items-center gap-1.5 px-4 py-2 border-2 border-[var(--accent)] bg-transparent text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-sm"
+            onClick={() => downloadCsv(`customers-${new Date().toISOString().slice(0, 10)}`, [
+              ['Name', 'Phone', 'Email', 'Address', 'Birthday', 'Anniversary', 'PAN'],
+              ...matches.map((c) => [c.name, csvPhone(c.phone), c.email || '', c.address, c.birthday ? csvDate(c.birthday) : '', c.anniversary ? csvDate(c.anniversary) : '', c.pan || '']),
+            ])}>
+            <Download size={14} /> Export CSV
+          </button>
+          <button type="button" onClick={() => setAdding(true)}
+            className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:opacity-90 cursor-pointer">
+            <Plus size={16} /> Add Customer
+          </button>
+        </div>
       </div>
 
       <label className="relative block">

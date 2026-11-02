@@ -11,9 +11,16 @@ import { FilterCard, FilterField, PeriodBar } from '../filters/PageFilters'
 import { filterInput, type PeriodPreset } from '../filters/filterStyles'
 import { getPresetRange, toLocalDateStr } from '../../lib/dateRanges'
 import { getErrorMessage } from '../../lib/errorMessage'
+import { PaymentModePicker } from '../PaymentModePicker'
+import { PAYMENT_MODES as PAYMENT_MODE_KEYS, paymentModeLabel, splitError, splitSummary, type PaymentMode, type SplitAmounts } from '../../lib/paymentModes'
 
 type PeriodKey = PeriodPreset
-const PAYMENT_MODES = ['CASH', 'UPI', 'CARD', 'BANK TRANSFER']
+const PAYMENT_MODES = ['CASH', 'UPI', 'CARD', 'BANK', 'CHEQUE', 'MIXED']
+/** Older records say 'bank transfer' / 'qr' / 'split'. */
+const modeKey = (m: string | null | undefined) => {
+  const k = String(m || 'cash').toLowerCase()
+  return k === 'bank transfer' || k === 'bank_transfer' ? 'bank' : k === 'qr' ? 'upi' : k === 'split' ? 'mixed' : k
+}
 const CUSTOM = '__custom__'
 
 const label = 'block text-[10px] font-bold uppercase tracking-wider text-[#000000] mb-1'
@@ -42,7 +49,8 @@ export const ExpensesView: React.FC = () => {
   const [date, setDate] = useState(() => toLocalDateStr(new Date()))
   const [categoryId, setCategoryId] = useState<string>('')
   const [customCategory, setCustomCategory] = useState('')
-  const [paymentMode, setPaymentMode] = useState('CASH')
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>('cash')
+  const [paySplit, setPaySplit] = useState<SplitAmounts>({})
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
@@ -80,14 +88,14 @@ export const ExpensesView: React.FC = () => {
     const q = search.trim().toLowerCase()
     const filtered = expenses.filter(e =>
       (categoryFilter === 'ALL' || e.category_name === categoryFilter) &&
-      (modeFilter === 'ALL' || (e.payment_mode || 'cash').toUpperCase() === modeFilter) &&
+      (modeFilter === 'ALL' || modeKey(e.payment_mode).toUpperCase() === modeFilter) &&
       (!q || [e.description, e.category_name, e.payment_mode, String(e.amount)].join(' ').toLowerCase().includes(q)))
     return { total, count: expenses.length, topCategory: categoryBreakdown[0]?.category || 'None', categoryBreakdown, allCategories: [...byCategory.keys()].sort(), filtered }
   }, [expenses, categoryFilter, search, modeFilter])
 
   const resetForm = () => {
     setEditingId(null); setTitle(''); setAmount(''); setDate(toLocalDateStr(new Date()))
-    setCustomCategory(''); setPaymentMode('CASH'); setNotes(''); setFormError('')
+    setCustomCategory(''); setPaymentMode('cash'); setPaySplit({}); setNotes(''); setFormError('')
     if (categories[0]) setCategoryId(String(categories[0].id))
   }
 
@@ -95,7 +103,7 @@ export const ExpensesView: React.FC = () => {
     const [what, ...rest] = (e.description || '').split(' — ')
     setEditingId(e.id); setTitle(what || ''); setNotes(rest.join(' — ')); setAmount(String(e.amount))
     setDate(e.expense_date); setCategoryId(e.category_id != null ? String(e.category_id) : (categories[0] ? String(categories[0].id) : ''))
-    setPaymentMode((e.payment_mode || 'cash').toUpperCase()); setFormError('')
+    setPaymentMode((PAYMENT_MODE_KEYS as readonly string[]).includes(modeKey(e.payment_mode)) ? modeKey(e.payment_mode) as PaymentMode : 'cash'); setPaySplit({}); setFormError('')
     document.getElementById('expense-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
@@ -103,6 +111,7 @@ export const ExpensesView: React.FC = () => {
     const value = parseFloat(amount)
     if (!title.trim()) { setFormError('Enter what the expense was for.'); return }
     if (!Number.isFinite(value) || value <= 0) { setFormError('Enter an amount above ₹0.'); return }
+    if (!editingId) { const se = splitError(paymentMode, paySplit, value); if (se) { setFormError(se); return } }
     setSaving(true); setFormError('')
     try {
       let category = categories.find(c => String(c.id) === categoryId) || null
@@ -111,10 +120,11 @@ export const ExpensesView: React.FC = () => {
         category = await expenseService.createCategory(customCategory.trim())
         await loadCategories()
       }
-      const description = notes.trim() ? `${title.trim()} — ${notes.trim()}` : title.trim()
+      const baseDescription = notes.trim() ? `${title.trim()} — ${notes.trim()}` : title.trim()
+      const description = !editingId && paymentMode === 'mixed' ? `${baseDescription} • Split: ${splitSummary(paySplit)}` : baseDescription
       const payload = { expense_date: date, category_id: category ? category.id : null, category_name: category?.name || 'Other', amount: value, description }
       if (editingId) await expenseService.updateExpense(editingId, payload)
-      else await expenseService.createExpense({ ...payload, payment_mode: paymentMode.toLowerCase(), recorded_by_name: 'Admin' })
+      else await expenseService.createExpense({ ...payload, payment_mode: paymentMode, recorded_by_name: 'Admin' })
       resetForm()
       await loadExpenses()
     } catch (err) {
@@ -259,9 +269,9 @@ export const ExpensesView: React.FC = () => {
                 )}
                 <div>
                   <label className={label}>Paid via</label>
-                  <select value={paymentMode} onChange={e => setPaymentMode(e.target.value)} disabled={Boolean(editingId)} className={`${field} cursor-pointer disabled:opacity-60`}>
-                    {PAYMENT_MODES.map(m => <option key={m} value={m}>{m}</option>)}
-                  </select>
+                  {editingId
+                    ? <p className={`${field} opacity-60`}>{paymentModeLabel(paymentMode)} (cannot be changed)</p>
+                    : <PaymentModePicker mode={paymentMode} onMode={setPaymentMode} split={paySplit} onSplit={setPaySplit} total={parseFloat(amount) || 0} />}
                 </div>
                 <div>
                   <label className={label}>Notes (optional)</label>
@@ -355,7 +365,7 @@ export const ExpensesView: React.FC = () => {
                       <td className="p-3">
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-black/5 text-[10px] font-bold text-[#000000]"><Tag className="w-3 h-3" />{e.category_name}</span>
                       </td>
-                      <td className="p-3 text-[10px] font-bold uppercase tracking-wider text-[#000000]">{e.payment_mode || 'cash'}</td>
+                      <td className="p-3 text-[10px] font-bold uppercase tracking-wider text-[#000000]">{paymentModeLabel(modeKey(e.payment_mode))}</td>
                       <td className="p-3 text-sm font-black text-[var(--accent)] text-right">{money(e.amount)}</td>
                       <td className="p-3 text-right">
                         <div className="inline-flex items-center gap-1.5">

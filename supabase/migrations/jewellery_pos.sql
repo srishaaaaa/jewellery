@@ -2291,3 +2291,27 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.record_supplier_purchase(UUID, TEXT, DATE, JSONB, NUMERIC, TEXT, TEXT, TEXT, TEXT, NUMERIC) TO anon, authenticated;
+
+-- How a credit bill was finally paid (any mode, or mixed with the split in the note).
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS credit_paid_method TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS credit_paid_note TEXT NOT NULL DEFAULT '';
+
+CREATE OR REPLACE FUNCTION public.settle_credit_order(p_order_id UUID, p_method TEXT, p_note TEXT DEFAULT '')
+RETURNS public.orders
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_order public.orders;
+BEGIN
+  SELECT * INTO v_order FROM public.orders WHERE id = p_order_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Order not found'; END IF;
+  IF v_order.credit_status IS DISTINCT FROM 'outstanding' THEN RAISE EXCEPTION 'Order is not an outstanding credit sale'; END IF;
+  UPDATE public.orders
+  SET credit_status = 'paid', credit_paid_at = NOW(), updated_at = NOW(),
+      credit_paid_method = COALESCE(NULLIF(BTRIM(p_method), ''), 'cash'),
+      credit_paid_note = COALESCE(p_note, '')
+  WHERE id = p_order_id
+  RETURNING * INTO v_order;
+  RETURN v_order;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION public.settle_credit_order(UUID, TEXT, TEXT) TO anon, authenticated;

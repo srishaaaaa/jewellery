@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Download } from 'lucide-react'
+import { csvDate, csvPhone, downloadCsv } from '../../lib/csv'
 import { CalendarPlus, Search } from 'lucide-react'
 import { customerService, type CustomerRecord } from '../../services/customerService'
 import { formatPhoneDisplay } from '../../lib/phone'
@@ -60,9 +62,18 @@ export default function MissingDatesView() {
           onSaved={(saved) => { setCustomers((list) => list.map((c) => (c.id === saved.id ? saved : c))); setEditing(null) }} />
       )}
 
-      <div>
-        <h2 className="text-[28px] font-black text-[#000000] tracking-tight">No Dates Saved</h2>
-        <p className="text-sm text-[#000000]">Customers without a birthday or anniversary. Add their dates so they get wishes and offers.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-[28px] font-black text-[#000000] tracking-tight">No Dates Saved</h2>
+          <p className="text-sm text-[#000000]">Customers without a birthday or anniversary. Add their dates so they get wishes and offers.</p>
+        </div>
+        <button type="button" className="flex items-center gap-1.5 px-4 py-2 border-2 border-[var(--accent)] bg-transparent text-[var(--accent)] hover:bg-[var(--accent)] hover:text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-200 cursor-pointer shadow-sm"
+          onClick={() => downloadCsv(`customers-no-dates-${new Date().toISOString().slice(0, 10)}`, [
+            ['Name', 'Phone', 'Birthday', 'Anniversary'],
+            ...rows.map((c) => [c.name, csvPhone(c.phone), c.birthday ? csvDate(c.birthday) : 'Not saved', c.anniversary ? csvDate(c.anniversary) : 'Not saved']),
+          ])}>
+          <Download size={14} /> Export CSV
+        </button>
       </div>
 
       <div className="flex flex-wrap gap-2">
