@@ -70,6 +70,7 @@ import { listAdvanceOrders } from '../services/advanceOrderService'
 import { useNavigationStore } from '../store/navigationStore'
 import { useHardwareBarcodeScanner } from '../hooks/useHardwareBarcodeScanner'
 import { BarcodeRedirectDialog } from '../components/pos/BarcodeRedirectDialog'
+import { SectionAnalytics } from '../components/dashboard/SectionAnalytics'
 import DueAlertsCenter from '../components/dashboard/DueAlertsCenter'
 import CustomerEventAlarmModal from '../components/dashboard/CustomerEventAlarmModal'
 import { OutstandingCreditsView } from '../components/dashboard/OutstandingCreditsView'
@@ -2538,6 +2539,9 @@ export default function Dashboard() {
                     </button>
                   )})}
                 </div>
+
+                {/* Every other section at a glance (schemes have their own dashboard) */}
+                <SectionAnalytics from={analyticsDateFrom} to={analyticsDateTo} onOpen={(t) => handleTabClick(t as TabKey)} />
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white px-5 py-4 shadow-sm">
                   <div className="flex flex-wrap items-center gap-3 min-w-0">
                     <span className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-indigo-700">Calculation Formula</span>
