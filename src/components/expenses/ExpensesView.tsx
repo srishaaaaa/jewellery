@@ -268,10 +268,9 @@ export const ExpensesView: React.FC = () => {
                   </div>
                 )}
                 <div>
-                  <label className={label}>Paid via</label>
                   {editingId
-                    ? <p className={`${field} opacity-60`}>{paymentModeLabel(paymentMode)} (cannot be changed)</p>
-                    : <PaymentModePicker mode={paymentMode} onMode={setPaymentMode} split={paySplit} onSplit={setPaySplit} total={parseFloat(amount) || 0} />}
+                    ? <><label className={label}>Paid via</label><p className={`${field} opacity-60`}>{paymentModeLabel(paymentMode)} (cannot be changed)</p></>
+                    : <PaymentModePicker label="Paid via" mode={paymentMode} onMode={setPaymentMode} split={paySplit} onSplit={setPaySplit} total={parseFloat(amount) || 0} />}
                 </div>
                 <div>
                   <label className={label}>Notes (optional)</label>

@@ -28,14 +28,14 @@ const RMIcon = ({ size = 16, className = '' }: { size?: number; className?: stri
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
-    aria-label="Malaysian Ringgit"
+    aria-label="Rupees"
   >
     <rect x="2" y="2" width="20" height="20" rx="4" />
     <text
       x="12"
       y="16"
       textAnchor="middle"
-      fontSize="9"
+      fontSize="12"
       fontWeight="bold"
       stroke="none"
       fill="currentColor"

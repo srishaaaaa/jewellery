@@ -2614,3 +2614,157 @@ BEGIN
 END $$;
 
 NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- 31. Login passcodes and staff access
+--     Admin passcode, shared staff passcode (+ the panels it opens) and optional
+--     personal staff passcodes with their own panels. Passcodes are checked in the
+--     database; personal passcodes are stored only as salted hashes.
+-- ============================================================================
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS staff_panels JSONB NOT NULL
+  DEFAULT '["billing","inventory","metal_rates","schemes","sales_desk","advance_orders","history","customers","customer_events"]'::JSONB;
+
+CREATE TABLE IF NOT EXISTS public.pos_staff_logins (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL CHECK (BTRIM(name) <> ''),
+  login_id TEXT NOT NULL CHECK (BTRIM(login_id) <> ''),
+  pass_salt TEXT NOT NULL DEFAULT '',
+  pass_hash TEXT NOT NULL DEFAULT '',
+  panels JSONB NOT NULL DEFAULT '[]'::JSONB,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS pos_staff_logins_login_idx ON public.pos_staff_logins(LOWER(BTRIM(login_id)));
+-- No direct access from the app: only through the functions below.
+ALTER TABLE public.pos_staff_logins ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.pos_staff_logins FROM anon, authenticated;
+
+CREATE OR REPLACE FUNCTION public.pos_pass_hash(p_salt TEXT, p_pass TEXT)
+RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$
+  SELECT encode(sha256(convert_to(p_salt || ':' || p_pass, 'UTF8')), 'hex');
+$$;
+
+-- The current admin passcode must match before anything is changed. When no admin passcode
+-- has been saved yet (the app still uses its built-in one) the app checks it first.
+CREATE OR REPLACE FUNCTION public.pos_admin_check(p_current TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_pass TEXT;
+BEGIN
+  SELECT admin_password INTO v_pass FROM public.store_settings WHERE id = 1;
+  IF COALESCE(v_pass, '') <> '' AND BTRIM(COALESCE(p_current, '')) <> BTRIM(v_pass) THEN
+    RAISE EXCEPTION 'The current admin passcode is not correct.';
+  END IF;
+END;
+$$;
+
+-- Sign in. Returns {role, name, panels} or {role: null}. use_builtin = no passcode saved for that login yet.
+CREATE OR REPLACE FUNCTION public.pos_login(p_login TEXT, p_pass TEXT)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  s public.store_settings;
+  st public.pos_staff_logins;
+  v_login TEXT := LOWER(BTRIM(COALESCE(p_login, '')));
+  v_pass TEXT := BTRIM(COALESCE(p_pass, ''));
+BEGIN
+  SELECT * INTO s FROM public.store_settings WHERE id = 1;
+  IF v_login = LOWER(BTRIM(COALESCE(NULLIF(s.admin_id, ''), 'admin'))) AND COALESCE(s.admin_password, '') <> '' THEN
+    IF v_pass = BTRIM(s.admin_password) THEN RETURN jsonb_build_object('role', 'admin', 'name', 'Admin'); END IF;
+    RETURN jsonb_build_object('role', NULL);
+  END IF;
+  SELECT * INTO st FROM public.pos_staff_logins WHERE LOWER(BTRIM(login_id)) = v_login AND active LIMIT 1;
+  IF FOUND THEN
+    IF st.pass_hash <> '' AND public.pos_pass_hash(st.pass_salt, v_pass) = st.pass_hash THEN
+      RETURN jsonb_build_object('role', 'staff', 'name', st.name, 'panels', st.panels);
+    END IF;
+    RETURN jsonb_build_object('role', NULL);
+  END IF;
+  IF v_login = LOWER(BTRIM(COALESCE(NULLIF(s.staff_id, ''), 'staff'))) AND COALESCE(s.staff_password, '') <> '' THEN
+    IF v_pass = BTRIM(s.staff_password) THEN RETURN jsonb_build_object('role', 'staff', 'name', 'Staff', 'panels', s.staff_panels); END IF;
+    RETURN jsonb_build_object('role', NULL);
+  END IF;
+  RETURN jsonb_build_object('role', NULL, 'use_builtin', TRUE, 'panels', s.staff_panels);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.change_pos_passcode(p_current_admin TEXT, p_kind TEXT, p_new TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  PERFORM public.pos_admin_check(p_current_admin);
+  IF LENGTH(BTRIM(COALESCE(p_new, ''))) < 4 THEN RAISE EXCEPTION 'The new passcode must have at least 4 characters.'; END IF;
+  IF p_kind = 'admin' THEN
+    UPDATE public.store_settings SET admin_password = BTRIM(p_new), updated_at = NOW() WHERE id = 1;
+  ELSIF p_kind = 'staff' THEN
+    UPDATE public.store_settings SET staff_password = BTRIM(p_new), updated_at = NOW() WHERE id = 1;
+  ELSE
+    RAISE EXCEPTION 'Unknown passcode %.', p_kind;
+  END IF;
+END;
+$$;
+
+-- Staff list for Settings (never the passcodes).
+CREATE OR REPLACE FUNCTION public.get_staff_access()
+RETURNS JSONB LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  SELECT jsonb_build_object(
+    'shared_panels', (SELECT staff_panels FROM public.store_settings WHERE id = 1),
+    'staff', COALESCE((SELECT jsonb_agg(jsonb_build_object('id', id, 'name', name, 'login_id', login_id, 'panels', panels,
+                         'active', active, 'has_passcode', pass_hash <> '') ORDER BY LOWER(name)) FROM public.pos_staff_logins), '[]'::JSONB));
+$$;
+
+-- Saves the shared staff panels and the staff list. p_staff: [{id?, name, login_id, passcode?, panels, active}].
+-- A staff member left out of the list is removed; a blank passcode keeps the old one.
+CREATE OR REPLACE FUNCTION public.save_staff_access(p_current_admin TEXT, p_shared_panels JSONB, p_staff JSONB)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  r JSONB;
+  v_id UUID;
+  v_ids UUID[] := '{}';
+  v_salt TEXT;
+  v_pass TEXT;
+  v_admin_id TEXT;
+  v_staff_id TEXT;
+BEGIN
+  PERFORM public.pos_admin_check(p_current_admin);
+  IF jsonb_typeof(p_shared_panels) IS DISTINCT FROM 'array' THEN RAISE EXCEPTION 'Choose the shared staff panels.'; END IF;
+  SELECT LOWER(BTRIM(COALESCE(NULLIF(admin_id, ''), 'admin'))), LOWER(BTRIM(COALESCE(NULLIF(staff_id, ''), 'staff')))
+    INTO v_admin_id, v_staff_id FROM public.store_settings WHERE id = 1;
+  UPDATE public.store_settings SET staff_panels = p_shared_panels, updated_at = NOW() WHERE id = 1;
+
+  FOR r IN SELECT value FROM jsonb_array_elements(COALESCE(p_staff, '[]'::JSONB)) LOOP
+    IF BTRIM(COALESCE(r->>'name', '')) = '' OR BTRIM(COALESCE(r->>'login_id', '')) = '' THEN
+      RAISE EXCEPTION 'Every staff member needs a name and a login ID.';
+    END IF;
+    IF LOWER(BTRIM(r->>'login_id')) IN (v_admin_id, v_staff_id) THEN
+      RAISE EXCEPTION 'Login ID "%" is already used by the admin or shared staff login.', r->>'login_id';
+    END IF;
+    v_pass := BTRIM(COALESCE(r->>'passcode', ''));
+    IF v_pass <> '' AND LENGTH(v_pass) < 4 THEN RAISE EXCEPTION 'Passcode for % must have at least 4 characters.', r->>'name'; END IF;
+    v_id := NULLIF(r->>'id', '')::UUID;
+    IF v_id IS NOT NULL AND EXISTS (SELECT 1 FROM public.pos_staff_logins WHERE id = v_id) THEN
+      UPDATE public.pos_staff_logins
+      SET name = BTRIM(r->>'name'), login_id = BTRIM(r->>'login_id'), panels = COALESCE(r->'panels', '[]'::JSONB),
+          active = COALESCE((r->>'active')::BOOLEAN, TRUE), updated_at = NOW()
+      WHERE id = v_id;
+    ELSE
+      IF v_pass = '' THEN RAISE EXCEPTION 'Set a passcode for %.', r->>'name'; END IF;
+      INSERT INTO public.pos_staff_logins (name, login_id, panels, active)
+      VALUES (BTRIM(r->>'name'), BTRIM(r->>'login_id'), COALESCE(r->'panels', '[]'::JSONB), COALESCE((r->>'active')::BOOLEAN, TRUE))
+      RETURNING id INTO v_id;
+    END IF;
+    IF v_pass <> '' THEN
+      v_salt := gen_random_uuid()::TEXT;
+      UPDATE public.pos_staff_logins SET pass_salt = v_salt, pass_hash = public.pos_pass_hash(v_salt, v_pass) WHERE id = v_id;
+    END IF;
+    v_ids := v_ids || v_id;
+  END LOOP;
+  DELETE FROM public.pos_staff_logins WHERE NOT (id = ANY(v_ids));
+  RETURN public.get_staff_access();
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.pos_pass_hash(TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.pos_login(TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.change_pos_passcode(TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_staff_access() TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.save_staff_access(TEXT, JSONB, JSONB) TO anon, authenticated;
+NOTIFY pgrst, 'reload schema';

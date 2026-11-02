@@ -19,25 +19,25 @@ const RMIcon = ({ size = 16, className = '' }: { size?: number; className?: stri
     strokeLinecap="round"
     strokeLinejoin="round"
     className={className}
-    aria-label="Malaysian Ringgit"
+    aria-label="Rupees"
   >
     <rect x="2" y="2" width="20" height="20" rx="4" />
     <text
       x="12"
       y="16"
       textAnchor="middle"
-      fontSize="9"
+      fontSize="12"
       fontWeight="bold"
       stroke="none"
       fill="currentColor"
       fontFamily="Poppins, sans-serif"
-    >RM</text>
+    >₹</text>
   </svg>
 )
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { debounce } from '../lib/debounce'
-import { useAuthStore, useProductStore, useAdminAuthStore, useSettingsStore } from '../store/store'
+import { useAuthStore, useProductStore, useAdminAuthStore, useSettingsStore, DEFAULT_STAFF_PANELS } from '../store/store'
 import { formatPaymentMode, formatCurrency, normalizeOrderMode, toNumber } from '../lib/retail'
 import { normalizeStructuredOrderItem, formatInvoiceNo, paymentSplitRows } from '../lib/retail'
 import { gstSplit } from '../lib/gst'
@@ -342,19 +342,24 @@ export default function Dashboard() {
   const isAdmin = true // bypassed for local demo
   const l = (en: string, _ta?: string) => en
 
+  // Staff: only the panels their login allows (Settings > Staff Access); Settings is always admin-only.
+  const staffPanels = useAdminAuthStore((s) => s.panels)
+  const staffAllowedTabs = useMemo(() => {
+    const list = (staffPanels && staffPanels.length ? staffPanels : DEFAULT_STAFF_PANELS).filter((t) => t !== 'settings') as TabKey[]
+    return list.length ? list : (['billing'] as TabKey[])
+  }, [staffPanels])
+
   useEffect(() => {
     if (role === 'staff') {
-      const staffAllowedTabs: TabKey[] = ['billing', 'inventory', 'metal_rates', 'schemes', 'sales_desk', 'advance_orders', 'history', 'customers', 'customer_events']
       if (!staffAllowedTabs.includes(tab)) {
-        setTab('billing')
+        setTab(staffAllowedTabs[0])
         navigate('/dashboard', { replace: true })
       }
     }
-  }, [role, tab, navigate])
+  }, [role, tab, navigate, staffAllowedTabs])
 
   const handleTabClick = (tabKey: TabKey) => {
     if (role === 'staff') {
-      const staffAllowedTabs: TabKey[] = ['billing', 'inventory', 'metal_rates', 'schemes', 'sales_desk', 'advance_orders', 'history', 'customers', 'customer_events']
       if (!staffAllowedTabs.includes(tabKey)) return
     }
     setTab(tabKey)
@@ -1523,19 +1528,7 @@ export default function Dashboard() {
     </div>
   )
 
-  const navItems: Array<{ id: TabKey; icon: React.ReactNode; label: string; badge?: number }> = role === 'staff'
-    ? [
-        { id: 'billing',        icon: <Receipt size={20} />,      label: 'Billing Panel' },
-        { id: 'inventory',      icon: <Boxes size={20} />,        label: 'Inventory' },
-        { id: 'metal_rates',    icon: <Gem size={20} />,          label: 'Metal Rates' },
-        { id: 'schemes',        icon: <PiggyBank size={20} />,    label: 'Schema' },
-        { id: 'sales_desk',     icon: <Briefcase size={20} />,    label: 'Sales Desk' },
-        { id: 'advance_orders', icon: <Clock size={20} />,        label: 'Advance Orders' },
-        { id: 'customers',      icon: <Users size={20} />,        label: 'Customers' },
-        { id: 'customer_events', icon: <Cake size={20} />,        label: 'Special Occasions' },
-        { id: 'history',        icon: <History size={20} />,      label: 'Order History' },
-      ]
-    : [
+  const allNavItems: Array<{ id: TabKey; icon: React.ReactNode; label: string; badge?: number }> = [
         { id: 'billing',        icon: <Receipt size={20} />,      label: 'Billing Panel' },
         { id: 'inventory',      icon: <Boxes size={20} />,        label: 'Inventory' },
         { id: 'purchases',      icon: <Truck size={20} />,        label: 'Purchases' },
@@ -1552,6 +1545,7 @@ export default function Dashboard() {
         { id: 'coupons',        icon: <Tag size={20} />,          label: 'Coupons' },
         { id: 'settings',       icon: <Settings2 size={20} />,    label: 'Settings' },
       ]
+  const navItems = role === 'staff' ? allNavItems.filter((n) => staffAllowedTabs.includes(n.id)) : allNavItems
 
   const sidebarOpen = !sidebarCollapsed
   const logout = () => {
@@ -1977,7 +1971,7 @@ export default function Dashboard() {
                 <div className="flex items-center gap-2">
                   <MessageCircle size={17} className="text-blue-600" />
                   <h3 className="text-base font-black text-[#000000]">{l('Customer Requests', 'வாடிக்கையாளர் கோரிக்கைகள்')}</h3>
-                  <span className="text-[10px] font-bold text-[#9BAB9A] bg-white px-2 py-0.5 rounded-full">{l('RM0 revenue - status updates only', 'RM0 வருவாய் - நிலை மட்டும்')}</span>
+                  <span className="text-[10px] font-bold text-[#9BAB9A] bg-white px-2 py-0.5 rounded-full">{l('₹0 revenue - status updates only', '₹0 வருவாய் - நிலை மட்டும்')}</span>
                 </div>
                 <span className="text-xs text-[#000000] font-bold">{analytics.onlineRequestOrders.length} {l('requests', 'கோரிக்கைகள்')}</span>
               </div>
@@ -3801,7 +3795,7 @@ export default function Dashboard() {
 
                             <p className="text-xs font-semibold text-[var(--accent)]">
                               {coupon.percentage}% off
-                              {coupon.min_order_value > 0 && ` • min RM${coupon.min_order_value}`}
+                              {coupon.min_order_value > 0 && ` • min ₹${coupon.min_order_value}`}
                             </p>
 
                             <p className="text-[11px] text-[#000000]">

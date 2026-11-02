@@ -707,10 +707,20 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
 // --- Admin Auth Store ---
 export type AdminRole = 'admin' | 'staff' | null
 
+/** Panels a staff login opens when none are saved yet (the shared staff default). */
+export const DEFAULT_STAFF_PANELS = ['billing', 'inventory', 'metal_rates', 'schemes', 'sales_desk', 'advance_orders', 'history', 'customers', 'customer_events']
+
+/** The passcode the app uses for admin until one is saved in Settings. */
+export const builtinAdminPasscode = () => String(import.meta.env.VITE_ADMIN_PASSWORD || import.meta.env.VITE_PORTAL_PASSWORD || 'admin123').trim()
+
 interface AdminAuthState {
   isLoggedIn: boolean
   role: AdminRole
   adminId: string | null
+  /** Staff: the panels this login may open (null = default list) */
+  panels: string[] | null
+  /** Staff member's name for a personal login */
+  staffName: string | null
   login: (portalId: string, password: string) => Promise<AdminRole | false>
   logout: () => void
 }
@@ -721,9 +731,25 @@ export const useAdminAuthStore = create<AdminAuthState>()(
       isLoggedIn: false,
       role: null,
       adminId: null,
+      panels: null,
+      staffName: null,
       login: async (portalId: string, password: string) => {
         const trimmedId = String(portalId || '').trim()
         const trimmedPass = String(password || '').trim()
+
+        // Passcodes saved in Settings are checked in the database (personal staff passcodes are hashed there).
+        let sharedPanels: string[] | null = null
+        if (isSupabaseConfigured) {
+          const { data, error } = await supabase.rpc('pos_login', { p_login: trimmedId, p_pass: trimmedPass })
+          if (!error && data && typeof data === 'object') {
+            const r = data as { role?: string | null; name?: string; panels?: unknown; use_builtin?: boolean }
+            const panels = Array.isArray(r.panels) ? r.panels.map(String) : null
+            if (r.role === 'admin') { set({ isLoggedIn: true, role: 'admin', adminId: trimmedId, panels: null, staffName: null }); return 'admin' }
+            if (r.role === 'staff') { set({ isLoggedIn: true, role: 'staff', adminId: trimmedId, panels, staffName: r.name || null }); return 'staff' }
+            if (!r.use_builtin) return false
+            sharedPanels = panels
+          }
+        }
 
         // DB-stored credentials (set via Store Settings > Change Password) take priority
         // over .env when present, so a password change actually takes effect.
@@ -738,7 +764,7 @@ export const useAdminAuthStore = create<AdminAuthState>()(
         const adminPass = String(dbRow?.admin_password || import.meta.env.VITE_ADMIN_PASSWORD || import.meta.env.VITE_PORTAL_PASSWORD || 'admin123').trim()
 
         if (trimmedId === adminId && trimmedPass === adminPass) {
-          set({ isLoggedIn: true, role: 'admin', adminId: trimmedId })
+          set({ isLoggedIn: true, role: 'admin', adminId: trimmedId, panels: null, staffName: null })
           return 'admin'
         }
 
@@ -747,13 +773,13 @@ export const useAdminAuthStore = create<AdminAuthState>()(
         const staffPass = String(dbRow?.staff_password || import.meta.env.VITE_STAFF_PASSWORD || 'staff123').trim()
 
         if (trimmedId === staffId && trimmedPass === staffPass) {
-          set({ isLoggedIn: true, role: 'staff', adminId: trimmedId })
+          set({ isLoggedIn: true, role: 'staff', adminId: trimmedId, panels: sharedPanels, staffName: null })
           return 'staff'
         }
 
         return false
       },
-      logout: () => set({ isLoggedIn: false, role: null, adminId: null }),
+      logout: () => set({ isLoggedIn: false, role: null, adminId: null, panels: null, staffName: null }),
     }),
     {
       name: 'jewellery-pos-admin-session',

@@ -91,13 +91,13 @@ export function PurchaseDashboard({ purchases, suppliers, onOpen }: { purchases:
         {kpis.map(([label, value, hint, icon, tone]) => tone === 'accent' ? (
           <div key={label} className="rounded-xl p-4 shadow-sm text-white bg-gradient-to-br from-[var(--accent)] to-[color-mix(in_srgb,var(--accent)_55%,#000000)]">
             <div className="flex justify-between items-start"><span className="text-[10px] font-bold uppercase tracking-wider text-white/90">{label}</span><span className="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center">{icon}</span></div>
-            <p className="mt-2 text-xl font-black break-words">{value}</p>
+            <p className="mt-2 text-lg font-black whitespace-nowrap overflow-hidden text-ellipsis" title={String(value)}>{value}</p>
             <p className="mt-1 text-[10px] font-semibold text-white/80">{hint}</p>
           </div>
         ) : (
           <div key={label} className="bg-white border border-black/10 rounded-xl p-4 shadow-sm">
             <div className="flex justify-between items-start"><span className="text-[10px] font-bold uppercase tracking-wider text-[#000000]">{label}</span><span className={`w-7 h-7 rounded-full ${tone} flex items-center justify-center`}>{icon}</span></div>
-            <p className="mt-2 text-xl font-black text-[#000000] break-words">{value}</p>
+            <p className="mt-2 text-lg font-black text-[#000000] whitespace-nowrap overflow-hidden text-ellipsis" title={String(value)}>{value}</p>
             <p className="mt-1 text-[10px] font-semibold text-[#000000]/60">{hint}</p>
           </div>
         ))}

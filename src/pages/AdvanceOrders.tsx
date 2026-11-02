@@ -132,7 +132,7 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
   const create = async (event: FormEvent) => {
     event.preventDefault(); setSaving(true); setError(''); setNotice('')
     const total = Number(form.totalAmount); const deposit = Number(form.depositAmount)
-    if (!Number.isFinite(total) || total <= 0 || !Number.isFinite(deposit) || deposit <= 0 || deposit >= total) { setError('Deposit must be greater than RM0 and less than the total order amount.'); setSaving(false); return }
+    if (!Number.isFinite(total) || total <= 0 || !Number.isFinite(deposit) || deposit <= 0 || deposit >= total) { setError('Deposit must be greater than ₹0 and less than the total order amount.'); setSaving(false); return }
     try {
       const created = await createAdvanceOrder({ ...form, totalAmount: total, depositAmount: deposit, referenceNumber: form.reference_number, createdByName: role || 'Staff', products: [{ ...(linkedStockItem ? { product_id: linkedStockItem.id } : {}), name: form.productName, category: form.category, description: form.description, quantity: 1, base_price: total, line_total: total, unit: 'piece', unit_type: 'unit', source: 'advance_order' }] })
       // New customers land in the Customers list (existing ones keep their details)
