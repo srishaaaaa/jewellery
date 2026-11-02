@@ -545,7 +545,7 @@ export default function Dashboard() {
 
     const todayKey  = toLocalDateKey(new Date())
     const monthKey  = todayKey.slice(0, 7)
-    const todaySales   = orders.filter(o => isCompletedStatus(o.status) && o.order_type !== 'whatsapp_request' && toLocalDateKey(o.created_at) === todayKey).reduce((s, o) => s + getOrderTotal(o), 0)
+    const todaySales   = orders.filter(o => isCompletedStatus(o.status) && o.order_type !== 'whatsapp_request' && toLocalDateKey(o.created_at) === todayKey && kindMatch(isGstBill(o))).reduce((s, o) => s + getOrderTotal(o), 0)
 
     // Today-specific analytics (for TODAY'S SALES tab)
     const todayOrders = billableCompleted.filter(o => toLocalDateKey(o.created_at) === todayKey)
@@ -2541,7 +2541,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Every other section at a glance (schemes have their own dashboard) */}
-                <SectionAnalytics from={analyticsDateFrom} to={analyticsDateTo} onOpen={(t) => handleTabClick(t as TabKey)} />
+                <SectionAnalytics from={analyticsDateFrom} to={analyticsDateTo} billKind={analyticsBillKind} onOpen={(t) => handleTabClick(t as TabKey)} />
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white px-5 py-4 shadow-sm">
                   <div className="flex flex-wrap items-center gap-3 min-w-0">
                     <span className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-indigo-700">Calculation Formula</span>
@@ -3095,7 +3095,7 @@ export default function Dashboard() {
 
             {/* Coupons sub-tab */}
             {posAnalyticsTab === 'jewellery' && (
-              <JewelleryReports orders={orders} dateFrom={analyticsDateFrom} dateTo={analyticsDateTo} />
+              <JewelleryReports orders={analyticsBillKind === 'all' ? orders : orders.filter(o => (analyticsBillKind === 'gst') === (toNumber(o.total_gst, 0) > 0))} dateFrom={analyticsDateFrom} dateTo={analyticsDateTo} />
             )}
 
             {posAnalyticsTab === 'coupons' && (

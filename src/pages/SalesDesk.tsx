@@ -221,7 +221,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     } catch (err) { setError(getErrorMessage(err, 'Unable to delete')) }
   }
   const deleteBtn = (onClick: () => void) => (
-    <button className={`${iconBtn} bg-[#DC2626]/10 text-[#DC2626] hover:bg-[#DC2626]/20`} title="Delete" onClick={onClick}><Trash2 size={15} /></button>
+    <button className={`${iconBtn} bg-[#DC2626]/10 text-[#DC2626] hover:bg-[#DC2626]/20 disabled:opacity-30 disabled:cursor-not-allowed`} disabled={!isAdmin} title={isAdmin ? 'Delete' : 'Only the admin can delete'} onClick={onClick}><Trash2 size={15} /></button>
   )
 
   const setQuotationStatus = async (qt: Quotation, status: Quotation['status']) => {
@@ -729,7 +729,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                       {x.status === 'open' && onBillQuotation && <button className={`${iconBtn} bg-[#0A0A0A] text-white hover:bg-[#1A1A1A]`} title={x.validUntil && x.validUntil < new Date().toISOString().slice(0, 10) ? 'Bill now (expired: priced at today\'s rate)' : 'Bill now at the quoted prices'} onClick={() => onBillQuotation(x)}><Receipt size={15} /></button>}
                       {x.status === 'open' && <button className={`${iconBtn} bg-[#F59E0B]/10 text-[#D97706] hover:bg-[#F59E0B]/20`} title="Mark as billed" onClick={() => void setQuotationStatus(x, 'converted')}><CheckCircle2 size={15} /></button>}
                       {x.status === 'open' && <button className={`${iconBtn} bg-[#DC2626]/10 text-[#DC2626] hover:bg-[#DC2626]/20`} title="Cancel quotation" onClick={() => void setQuotationStatus(x, 'cancelled')}><XCircle size={15} /></button>}
-                      {isAdmin && deleteBtn(() => void deleteRecord('quotations', x.id, x.quotationNumber, 'quotation'))}
+                      {deleteBtn(() => void deleteRecord('quotations', x.id, x.quotationNumber, 'quotation'))}
                     </div></td>
                   </tr>
                 ))}
@@ -754,7 +754,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                         <button className={`${iconBtn} bg-[#10B981]/10 text-[#10B981] hover:bg-[#10B981]/20`} title="Approve" onClick={() => void decideReturn(x, true)}><CheckCircle2 size={15} /></button>
                         <button className={`${iconBtn} bg-[#DC2626]/10 text-[#DC2626] hover:bg-[#DC2626]/20`} title="Reject" onClick={() => void decideReturn(x, false)}><XCircle size={15} /></button>
                       </>}
-                      {isAdmin && x.status !== 'approved' && deleteBtn(() => void deleteRecord('sales_returns', x.id, x.returnNumber, 'return'))}
+                      {deleteBtn(() => void deleteRecord('sales_returns', x.id, x.returnNumber, x.returnType === 'exchange' ? 'exchange' : 'return', x.status === 'approved' ? (x.returnType === 'exchange' ? 'Stock it put back is taken out again and its exchange credit is removed.' : 'Stock it put back is taken out again. Any refund already paid is not reversed.') : ''))}
                     </div></td>
                   </tr>
                 ))}
@@ -830,7 +830,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
                       {waBtn(repairDoc(x), () => whatsappRepair(x))}{viewBtn(repairDoc(x))}{editBtn('repairs', x.id, x.repairNumber, x.customerName, x.phone, x.notes)}{eyeBtn(repairDoc(x), () => whatsappRepair(x))}
                       <button className={`${iconBtn} bg-[#F59E0B]/10 text-[#D97706] hover:bg-[#F59E0B]/20`} title="Update charges" onClick={() => { setRepairEdit(x); setRepairEditForm({ charge: String(x.repairCharge), advance: String(x.advancePaid), expectedDate: x.expectedDate || '', assignedTo: x.assignedTo }); setModalError('') }}><Wallet size={15} /></button>
-                      {isAdmin && deleteBtn(() => void deleteRecord('repairs', x.id, x.repairNumber, 'repair'))}
+                      {deleteBtn(() => void deleteRecord('repairs', x.id, x.repairNumber, 'repair'))}
                     </div></td>
                   </tr>
                 ))}

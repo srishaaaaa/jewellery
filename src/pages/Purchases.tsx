@@ -399,10 +399,11 @@ export default function Purchases() {
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
                       <button className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`} title="Send to supplier on WhatsApp" onClick={() => sharePurchaseWhatsApp(p, supplierById.get(p.supplierId), shopName, `${window.location.origin}/purchase/${p.id}`)}><WhatsAppIcon className="w-4 h-4" /></button>
                       <button className={`${actionBtn} bg-black/10 hover:bg-black/15 text-[#000000]`} title="View purchase bill" onClick={() => void openDetail(p).then(() => setBillPreview(true))}><DocIcon className="w-4 h-4" /></button>
+                      <button className={`${actionBtn} bg-[#2563EB]/10 hover:bg-[#2563EB]/20 text-[#2563EB]`} title="Edit due date / record a payment" onClick={() => void openDetail(p)}><Edit2 className="w-4 h-4" /></button>
                       <button className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`} title="Purchase details" onClick={() => void openDetail(p)}><EyeIcon className="w-4 h-4" /></button>
-                      {p.due > 0 && <button className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`} title="Pay supplier" onClick={() => void openDetail(p)}><IndianRupee className="w-4 h-4" /></button>}
-                      {isAdmin && <button className={`${actionBtn} bg-[#DC2626]/10 hover:bg-[#DC2626]/20 text-[#DC2626]`} title="Delete purchase" onClick={() => void deletePurchase(p)}><Trash2 className="w-4 h-4" /></button>}
                       <button className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`} title="Print" onClick={() => void openDetail(p).then(() => setPrintOpen(true))}><Printer className="w-4 h-4" /></button>
+                      {p.due > 0 && <button className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`} title="Pay supplier" onClick={() => void openDetail(p)}><IndianRupee className="w-4 h-4" /></button>}
+                      <button className={`${actionBtn} bg-[#DC2626]/10 hover:bg-[#DC2626]/20 text-[#DC2626] disabled:opacity-30 disabled:cursor-not-allowed`} disabled={!isAdmin} title={isAdmin ? 'Delete purchase' : 'Only the admin can delete'} onClick={() => void deletePurchase(p)}><Trash2 className="w-4 h-4" /></button>
                     </div></td>
                   </tr>
                 ))}
@@ -421,11 +422,12 @@ export default function Purchases() {
                       <td className="px-4 py-3.5 text-xs">{o?.count || 0} • {formatCurrency(o?.total || 0)}</td>
                       <td className={`px-4 py-3.5 font-black ${(o?.due || 0) > 0 ? 'text-red-600' : 'text-emerald-700'}`}>{formatCurrency(o?.due || 0)}</td>
                       <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
-                        {s.phone && <button className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`} title="Chat on WhatsApp" onClick={() => window.open(toWhatsAppUrl(s.phone, `Hello ${s.name},`), '_blank', 'noopener,noreferrer')}><WhatsAppIcon className="w-4 h-4" /></button>}
+                        <button className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981] disabled:opacity-30 disabled:cursor-not-allowed`} disabled={!s.phone} title={s.phone ? 'Chat on WhatsApp' : 'No phone number'} onClick={() => window.open(toWhatsAppUrl(s.phone, `Hello ${s.name},`), '_blank', 'noopener,noreferrer')}><WhatsAppIcon className="w-4 h-4" /></button>
+                        <button className={`${actionBtn} bg-black/10 hover:bg-black/15 text-[#000000]`} title="Supplier statement (CSV)" onClick={() => downloadCsv(`supplier-${s.name.replace(/\W+/g, '-')}-${today()}`, [['Purchase', 'Date', 'Supplier bill', 'Total', 'Paid', 'Owed'], ...purchases.filter((pu) => pu.supplierId === s.id).map((pu) => [pu.purchaseNumber, pu.purchaseDate, pu.supplierInvoiceNo, pu.totalAmount, pu.amountPaid, pu.due])])}><DocIcon className="w-4 h-4" /></button>
                         <button className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`} title="View this supplier's purchases" onClick={() => { setSupplierFilter(s.id); setTab('purchases') }}><EyeIcon className="w-4 h-4" /></button>
                         <button className={`${actionBtn} bg-[#2563EB]/10 hover:bg-[#2563EB]/20 text-[#2563EB]`} title="Edit supplier" onClick={() => { setModalError(''); setSupplierEdit({ id: s.id, form: { name: s.name, phone: s.phone, gstin: s.gstin, address: s.address, notes: s.notes } }) }}><Edit2 className="w-4 h-4" /></button>
                         <button className={`${actionBtn} ${s.isActive ? 'bg-[#F59E0B]/10 hover:bg-[#F59E0B]/20 text-[#D97706]' : 'bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]'}`} title={s.isActive ? 'Deactivate supplier' : 'Activate supplier'} onClick={() => void toggleSupplier(s)}>{s.isActive ? <X className="w-4 h-4" /> : <Check className="w-4 h-4" />}</button>
-                        {isAdmin && <button className={`${actionBtn} bg-[#DC2626]/10 hover:bg-[#DC2626]/20 text-[#DC2626]`} title="Delete supplier" onClick={() => void deleteSupplier(s)}><Trash2 className="w-4 h-4" /></button>}
+                        <button className={`${actionBtn} bg-[#DC2626]/10 hover:bg-[#DC2626]/20 text-[#DC2626] disabled:opacity-30 disabled:cursor-not-allowed`} disabled={!isAdmin} title={isAdmin ? 'Delete supplier' : 'Only the admin can delete'} onClick={() => void deleteSupplier(s)}><Trash2 className="w-4 h-4" /></button>
                       </div></td>
                     </tr>
                   )

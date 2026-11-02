@@ -2889,3 +2889,85 @@ GRANT EXECUTE ON FUNCTION public.delete_supplier_purchase(UUID, TEXT) TO anon, a
 GRANT EXECUTE ON FUNCTION public.delete_supplier_payment(UUID) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_supplier(UUID) TO anon, authenticated;
 NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- 33. Delete a return / exchange or a scheme, undoing what it did
+-- ============================================================================
+
+-- Return / exchange: an approved one takes back the stock it restocked and removes its
+-- exchange credit (refused if that credit was already used on a bill).
+CREATE OR REPLACE FUNCTION public.delete_sales_return(p_id UUID, p_by TEXT DEFAULT 'Admin')
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  r public.sales_returns;
+  v_item JSONB;
+  v_pid BIGINT;
+  v_vid UUID;
+  v_qty NUMERIC;
+  v_before NUMERIC;
+BEGIN
+  SELECT * INTO r FROM public.sales_returns WHERE id = p_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Return not found.'; END IF;
+  IF r.status = 'approved' THEN
+    IF r.credit_advance_id IS NOT NULL THEN
+      IF EXISTS (SELECT 1 FROM public.customer_advances WHERE id = r.credit_advance_id AND amount_used > 0) THEN
+        RAISE EXCEPTION 'The exchange credit from % was already used on a bill. Delete that bill first.', r.return_number;
+      END IF;
+      UPDATE public.sales_returns SET credit_advance_id = NULL WHERE id = p_id;
+      DELETE FROM public.advance_usages WHERE advance_id = r.credit_advance_id;
+      DELETE FROM public.customer_advances WHERE id = r.credit_advance_id;
+    END IF;
+    FOR v_item IN SELECT value FROM jsonb_array_elements(r.items) LOOP
+      CONTINUE WHEN LOWER(COALESCE(v_item->>'is_manual', 'false')) = 'true';
+      CONTINUE WHEN COALESCE(v_item->>'product_id', '') !~ '^[0-9]+$';
+      v_pid := (v_item->>'product_id')::BIGINT;
+      v_qty := CASE WHEN COALESCE(v_item->>'quantity', '') ~ '^[0-9]+(\.[0-9]+)?$' THEN (v_item->>'quantity')::NUMERIC ELSE 0 END;
+      CONTINUE WHEN v_qty <= 0;
+      CONTINUE WHEN NOT EXISTS (SELECT 1 FROM public.inventory_movements
+                                WHERE reference_type = 'return' AND reference_id = r.return_number AND product_id = v_pid);
+      v_vid := NULL;
+      IF COALESCE(v_item->>'variant_id', '') ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN
+        v_vid := (v_item->>'variant_id')::UUID;
+        UPDATE public.product_variants SET stock = GREATEST(stock - v_qty, 0), updated_at = NOW() WHERE id = v_vid;
+      END IF;
+      SELECT stock_quantity INTO v_before FROM public.products WHERE id = v_pid FOR UPDATE;
+      CONTINUE WHEN NOT FOUND;
+      UPDATE public.products SET stock_quantity = GREATEST(COALESCE(v_before, 0) - v_qty, 0), updated_at = NOW() WHERE id = v_pid;
+      INSERT INTO public.inventory_movements (product_id, variant_id, movement_type, quantity_delta, quantity_before, quantity_after, reference_type, reference_id, note, created_by_name)
+      VALUES (v_pid, CASE WHEN EXISTS (SELECT 1 FROM public.product_variants WHERE id = v_vid) THEN v_vid END,
+              'VOID', -LEAST(v_qty, COALESCE(v_before, 0)), COALESCE(v_before, 0), GREATEST(COALESCE(v_before, 0) - v_qty, 0),
+              'return', r.return_number, 'Return ' || r.return_number || ' deleted', COALESCE(NULLIF(p_by, ''), 'Admin'));
+    END LOOP;
+  END IF;
+  DELETE FROM public.sales_returns WHERE id = p_id;
+END;
+$$;
+
+-- Scheme: removes its installments (paid ones too) and its gift voucher. Refused while the
+-- scheme is used on a bill (delete that bill first, which gives the amount back).
+CREATE OR REPLACE FUNCTION public.delete_jewellery_scheme(p_id UUID)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v public.jewellery_schemes;
+BEGIN
+  SELECT * INTO v FROM public.jewellery_schemes WHERE id = p_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Scheme not found.'; END IF;
+  IF EXISTS (SELECT 1 FROM public.scheme_redemptions WHERE scheme_id = p_id AND status = 'applied') THEN
+    RAISE EXCEPTION 'Scheme % was used on a bill. Delete that bill first, then the scheme.', v.scheme_number;
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.customer_advances WHERE source = 'gift_voucher' AND source_ref = v.scheme_number AND amount_used > 0) THEN
+    RAISE EXCEPTION 'The gift voucher of scheme % was already used on a bill.', v.scheme_number;
+  END IF;
+  DELETE FROM public.advance_usages WHERE advance_id IN (SELECT id FROM public.customer_advances WHERE source = 'gift_voucher' AND source_ref = v.scheme_number);
+  DELETE FROM public.customer_advances WHERE source = 'gift_voucher' AND source_ref = v.scheme_number;
+  DELETE FROM public.scheme_redemptions WHERE scheme_id = p_id;
+  PERFORM set_config('app.scheme_payment_edit', 'on', true);
+  DELETE FROM public.scheme_installments WHERE scheme_id = p_id;
+  PERFORM set_config('app.scheme_payment_edit', 'off', true);
+  DELETE FROM public.jewellery_schemes WHERE id = p_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.delete_sales_return(UUID, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_jewellery_scheme(UUID) TO anon, authenticated;
+NOTIFY pgrst, 'reload schema';

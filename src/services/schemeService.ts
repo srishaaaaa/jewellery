@@ -356,6 +356,11 @@ export const schemeService = {
   },
 
   async remove(schemeId: string): Promise<void> {
+    // Deletes the scheme with its installments (paid ones too) and gift voucher; refused while it is used on a bill.
+    const { error: rpcErr } = await supabase.rpc('delete_jewellery_scheme', { p_id: schemeId })
+    if (!rpcErr) return
+    if (!/delete_jewellery_scheme|function/i.test(rpcErr.message || '')) throw toError(rpcErr, 'Unable to delete the scheme')
+    // Database not updated yet: only a scheme with no payments can be removed.
     const { data: row, error: readErr } = await supabase.from('jewellery_schemes')
       .select('id, scheme_number, installments_paid, total_paid, amount_redeemed, benefit_used').eq('id', schemeId).maybeSingle()
     if (readErr) throw toError(readErr, 'Unable to check the scheme')

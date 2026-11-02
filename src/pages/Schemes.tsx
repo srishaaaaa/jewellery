@@ -568,7 +568,7 @@ export default function Schemes() {
 
   const deleteScheme = async (target: JewelleryScheme | null = detail) => {
     if (!target || !isAdmin) return
-    if (!window.confirm(`Delete scheme ${target.schemeNumber} of ${target.customerName || target.phone}? This cannot be undone.`)) return
+    if (!window.confirm(`Delete scheme ${target.schemeNumber} of ${target.customerName || target.phone}?${target.installmentsPaid > 0 ? `\n\nIts ${target.installmentsPaid} paid installment${target.installmentsPaid === 1 ? '' : 's'} (${formatCurrency(target.totalPaid)}) and receipts are deleted too.` : ''}\n\nThis cannot be undone.`)) return
     setSaving(true)
     try {
       await schemeService.remove(target.id)
@@ -889,16 +889,12 @@ export default function Schemes() {
                             Collect
                           </button>
                         )}
-                        {s.installmentsPaid > 0 && (
-                          <>
-                            <button type="button" onClick={() => void latestReceipt(s, 'whatsapp')} title="Send latest receipt on WhatsApp" aria-label="Send latest receipt on WhatsApp" className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`}>
-                              <WhatsAppIcon className="w-4 h-4" />
-                            </button>
-                            <button type="button" onClick={() => void latestReceipt(s, 'print')} title="Print latest receipt" aria-label="Print latest receipt" className={`${actionBtn} bg-black/10 hover:bg-black/15 text-[#000000]`}>
-                              <DocIcon className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
+                        <button type="button" disabled={s.installmentsPaid === 0} onClick={() => void latestReceipt(s, 'whatsapp')} title={s.installmentsPaid ? 'Send latest receipt on WhatsApp' : 'No payments yet'} aria-label="Send latest receipt on WhatsApp" className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981] disabled:opacity-30 disabled:cursor-not-allowed`}>
+                          <WhatsAppIcon className="w-4 h-4" />
+                        </button>
+                        <button type="button" disabled={s.installmentsPaid === 0} onClick={() => void latestReceipt(s, 'print')} title={s.installmentsPaid ? 'View / print latest receipt' : 'No payments yet'} aria-label="Print latest receipt" className={`${actionBtn} bg-black/10 hover:bg-black/15 text-[#000000] disabled:opacity-30 disabled:cursor-not-allowed`}>
+                          <DocIcon className="w-4 h-4" />
+                        </button>
                         <button type="button" onClick={() => void openDetail(s)} title="View details" aria-label="View details" className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`}>
                           <EyeIcon className="w-4 h-4" />
                         </button>
@@ -908,11 +904,9 @@ export default function Schemes() {
                         <button type="button" onClick={() => void downloadStatement(s)} title="Download statement (CSV)" aria-label="Download statement" className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`}>
                           <Download className="w-4 h-4" />
                         </button>
-                        {isAdmin && s.installmentsPaid === 0 && s.totalPaid === 0 && (
-                          <button type="button" onClick={() => void deleteScheme(s)} title="Delete scheme" aria-label="Delete scheme" className={`${actionBtn} bg-[#DC2626]/10 hover:bg-[#DC2626]/20 text-[#DC2626]`}>
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
+                        <button type="button" disabled={!isAdmin} onClick={() => void deleteScheme(s)} title={isAdmin ? 'Delete scheme' : 'Only the admin can delete'} aria-label="Delete scheme" className={`${actionBtn} bg-[#DC2626]/10 hover:bg-[#DC2626]/20 text-[#DC2626] disabled:opacity-30 disabled:cursor-not-allowed`}>
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>

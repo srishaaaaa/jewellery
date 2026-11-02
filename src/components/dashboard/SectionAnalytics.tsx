@@ -15,7 +15,7 @@ type Coupon = { is_active: boolean; expiry_date: string | null }
  * Analytics: one row of boxes per section (Sales Desk, Inventory, Loose Stones & Certificates,
  * Customers, Coupons). Schemes have their own dashboard. Uses the Analytics date range where it applies.
  */
-export function SectionAnalytics({ from, to, onOpen }: { from: string; to: string; onOpen: (tab: string) => void }) {
+export function SectionAnalytics({ from, to, billKind = 'all', onOpen }: { from: string; to: string; billKind?: 'all' | 'gst' | 'non_gst'; onOpen: (tab: string) => void }) {
   const products = useProductStore((s) => s.products)
   const [data, setData] = useState<{
     quotations: Quotation[]; returns: SalesReturn[]; repairs: Repair[]; advances: CustomerAdvance[]
@@ -45,8 +45,11 @@ export function SectionAnalytics({ from, to, onOpen }: { from: string; to: strin
   const today = new Date().toISOString().slice(0, 10)
   const month = today.slice(5, 7)
 
-  const q = data.quotations.filter((x) => inRange(x.createdAt))
-  const openQ = data.quotations.filter((x) => x.status === 'open')
+  // GST / Non-GST tab: quotations follow their GST; the other boxes are not bills, so they show all
+  const kindOk = (gst: number) => billKind === 'all' || (billKind === 'gst') === (gst > 0)
+  const allNote = billKind === 'all' ? '' : ' · all bills'
+  const q = data.quotations.filter((x) => inRange(x.createdAt) && kindOk(x.gst))
+  const openQ = data.quotations.filter((x) => x.status === 'open' && kindOk(x.gst))
   const ret = data.returns.filter((x) => inRange(x.createdAt) && x.status === 'approved')
   const openRepairs = data.repairs.filter((x) => x.status !== 'delivered' && x.status !== 'cancelled')
   const activeAdv = data.advances.filter((x) => x.status === 'active')
@@ -109,7 +112,7 @@ export function SectionAnalytics({ from, to, onOpen }: { from: string; to: strin
               <button key={b.label} type="button" onClick={() => onOpen(sec.tab)} className="text-left bg-white border border-black/10 rounded-xl p-4 shadow-sm hover:border-black/25 transition-colors cursor-pointer">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-[#000000]">{b.label}</p>
                 <p className={`mt-2 text-lg font-black break-words ${b.tone === 'red' ? 'text-rose-600' : b.tone === 'green' ? 'text-emerald-600' : 'text-[#000000]'}`}>{b.value}</p>
-                <p className="mt-1 text-[10px] font-semibold text-[#000000]/60">{b.hint}</p>
+                <p className="mt-1 text-[10px] font-semibold text-[#000000]/60">{b.hint}{b.label === 'Quotations' ? '' : allNote}</p>
               </button>
             ))}
           </div>

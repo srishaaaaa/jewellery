@@ -409,6 +409,12 @@ export type DeskTable = 'quotations' | 'sales_returns' | 'old_gold_exchanges' | 
 
 /** Permanently deletes one Sales Desk record (admin only in the app). */
 export async function deleteDeskRecord(table: DeskTable, id: string): Promise<void> {
+  // A return / exchange is deleted in the database so its restock and exchange credit are undone too.
+  if (table === 'sales_returns') {
+    const { error } = await supabase.rpc('delete_sales_return', { p_id: id, p_by: currentUserName() })
+    if (error) throw fail(error, 'Unable to delete the return')
+    return
+  }
   const { data, error } = await supabase.from(table).delete().eq('id', id).select('id')
   if (error) {
     // An advance that was ever applied to a bill keeps its usage history and cannot be removed.
