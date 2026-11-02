@@ -2315,3 +2315,302 @@ BEGIN
 END;
 $$;
 GRANT EXECUTE ON FUNCTION public.settle_credit_order(UUID, TEXT, TEXT) TO anon, authenticated;
+
+-- ============================================================================
+-- 30. Rate management for stones, loose stone stock and certificates
+--     Only adds tables / columns. Safe to run more than once.
+-- ============================================================================
+
+-- Gold may also be billed at custom purities (e.g. 23K, 9K); palladium is allowed as a metal.
+ALTER TABLE public.metal_rates DROP CONSTRAINT IF EXISTS metal_rates_metal_purity_check;
+ALTER TABLE public.metal_rates ADD CONSTRAINT metal_rates_metal_purity_check CHECK (
+  (metal_type = 'gold' AND purity ~ '^[0-9]{1,2}(\.[0-9]{1,2})?K$')
+  OR (metal_type IN ('silver', 'platinum', 'palladium') AND (purity = 'STANDARD' OR purity ~ '^[0-9]{3}$'))
+);
+
+-- Price-list entries for diamonds, gemstones, pearls and traditional work (Polki, Kundan, Jadau, Navaratna...).
+-- An entry is never edited in place: a price change is a new row with the same rate_key, so the
+-- history stays. The current price for a key is the newest active row whose effective_from has passed.
+CREATE TABLE IF NOT EXISTS public.material_rates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  rate_key TEXT NOT NULL,
+  category TEXT NOT NULL CHECK (category IN ('diamond', 'gemstone', 'pearl', 'traditional')),
+  name TEXT NOT NULL,
+  variety TEXT NOT NULL DEFAULT '',
+  -- natural, lab_grown, simulated, synthetic, imitation, cultured, freshwater ...
+  origin_type TEXT NOT NULL DEFAULT '',
+  -- shape, colour, clarity, cut, polish, symmetry, fluorescence, size_mm, lustre, overtone, surface, nacre, treatment, origin, lab
+  specs JSONB NOT NULL DEFAULT '{}'::JSONB,
+  carat_min NUMERIC(10,3),
+  carat_max NUMERIC(10,3),
+  pricing_unit TEXT NOT NULL CHECK (pricing_unit IN ('per_carat', 'per_stone', 'per_piece', 'per_strand', 'per_set', 'per_gram', 'per_lot', 'fixed')),
+  price NUMERIC(14,2) NOT NULL CHECK (price > 0),
+  effective_from TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  supplier TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  created_by TEXT NOT NULL DEFAULT 'Admin',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT material_rates_carat_range CHECK (carat_min IS NULL OR carat_max IS NULL OR carat_min <= carat_max),
+  CONSTRAINT material_rates_carat_positive CHECK ((carat_min IS NULL OR carat_min >= 0) AND (carat_max IS NULL OR carat_max >= 0))
+);
+CREATE INDEX IF NOT EXISTS material_rates_lookup_idx ON public.material_rates(category, LOWER(name), effective_from DESC);
+CREATE INDEX IF NOT EXISTS material_rates_key_idx ON public.material_rates(rate_key, effective_from DESC);
+
+-- Only the status (active / inactive) and updated_at of an entry can change; the price stays as it was.
+CREATE OR REPLACE FUNCTION public.material_rates_keep_history()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'Rate history cannot be deleted. Mark the rate inactive instead.';
+  END IF;
+  IF NEW.price IS DISTINCT FROM OLD.price OR NEW.pricing_unit IS DISTINCT FROM OLD.pricing_unit
+     OR NEW.rate_key IS DISTINCT FROM OLD.rate_key OR NEW.effective_from IS DISTINCT FROM OLD.effective_from
+     OR NEW.category IS DISTINCT FROM OLD.category OR NEW.name IS DISTINCT FROM OLD.name
+     OR NEW.specs IS DISTINCT FROM OLD.specs OR NEW.carat_min IS DISTINCT FROM OLD.carat_min OR NEW.carat_max IS DISTINCT FROM OLD.carat_max THEN
+    RAISE EXCEPTION 'A rate cannot be changed after it is saved. Add a new rate instead (the old one stays in the history).';
+  END IF;
+  NEW.updated_at := NOW();
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS material_rates_history ON public.material_rates;
+CREATE TRIGGER material_rates_history BEFORE UPDATE OR DELETE ON public.material_rates
+  FOR EACH ROW EXECUTE FUNCTION public.material_rates_keep_history();
+
+-- Manual / negotiated stone prices: who set them, why, and the list price they replaced.
+CREATE TABLE IF NOT EXISTS public.stone_price_overrides (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_id BIGINT,
+  product_name TEXT NOT NULL DEFAULT '',
+  order_id UUID,
+  invoice_no TEXT NOT NULL DEFAULT '',
+  stone_label TEXT NOT NULL DEFAULT '',
+  rate_id UUID REFERENCES public.material_rates(id) ON DELETE SET NULL,
+  list_price NUMERIC(14,2),
+  override_price NUMERIC(14,2) NOT NULL CHECK (override_price >= 0),
+  pricing_unit TEXT NOT NULL DEFAULT '',
+  reason TEXT NOT NULL CHECK (BTRIM(reason) <> ''),
+  overridden_by TEXT NOT NULL DEFAULT 'Admin',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS stone_price_overrides_created_idx ON public.stone_price_overrides(created_at DESC);
+
+-- Loose diamonds, gemstones and pearls: one row per stone or per lot.
+CREATE TABLE IF NOT EXISTS public.loose_stones (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  stone_code TEXT NOT NULL UNIQUE,
+  category TEXT NOT NULL CHECK (category IN ('diamond', 'gemstone', 'pearl', 'traditional')),
+  name TEXT NOT NULL,
+  variety TEXT NOT NULL DEFAULT '',
+  origin_type TEXT NOT NULL DEFAULT '',
+  specs JSONB NOT NULL DEFAULT '{}'::JSONB,
+  is_lot BOOLEAN NOT NULL DEFAULT FALSE,
+  -- what is in stock now (a single stone: 1 / its carat)
+  quantity INTEGER NOT NULL DEFAULT 1 CHECK (quantity >= 0),
+  carat NUMERIC(10,3) NOT NULL DEFAULT 0 CHECK (carat >= 0),
+  -- what was bought
+  quantity_bought INTEGER NOT NULL DEFAULT 1 CHECK (quantity_bought >= 0),
+  carat_bought NUMERIC(10,3) NOT NULL DEFAULT 0 CHECK (carat_bought >= 0),
+  cost_price NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (cost_price >= 0),
+  selling_price NUMERIC(14,2) NOT NULL DEFAULT 0 CHECK (selling_price >= 0),
+  supplier TEXT NOT NULL DEFAULT '',
+  purchase_id UUID,
+  purchase_date DATE,
+  lab TEXT NOT NULL DEFAULT '',
+  certificate_no TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'available'
+    CHECK (status IN ('available', 'reserved', 'sold', 'used_in_jewellery', 'returned', 'damaged')),
+  -- finished piece this stone went into
+  product_id BIGINT,
+  notes TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL DEFAULT 'Admin',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS loose_stones_status_idx ON public.loose_stones(status, category);
+
+CREATE TABLE IF NOT EXISTS public.loose_stone_movements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  stone_id UUID NOT NULL REFERENCES public.loose_stones(id) ON DELETE CASCADE,
+  action TEXT NOT NULL CHECK (action IN ('received', 'reserve', 'unreserve', 'sell', 'use', 'return', 'damage', 'adjust')),
+  quantity INTEGER NOT NULL DEFAULT 0,
+  carat NUMERIC(10,3) NOT NULL DEFAULT 0,
+  product_id BIGINT,
+  reference TEXT NOT NULL DEFAULT '',
+  note TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL DEFAULT 'Admin',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS loose_stone_movements_stone_idx ON public.loose_stone_movements(stone_id, created_at DESC);
+
+-- Every stock change of a loose stone goes through here, so it is logged and can never go below zero
+-- or be counted twice (a stone used in jewellery or sold leaves the loose stock).
+CREATE OR REPLACE FUNCTION public.move_loose_stone(
+  p_stone_id UUID, p_action TEXT, p_quantity INTEGER DEFAULT NULL, p_carat NUMERIC DEFAULT NULL,
+  p_product_id BIGINT DEFAULT NULL, p_reference TEXT DEFAULT '', p_note TEXT DEFAULT '', p_by TEXT DEFAULT 'Admin'
+)
+RETURNS public.loose_stones
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v public.loose_stones;
+  v_qty INTEGER;
+  v_ct NUMERIC;
+BEGIN
+  SELECT * INTO v FROM public.loose_stones WHERE id = p_stone_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Stone not found.'; END IF;
+  v_qty := COALESCE(p_quantity, v.quantity);
+  v_ct := COALESCE(p_carat, v.carat);
+  IF v_qty < 0 OR v_ct < 0 THEN RAISE EXCEPTION 'Quantity and carat cannot be negative.'; END IF;
+
+  IF p_action IN ('sell', 'use', 'damage') THEN
+    IF v.status NOT IN ('available', 'reserved') THEN
+      RAISE EXCEPTION 'Stone % is %; it is not in stock.', v.stone_code, REPLACE(v.status, '_', ' ');
+    END IF;
+    IF v_qty > v.quantity OR v_ct > v.carat + 0.0005 THEN
+      RAISE EXCEPTION 'Only % stone(s) / % ct of % are in stock.', v.quantity, v.carat, v.stone_code;
+    END IF;
+    IF v_qty = 0 AND v_ct = 0 THEN RAISE EXCEPTION 'Enter the quantity or carat.'; END IF;
+    IF p_action = 'use' AND p_product_id IS NULL THEN RAISE EXCEPTION 'Choose the jewellery item the stone was used in.'; END IF;
+    UPDATE public.loose_stones
+    SET quantity = quantity - v_qty, carat = ROUND(GREATEST(carat - v_ct, 0), 3),
+        status = CASE WHEN quantity - v_qty <= 0 AND GREATEST(carat - v_ct, 0) <= 0.0005
+                      THEN CASE p_action WHEN 'sell' THEN 'sold' WHEN 'use' THEN 'used_in_jewellery' ELSE 'damaged' END
+                      ELSE status END,
+        product_id = CASE WHEN p_action = 'use' THEN p_product_id ELSE product_id END,
+        updated_at = NOW()
+    WHERE id = p_stone_id RETURNING * INTO v;
+  ELSIF p_action = 'reserve' THEN
+    IF v.status <> 'available' THEN RAISE EXCEPTION 'Only an available stone can be reserved.'; END IF;
+    UPDATE public.loose_stones SET status = 'reserved', updated_at = NOW() WHERE id = p_stone_id RETURNING * INTO v;
+    v_qty := 0; v_ct := 0;
+  ELSIF p_action = 'unreserve' THEN
+    IF v.status <> 'reserved' THEN RAISE EXCEPTION 'The stone is not reserved.'; END IF;
+    UPDATE public.loose_stones SET status = 'available', updated_at = NOW() WHERE id = p_stone_id RETURNING * INTO v;
+    v_qty := 0; v_ct := 0;
+  ELSIF p_action = 'return' THEN
+    -- back into stock (customer return, or taken out of a piece)
+    UPDATE public.loose_stones
+    SET quantity = quantity + v_qty, carat = ROUND(carat + v_ct, 3), status = 'available', updated_at = NOW()
+    WHERE id = p_stone_id RETURNING * INTO v;
+  ELSIF p_action = 'adjust' THEN
+    UPDATE public.loose_stones
+    SET quantity = v_qty, carat = ROUND(v_ct, 3),
+        status = CASE WHEN v_qty <= 0 AND v_ct <= 0 THEN status ELSE CASE WHEN status IN ('sold', 'used_in_jewellery', 'damaged') THEN 'available' ELSE status END END,
+        updated_at = NOW()
+    WHERE id = p_stone_id RETURNING * INTO v;
+  ELSE
+    RAISE EXCEPTION 'Unknown stock action %.', p_action;
+  END IF;
+
+  INSERT INTO public.loose_stone_movements (stone_id, action, quantity, carat, product_id, reference, note, created_by)
+  VALUES (p_stone_id, p_action, v_qty, v_ct, p_product_id, COALESCE(p_reference, ''), COALESCE(p_note, ''), COALESCE(NULLIF(p_by, ''), 'Admin'));
+  RETURN v;
+END;
+$$;
+
+-- Certificates of stones (loose or set in a piece). Uploading never verifies: only the verify action does.
+CREATE TABLE IF NOT EXISTS public.gem_certificates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  certificate_no TEXT NOT NULL CHECK (BTRIM(certificate_no) <> ''),
+  lab TEXT NOT NULL DEFAULT '',
+  issue_date DATE,
+  expiry_date DATE,
+  file_url TEXT NOT NULL DEFAULT '',
+  lab_url TEXT NOT NULL DEFAULT '',
+  loose_stone_id UUID REFERENCES public.loose_stones(id) ON DELETE SET NULL,
+  product_id BIGINT,
+  stone_description TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'uploaded', 'verified', 'rejected', 'expired')),
+  verified_by TEXT,
+  verified_at TIMESTAMPTZ,
+  notes TEXT NOT NULL DEFAULT '',
+  created_by TEXT NOT NULL DEFAULT 'Admin',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS gem_certificates_unique_idx ON public.gem_certificates(UPPER(BTRIM(lab)), UPPER(BTRIM(certificate_no)));
+
+-- Status changes: uploading a file only moves pending -> uploaded; verified / rejected need set_certificate_status.
+CREATE OR REPLACE FUNCTION public.gem_certificates_guard()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.status IN ('verified', 'rejected') THEN NEW.status := CASE WHEN NEW.file_url <> '' THEN 'uploaded' ELSE 'pending' END; END IF;
+    NEW.verified_by := NULL; NEW.verified_at := NULL;
+    RETURN NEW;
+  END IF;
+  IF NEW.status IS DISTINCT FROM OLD.status AND NEW.status IN ('verified', 'rejected')
+     AND COALESCE(current_setting('app.certificate_verify', true), '') <> 'on' THEN
+    RAISE EXCEPTION 'Use Verify / Reject to change a certificate to verified or rejected.';
+  END IF;
+  IF NEW.file_url IS DISTINCT FROM OLD.file_url AND NEW.file_url <> '' AND OLD.status = 'pending' THEN
+    NEW.status := 'uploaded';
+  END IF;
+  NEW.updated_at := NOW();
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS gem_certificates_guard ON public.gem_certificates;
+CREATE TRIGGER gem_certificates_guard BEFORE INSERT OR UPDATE ON public.gem_certificates
+  FOR EACH ROW EXECUTE FUNCTION public.gem_certificates_guard();
+
+CREATE OR REPLACE FUNCTION public.set_certificate_status(p_id UUID, p_status TEXT, p_by TEXT, p_note TEXT DEFAULT '')
+RETURNS public.gem_certificates
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v public.gem_certificates;
+BEGIN
+  IF p_status NOT IN ('verified', 'rejected', 'expired', 'uploaded', 'pending') THEN RAISE EXCEPTION 'Unknown status %.', p_status; END IF;
+  PERFORM set_config('app.certificate_verify', 'on', true);
+  UPDATE public.gem_certificates
+  SET status = p_status,
+      verified_by = CASE WHEN p_status IN ('verified', 'rejected') THEN COALESCE(NULLIF(p_by, ''), 'Admin') ELSE verified_by END,
+      verified_at = CASE WHEN p_status IN ('verified', 'rejected') THEN NOW() ELSE verified_at END,
+      notes = CASE WHEN COALESCE(p_note, '') <> '' THEN BTRIM(notes || ' ' || p_note) ELSE notes END
+  WHERE id = p_id RETURNING * INTO v;
+  PERFORM set_config('app.certificate_verify', 'off', true);
+  IF NOT FOUND THEN RAISE EXCEPTION 'Certificate not found.'; END IF;
+  RETURN v;
+END;
+$$;
+
+ALTER TABLE public.material_rates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.stone_price_overrides ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.loose_stones ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.loose_stone_movements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.gem_certificates ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS material_rates_portal_manage ON public.material_rates;
+CREATE POLICY material_rates_portal_manage ON public.material_rates FOR ALL TO anon, authenticated USING (TRUE) WITH CHECK (TRUE);
+DROP POLICY IF EXISTS stone_price_overrides_portal_manage ON public.stone_price_overrides;
+CREATE POLICY stone_price_overrides_portal_manage ON public.stone_price_overrides FOR ALL TO anon, authenticated USING (TRUE) WITH CHECK (TRUE);
+DROP POLICY IF EXISTS loose_stones_portal_manage ON public.loose_stones;
+CREATE POLICY loose_stones_portal_manage ON public.loose_stones FOR ALL TO anon, authenticated USING (TRUE) WITH CHECK (TRUE);
+-- Movements are written only by move_loose_stone; the app just reads them.
+DROP POLICY IF EXISTS loose_stone_movements_portal_read ON public.loose_stone_movements;
+CREATE POLICY loose_stone_movements_portal_read ON public.loose_stone_movements FOR SELECT TO anon, authenticated USING (TRUE);
+DROP POLICY IF EXISTS gem_certificates_portal_manage ON public.gem_certificates;
+CREATE POLICY gem_certificates_portal_manage ON public.gem_certificates FOR ALL TO anon, authenticated USING (TRUE) WITH CHECK (TRUE);
+
+GRANT SELECT, INSERT, UPDATE ON public.material_rates TO anon, authenticated;
+GRANT SELECT, INSERT ON public.stone_price_overrides TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.loose_stones TO anon, authenticated;
+GRANT SELECT ON public.loose_stone_movements TO anon, authenticated;
+GRANT SELECT, INSERT, UPDATE ON public.gem_certificates TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.move_loose_stone(UUID, TEXT, INTEGER, NUMERIC, BIGINT, TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.set_certificate_status(UUID, TEXT, TEXT, TEXT) TO anon, authenticated;
+
+-- Certificate files (PDF / image).
+DO $$
+BEGIN
+  IF to_regclass('storage.buckets') IS NULL THEN RETURN; END IF;
+  INSERT INTO storage.buckets (id, name, public) VALUES ('certificates', 'certificates', TRUE)
+  ON CONFLICT (id) DO UPDATE SET public = TRUE;
+  DROP POLICY IF EXISTS certificate_files_read ON storage.objects;
+  CREATE POLICY certificate_files_read ON storage.objects FOR SELECT TO anon, authenticated USING (bucket_id = 'certificates');
+  DROP POLICY IF EXISTS certificate_files_insert ON storage.objects;
+  CREATE POLICY certificate_files_insert ON storage.objects FOR INSERT TO anon, authenticated WITH CHECK (bucket_id = 'certificates');
+END $$;
+
+NOTIFY pgrst, 'reload schema';
