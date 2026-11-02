@@ -506,9 +506,10 @@ export default function Dashboard() {
     const subtractOldGold = netRules?.netProfitIncludeOldGold ?? true
     const subtractPurchases = netRules?.netProfitIncludePurchases ?? false
     const inPeriod = (day: string) => (!analyticsDateFrom || day >= analyticsDateFrom) && (!analyticsDateTo || day <= analyticsDateTo)
-    const periodPurchases = supplierPurchases.filter(p => inPeriod(p.purchaseDate))
+    const kindPurchases = supplierPurchases.filter(p => kindMatch(p.gstAmount > 0))
+    const periodPurchases = kindPurchases.filter(p => inPeriod(p.purchaseDate))
     const totalPurchases = periodPurchases.reduce((s, p) => s + p.totalAmount, 0)
-    const supplierOwed = supplierPurchases.reduce((s, p) => s + p.due, 0)
+    const supplierOwed = kindPurchases.reduce((s, p) => s + p.due, 0)
     const openAdvances = advanceList.filter(a => a.status !== 'completed' && a.status !== 'cancelled')
     const advanceDepositsHeld = openAdvances.reduce((s, a) => s + a.deposit_amount, 0)
     const advanceBalanceDue = openAdvances.reduce((s, a) => s + a.remaining_balance, 0)
@@ -2541,7 +2542,7 @@ export default function Dashboard() {
                     ['Advance Deposits Held', formatCurrency(analytics.advanceDepositsHeld), `${analytics.openAdvanceCount} open order${analytics.openAdvanceCount === 1 ? '' : 's'} · ${formatCurrency(analytics.advanceBalanceDue)} to collect`, 'advance_orders', 'text-[#000000]'],
                     ['Credit Outstanding', formatCurrency(analytics.creditOutstanding), `${analytics.creditOutstandingCount} unpaid credit bill${analytics.creditOutstandingCount === 1 ? '' : 's'}`, 'outstanding_credits', 'text-rose-600'],
                   ] as const).map(([label, value, rawHint, target, tone]) => {
-                    const hint = analyticsBillKind !== 'all' && ['Expenses', 'Supplier Purchases', 'Owed to Suppliers', 'Advance Deposits Held'].includes(label) ? `${rawHint} · all bills` : rawHint
+                    const hint = analyticsBillKind !== 'all' && ['Expenses', 'Advance Deposits Held'].includes(label) ? `${rawHint} · all bills` : rawHint
                     return (
                     <button key={label} type="button" onClick={() => handleTabClick(target)} className="text-left bg-white border border-black/10 rounded-xl p-4 shadow-sm hover:border-black/25 transition-colors cursor-pointer">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-[#000000]">{label}</p>

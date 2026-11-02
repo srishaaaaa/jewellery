@@ -1,5 +1,7 @@
-import React from 'react'
-import type { AdvanceOrder } from '../../services/advanceOrderService'
+import React, { useEffect, useState } from 'react'
+import { getAdvanceOrderHistory, type AdvanceOrder, type AdvancePayment } from '../../services/advanceOrderService'
+import { supabase } from '../../lib/supabase'
+import { paymentModeLabel, parseSplitNote, stripSplitNote } from '../../lib/paymentModes'
 import { amountInWords } from '../../lib/amountInWords'
 import { formatPhoneDisplay } from '../../lib/phone'
 import { BilledTo, GrandTotal, Sheet, SheetFooter, SheetHeader, TotalRow } from './InvoiceParts'
@@ -12,6 +14,20 @@ const STATUS: Record<string, string> = {
 /** Advance receipt (or the advance order bill once completed) in the same sheet format as invoices. */
 export const AdvanceReceiptSheet: React.FC<{ order: AdvanceOrder }> = ({ order }) => {
   const completed = order.status === 'completed'
+  // Payments taken (deposit + balance, with any split) and, once billed, the bill's coupon / discount
+  const [payments, setPayments] = useState<AdvancePayment[]>([])
+  const [bill, setBill] = useState<{ coupon: number; couponCode: string; manual: number } | null>(null)
+  useEffect(() => {
+    let live = true
+    getAdvanceOrderHistory(order.id).then(h => { if (live) setPayments(h.payments) }).catch(() => undefined)
+    if (order.completed_order_id) {
+      supabase.from('orders').select('discount_amount, coupon_code, manual_discount_amount').eq('id', order.completed_order_id).maybeSingle()
+        .then(({ data }) => { if (live && data) setBill({ coupon: Number(data.discount_amount) || 0, couponCode: String(data.coupon_code || ''), manual: Number(data.manual_discount_amount) || 0 }) })
+    }
+    return () => { live = false }
+  }, [order.id, order.completed_order_id])
+  const discounts = (bill?.coupon || 0) + (bill?.manual || 0)
+  const paidTotal = completed ? Math.max(0, order.total_amount - discounts) : order.deposit_amount
   const created = new Date(order.created_at)
   const rows = order.products?.length
     ? order.products
@@ -72,17 +88,31 @@ export const AdvanceReceiptSheet: React.FC<{ order: AdvanceOrder }> = ({ order }
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 32, flexWrap: 'wrap', marginTop: 12, paddingTop: 16, borderTop: '1px solid #e5e7eb' }}>
         <div style={{ flex: '1 1 240px', minWidth: 0 }}>
           <div style={LABEL}>Amount in Words</div>
-          <div style={{ fontSize: 12, fontWeight: 600, fontStyle: 'italic', marginTop: 4 }}>{amountInWords(completed ? order.total_amount : order.deposit_amount)}</div>
+          <div style={{ fontSize: 12, fontWeight: 600, fontStyle: 'italic', marginTop: 4 }}>{amountInWords(paidTotal)}</div>
           <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 16, lineHeight: 1.8 }}>
-            <div>Advance Received: <span style={{ fontFamily: MONO, color: '#111111', fontWeight: 600 }}>₹{inr(order.deposit_amount)}</span></div>
-            {completed && order.final_payment_method && <div>Balance paid via {order.final_payment_method.toUpperCase()}</div>}
-            {order.remarks && <div>Notes: <span style={{ color: '#4b5563' }}>{order.remarks}</span></div>}
+            {payments.length > 0 ? payments.map(p => {
+              const split = parseSplitNote(p.remarks)
+              const what = p.payment_type === 'deposit' ? 'Advance' : 'Balance'
+              return (
+                <div key={p.id}>
+                  <div>{what} via {paymentModeLabel(split.length ? 'mixed' : p.payment_method)}: <span style={{ fontFamily: MONO, color: '#111111', fontWeight: 600 }}>₹{inr(p.amount)}</span></div>
+                  {split.map(([label, n]) => <div key={label} style={{ paddingLeft: 10 }}>{label}: <span style={{ fontFamily: MONO, color: '#111111', fontWeight: 600 }}>₹{inr(n)}</span></div>)}
+                </div>
+              )
+            }) : <>
+              <div>Advance Received: <span style={{ fontFamily: MONO, color: '#111111', fontWeight: 600 }}>₹{inr(order.deposit_amount)}</span></div>
+              {completed && order.final_payment_method && <div>Balance paid via {paymentModeLabel(order.final_payment_method)}</div>}
+            </>}
+            {stripSplitNote(order.remarks) && <div>Notes: <span style={{ color: '#4b5563' }}>{stripSplitNote(order.remarks)}</span></div>}
           </div>
         </div>
         <div style={{ flex: '0 1 280px', width: '100%', maxWidth: 300, marginLeft: 'auto' }}>
           <TotalRow label="Order Total" value={`₹${inr(order.total_amount)}`} />
+          {(bill?.coupon || 0) > 0 && <TotalRow label={`Coupon${bill?.couponCode ? ` (${bill.couponCode})` : ''}`} value={`− ₹${inr(bill!.coupon)}`} />}
+          {(bill?.manual || 0) > 0 && <TotalRow label="Discount" value={`− ₹${inr(bill!.manual)}`} />}
           <TotalRow label="Advance Paid" value={`− ₹${inr(order.deposit_amount)}`} />
-          <GrandTotal label={completed ? 'Paid in Full' : 'Balance Due'} value={completed ? order.total_amount : balance} />
+          {completed && <TotalRow label="Balance Paid" value={`− ₹${inr(Math.max(0, paidTotal - order.deposit_amount))}`} />}
+          <GrandTotal label={completed ? 'Paid in Full' : 'Balance Due'} value={completed ? paidTotal : balance} />
         </div>
       </div>
 

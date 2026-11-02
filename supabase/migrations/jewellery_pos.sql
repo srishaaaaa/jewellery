@@ -2186,3 +2186,108 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.edit_scheme_payment(UUID, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.void_scheme_payment(UUID) TO anon, authenticated;
+
+
+-- GST on supplier purchase bills: the rate and amount are kept on the purchase
+-- (total_amount includes the GST). A bill with GST counts as a GST purchase in Analytics.
+ALTER TABLE public.supplier_purchases ADD COLUMN IF NOT EXISTS gst_rate NUMERIC(5,2) NOT NULL DEFAULT 0;
+ALTER TABLE public.supplier_purchases ADD COLUMN IF NOT EXISTS gst_amount NUMERIC(14,2) NOT NULL DEFAULT 0;
+
+DROP FUNCTION IF EXISTS public.record_supplier_purchase(UUID, TEXT, DATE, JSONB, NUMERIC, TEXT, TEXT, TEXT, TEXT);
+CREATE OR REPLACE FUNCTION public.record_supplier_purchase(
+  p_supplier_id UUID,
+  p_supplier_invoice_no TEXT,
+  p_purchase_date DATE,
+  p_items JSONB,
+  p_amount_paid NUMERIC DEFAULT 0,
+  p_payment_method TEXT DEFAULT 'cash',
+  p_reference TEXT DEFAULT '',
+  p_notes TEXT DEFAULT '',
+  p_created_by TEXT DEFAULT 'Admin',
+  p_gst_rate NUMERIC DEFAULT 0
+)
+RETURNS public.supplier_purchases
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_by TEXT := COALESCE(NULLIF(p_created_by, ''), 'Admin');
+  v_item JSONB;
+  v_items JSONB := '[]'::JSONB;
+  v_total NUMERIC := 0;
+  v_qty NUMERIC;
+  v_gross NUMERIC;
+  v_stone NUMERIC;
+  v_net NUMERIC;
+  v_rate NUMERIC;
+  v_making NUMERIC;
+  v_other NUMERIC;
+  v_amount NUMERIC;
+  v_pid BIGINT;
+  v_before NUMERIC;
+  v_paid NUMERIC := ROUND(GREATEST(0, COALESCE(p_amount_paid, 0)), 2);
+  v_purchase public.supplier_purchases;
+  v_taxable NUMERIC;
+  v_gst NUMERIC;
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.suppliers WHERE id = p_supplier_id) THEN RAISE EXCEPTION 'Choose the supplier.'; END IF;
+  IF jsonb_typeof(p_items) IS DISTINCT FROM 'array' OR jsonb_array_length(p_items) = 0 THEN
+    RAISE EXCEPTION 'Add at least one item to the purchase.';
+  END IF;
+
+  FOR v_item IN SELECT value FROM jsonb_array_elements(p_items) LOOP
+    v_qty := COALESCE(NULLIF(v_item->>'quantity', '')::NUMERIC, 1);
+    v_gross := GREATEST(0, COALESCE(NULLIF(v_item->>'gross_weight', '')::NUMERIC, 0));
+    v_stone := GREATEST(0, COALESCE(NULLIF(v_item->>'stone_weight', '')::NUMERIC, 0));
+    v_rate := GREATEST(0, COALESCE(NULLIF(v_item->>'rate', '')::NUMERIC, 0));
+    v_making := GREATEST(0, COALESCE(NULLIF(v_item->>'making_cost', '')::NUMERIC, 0));
+    v_other := GREATEST(0, COALESCE(NULLIF(v_item->>'other_cost', '')::NUMERIC, 0));
+    IF v_qty <= 0 THEN RAISE EXCEPTION 'Quantity must be more than zero.'; END IF;
+    IF v_stone > v_gross AND v_gross > 0 THEN RAISE EXCEPTION 'Stone weight cannot be more than the gross weight.'; END IF;
+    v_net := ROUND(GREATEST(0, v_gross - v_stone), 3);
+    -- Weighed metal: net weight x rate + making + other for the whole line; otherwise the amount given.
+    v_amount := CASE WHEN v_net > 0 AND v_rate > 0
+                     THEN ROUND(v_net * v_rate + v_making + v_other, 2)
+                     ELSE ROUND(GREATEST(0, COALESCE(NULLIF(v_item->>'amount', '')::NUMERIC, 0)), 2) END;
+    IF v_amount <= 0 THEN RAISE EXCEPTION 'Every purchase line needs an amount (or a weight and rate).'; END IF;
+    v_total := v_total + v_amount;
+    v_items := v_items || jsonb_build_array(v_item || jsonb_build_object(
+      'quantity', v_qty, 'gross_weight', v_gross, 'stone_weight', v_stone, 'net_weight', v_net,
+      'rate', v_rate, 'making_cost', v_making, 'other_cost', v_other, 'amount', v_amount));
+  END LOOP;
+
+  -- GST on the supplier bill (CGST + SGST), added on top of the item total.
+  v_taxable := v_total;
+  v_gst := ROUND(v_taxable * LEAST(GREATEST(0, COALESCE(p_gst_rate, 0)), 100) / 100, 2);
+  v_total := v_taxable + v_gst;
+
+  IF v_paid > v_total THEN RAISE EXCEPTION 'Amount paid (%) is more than the purchase total (%).', v_paid, v_total; END IF;
+
+  INSERT INTO public.supplier_purchases (supplier_id, supplier_invoice_no, purchase_date, items, total_amount, amount_paid, notes, created_by, gst_rate, gst_amount)
+  VALUES (p_supplier_id, BTRIM(COALESCE(p_supplier_invoice_no, '')), COALESCE(p_purchase_date, CURRENT_DATE), v_items, v_total, v_paid, COALESCE(p_notes, ''), v_by, LEAST(GREATEST(0, COALESCE(p_gst_rate, 0)), 100), v_gst)
+  RETURNING * INTO v_purchase;
+
+  -- Stock in for lines linked to a catalogue item; its cost price becomes this purchase's unit cost.
+  FOR v_item IN SELECT value FROM jsonb_array_elements(v_items) LOOP
+    CONTINUE WHEN COALESCE(v_item->>'product_id', '') !~ '^[0-9]+$';
+    v_pid := (v_item->>'product_id')::BIGINT;
+    v_qty := (v_item->>'quantity')::NUMERIC;
+    v_amount := (v_item->>'amount')::NUMERIC;
+    SELECT stock_quantity INTO v_before FROM public.products WHERE id = v_pid FOR UPDATE;
+    CONTINUE WHEN NOT FOUND;
+    UPDATE public.products
+    SET stock_quantity = COALESCE(v_before, 0) + v_qty, purchase_price = ROUND(v_amount / v_qty, 2), updated_at = NOW()
+    WHERE id = v_pid;
+    INSERT INTO public.inventory_movements (product_id, movement_type, quantity_delta, quantity_before, quantity_after, unit_cost,
+                                           reference_type, reference_id, note, created_by_name)
+    VALUES (v_pid, 'RESTOCK', v_qty, COALESCE(v_before, 0), COALESCE(v_before, 0) + v_qty, ROUND(v_amount / v_qty, 2),
+            'purchase', v_purchase.purchase_number, 'Purchase ' || v_purchase.purchase_number, v_by);
+  END LOOP;
+
+  IF v_paid > 0 THEN
+    INSERT INTO public.supplier_payments (supplier_id, purchase_id, amount, payment_method, reference, created_by)
+    VALUES (p_supplier_id, v_purchase.id, v_paid, COALESCE(NULLIF(p_payment_method, ''), 'cash'), COALESCE(p_reference, ''), v_by);
+  END IF;
+  RETURN v_purchase;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.record_supplier_purchase(UUID, TEXT, DATE, JSONB, NUMERIC, TEXT, TEXT, TEXT, TEXT, NUMERIC) TO anon, authenticated;

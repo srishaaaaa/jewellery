@@ -2,6 +2,8 @@ import React from 'react'
 import { ExternalLink, Printer, X } from 'lucide-react'
 import { ModalPortal } from '../ModalPortal'
 import { LABEL, MONO, SHEET_FONT, inr, useShopProfile } from './invoiceStyle'
+import { gstSplit } from '../../lib/gst'
+import { parseSplitNote, paymentModeLabel } from '../../lib/paymentModes'
 
 /** Shared pieces of the IGMOLS-style invoice / receipt sheet. */
 
@@ -73,6 +75,32 @@ export const BilledTo: React.FC<{ name: string; phone?: string; extra?: React.Re
 
 
 /** One label / value line in the totals column. */
+/** "Paid via UPI: ₹5,000" or, for a mixed payment, one line per mode (read from the "Split: …" note). */
+export const PaymentLines: React.FC<{ method: string | null | undefined; amount: number; notes?: string | null; verb?: string }> = ({ method, amount, notes, verb = 'Paid' }) => {
+  const split = parseSplitNote(notes)
+  const val = (n: number) => <span style={{ fontFamily: MONO, color: '#111111', fontWeight: 600 }}>₹{inr(n)}</span>
+  return (
+    <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 16, lineHeight: 1.8 }}>
+      {split.length > 0
+        ? <>{split.map(([label, n]) => <div key={label}>{verb} by {label}: {val(n)}</div>)}<div>Total ({paymentModeLabel('mixed')}): {val(amount)}</div></>
+        : <div>{verb} via {paymentModeLabel(method || 'cash')}: {val(amount)}</div>}
+    </div>
+  )
+}
+
+/** CGST / SGST (% and ₹) and total GST rows, from the GST amount and the taxable value. */
+export const GstRows: React.FC<{ gst: number; taxable: number }> = ({ gst, taxable }) => {
+  if (!(gst > 0)) return null
+  const p = gstSplit(gst, taxable)
+  return (
+    <>
+      <TotalRow label={p.cgstLabel} value={`₹${inr(p.cgst)}`} />
+      <TotalRow label={p.sgstLabel} value={`₹${inr(p.sgst)}`} />
+      <TotalRow label={p.totalLabel} value={`₹${inr(gst)}`} />
+    </>
+  )
+}
+
 export const TotalRow: React.FC<{ label: React.ReactNode; value: React.ReactNode; color?: string }> = ({ label, value, color }) => (
   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 12, color: color || '#4b5563', marginBottom: 8 }}>
     <span>{label}</span>

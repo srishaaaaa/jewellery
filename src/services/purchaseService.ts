@@ -86,6 +86,9 @@ export interface Purchase {
   due: number
   /** When the balance owed to the supplier is due (null = not set) */
   dueDate: string | null
+  /** GST on the supplier bill (total includes it); 0 = non-GST bill */
+  gstRate: number
+  gstAmount: number
   notes: string
   createdBy: string
   createdAt: string
@@ -107,6 +110,7 @@ const mapPurchase = (r: Record<string, unknown>): Purchase => {
     items: (Array.isArray(r.items) ? r.items : []).map((it) => mapLine(it as Record<string, unknown>)),
     totalAmount: total, amountPaid: paid, due: Math.max(0, Math.round((total - paid) * 100) / 100),
     dueDate: r.due_date ? str(r.due_date).slice(0, 10) : null,
+    gstRate: toNumber(r.gst_rate, 0), gstAmount: toNumber(r.gst_amount, 0),
     notes: str(r.notes), createdBy: str(r.created_by), createdAt: str(r.created_at),
   }
 }
@@ -141,14 +145,18 @@ export const purchaseService = {
   /** Records the supplier's bill; linked catalogue items gain stock and take this cost price. */
   async create(input: {
     supplierId: string; supplierInvoiceNo: string; purchaseDate: string; items: Array<Omit<PurchaseLine, 'net_weight'>>
-    amountPaid: number; paymentMethod: string; reference: string; notes: string
+    amountPaid: number; paymentMethod: string; reference: string; notes: string; gstRate?: number
   }): Promise<Purchase> {
     const { data, error } = await supabase.rpc('record_supplier_purchase', {
       p_supplier_id: input.supplierId, p_supplier_invoice_no: input.supplierInvoiceNo, p_purchase_date: input.purchaseDate,
       p_items: input.items, p_amount_paid: input.amountPaid, p_payment_method: input.paymentMethod, p_reference: input.reference,
       p_notes: input.notes, p_created_by: currentUserName(),
+      ...(input.gstRate ? { p_gst_rate: input.gstRate } : {}),
     })
-    if (error) throw fail(error, 'Unable to record the purchase')
+    if (error) {
+      if (input.gstRate && /p_gst_rate|function .*record_supplier_purchase/i.test(error.message || '')) throw new Error('GST on purchases needs the database update: run supabase/migrations/jewellery_pos.sql again in the Supabase SQL Editor.')
+      throw fail(error, 'Unable to record the purchase')
+    }
     return mapPurchase((Array.isArray(data) ? data[0] : data) as Record<string, unknown>)
   },
   /** Sets or clears the date the supplier balance is due. */

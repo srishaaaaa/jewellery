@@ -4,7 +4,7 @@ import {
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { getErrorMessage } from '../lib/errorMessage'
-import { formatCurrency, formatInvoiceNo, formatPaymentMode, normalizeStructuredOrderItem, COUNTER_PAYMENT_METHODS } from '../lib/retail'
+import { formatCurrency, formatInvoiceNo, formatPaymentMode, normalizeStructuredOrderItem } from '../lib/retail'
 import { normalizePhone, toWhatsAppUrl, formatPhoneDisplay } from '../lib/phone'
 import { csvDate, csvPhone, downloadCsv } from '../lib/csv'
 import { calculateNetWeight, calculateOldGoldValue, formatWeight, GOLD_PURITIES, metalLabel, normalizeMetalType, readJewellerySnapshot, STANDARD_PURITY, suggestOldGoldRate } from '../lib/jewellery'
@@ -15,6 +15,9 @@ import { invoicePdfFile } from '../lib/invoicePdf'
 import { printDeskReceipt, storeDeskDoc, type DeskReceipt } from '../lib/deskReceipt'
 import { useNavigate } from 'react-router-dom'
 import { DocIcon, EyeIcon, WhatsAppIcon } from '../components/ActionIcons'
+import { PaymentModePicker } from '../components/PaymentModePicker'
+import { parseSplitNote, splitError, splitSummary, stripSplitNote, type PaymentMode, type SplitAmounts } from '../lib/paymentModes'
+import { gstSplit } from '../lib/gst'
 import { DocumentPreviewModal } from '../components/invoice/InvoiceParts'
 import { DeskDocSheet } from '../components/invoice/DeskDocSheet'
 import { PrintSettingsModal } from '../components/invoice/PrintSettingsModal'
@@ -136,14 +139,28 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     }).join('\n')
     sendWhatsApp(qt.phone, `💎 *Quotation — ${shopName()}*\n\nDear ${qt.customerName || 'Customer'},\n\n📌 *Quotation No:* ${qt.quotationNumber}\n📅 *Date:* ${fmtDate(qt.createdAt)}${qt.validUntil ? `\n⏳ *Valid until:* ${fmtDate(qt.validUntil)}` : ''}\n\n${lines}\n\n💰 *Estimated Total:* ₹ ${qt.total.toFixed(2)}\n\nPrices are at today's metal rate and may change with the rate. This is not an invoice.`)
   }
+  // Slip rows for a mixed payment ("Split: Cash ₹2,000 + UPI ₹3,000" kept in the note) and for GST
+  const splitRows = (note: string | null | undefined, verb = 'Paid'): Array<[string, string]> =>
+    parseSplitNote(note).map(([label, n]): [string, string] => [`${verb} by ${label}`, formatCurrency(n)])
+  const gstRows = (gst: number, taxable: number): Array<[string, string]> => {
+    if (!(gst > 0)) return []
+    const g = gstSplit(gst, taxable)
+    return [[g.cgstLabel, formatCurrency(g.cgst)], [g.sgstLabel, formatCurrency(g.sgst)], [g.totalLabel, formatCurrency(gst)]]
+  }
+  const withSplit = (note: string, split: SplitAmounts, mode: string) =>
+    mode === 'mixed' ? [stripSplitNote(note), `Split: ${splitSummary(split)}`].filter(Boolean).join(' • ') : note
+
   const quotationDoc = (qt: Quotation): DeskReceipt => ({
     title: 'Quotation', number: qt.quotationNumber, date: fmtDate(qt.createdAt, true), customerName: qt.customerName, phone: qt.phone,
     rows: [...qt.items.map((raw): [string, string] => {
       const it = normalizeStructuredOrderItem(raw)
       const j = it.jewellery
       return [`${it.name} × ${it.quantity}`, `${formatCurrency(it.line_total)}${j && j.net_weight ? ` (${formatWeight(j.net_weight)}${j.rate_per_gram ? ` @ ${formatCurrency(j.rate_per_gram)}/g` : ''})` : ''}`]
-    }), ['Valid until', fmtDate(qt.validUntil)], ...(qt.discount > 0 ? [['Discount', `− ${formatCurrency(qt.discount)}`] as [string, string]] : []), ...(qt.gst > 0 ? [['GST', formatCurrency(qt.gst)] as [string, string]] : [])],
-    totals: [['Subtotal', formatCurrency(qt.subtotal)], ['Quotation Total', formatCurrency(qt.total)]],
+    }), ['Valid until', fmtDate(qt.validUntil)]],
+    totals: [['Subtotal', formatCurrency(qt.subtotal)],
+      ...(qt.discount > 0 ? [['Discount', `− ${formatCurrency(qt.discount)}`] as [string, string]] : []),
+      ...gstRows(qt.gst, qt.subtotal - qt.discount),
+      ['Quotation Total', formatCurrency(qt.total)]],
     footer: 'This is an estimate at today\'s metal rate, not an invoice.',
   })
 
@@ -227,6 +244,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
   const [returnAmount, setReturnAmount] = useState('')
   const [returnType, setReturnType] = useState<'refund' | 'exchange'>('refund')
   const [returnMethod, setReturnMethod] = useState<string>('cash')
+  const [returnSplit, setReturnSplit] = useState<SplitAmounts>({})
   const [returnReason, setReturnReason] = useState('')
   // Customer on the return (filled from the invoice when one is chosen, editable either way).
   const [returnCustomer, setReturnCustomer] = useState({ phone: '', name: '' })
@@ -321,12 +339,13 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     if (!Number.isFinite(amount) || amount < 0) { setModalError('Enter a valid refund / exchange amount.'); return }
     if (returnOrder && amount > refundable + 0.009) { setModalError(`The most that can be refunded on this invoice is ${formatCurrency(refundable)} (bill total ${formatCurrency(returnOrder.total)}${alreadyRefunded ? `, ${formatCurrency(alreadyRefunded)} already returned` : ''}).`); return }
     if (!returnReason.trim()) { setModalError('Enter the reason for the return.'); return }
+    if (returnType === 'refund') { const se = splitError(returnMethod as PaymentMode, returnSplit, amount); if (se) { setModalError(se); return } }
     setSaving(true)
     setModalError('')
     try {
       let created = await returnService.create({
         orderId: returnOrder?.id || null, invoiceNo: returnOrder?.invoiceNo || '', customerName: returnCustomer.name.trim() || returnOrder?.customerName || '', phone,
-        items: returnLines, returnType, reason: returnReason, refundAmount: amount, refundMethod: returnMethod,
+        items: returnLines, returnType, reason: returnType === 'refund' ? withSplit(returnReason, returnSplit, returnMethod) : returnReason, refundAmount: amount, refundMethod: returnMethod,
       })
       void auditService.log({ action: 'return_created', entityType: 'sales_return', entityId: created.returnNumber, newValue: { invoice: returnOrder?.invoiceNo || 'none', type: returnType, amount }, note: returnReason })
       if (isAdmin) {
@@ -358,8 +377,8 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     rows: [['Original Invoice', r.invoiceNo ? formatInvoiceNo(r.invoiceNo) : 'Not given'], ...r.items.map((l): [string, string] => {
       const j = readJewellerySnapshot(l.jewellery)
       return [`${l.name} × ${l.quantity}`, `${formatCurrency(l.amount)}${j ? ` (${formatWeight(j.net_weight)} @ ${formatCurrency(j.rate_per_gram)}/g)` : ''}`]
-    }), ['Reason', r.reason], ['Status', r.status === 'approved' ? 'Approved' : r.status === 'rejected' ? 'Rejected' : 'Pending approval']],
-    totals: [[r.returnType === 'exchange' ? 'Exchange Credit' : `Refund (${formatPaymentMode(r.refundMethod)})`, formatCurrency(r.refundAmount)]],
+    }), ['Reason', stripSplitNote(r.reason)], ['Status', r.status === 'approved' ? 'Approved' : r.status === 'rejected' ? 'Rejected' : 'Pending approval']],
+    totals: [...(r.returnType === 'exchange' ? [] : splitRows(r.reason, 'Refunded')), [r.returnType === 'exchange' ? 'Exchange Credit' : `Refund (${formatPaymentMode(r.refundMethod)})`, formatCurrency(r.refundAmount)]],
     footer: 'The original invoice remains unchanged.',
   })
 
@@ -371,6 +390,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
   const emptyOldGold = { phone: '', name: '', description: '', metalType: 'gold', purity: '22K', testedPurity: '', grossWeight: '', stoneWeight: '', meltingDeduction: '', exchangeRate: '', otherDeduction: '', settlement: 'paid' as 'paid' | 'credit', payoutMethod: 'cash' }
   const [ogOpen, setOgOpen] = useState(false)
   const [ogForm, setOgForm] = useState(emptyOldGold)
+  const [ogSplit, setOgSplit] = useState<SplitAmounts>({})
   const ogSuggestedRate = suggestOldGoldRate(ogForm.metalType, ogForm.purity, Number(ogForm.testedPurity), rates)
   const ogNet = calculateNetWeight(Number(ogForm.grossWeight) || 0, Number(ogForm.stoneWeight) || 0)
   const ogRate = ogForm.exchangeRate.trim() === '' ? ogSuggestedRate : Number(ogForm.exchangeRate) || 0
@@ -384,12 +404,12 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     rows: [
       ...(x.invoiceNo ? [['Against Invoice', formatInvoiceNo(x.invoiceNo)] as [string, string]] : []),
       ['Metal', `${metalLabel(normalizeMetalType(x.metalType), x.purity)}${x.testedPurity != null ? ` (tested ${x.testedPurity}%)` : ''}`],
-      ...(x.description ? [['Item', x.description] as [string, string]] : []),
+      ...(stripSplitNote(x.description) ? [['Item', stripSplitNote(x.description)] as [string, string]] : []),
       ['Gross / Stone', `${formatWeight(x.grossWeight)} / ${formatWeight(x.stoneWeight)}`], ['Net Weight', formatWeight(x.netWeight)],
       ['Melting Loss', `${x.meltingDeductionPercent}%`], ['Rate', `${formatCurrency(x.exchangeRate)}/g`],
       ...(x.otherDeduction ? [['Other Deduction', formatCurrency(x.otherDeduction)] as [string, string]] : []),
     ],
-    totals: [[x.source === 'billing' ? 'Adjusted on bill' : x.settlement === 'credit' ? `Store credit${creditReceipt ? ` (${creditReceipt})` : ''}` : `Paid (${formatPaymentMode(x.payoutMethod)})`, formatCurrency(x.netValue)]],
+    totals: [...(x.source === 'counter' && x.settlement === 'paid' ? splitRows(x.description) : []), [x.source === 'billing' ? 'Adjusted on bill' : x.settlement === 'credit' ? `Store credit${creditReceipt ? ` (${creditReceipt})` : ''}` : `Paid (${formatPaymentMode(x.payoutMethod)})`, formatCurrency(x.netValue)]],
     footer: x.source === 'billing' ? 'Value adjusted against the invoice above.' : x.settlement === 'credit' ? 'Credit is adjusted against your next purchase.' : 'Old gold purchased by the store.',
   })
   const submitOldGold = async (event: FormEvent) => {
@@ -399,11 +419,12 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
     if (ogNet <= 0) { setModalError('Enter the old gold weight.'); return }
     if (ogRate <= 0) { setModalError('Enter the exchange rate (no metal rate set for today).'); return }
     if (ogPreview.value <= 0) { setModalError('The old gold value must be more than zero.'); return }
+    if (ogForm.settlement === 'paid') { const se = splitError(ogForm.payoutMethod as PaymentMode, ogSplit, ogPreview.value); if (se) { setModalError(se); return } }
     setSaving(true)
     setModalError('')
     try {
       const { exchange, advance } = await oldGoldService.recordCounter({
-        description: ogForm.description.trim(), metalType: ogForm.metalType, purity: ogForm.metalType === 'gold' ? ogForm.purity : STANDARD_PURITY,
+        description: ogForm.settlement === 'paid' ? withSplit(ogForm.description.trim(), ogSplit, ogForm.payoutMethod) : ogForm.description.trim(), metalType: ogForm.metalType, purity: ogForm.metalType === 'gold' ? ogForm.purity : STANDARD_PURITY,
         testedPurity: ogForm.testedPurity.trim() === '' ? null : Number(ogForm.testedPurity),
         grossWeight: Number(ogForm.grossWeight) || 0, stoneWeight: Number(ogForm.stoneWeight) || 0,
         meltingDeductionPercent: Number(ogForm.meltingDeduction) || 0, exchangeRate: ogRate, otherDeduction: Number(ogForm.otherDeduction) || 0,
@@ -426,21 +447,25 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
   const [advanceOpen, setAdvanceOpen] = useState(false)
   const [advanceForm, setAdvanceForm] = useState({ phone: '', name: '', amount: '', method: 'cash', purpose: '', notes: '' })
   const [advanceCreated, setAdvanceCreated] = useState<CustomerAdvance | null>(null)
+  const [advanceSplit, setAdvanceSplit] = useState<SplitAmounts>({})
   const submitAdvance = async (event: FormEvent) => {
     event.preventDefault()
     const phone = normalizePhone(advanceForm.phone)
     const amount = Number(advanceForm.amount)
     if (!phone) { setModalError('Enter a valid mobile number.'); return }
     if (!Number.isFinite(amount) || amount <= 0) { setModalError('Enter the advance amount.'); return }
-    if (advanceForm.method === 'cash') {
-      const cashRule = cashLimitCheck(amount, role, useSettingsStore.getState().settings?.posPermissions)
+    const advSplitErr = splitError(advanceForm.method as PaymentMode, advanceSplit, amount)
+    if (advSplitErr) { setModalError(advSplitErr); return }
+    const cashPart = advanceForm.method === 'cash' ? amount : advanceForm.method === 'mixed' ? Number(advanceSplit.cash) || 0 : 0
+    if (cashPart > 0) {
+      const cashRule = cashLimitCheck(cashPart, role, useSettingsStore.getState().settings?.posPermissions)
       if (cashRule.blocked) { setModalError(cashRule.blocked); return }
       if (cashRule.needsConfirm && !window.confirm(`Accept ${formatCurrency(amount)} in cash? This is above the cash limit.`)) return
     }
     setSaving(true)
     setModalError('')
     try {
-      const created = await advanceService.create({ customerName: advanceForm.name, phone, amount, paymentMethod: advanceForm.method, purpose: advanceForm.purpose, notes: advanceForm.notes })
+      const created = await advanceService.create({ customerName: advanceForm.name, phone, amount, paymentMethod: advanceForm.method, purpose: withSplit(advanceForm.purpose, advanceSplit, advanceForm.method), notes: advanceForm.notes })
       setAdvances((rows) => [created, ...rows])
       setAdvanceOpen(false)
       setAdvanceCreated(created)
@@ -453,8 +478,8 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
   const advanceDoc = (a: CustomerAdvance): DeskReceipt => ({
     title: a.source === 'exchange' ? 'Exchange Credit' : a.source === 'old_gold' ? 'Old Gold Credit' : a.source === 'gift_voucher' ? 'Gift Voucher' : 'Advance Receipt', number: a.receiptNumber, date: fmtDate(a.createdAt, true),
     customerName: a.customerName, phone: a.phone,
-    rows: [['Purpose', a.purpose || '—'], ['Payment', formatPaymentMode(a.paymentMethod)], ['Used on bills', formatCurrency(a.amountUsed)]],
-    totals: [['Amount', formatCurrency(a.amount)], ['Balance', formatCurrency(a.balance)]],
+    rows: [['Purpose', stripSplitNote(a.purpose) || '—'], ['Payment', formatPaymentMode(a.paymentMethod)], ['Used on bills', formatCurrency(a.amountUsed)]],
+    totals: [...splitRows(a.purpose), ['Amount', formatCurrency(a.amount)], ['Balance', formatCurrency(a.balance)]],
     footer: 'Adjusted against your next purchase. Not a tax invoice.',
   })
   const whatsappAdvance = (a: CustomerAdvance) => sendWhatsApp(a.phone,
@@ -883,11 +908,9 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                 </select>
               </Field>
               {returnType === 'refund' ? (
-                <Field label="Refund method">
-                  <select className={inputClass} value={returnMethod} onChange={(e) => setReturnMethod(e.target.value)}>
-                    {COUNTER_PAYMENT_METHODS.map((m) => <option key={m} value={m}>{formatPaymentMode(m)}</option>)}
-                  </select>
-                </Field>
+                <div className="sm:col-span-2"><Field label="Refund method">
+                  <PaymentModePicker mode={returnMethod as PaymentMode} onMode={setReturnMethod} split={returnSplit} onSplit={setReturnSplit} total={returnAmount.trim() === '' ? defaultReturnAmount : Number(returnAmount) || 0} />
+                </Field></div>
               ) : <div className="rounded-xl bg-[var(--accent-a10)] p-3 text-[11px] font-bold text-[var(--accent-dark)]">The value becomes exchange credit (an advance) for this customer. Apply it on the new bill — any difference is paid or refunded there.</div>}
               <Field label={`Amount (₹) — items total ${formatCurrency(defaultReturnAmount)}`}>
                 <input type="number" min="0" step="0.01" className={inputClass} value={returnAmount} onChange={(e) => setReturnAmount(e.target.value)} placeholder={defaultReturnAmount.toFixed(2)} />
@@ -953,9 +976,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
             ))}
           </div>
           {ogForm.settlement === 'paid' && <Field label="Paid by">
-            <select className={inputClass} value={ogForm.payoutMethod} onChange={(e) => setOgForm((f) => ({ ...f, payoutMethod: e.target.value }))}>
-              {COUNTER_PAYMENT_METHODS.map((m) => <option key={m} value={m}>{formatPaymentMode(m)}</option>)}
-            </select>
+            <PaymentModePicker mode={ogForm.payoutMethod as PaymentMode} onMode={(m) => setOgForm((f) => ({ ...f, payoutMethod: m }))} split={ogSplit} onSplit={setOgSplit} total={ogPreview.value} />
           </Field>}
         </div>
         <div className="shrink-0 flex gap-3 border-t border-black/10 bg-white px-4 py-3 sm:px-6">
@@ -977,11 +998,9 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
           <Field label="Mobile Number *"><input required className={inputClass} value={advanceForm.phone} onChange={(e) => setAdvanceForm((f) => ({ ...f, phone: e.target.value }))} /></Field>
           <Field label="Customer Name"><input className={inputClass} value={advanceForm.name} onChange={(e) => setAdvanceForm((f) => ({ ...f, name: e.target.value }))} /></Field>
           <Field label="Amount (₹) *"><input required type="number" min="1" step="0.01" className={inputClass} value={advanceForm.amount} onChange={(e) => setAdvanceForm((f) => ({ ...f, amount: e.target.value }))} /></Field>
-          <Field label="Payment Method">
-            <select className={inputClass} value={advanceForm.method} onChange={(e) => setAdvanceForm((f) => ({ ...f, method: e.target.value }))}>
-              {COUNTER_PAYMENT_METHODS.map((m) => <option key={m} value={m}>{formatPaymentMode(m)}</option>)}
-            </select>
-          </Field>
+          <div className="sm:col-span-2"><Field label="Payment Method">
+            <PaymentModePicker mode={advanceForm.method as PaymentMode} onMode={(m) => setAdvanceForm((f) => ({ ...f, method: m }))} split={advanceSplit} onSplit={setAdvanceSplit} total={Number(advanceForm.amount) || 0} />
+          </Field></div>
           <div className="sm:col-span-2"><Field label="Purpose"><input className={inputClass} value={advanceForm.purpose} onChange={(e) => setAdvanceForm((f) => ({ ...f, purpose: e.target.value }))} placeholder="e.g. Wedding necklace, gold booking" /></Field></div>
           <div className="sm:col-span-2"><Field label="Notes"><input className={inputClass} value={advanceForm.notes} onChange={(e) => setAdvanceForm((f) => ({ ...f, notes: e.target.value }))} /></Field></div>
         </div>

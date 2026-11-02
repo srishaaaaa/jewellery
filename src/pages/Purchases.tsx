@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Check, Edit2, Eye, IndianRupee, LayoutDashboard, Plus, Printer, RefreshCw, Truck, Users, X } from 'lucide-react'
 import { getErrorMessage } from '../lib/errorMessage'
-import { formatCurrency, formatPaymentMode, COUNTER_PAYMENT_METHODS } from '../lib/retail'
+import { formatCurrency, formatPaymentMode } from '../lib/retail'
 import { csvDate, csvPhone, downloadCsv } from '../lib/csv'
 import { formatWeight, GOLD_PURITIES, metalLabel, normalizeMetalType } from '../lib/jewellery'
 import { useNavigate } from 'react-router-dom'
@@ -140,9 +140,13 @@ export default function Purchases() {
 
   // ── New purchase ───────────────────────────────────────────────────────────
   const [purchaseOpen, setPurchaseOpen] = useState(false)
-  const [pForm, setPForm] = useState({ supplierId: '', invoiceNo: '', date: today(), dueDate: '', paid: '', method: 'bank', reference: '', notes: '' })
+  const [pForm, setPForm] = useState({ supplierId: '', invoiceNo: '', date: today(), dueDate: '', paid: '', method: 'bank', reference: '', notes: '', gstRate: '' })
+  const [pSplit, setPSplit] = useState<SplitAmounts>({})
   const [lines, setLines] = useState<LineForm[]>([emptyLine()])
-  const purchaseTotal = Math.round(lines.reduce((s, l) => s + lineAmount(l), 0) * 100) / 100
+  const purchaseTaxable = Math.round(lines.reduce((s, l) => s + lineAmount(l), 0) * 100) / 100
+  const purchaseGstRate = Math.min(100, Math.max(0, Number(pForm.gstRate) || 0))
+  const purchaseGst = Math.round(purchaseTaxable * purchaseGstRate) / 100
+  const purchaseTotal = Math.round((purchaseTaxable + purchaseGst) * 100) / 100
   const setLine = (idx: number, patch: Partial<LineForm>) => setLines((cur) => cur.map((l, i) => (i === idx ? { ...l, ...patch } : l)))
   const pickProduct = (idx: number, productId: string) => {
     const p = products.find((x) => String(x.id) === productId)
@@ -152,7 +156,8 @@ export default function Purchases() {
     } : { productId: '' })
   }
   const openPurchase = () => {
-    setPForm({ supplierId: suppliers.find((s) => s.isActive)?.id || '', invoiceNo: '', date: today(), dueDate: '', paid: '', method: 'bank', reference: '', notes: '' })
+    setPForm({ supplierId: suppliers.find((s) => s.isActive)?.id || '', invoiceNo: '', date: today(), dueDate: '', paid: '', method: 'bank', reference: '', notes: '', gstRate: '' })
+    setPSplit({})
     setLines([emptyLine()])
     setModalError('')
     setPurchaseOpen(true)
@@ -168,6 +173,8 @@ export default function Purchases() {
     }
     const paid = n(pForm.paid)
     if (paid > purchaseTotal) { setModalError(`Amount paid is more than the total (${formatCurrency(purchaseTotal)}).`); return }
+    if (paid > 0) { const se = splitError(pForm.method as PaymentMode, pSplit, paid); if (se) { setModalError(se); return } }
+    const purchaseNotes = paid > 0 && pForm.method === 'mixed' ? [pForm.notes.trim(), `Split: ${splitSummary(pSplit)}`].filter(Boolean).join(' • ') : pForm.notes.trim()
     setSaving(true)
     setModalError('')
     try {
@@ -178,7 +185,7 @@ export default function Purchases() {
           gross_weight: n(l.gross), stone_weight: n(l.stone), rate: n(l.rate), making_cost: n(l.making), other_cost: n(l.other),
           stone_details: l.stones.trim(), quantity: n(l.qty), amount: lineAmount(l),
         })),
-        amountPaid: paid, paymentMethod: pForm.method, reference: pForm.reference.trim(), notes: pForm.notes.trim(),
+        amountPaid: paid, paymentMethod: pForm.method, reference: pForm.reference.trim(), notes: purchaseNotes, gstRate: purchaseGstRate,
       })
       let saved = created
       if (pForm.dueDate && created.due > 0) {
@@ -466,12 +473,22 @@ export default function Purchases() {
           </div>
 
           <div className="grid gap-4 sm:grid-cols-4 items-end">
-            <div className="rounded-xl bg-[var(--accent-a10)] p-3"><p className="text-[10px] font-bold uppercase text-[#000000]">Purchase total</p><p className="text-xl font-black text-[#000000]">{formatCurrency(purchaseTotal)}</p></div>
-            <Field label="Paid now ₹"><input type="number" min="0" step="0.01" className={inputClass} value={pForm.paid} onChange={(e) => setPForm((f) => ({ ...f, paid: e.target.value }))} placeholder="0" /></Field>
-            <Field label="Paid by">
-              <select className={inputClass} value={pForm.method} onChange={(e) => setPForm((f) => ({ ...f, method: e.target.value }))}>{COUNTER_PAYMENT_METHODS.map((m) => <option key={m} value={m}>{formatPaymentMode(m)}</option>)}</select>
+            <Field label="GST on bill %">
+              <select className={inputClass} value={pForm.gstRate} onChange={(e) => setPForm((f) => ({ ...f, gstRate: e.target.value }))}>
+                <option value="">No GST (non-GST bill)</option>
+                {['3', '5', '12', '18'].map((r) => <option key={r} value={r}>{r}% (CGST {Number(r) / 2}% + SGST {Number(r) / 2}%)</option>)}
+              </select>
             </Field>
+            <div className="sm:col-span-3 rounded-xl bg-[var(--accent-a10)] p-3 text-xs font-semibold text-[#000000]">
+              <div className="flex flex-wrap gap-x-5 gap-y-1">
+                <span>Items <b>{formatCurrency(purchaseTaxable)}</b></span>
+                {purchaseGst > 0 && <><span>CGST {purchaseGstRate / 2}% <b>{formatCurrency(purchaseGst / 2)}</b></span><span>SGST {purchaseGstRate / 2}% <b>{formatCurrency(purchaseGst - Math.round(purchaseGst * 50) / 100)}</b></span><span>Total GST {purchaseGstRate}% <b>{formatCurrency(purchaseGst)}</b></span></>}
+              </div>
+              <p className="mt-1 text-[10px] font-bold uppercase">Purchase total</p><p className="text-xl font-black">{formatCurrency(purchaseTotal)}</p>
+            </div>
+            <Field label="Paid now ₹"><input type="number" min="0" step="0.01" className={inputClass} value={pForm.paid} onChange={(e) => setPForm((f) => ({ ...f, paid: e.target.value }))} placeholder="0" /></Field>
             <Field label="Reference"><input className={inputClass} value={pForm.reference} onChange={(e) => setPForm((f) => ({ ...f, reference: e.target.value }))} placeholder="UTR / cheque no." /></Field>
+            <div className="sm:col-span-4"><PaymentModePicker label="Paid by" mode={pForm.method as PaymentMode} onMode={(m) => setPForm((f) => ({ ...f, method: m }))} split={pSplit} onSplit={setPSplit} total={n(pForm.paid)} /></div>
           </div>
           <Field label="Notes"><input className={inputClass} value={pForm.notes} onChange={(e) => setPForm((f) => ({ ...f, notes: e.target.value }))} /></Field>
         </div>

@@ -2,8 +2,8 @@ import React from 'react'
 import type { Purchase, Supplier, SupplierPayment } from '../../services/purchaseService'
 import { amountInWords } from '../../lib/amountInWords'
 import { formatWeight, metalLabel, normalizeMetalType } from '../../lib/jewellery'
-import { paymentModeLabel } from '../../lib/paymentModes'
-import { GrandTotal, Sheet, SheetFooter, SheetHeader, TotalRow } from './InvoiceParts'
+import { parseSplitNote, paymentModeLabel, stripSplitNote } from '../../lib/paymentModes'
+import { GrandTotal, GstRows, Sheet, SheetFooter, SheetHeader, TotalRow } from './InvoiceParts'
 import { LABEL, MONO, TD, TH, inr } from './invoiceStyle'
 
 const longDate = (iso: string) => {
@@ -80,13 +80,20 @@ export const PurchaseBillSheet: React.FC<{ purchase: Purchase; supplier?: Suppli
           {payments.length > 0 && (
             <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 16, lineHeight: 1.8 }}>
               {payments.map(pm => (
-                <div key={pm.id}>{longDate(pm.paidAt)} · {paymentModeLabel(pm.paymentMethod === 'qr' ? 'upi' : pm.paymentMethod)}{pm.reference ? ` · Ref ${pm.reference}` : ''}: <span style={{ fontFamily: MONO, color: '#111111', fontWeight: 600 }}>₹{inr(pm.amount)}</span></div>
+                <div key={pm.id}>
+                  <div>{longDate(pm.paidAt)} · {paymentModeLabel(pm.paymentMethod === 'qr' ? 'upi' : pm.paymentMethod)}{pm.reference ? ` · Ref ${pm.reference}` : ''}: <span style={{ fontFamily: MONO, color: '#111111', fontWeight: 600 }}>₹{inr(pm.amount)}</span></div>
+                  {parseSplitNote(pm.notes || (payments.length === 1 ? purchase.notes : '')).map(([label, n]) => <div key={label} style={{ paddingLeft: 10 }}>{label}: <span style={{ fontFamily: MONO, color: '#111111', fontWeight: 600 }}>₹{inr(n)}</span></div>)}
+                </div>
               ))}
             </div>
           )}
-          {purchase.notes && <div style={{ fontSize: 11, color: '#4b5563', marginTop: 10 }}>Notes: {purchase.notes}</div>}
+          {stripSplitNote(purchase.notes) && <div style={{ fontSize: 11, color: '#4b5563', marginTop: 10 }}>Notes: {stripSplitNote(purchase.notes)}</div>}
         </div>
         <div style={{ flex: '0 1 280px', width: '100%', maxWidth: 300, marginLeft: 'auto' }}>
+          {purchase.gstAmount > 0 && <>
+            <TotalRow label="Items Total" value={`₹${inr(purchase.totalAmount - purchase.gstAmount)}`} />
+            <GstRows gst={purchase.gstAmount} taxable={purchase.totalAmount - purchase.gstAmount} />
+          </>}
           <TotalRow label="Purchase Total" value={`₹${inr(purchase.totalAmount)}`} />
           <TotalRow label="Paid to Supplier" value={`− ₹${inr(purchase.amountPaid)}`} />
           <GrandTotal label={purchase.due > 0 ? 'Balance Owed' : 'Paid in Full'} value={purchase.due > 0 ? purchase.due : purchase.totalAmount} color={purchase.due > 0 ? '#B91C1C' : undefined} />

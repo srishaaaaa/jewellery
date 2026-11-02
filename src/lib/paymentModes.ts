@@ -32,3 +32,17 @@ export function splitError(mode: PaymentMode, split: SplitAmounts, total: number
   if (sum !== due) return `Mixed amounts add up to ₹${sum.toLocaleString('en-IN')} but ₹${due.toLocaleString('en-IN')} is due.`
   return ''
 }
+
+/** Reads "Split: Cash ₹2,000 + UPI ₹3,000" back out of a note: [["Cash", 2000], ["UPI", 3000]]. */
+export function parseSplitNote(text: string | null | undefined): Array<[string, number]> {
+  const m = /Split:\s*([^•\n]+)/i.exec(String(text || ''))
+  if (!m) return []
+  return m[1].split('+').map(part => {
+    const p = /([A-Za-z]+)\s*₹\s*([\d,.]+)/.exec(part.trim())
+    return p ? [p[1], Number(p[2].replace(/,/g, '')) || 0] as [string, number] : null
+  }).filter((x): x is [string, number] => !!x && x[1] > 0)
+}
+
+/** A note without its "Split: …" part (the split is shown separately). */
+export const stripSplitNote = (text: string | null | undefined) =>
+  String(text || '').replace(/\s*(•\s*)?Split:\s*[^•\n]+/i, '').replace(/^\s*•\s*|\s*•\s*$/g, '').trim()

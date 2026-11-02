@@ -4,7 +4,8 @@ import { FREQUENCY_LABELS, type JewelleryScheme } from '../../lib/jewellery'
 import { amountInWords } from '../../lib/amountInWords'
 import { formatPhoneDisplay } from '../../lib/phone'
 import { paymentMethodLabel, type ReceiptTotals } from '../../lib/schemeReceipt'
-import { BilledTo, GrandTotal, Sheet, SheetFooter, SheetHeader, TotalRow } from './InvoiceParts'
+import { BilledTo, GrandTotal, PaymentLines, Sheet, SheetFooter, SheetHeader, TotalRow } from './InvoiceParts'
+import { stripSplitNote } from '../../lib/paymentModes'
 import { LABEL, MONO, TD, TH, inr } from './invoiceStyle'
 
 const longDate = (iso: string | null | undefined) => {
@@ -43,7 +44,7 @@ export const SchemeReceiptSheet: React.FC<{ scheme: JewelleryScheme; installment
                 {FREQUENCY_LABELS[scheme.frequency]} · due {longDate(installment.dueDate)}
                 {installment.goldGrams != null && installment.goldRate ? ` · ${installment.goldGrams.toFixed(3)} g ${installment.goldPurity || ''} at ₹${inr(installment.goldRate)}/g` : ''}
               </div>
-              {installment.notes && <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2 }}>{installment.notes}</div>}
+              {stripSplitNote(installment.notes) && <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2 }}>{stripSplitNote(installment.notes)}</div>}
             </td>
             <td style={{ ...TD, textAlign: 'center', fontWeight: 600 }}>{installment.installmentNumber} of {scheme.totalInstallments}</td>
             <td style={{ ...TD, textAlign: 'right', fontFamily: MONO, fontWeight: 700 }}>{inr(installment.amountPaid)}</td>
@@ -55,6 +56,7 @@ export const SchemeReceiptSheet: React.FC<{ scheme: JewelleryScheme; installment
         <div style={{ flex: '1 1 240px', minWidth: 0 }}>
           <div style={LABEL}>Amount in Words</div>
           <div style={{ fontSize: 12, fontWeight: 600, fontStyle: 'italic', marginTop: 4 }}>{amountInWords(installment.amountPaid)}</div>
+          <PaymentLines method={installment.paymentMethod} amount={installment.amountPaid} notes={installment.notes} />
           <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 16, lineHeight: 1.8 }}>
             <div>Gold saved so far: <span style={{ fontFamily: MONO, color: '#111111', fontWeight: 600 }}>{totals.totalGrams.toFixed(3)} g</span></div>
             <div>Next due: <span style={{ color: '#111111', fontWeight: 600 }}>{totals.nextDueDate ? longDate(totals.nextDueDate) : 'All installments paid'}</span></div>
