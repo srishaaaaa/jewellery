@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { BadgeCheck, CheckCircle2, Edit2, ExternalLink, Plus, X, XCircle } from 'lucide-react'
+import { BadgeCheck, CheckCircle2, Edit2, ExternalLink, Plus, Trash2, X, XCircle } from 'lucide-react'
 import { ModalPortal } from '../ModalPortal'
 import { EyeIcon, actionBtn } from '../ActionIcons'
 import { DetailDrawer, DrawerTable } from '../DetailDrawer'
@@ -90,6 +90,15 @@ export default function CertificatesView() {
     try { replace(await certificateService.setStatus(c.id, status, note || '')) } catch (err) { setError(getErrorMessage(err, 'Unable to change the status')) }
   }
 
+  const removeCert = async (c: GemCertificate) => {
+    if (!window.confirm(`Delete certificate ${c.lab} ${c.certificateNo}? This cannot be undone.`)) return
+    try {
+      await certificateService.remove(c.id)
+      setCerts((rows) => rows.filter((r) => r.id !== c.id))
+      if (view?.id === c.id) setView(null)
+    } catch (err) { setError(getErrorMessage(err, 'Unable to delete the certificate')) }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -138,7 +147,8 @@ export default function CertificatesView() {
                         <button type="button" title="View" onClick={() => setView(c)} className={`${actionBtn} bg-black/5 hover:bg-black/10`}><EyeIcon className="w-4 h-4" /></button>
                         <button type="button" title="Edit / upload file" onClick={() => { setModalError(''); setFile(null); setForm({ id: c.id, certificateNo: c.certificateNo, lab: c.lab, issueDate: c.issueDate || '', expiryDate: c.expiryDate || '', fileUrl: c.fileUrl, labUrl: c.labUrl, looseStoneId: c.looseStoneId || '', productId: c.productId == null ? '' : String(c.productId), stoneDescription: c.stoneDescription, notes: c.notes }) }} className={`${actionBtn} bg-[#2563EB]/10 text-[#2563EB] hover:bg-[#2563EB]/20`}><Edit2 className="w-4 h-4" /></button>
                         {isAdmin && st !== 'verified' && <button type="button" title="Verify (after checking with the lab)" onClick={() => void setStatus(c, 'verified')} className={`${actionBtn} bg-[#10B981]/10 text-[#10B981] hover:bg-[#10B981]/20`}><CheckCircle2 className="w-4 h-4" /></button>}
-                        {isAdmin && st !== 'rejected' && <button type="button" title="Reject" onClick={() => void setStatus(c, 'rejected')} className={`${actionBtn} bg-[#DC2626]/10 text-[#DC2626] hover:bg-[#DC2626]/20`}><XCircle className="w-4 h-4" /></button>}
+                        {isAdmin && st !== 'rejected' && <button type="button" title="Reject" onClick={() => void setStatus(c, 'rejected')} className={`${actionBtn} bg-[#F59E0B]/10 text-[#D97706] hover:bg-[#F59E0B]/20`}><XCircle className="w-4 h-4" /></button>}
+                        {isAdmin && <button type="button" title="Delete certificate" onClick={() => void removeCert(c)} className={`${actionBtn} bg-[#DC2626]/10 hover:bg-[#DC2626]/20 text-[#DC2626]`}><Trash2 className="w-4 h-4" /></button>}
                       </div></td>
                     </tr>
                   )

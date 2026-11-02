@@ -1,13 +1,13 @@
 import { looseStoneService, type MaterialCategory } from '../services/stoneRateService'
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Check, Edit2, Eye, IndianRupee, LayoutDashboard, Plus, Printer, RefreshCw, Truck, Users, X } from 'lucide-react'
+import { Check, Edit2, Eye, IndianRupee, LayoutDashboard, Plus, Printer, RefreshCw, Trash2, Truck, Users, X } from 'lucide-react'
 import { getErrorMessage } from '../lib/errorMessage'
 import { formatCurrency, formatPaymentMode } from '../lib/retail'
 import { csvDate, csvPhone, downloadCsv } from '../lib/csv'
 import { formatWeight, GOLD_PURITIES, metalLabel, normalizeMetalType } from '../lib/jewellery'
 import { useNavigate } from 'react-router-dom'
 import { ModalPortal } from '../components/ModalPortal'
-import { useProductStore, useSettingsStore } from '../store/store'
+import { useAdminAuthStore, useProductStore, useSettingsStore } from '../store/store'
 import { BRAND_EN } from '../lib/brand'
 import { PaymentModePicker } from '../components/PaymentModePicker'
 import { splitError, splitSummary, type PaymentMode, type SplitAmounts } from '../lib/paymentModes'
@@ -225,6 +225,35 @@ export default function Purchases() {
   // ── Detail + pay ───────────────────────────────────────────────────────────
   const [detail, setDetail] = useState<Purchase | null>(null)
   const [detailPayments, setDetailPayments] = useState<SupplierPayment[]>([])
+  const isAdmin = useAdminAuthStore((s) => s.role) === 'admin'
+  const deletePurchase = async (p: Purchase) => {
+    if (!window.confirm(`Delete purchase ${p.purchaseNumber} (${formatCurrency(p.totalAmount)})?\n\nStock it added to catalogue items is taken back and its supplier payments are removed. Loose stones it added stay in Loose Stones. This cannot be undone.`)) return
+    try {
+      await purchaseService.remove(p.id)
+      void auditService.log({ action: 'purchase_deleted', entityType: 'purchase', entityId: p.purchaseNumber, oldValue: { total: p.totalAmount, paid: p.amountPaid } })
+      setPurchases((rows) => rows.filter((r) => r.id !== p.id))
+      if (detail?.id === p.id) setDetail(null)
+      setNotice(`${p.purchaseNumber} deleted.`)
+      if (p.items.some((i) => i.product_id)) void useProductStore.getState().fetchProducts()
+    } catch (err) { setError(getErrorMessage(err, 'Unable to delete the purchase')) }
+  }
+  const deletePayment = async (paymentId: string, amount: number) => {
+    if (!window.confirm(`Delete this payment of ${formatCurrency(amount)}? The amount owed goes back up.`)) return
+    try {
+      const updated = await purchaseService.removePayment(paymentId)
+      setDetailPayments((rows) => rows.filter((r) => r.id !== paymentId))
+      if (updated) { setPurchases((rows) => rows.map((r) => (r.id === updated.id ? updated : r))); setDetail((d) => (d && d.id === updated.id ? updated : d)) }
+      void auditService.log({ action: 'supplier_payment_deleted', entityType: 'purchase', entityId: updated?.purchaseNumber || paymentId, oldValue: { amount } })
+    } catch (err) { setModalError(getErrorMessage(err, 'Unable to delete the payment')) }
+  }
+  const deleteSupplier = async (s: Supplier) => {
+    if (!window.confirm(`Delete supplier ${s.name}? Only a supplier with no purchases can be deleted.`)) return
+    try {
+      await supplierService.remove(s.id)
+      setSuppliers((rows) => rows.filter((r) => r.id !== s.id))
+      setNotice(`${s.name} deleted.`)
+    } catch (err) { setError(getErrorMessage(err, 'Unable to delete the supplier')) }
+  }
   const [payForm, setPayForm] = useState({ amount: '', method: 'bank', reference: '' })
   const [payMode, setPayMode] = useState<PaymentMode>('bank')
   const [paySplit, setPaySplit] = useState<SplitAmounts>({})
@@ -372,6 +401,7 @@ export default function Purchases() {
                       <button className={`${actionBtn} bg-black/10 hover:bg-black/15 text-[#000000]`} title="View purchase bill" onClick={() => void openDetail(p).then(() => setBillPreview(true))}><DocIcon className="w-4 h-4" /></button>
                       <button className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`} title="Purchase details" onClick={() => void openDetail(p)}><EyeIcon className="w-4 h-4" /></button>
                       {p.due > 0 && <button className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`} title="Pay supplier" onClick={() => void openDetail(p)}><IndianRupee className="w-4 h-4" /></button>}
+                      {isAdmin && <button className={`${actionBtn} bg-[#DC2626]/10 hover:bg-[#DC2626]/20 text-[#DC2626]`} title="Delete purchase" onClick={() => void deletePurchase(p)}><Trash2 className="w-4 h-4" /></button>}
                       <button className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`} title="Print" onClick={() => void openDetail(p).then(() => setPrintOpen(true))}><Printer className="w-4 h-4" /></button>
                     </div></td>
                   </tr>
@@ -395,6 +425,7 @@ export default function Purchases() {
                         <button className={`${actionBtn} bg-black/5 hover:bg-black/10 text-[#000000]`} title="View this supplier's purchases" onClick={() => { setSupplierFilter(s.id); setTab('purchases') }}><EyeIcon className="w-4 h-4" /></button>
                         <button className={`${actionBtn} bg-[#2563EB]/10 hover:bg-[#2563EB]/20 text-[#2563EB]`} title="Edit supplier" onClick={() => { setModalError(''); setSupplierEdit({ id: s.id, form: { name: s.name, phone: s.phone, gstin: s.gstin, address: s.address, notes: s.notes } }) }}><Edit2 className="w-4 h-4" /></button>
                         <button className={`${actionBtn} ${s.isActive ? 'bg-[#F59E0B]/10 hover:bg-[#F59E0B]/20 text-[#D97706]' : 'bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]'}`} title={s.isActive ? 'Deactivate supplier' : 'Activate supplier'} onClick={() => void toggleSupplier(s)}>{s.isActive ? <X className="w-4 h-4" /> : <Check className="w-4 h-4" />}</button>
+                        {isAdmin && <button className={`${actionBtn} bg-[#DC2626]/10 hover:bg-[#DC2626]/20 text-[#DC2626]`} title="Delete supplier" onClick={() => void deleteSupplier(s)}><Trash2 className="w-4 h-4" /></button>}
                       </div></td>
                     </tr>
                   )
@@ -597,7 +628,8 @@ export default function Purchases() {
             {detailPayments.length === 0 ? <p className="text-sm text-[#000000]">No payments yet.</p> : detailPayments.map((pm) => (
               <div key={pm.id} className="flex flex-wrap justify-between gap-2 rounded-xl bg-emerald-50 p-3 text-sm">
                 <span className="font-bold">{fmtDate(pm.paidAt)} • {formatPaymentMode(pm.paymentMethod)}{pm.reference ? ` • Ref ${pm.reference}` : ''} • {pm.createdBy}</span>
-                <span className="font-black">{formatCurrency(pm.amount)}</span>
+                <span className="flex items-center gap-2 font-black">{formatCurrency(pm.amount)}
+                  {isAdmin && <button type="button" title="Delete this payment" onClick={() => void deletePayment(pm.id, pm.amount)} className={`${actionBtn} bg-[#DC2626]/10 hover:bg-[#DC2626]/20 text-[#DC2626]`}><Trash2 className="w-4 h-4" /></button>}</span>
               </div>
             ))}
           </div>

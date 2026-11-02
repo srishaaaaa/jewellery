@@ -2768,3 +2768,124 @@ GRANT EXECUTE ON FUNCTION public.change_pos_passcode(TEXT, TEXT, TEXT) TO anon, 
 GRANT EXECUTE ON FUNCTION public.get_staff_access() TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.save_staff_access(TEXT, JSONB, JSONB) TO anon, authenticated;
 NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- 32. Delete actions (admin). Each one undoes what the record did; bills already
+--     made keep the prices saved on them.
+-- ============================================================================
+
+-- Metal rate history stays append-only, except for this admin delete of a wrong entry.
+CREATE OR REPLACE FUNCTION public.metal_rates_append_only()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP = 'DELETE' AND COALESCE(current_setting('app.rate_delete', true), '') = 'on' THEN RETURN OLD; END IF;
+  RAISE EXCEPTION 'Metal rate history cannot be changed. Enter a new rate instead.';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.delete_metal_rate(p_id BIGINT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  PERFORM set_config('app.rate_delete', 'on', true);
+  DELETE FROM public.metal_rates WHERE id = p_id;
+  PERFORM set_config('app.rate_delete', 'off', true);
+  IF NOT FOUND THEN RAISE EXCEPTION 'Rate not found.'; END IF;
+END;
+$$;
+
+-- Stone price-list entries: same idea.
+CREATE OR REPLACE FUNCTION public.material_rates_keep_history()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    IF COALESCE(current_setting('app.rate_delete', true), '') = 'on' THEN RETURN OLD; END IF;
+    RAISE EXCEPTION 'Rate history cannot be deleted. Mark the rate inactive instead.';
+  END IF;
+  IF NEW.price IS DISTINCT FROM OLD.price OR NEW.pricing_unit IS DISTINCT FROM OLD.pricing_unit
+     OR NEW.rate_key IS DISTINCT FROM OLD.rate_key OR NEW.effective_from IS DISTINCT FROM OLD.effective_from
+     OR NEW.category IS DISTINCT FROM OLD.category OR NEW.name IS DISTINCT FROM OLD.name
+     OR NEW.specs IS DISTINCT FROM OLD.specs OR NEW.carat_min IS DISTINCT FROM OLD.carat_min OR NEW.carat_max IS DISTINCT FROM OLD.carat_max THEN
+    RAISE EXCEPTION 'A rate cannot be changed after it is saved. Add a new rate instead (the old one stays in the history).';
+  END IF;
+  NEW.updated_at := NOW();
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.delete_material_rate(p_id UUID)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  PERFORM set_config('app.rate_delete', 'on', true);
+  DELETE FROM public.material_rates WHERE id = p_id;
+  PERFORM set_config('app.rate_delete', 'off', true);
+  IF NOT FOUND THEN RAISE EXCEPTION 'Rate not found.'; END IF;
+END;
+$$;
+
+-- Supplier purchase: takes back the stock it added to catalogue items, removes its payments.
+CREATE OR REPLACE FUNCTION public.delete_supplier_purchase(p_id UUID, p_by TEXT DEFAULT 'Admin')
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v public.supplier_purchases;
+  v_item JSONB;
+  v_pid BIGINT;
+  v_qty NUMERIC;
+  v_before NUMERIC;
+BEGIN
+  SELECT * INTO v FROM public.supplier_purchases WHERE id = p_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Purchase not found.'; END IF;
+  FOR v_item IN SELECT value FROM jsonb_array_elements(v.items) LOOP
+    CONTINUE WHEN COALESCE(v_item->>'product_id', '') !~ '^[0-9]+$';
+    v_pid := (v_item->>'product_id')::BIGINT;
+    v_qty := COALESCE(NULLIF(v_item->>'quantity', '')::NUMERIC, 1);
+    SELECT stock_quantity INTO v_before FROM public.products WHERE id = v_pid FOR UPDATE;
+    CONTINUE WHEN NOT FOUND;
+    UPDATE public.products SET stock_quantity = GREATEST(COALESCE(v_before, 0) - v_qty, 0), updated_at = NOW() WHERE id = v_pid;
+    INSERT INTO public.inventory_movements (product_id, movement_type, quantity_delta, quantity_before, quantity_after,
+                                           reference_type, reference_id, note, created_by_name)
+    VALUES (v_pid, 'CORRECTION', -LEAST(v_qty, COALESCE(v_before, 0)), COALESCE(v_before, 0), GREATEST(COALESCE(v_before, 0) - v_qty, 0),
+            'purchase', v.purchase_number, 'Purchase ' || v.purchase_number || ' deleted', COALESCE(NULLIF(p_by, ''), 'Admin'));
+  END LOOP;
+  DELETE FROM public.supplier_payments WHERE purchase_id = p_id;
+  DELETE FROM public.supplier_purchases WHERE id = p_id;
+END;
+$$;
+
+-- Supplier payment entered by mistake: the purchase's paid amount goes back down.
+CREATE OR REPLACE FUNCTION public.delete_supplier_payment(p_id UUID)
+RETURNS public.supplier_purchases LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  pay public.supplier_payments;
+  v public.supplier_purchases;
+BEGIN
+  SELECT * INTO pay FROM public.supplier_payments WHERE id = p_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Payment not found.'; END IF;
+  DELETE FROM public.supplier_payments WHERE id = p_id;
+  IF pay.purchase_id IS NOT NULL THEN
+    UPDATE public.supplier_purchases SET amount_paid = GREATEST(amount_paid - pay.amount, 0)
+    WHERE id = pay.purchase_id RETURNING * INTO v;
+  END IF;
+  RETURN v;
+END;
+$$;
+
+-- A supplier can be deleted once it has no purchases or payments left.
+CREATE OR REPLACE FUNCTION public.delete_supplier(p_id UUID)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM public.supplier_purchases WHERE supplier_id = p_id) OR EXISTS (SELECT 1 FROM public.supplier_payments WHERE supplier_id = p_id) THEN
+    RAISE EXCEPTION 'This supplier has purchases or payments. Delete those first, or mark the supplier inactive.';
+  END IF;
+  DELETE FROM public.suppliers WHERE id = p_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Supplier not found.'; END IF;
+END;
+$$;
+
+GRANT DELETE ON public.loose_stones TO anon, authenticated;
+GRANT DELETE ON public.gem_certificates TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_metal_rate(BIGINT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_material_rate(UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_supplier_purchase(UUID, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_supplier_payment(UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_supplier(UUID) TO anon, authenticated;
+NOTIFY pgrst, 'reload schema';

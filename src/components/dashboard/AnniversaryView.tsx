@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, MessageCircle, Trash2 } from 'lucide-react'
 import { customerService } from '../../services/customerService'
 import type { CustomerRecord } from '../../services/customerService'
 import { useEventOfferSettings } from '../../lib/eventOfferSettings'
@@ -14,6 +14,13 @@ type PageType = 'calendar' | 'customers'
 
 export default function AnniversaryView() {
   const [customers, setCustomers] = React.useState<CustomerRecord[]>([])
+  const removeDate = async (c: CustomerRecord) => {
+    if (!window.confirm(`Delete the anniversary date of ${c.name || c.phone}? The customer record stays.`)) return
+    try {
+      await customerService.clearDate(c.id, 'anniversary')
+      setCustomers((rows) => rows.map((r) => (r.id === c.id ? { ...r, anniversary: null } : r)))
+    } catch (err) { window.alert(err instanceof Error ? err.message : 'Unable to delete the date') }
+  }
   const [loading, setLoading] = React.useState(true)
   const [currentPage, setCurrentPage] = useState<PageType>('calendar')
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth())
@@ -294,9 +301,10 @@ export default function AnniversaryView() {
                         <td className="px-4 py-3 text-[#000000]">{customer.anniversary ? new Date(`${customer.anniversary}T00:00:00`).toLocaleDateString('en-IN') : <span className="text-[10px] font-bold uppercase tracking-wider text-black/40">Not saved</span>}</td>
                         <td className="px-4 py-3 font-black text-[#000000]">₹0</td>
                         <td className="px-4 py-3">
-                          <button onClick={() => sendOffer(customer)} className="flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-[10px] font-black text-white cursor-pointer">
+                          <button onClick={() => sendOffer(customer)} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 text-[10px] font-black text-white cursor-pointer">
                             <MessageCircle size={12} /> SEND OFFER
                           </button>
+                          {customer.anniversary && <button type="button" title="Delete this anniversary date (the customer stays)" onClick={() => void removeDate(customer)} className="ml-1.5 inline-flex h-7 w-7 items-center justify-center rounded-md bg-[#DC2626]/10 text-[#DC2626] hover:bg-[#DC2626]/20 cursor-pointer"><Trash2 size={13} /></button>}
                         </td>
                       </tr>
                     ))

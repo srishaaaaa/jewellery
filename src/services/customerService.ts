@@ -242,6 +242,12 @@ export const customerService = {
   /**
    * Delete a customer record from the management screen.
    */
+  /** Clears just the birthday or anniversary of a customer (the customer stays). */
+  async clearDate(id: string, type: 'birthday' | 'anniversary'): Promise<void> {
+    const { error } = await supabase.from('customers').update({ [type]: null, updated_at: new Date().toISOString() }).eq('id', id)
+    if (error) throw error
+  },
+
   async remove(id: string): Promise<void> {
     const { error } = await supabase.from('customers').delete().eq('id', id)
     if (error) throw error

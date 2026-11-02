@@ -33,6 +33,11 @@ const mapSupplier = (r: Record<string, unknown>): Supplier => ({
 export type SupplierInput = Pick<Supplier, 'name' | 'phone' | 'gstin' | 'address' | 'notes'>
 
 export const supplierService = {
+  /** Only a supplier with no purchases or payments can be deleted. */
+  async remove(id: string): Promise<void> {
+    const { error } = await supabase.rpc('delete_supplier', { p_id: id })
+    if (error) throw fail(error, 'Unable to delete the supplier')
+  },
   async list(): Promise<Supplier[]> {
     const { data, error } = await supabase.from('suppliers').select('*').order('name')
     if (error) throw fail(error, 'Unable to load suppliers')
@@ -132,6 +137,18 @@ const mapPayment = (r: Record<string, unknown>): SupplierPayment => ({
 })
 
 export const purchaseService = {
+  /** Deletes a purchase: takes back the stock it added and removes its payments. */
+  async remove(id: string): Promise<void> {
+    const { error } = await supabase.rpc('delete_supplier_purchase', { p_id: id, p_by: 'Admin' })
+    if (error) throw fail(error, 'Unable to delete the purchase')
+  },
+  /** Deletes a supplier payment entered by mistake; returns the purchase with its paid amount lowered. */
+  async removePayment(paymentId: string): Promise<Purchase | null> {
+    const { data, error } = await supabase.rpc('delete_supplier_payment', { p_id: paymentId })
+    if (error) throw fail(error, 'Unable to delete the payment')
+    const row = Array.isArray(data) ? data[0] : data
+    return row && (row as Record<string, unknown>).id ? mapPurchase(row as Record<string, unknown>) : null
+  },
   async list(): Promise<Purchase[]> {
     const { data, error } = await supabase.from('supplier_purchases').select('*').order('purchase_date', { ascending: false }).order('created_at', { ascending: false }).limit(2000)
     if (error) throw fail(error, 'Unable to load purchases')

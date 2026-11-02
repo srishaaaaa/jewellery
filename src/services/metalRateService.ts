@@ -59,6 +59,11 @@ export const metalRateService = {
    * Saves new rates. Every entry becomes a new history row and immediately the
    * current rate; previous rates are kept, never overwritten.
    */
+  /** Admin: delete a wrong rate entry (bills already made keep their own rate). */
+  async deleteRate(id: number | string): Promise<void> {
+    const { error } = await supabase.rpc('delete_metal_rate', { p_id: Number(id) })
+    if (error) throw toError(error, 'Unable to delete the rate')
+  },
   async addRates(entries: NewRateEntry[], meta: { createdBy: string; note?: string; effectiveFrom?: string }): Promise<MetalRate[]> {
     if (!entries.length) throw new Error('Enter at least one rate to update.')
     const effectiveFrom = meta.effectiveFrom ? new Date(meta.effectiveFrom).toISOString() : new Date().toISOString()

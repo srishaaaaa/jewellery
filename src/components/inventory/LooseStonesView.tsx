@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Edit2, Gem, Plus, X } from 'lucide-react'
+import { Edit2, Gem, Plus, Trash2, X } from 'lucide-react'
 import { ModalPortal } from '../ModalPortal'
 import { EyeIcon, actionBtn } from '../ActionIcons'
 import { DetailDrawer } from '../DetailDrawer'
@@ -108,6 +108,16 @@ export default function LooseStonesView() {
     setAct({ stone, action, quantity: whole ? '' : String(stone.isLot ? '' : stone.quantity), carat: whole ? '' : String(stone.isLot ? '' : stone.carat), productId: '', reference: '', note: '' })
   }
 
+  const removeStone = async (s: LooseStone) => {
+    const used = s.status === 'sold' || s.status === 'used_in_jewellery'
+    if (!window.confirm(`Delete ${s.stoneCode} (${s.name})?${used ? `\n\nIt is ${LOOSE_STATUS_LABELS[s.status].toLowerCase()} — its stock history will be deleted too.` : ''}\n\nThis cannot be undone.`)) return
+    try {
+      await looseStoneService.remove(s.id)
+      setStones((rows) => rows.filter((r) => r.id !== s.id))
+      if (view?.id === s.id) setView(null)
+    } catch (err) { setError(getErrorMessage(err, 'Unable to delete the stone')) }
+  }
+
   const cfg = form ? CATEGORY_CONFIG[form.category] : null
   return (
     <div className="space-y-4">
@@ -163,6 +173,7 @@ export default function LooseStonesView() {
                     <td className="px-4 py-3"><div className="flex items-center gap-1.5">
                       <button type="button" title="View details and history" onClick={() => openView(s)} className={`${actionBtn} bg-black/5 hover:bg-black/10`}><EyeIcon className="w-4 h-4" /></button>
                       {isAdmin && <button type="button" title="Edit details" onClick={() => { setModalError(''); setForm({ id: s.id, stoneCode: s.stoneCode, category: s.category, name: s.name, variety: s.variety, originType: s.originType, specs: { ...s.specs }, isLot: s.isLot, quantity: String(s.quantity), carat: String(s.carat), costPrice: String(s.costPrice), sellingPrice: String(s.sellingPrice), supplier: s.supplier, purchaseDate: s.purchaseDate || '', lab: s.lab, certificateNo: s.certificateNo, notes: s.notes }) }} className={`${actionBtn} bg-[#2563EB]/10 text-[#2563EB] hover:bg-[#2563EB]/20`}><Edit2 className="w-4 h-4" /></button>}
+                      {isAdmin && <button type="button" title="Delete stone / lot" onClick={() => void removeStone(s)} className={`${actionBtn} bg-[#DC2626]/10 hover:bg-[#DC2626]/20 text-[#DC2626]`}><Trash2 className="w-4 h-4" /></button>}
                     </div></td>
                   </tr>
                 ))}

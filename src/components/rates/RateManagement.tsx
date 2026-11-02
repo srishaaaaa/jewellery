@@ -1,5 +1,5 @@
 import { useMemo, useState, type FormEvent } from 'react'
-import { Edit2, Plus, Power, X } from 'lucide-react'
+import { Edit2, Plus, Power, Trash2, X } from 'lucide-react'
 import { ModalPortal } from '../ModalPortal'
 import { EyeIcon, actionBtn } from '../ActionIcons'
 import { DetailDrawer } from '../DetailDrawer'
@@ -90,6 +90,13 @@ export function PriceListView({ category, rates, onChange, isAdmin }: {
       onChange(rates.map((x) => (x.id === r.id ? updated : x)))
     } catch (err) { setError(getErrorMessage(err, 'Unable to change the rate')) }
   }
+  const removeRate = async (r: MaterialRate) => {
+    if (!window.confirm(`Delete the ${r.name} rate of ${formatCurrency(r.price)} (${UNIT_LABELS[r.pricingUnit].toLowerCase()})?\n\nUse this for a wrong entry. Items and bills keep the price they already have; to stop using a correct rate, deactivate it instead.`)) return
+    try {
+      await materialRateService.remove(r.id)
+      onChange(rates.filter((x) => x.id !== r.id))
+    } catch (err) { setError(getErrorMessage(err, 'Unable to delete the rate')) }
+  }
   const history = viewKey ? mine.filter((r) => r.rateKey === viewKey).sort((a, b) => (a.effectiveFrom < b.effectiveFrom ? 1 : -1)) : []
   const latest = history[0]
 
@@ -146,6 +153,7 @@ export function PriceListView({ category, rates, onChange, isAdmin }: {
                   <td className="px-4 py-3"><div className="flex items-center gap-1.5">
                     <button type="button" title="View details and price history" onClick={() => setViewKey(r.rateKey)} className={`${actionBtn} bg-black/5 hover:bg-black/10`}><EyeIcon className="w-4 h-4" /></button>
                     {isAdmin && <button type="button" title="Enter a new price (the old one stays in the history)" onClick={() => openNewPrice(r)} className={`${actionBtn} bg-[#2563EB]/10 text-[#2563EB] hover:bg-[#2563EB]/20`}><Edit2 className="w-4 h-4" /></button>}
+                    {isAdmin && <button type="button" title="Delete this rate (a wrong entry)" onClick={() => void removeRate(r)} className={`${actionBtn} bg-[#DC2626]/10 hover:bg-[#DC2626]/20 text-[#DC2626]`}><Trash2 className="w-4 h-4" /></button>}
                     {isAdmin && <button type="button" title={r.status === 'active' ? 'Deactivate' : 'Activate'} onClick={() => void toggle(r)} className={`${actionBtn} ${r.status === 'active' ? 'bg-[#F59E0B]/10 text-[#D97706] hover:bg-[#F59E0B]/20' : 'bg-[#10B981]/10 text-[#10B981] hover:bg-[#10B981]/20'}`}><Power className="w-4 h-4" /></button>}
                   </div></td>
                 </tr>

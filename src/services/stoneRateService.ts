@@ -235,6 +235,11 @@ export const materialRateService = {
     if (error) throw toError(error, 'Unable to save the rate')
     return mapRate(data as Record<string, unknown>)
   },
+  /** Admin: delete a wrong rate entry (items and bills keep the price they already have). */
+  async remove(id: string): Promise<void> {
+    const { error } = await supabase.rpc('delete_material_rate', { p_id: id })
+    if (error) throw toError(error, 'Unable to delete the rate')
+  },
   async setStatus(id: string, status: 'active' | 'inactive'): Promise<MaterialRate> {
     const { data, error } = await supabase.from('material_rates').update({ status }).eq('id', id).select('*').single()
     if (error) throw toError(error, 'Unable to change the rate')
@@ -330,6 +335,11 @@ export const looseStoneService = {
     if (error) throw toError(error, 'Unable to update the stock')
     return mapLoose((Array.isArray(data) ? data[0] : data) as Record<string, unknown>)
   },
+  /** Deletes the stone / lot and its movement history. */
+  async remove(id: string): Promise<void> {
+    const { error } = await supabase.from('loose_stones').delete().eq('id', id)
+    if (error) throw toError(error, 'Unable to delete the stone')
+  },
   async movements(id: string): Promise<LooseMovement[]> {
     const { data, error } = await supabase.from('loose_stone_movements').select('*').eq('stone_id', id).order('created_at', { ascending: false })
     if (error) throw toError(error, 'Unable to load the stone history')
@@ -386,6 +396,10 @@ export const certificateService = {
       throw toError(error, 'Unable to save the certificate')
     }
     return mapCert(data as Record<string, unknown>)
+  },
+  async remove(id: string): Promise<void> {
+    const { error } = await supabase.from('gem_certificates').delete().eq('id', id)
+    if (error) throw toError(error, 'Unable to delete the certificate')
   },
   async setStatus(id: string, status: CertStatus, note = ''): Promise<GemCertificate> {
     const { data, error } = await supabase.rpc('set_certificate_status', { p_id: id, p_status: status, p_by: who(), p_note: note })

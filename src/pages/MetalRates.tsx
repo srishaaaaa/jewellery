@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Download, Gem, History, RefreshCw, X } from 'lucide-react'
+import { Download, Gem, History, RefreshCw, Trash2, X } from 'lucide-react'
 import { getErrorMessage } from '../lib/errorMessage'
 import { formatCurrency } from '../lib/retail'
 import { csvDate, downloadCsv } from '../lib/csv'
@@ -148,6 +148,18 @@ function MetalRatesPanel() {
     }
   }
 
+  const deleteRate = async (row: MetalRate) => {
+    if (!window.confirm(`Delete the ${metalLabel(row.metalType, row.purity)} rate of ${formatCurrency(row.ratePerGram)}/g from ${fmtDateTime(row.effectiveFrom)}?
+
+Use this for a wrong entry. If it is the current rate, the previous rate becomes current. Bills already made keep their own rate.`)) return
+    try {
+      await metalRateService.deleteRate(row.id)
+      await fetchRates()
+      await loadHistory()
+      setNotice('Rate entry deleted.')
+    } catch (err) { setError(getErrorMessage(err, 'Unable to delete the rate')) }
+  }
+
   // Change vs the previous entry for the same metal/purity (history is newest first).
   const historyWithChange = useMemo(() => {
     const seen = new Map<string, MetalRate[]>()
@@ -276,7 +288,7 @@ function MetalRatesPanel() {
         <table className="w-full text-left text-xs">
           <thead className="text-[10px] font-bold uppercase tracking-widest text-[#000000] bg-[#F9FAFB]">
             <tr>
-              {['Date & Time', 'Metal', 'Purity', 'Rate / g', 'Change', 'Updated By', 'Note'].map((h) => (
+              {['Date & Time', 'Metal', 'Purity', 'Rate / g', 'Change', 'Updated By', 'Note', ...(role === 'admin' ? ['Actions'] : [])].map((h) => (
                 <th key={h} className="p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest text-left">{h}</th>
               ))}
             </tr>
@@ -297,6 +309,7 @@ function MetalRatesPanel() {
                 </td>
                 <td className="px-4 py-3.5 text-xs text-[#000000]">{row.createdBy || '—'}</td>
                 <td className="px-4 py-3.5 text-xs text-[#000000] max-w-[240px] truncate" title={row.note}>{row.note || '—'}</td>
+                {role === 'admin' && <td className="px-4 py-3.5"><button type="button" title="Delete this rate entry (a wrong entry)" onClick={() => void deleteRate(row)} className="flex h-8 w-8 items-center justify-center rounded-md bg-[#DC2626]/10 text-[#DC2626] hover:bg-[#DC2626]/20 cursor-pointer"><Trash2 size={16} /></button></td>}
               </tr>
             ))}
           </tbody>
