@@ -6,7 +6,8 @@ import { AdvanceReceiptSheet } from '../components/invoice/AdvanceReceiptSheet'
 import { toolbarBtn, toolbarBtnDark } from '../components/invoice/invoiceStyle'
 import { PrintSettingsModal } from '../components/invoice/PrintSettingsModal'
 import { printSheet, thermalWidth } from '../lib/printPrefs'
-import { advanceReceiptPdf, downloadFile, printAdvanceReceipt } from '../lib/advanceReceipt'
+import { downloadFile, printAdvanceReceipt } from '../lib/advanceReceipt'
+import { sheetPdfFile } from '../lib/sheetPdf'
 import { buildAdvanceDepositWhatsAppMessage } from '../lib/whatsappMessage'
 import { toWhatsAppUrl } from '../lib/phone'
 import { getErrorMessage } from '../lib/errorMessage'
@@ -75,7 +76,7 @@ export default function AdvanceReceiptPage() {
             <button type="button" onClick={() => void copyLink()} className={toolbarBtn}>
               {copied ? <><Check className="w-4 h-4" /> Copied</> : <><Copy className="w-4 h-4" /> Copy Link</>}
             </button>
-            <button type="button" onClick={() => order && downloadFile(advanceReceiptPdf(order))} disabled={!order} className={toolbarBtn}><FileDown className="w-4 h-4" /> PDF</button>
+            <button type="button" onClick={() => { if (order) void sheetPdfFile(<AdvanceReceiptSheet order={order} />, `Advance-${order.deposit_id}`, 1200).then(downloadFile) }} disabled={!order} className={toolbarBtn}><FileDown className="w-4 h-4" /> PDF</button>
             <button type="button" onClick={() => setPrintOpen(true)} disabled={!order} className={toolbarBtnDark}><Printer className="w-4 h-4" /> Print</button>
           </div>
         </div>

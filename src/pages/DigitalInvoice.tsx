@@ -237,7 +237,7 @@ export default function DigitalInvoice() {
   })
 
   const downloadPdf = async () => {
-    const file = invoicePdfFile(buildPdfData())
+    const file = await invoicePdfFile(buildPdfData())
     const url = URL.createObjectURL(file)
     const link = document.createElement('a')
     link.href = url
@@ -281,7 +281,7 @@ export default function DigitalInvoice() {
       ...schemeInfo,
     })
 
-    const file = invoicePdfFile(buildPdfData())
+    const file = await invoicePdfFile(buildPdfData())
 
     let downloadLink = ''
     try {

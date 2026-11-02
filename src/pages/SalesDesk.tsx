@@ -11,7 +11,7 @@ import { calculateNetWeight, calculateOldGoldValue, formatWeight, GOLD_PURITIES,
 import { useMetalRateStore } from '../store/metalRateStore'
 import { ModalPortal } from '../components/ModalPortal'
 import { cashLimitCheck, useAdminAuthStore, useSettingsStore } from '../store/store'
-import { invoicePdfFile } from '../lib/invoicePdf'
+import { sheetPdfFile } from '../lib/sheetPdf'
 import { printDeskReceipt, storeDeskDoc, type DeskReceipt } from '../lib/deskReceipt'
 import { useNavigate } from 'react-router-dom'
 import { DocIcon, EyeIcon, WhatsAppIcon } from '../components/ActionIcons'
@@ -121,12 +121,9 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
   const matches = (...vals: Array<string | null | undefined>) => !q || vals.some((v) => String(v || '').toLowerCase().includes(q))
 
   // ── Quotations ───────────────────────────────────────────────────────────
-  const quotationPdf = (qt: Quotation) => {
-    const file = invoicePdfFile({
-      documentTitle: 'QUOTATION', invoiceNo: qt.quotationNumber, date: qt.createdAt, customerName: qt.customerName, phone: qt.phone,
-      address: qt.validUntil ? `Valid until ${fmtDate(qt.validUntil)}` : '', items: qt.items, subtotal: qt.subtotal, shipping: 0,
-      manualDiscountAmount: qt.discount, gstAmount: qt.gst, total: qt.total, paymentMode: 'Estimate',
-    })
+  // Same quotation sheet as the preview, saved as a PDF
+  const quotationPdf = async (qt: Quotation) => {
+    const file = await sheetPdfFile(<DeskDocSheet doc={quotationDoc(qt)} />, `Quotation-${qt.quotationNumber}`)
     const url = URL.createObjectURL(file)
     const a = document.createElement('a'); a.href = url; a.download = file.name; a.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
@@ -725,7 +722,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                     <td className="px-4 py-3.5">{statusChip(x.status === 'open' ? 'Open' : x.status === 'converted' ? 'Billed' : 'Cancelled', x.status === 'open' ? 'blue' : x.status === 'converted' ? 'green' : 'gray')}</td>
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
                       {waBtn(quotationDoc(x), () => quotationWhatsApp(x))}{viewBtn(quotationDoc(x))}{editBtn('quotations', x.id, x.quotationNumber, x.customerName, x.phone, x.notes || '')}{eyeBtn(quotationDoc(x))}
-                      <button className={`${iconBtn} bg-[#10B981]/10 text-[#10B981] hover:bg-[#10B981]/20`} title="Download PDF" onClick={() => quotationPdf(x)}><Download size={15} /></button>
+                      <button className={`${iconBtn} bg-[#10B981]/10 text-[#10B981] hover:bg-[#10B981]/20`} title="Download PDF" onClick={() => void quotationPdf(x)}><Download size={15} /></button>
                       {x.status === 'open' && onBillQuotation && <button className={`${iconBtn} bg-[#0A0A0A] text-white hover:bg-[#1A1A1A]`} title={x.validUntil && x.validUntil < new Date().toISOString().slice(0, 10) ? 'Bill now (expired: priced at today\'s rate)' : 'Bill now at the quoted prices'} onClick={() => onBillQuotation(x)}><Receipt size={15} /></button>}
                       {x.status === 'open' && <button className={`${iconBtn} bg-[#F59E0B]/10 text-[#D97706] hover:bg-[#F59E0B]/20`} title="Mark as billed" onClick={() => void setQuotationStatus(x, 'converted')}><CheckCircle2 size={15} /></button>}
                       {x.status === 'open' && <button className={`${iconBtn} bg-[#DC2626]/10 text-[#DC2626] hover:bg-[#DC2626]/20`} title="Cancel quotation" onClick={() => void setQuotationStatus(x, 'cancelled')}><XCircle size={15} /></button>}

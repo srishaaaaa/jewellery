@@ -1661,7 +1661,7 @@ export default function Pos(props: PosProps = {}) {
 
   const persistInvoicePdf = async (inv: InvoiceSnap) => {
     try {
-      const file = invoicePdfFile({
+      const file = await invoicePdfFile({
         invoiceNo: inv.invoiceNo,
         date: inv.date,
         customerName: inv.customerName,

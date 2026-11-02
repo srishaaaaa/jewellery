@@ -1169,18 +1169,10 @@ export default function Dashboard() {
     // A credit sale's stored PDF was generated before payment (or before it was
     // ever credit at all) — once settled, regenerate fresh instead of serving
     // the stale "payment due" snapshot from checkout time.
-    if (order.invoice_pdf_url && order.credit_status !== 'paid') {
-      const link = document.createElement('a')
-      link.href = order.invoice_pdf_url
-      if (mode === 'download') link.download = `Invoice-${order.invoice_no || order.id}.pdf`
-      if (mode === 'download') { link.click(); return }
-      const opened = window.open(order.invoice_pdf_url, '_blank', 'noopener,noreferrer')
-      if (mode === 'print') opened?.addEventListener('load', () => opened.print())
-      return
-    }
+    // Always build the PDF from the current invoice sheet (older stored PDFs used the old layout).
     const preview = getOrderWhatsAppPreview(order)
     if (!preview) { alert('This order has no invoice details available.'); return }
-    const file = invoicePdfFile({
+    const file = await invoicePdfFile({
       invoiceNo: order.invoice_no || order.id,
       date: order.created_at,
       customerName: order.customer_name,
