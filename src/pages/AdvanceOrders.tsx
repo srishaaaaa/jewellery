@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Box, Calendar, Check, Clock, Eye, FileText, IndianRupee, Plus, Printer, RefreshCw, Trash2, Wallet, X } from 'lucide-react'
+import { Box, Check, Clock, Eye, FileText, IndianRupee, Plus, RefreshCw, Trash2, Wallet, X } from 'lucide-react'
 import { customerService } from '../services/customerService'
 import { getErrorMessage } from '../lib/errorMessage'
 import { formatCurrency } from '../lib/retail'
@@ -9,6 +9,7 @@ import { toWhatsAppUrl } from '../lib/phone'
 import { useNavigate } from 'react-router-dom'
 import { ModalPortal } from '../components/ModalPortal'
 import { DocumentPreviewModal } from '../components/invoice/InvoiceParts'
+import { DetailDrawer } from '../components/DetailDrawer'
 import { AdvanceReceiptSheet } from '../components/invoice/AdvanceReceiptSheet'
 import { PaymentModePicker } from '../components/PaymentModePicker'
 import { splitError, splitSummary, type PaymentMode, type SplitAmounts } from '../lib/paymentModes'
@@ -453,85 +454,49 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
       </DocumentPreviewModal>
     )}
 
-    {selected && <ModalPortal>
-      <div className="fixed inset-0 z-[997] flex items-center justify-center p-3 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setSelected(null)}>
-        <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-5 max-h-[92vh] overflow-y-auto animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-          <div className="flex justify-between items-center pb-3 border-b border-black/10">
-            <div>
-              <p className="text-[11px] font-mono font-bold text-[var(--accent)]">{selected.deposit_id}</p>
-              <h3 className="text-lg font-black text-[#000000] tracking-tight">Advance Order Details</h3>
-            </div>
-            <button type="button" onClick={() => setSelected(null)} className="text-black hover:bg-black/5 w-7 h-7 rounded-lg flex items-center justify-center cursor-pointer">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            <div className="bg-[#F9FAFB] border border-black/10 rounded-lg p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--accent-dark)]">Customer</p>
-              <p className="text-sm font-black text-black">{selected.customer_name}</p>
-              <p className="text-[11px] font-bold text-[var(--accent-dark)]">{selected.phone}</p>
-              {selected.address && <p className="text-[11px] text-[var(--accent-dark)] mt-0.5">{selected.address}</p>}
-            </div>
-
-            <div className="border border-black/10 rounded-lg divide-y divide-black/5">
+    {selected && (
+      <DetailDrawer
+        kicker={`${selected.deposit_id} • ${showDate(selected.created_at.slice(0, 10))}`}
+        title={selected.customer_name || 'Customer'}
+        subtitle={<>{selected.phone}{selected.address ? ` • ${selected.address}` : ''}</>}
+        onClose={() => setSelected(null)}
+        onPrint={() => setPrintFor(selected)}
+        onView={() => setPreviewOrder(selected)}
+        viewLabel={selected.status === 'completed' ? 'View Bill' : 'View Receipt'}
+        onWhatsApp={selected.phone ? () => shareReceipt(selected) : null}
+        stats={[
+          { label: 'Total', value: money(selected.total_amount) },
+          { label: 'Paid', value: money(selected.status === 'completed' ? selected.total_amount : selected.deposit_amount), tone: 'green' },
+          { label: 'Balance', value: money(selected.status === 'completed' ? 0 : selected.remaining_balance), tone: selected.status !== 'completed' && selected.remaining_balance > 0 ? 'red' : undefined },
+        ]}
+      >
+        <div className="overflow-x-auto rounded-xl border border-black/10">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-[#F9FAFB]"><tr>{['Item', 'Qty', 'Rate', 'Amount'].map((h, i) => <th key={h} className={`p-4 text-[10px] font-bold text-[#000000] uppercase tracking-widest ${i ? 'text-right' : 'text-left'}`}>{h}</th>)}</tr></thead>
+            <tbody className="divide-y divide-black/5">
               {productRows(selected).map((item, i) => {
                 const qty = Number(item.quantity || 1)
                 const price = Number(item.base_price || 0)
                 return (
-                  <div key={i} className="flex justify-between items-center p-2.5 text-xs">
-                    <div>
-                      <p className="font-bold text-black">{String(item.name || selected.product_name)}</p>
-                      <p className="text-[10px] text-[var(--accent-dark)]">Qty: {qty} × {money(price)}</p>
-                    </div>
-                    <p className="font-black text-black">{money(Number(item.line_total ?? price * qty))}</p>
-                  </div>
+                  <tr key={i}>
+                    <td className="px-4 py-2.5 font-bold">{String(item.name || selected.product_name)}</td>
+                    <td className="px-4 py-2.5 text-right">{qty}</td>
+                    <td className="px-4 py-2.5 text-right">{money(price)}</td>
+                    <td className="px-4 py-2.5 text-right font-black">{money(Number(item.line_total ?? price * qty))}</td>
+                  </tr>
                 )
               })}
-            </div>
-
-            <div className="grid grid-cols-3 gap-2 text-center">
-              <div className="bg-[#F4F4F5] border border-black/10 rounded-lg p-2.5">
-                <p className="text-[9px] font-bold text-[var(--accent-dark)] uppercase tracking-wider">Total</p>
-                <p className="text-sm font-black text-black">{money(selected.total_amount)}</p>
-              </div>
-              <div className="bg-[#DCFCE7] border border-[#16A34A]/30 rounded-lg p-2.5">
-                <p className="text-[9px] font-bold text-[#166534] uppercase tracking-wider">Paid</p>
-                <p className="text-sm font-black text-[#166534]">{money(selected.deposit_amount)}</p>
-              </div>
-              <div className="bg-[#FEE2E2] border border-[#DC2626]/30 rounded-lg p-2.5">
-                <p className="text-[9px] font-bold text-[#991B1B] uppercase tracking-wider">Balance</p>
-                <p className="text-sm font-black text-[#991B1B]">{money(selected.status === 'completed' ? 0 : selected.remaining_balance)}</p>
-              </div>
-            </div>
-
-            {selected.expected_delivery_date && (
-              <p className="text-[11px] font-bold text-[var(--accent-dark)]"><Calendar className="w-3 h-3 inline mr-1" />Delivery: {showDate(selected.expected_delivery_date)}</p>
-            )}
-            {selected.invoice_number && (
-              <p className="text-[11px] font-bold text-[var(--accent-dark)]">Invoice: {selected.invoice_number}</p>
-            )}
-            {selected.remarks && (
-              <div className="bg-[#FEF9C3] border border-[#EAB308]/30 rounded-lg p-2.5 text-[11px] text-[#78350F]">
-                <span className="font-bold">Notes: </span>{selected.remarks}
-              </div>
-            )}
-
-            <div className="pt-3 border-t border-black/10 grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => setPrintFor(selected)}
-                className="bg-white border border-gray-300 hover:bg-gray-50 text-black py-2.5 px-3 rounded-lg font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer">
-                <Printer className="w-3.5 h-3.5 text-[var(--accent)]" />
-                Print Receipt
-              </button>
-              <button type="button" onClick={() => shareReceipt(selected)}
-                className="bg-[#10B981] hover:bg-[#059669] text-white py-2.5 px-3 rounded-lg font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer">
-                <WhatsAppIcon className="w-3.5 h-3.5" />
-                Share Receipt
-              </button>
-            </div>
-          </div>
+            </tbody>
+          </table>
         </div>
-      </div>
-    </ModalPortal>}
+        <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+          <div className="rounded-xl border border-black/10 p-3"><p className="text-[10px] font-bold uppercase">Status</p><p className="mt-1 font-black">{selected.status.replace(/_/g, ' ').toUpperCase()}</p></div>
+          <div className="rounded-xl border border-black/10 p-3"><p className="text-[10px] font-bold uppercase">Delivery</p><p className="mt-1 font-black">{selected.expected_delivery_date ? showDate(selected.expected_delivery_date) : '—'}</p></div>
+          {selected.invoice_number && <div className="rounded-xl border border-black/10 p-3"><p className="text-[10px] font-bold uppercase">Invoice</p><p className="mt-1 font-black">{selected.invoice_number}</p></div>}
+          {selected.final_payment_method && <div className="rounded-xl border border-black/10 p-3"><p className="text-[10px] font-bold uppercase">Balance paid by</p><p className="mt-1 font-black">{selected.final_payment_method.toUpperCase()}</p></div>}
+        </div>
+        {selected.remarks && <div className="mt-3 rounded-xl bg-[#FEF9C3] border border-[#EAB308]/30 p-3 text-[11px] text-[#78350F]"><span className="font-bold">Notes: </span>{selected.remarks}</div>}
+      </DetailDrawer>
+    )}
   </div>
 }

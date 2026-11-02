@@ -63,13 +63,16 @@ export function FilterCard<T extends string>({ tabs, activeTab, onTab, onSearch,
   onSearch: () => void
   children: React.ReactNode
 }) {
+  // Fields share the full row (2 fields = 2 wide columns), so there is no empty gap before Search.
+  const fieldCount = React.Children.toArray(children).filter(Boolean).length
+  const cols = fieldCount <= 1 ? 'lg:grid-cols-1' : fieldCount === 2 ? 'lg:grid-cols-2' : fieldCount === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4'
   return (
     <form
       onSubmit={e => { e.preventDefault(); onSearch() }}
-      className="bg-white border border-black/10 rounded-xl p-5 shadow-sm mb-6"
+      className="bg-white border border-black/10 rounded-xl p-4 shadow-sm mb-5"
     >
       {tabs && tabs.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-5">
+        <div className="flex flex-wrap gap-1.5 mb-4">
           {tabs.map(t => (
             <button key={t.id} type="button" onClick={() => onTab?.(t.id)}
               className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${activeTab === t.id ? 'bg-[#111111] text-white shadow-sm' : 'bg-[#F4F4F5] text-black hover:bg-black/10'}`}>
@@ -79,7 +82,7 @@ export function FilterCard<T extends string>({ tabs, activeTab, onTab, onSearch,
         </div>
       )}
       <div className="flex flex-col lg:flex-row lg:items-end gap-4">
-        <div className="grid flex-1 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 min-w-0">{children}</div>
+        <div className={`grid flex-1 grid-cols-1 sm:grid-cols-2 ${cols} gap-4 min-w-0`}>{children}</div>
         <button type="submit"
           className="shrink-0 inline-flex items-center justify-center gap-2 rounded-lg bg-[#111111] hover:bg-black px-5 py-2.5 text-[11px] font-black uppercase tracking-wider text-white shadow-sm transition-colors cursor-pointer">
           <Search className="w-3.5 h-3.5" /> Search

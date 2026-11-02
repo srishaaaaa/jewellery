@@ -39,7 +39,9 @@ import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { debounce } from '../lib/debounce'
 import { useAuthStore, useProductStore, useAdminAuthStore, useSettingsStore } from '../store/store'
 import { formatPaymentMode, formatCurrency, normalizeOrderMode, toNumber } from '../lib/retail'
-import { normalizeStructuredOrderItem, formatInvoiceNo } from '../lib/retail'
+import { normalizeStructuredOrderItem, formatInvoiceNo, paymentSplitRows } from '../lib/retail'
+import { gstSplit } from '../lib/gst'
+import { DetailDrawer } from '../components/DetailDrawer'
 import { Invoice } from '../components/Invoice'
 import { printThermalReceipt } from '../lib/thermalPrint'
 import { buildProfessionalWhatsAppMessage, buildCreditReminderWhatsAppMessage, buildCreditPaidWhatsAppMessage } from '../lib/whatsappMessage'
@@ -3491,10 +3493,26 @@ export default function Dashboard() {
                           const Money = ({ label, value, tone }: { label: string; value: string; tone?: string }) => (
                             <div className={`flex justify-between gap-3 ${tone || 'text-[#000000]'}`}><span>{label}</span><span className="font-bold whitespace-nowrap">{value}</span></div>
                           )
+                          const gstParts = gstSplit(toNumber(o.total_gst, 0), itemsTotal - toNumber(o.discount_amount, 0) - toNumber(o.manual_discount_amount, 0) - toNumber(o.scheme_discount, 0))
                           return (
-                          <tr className="bg-[#F9FAFB] border-b border-black/10">
-                            <td colSpan={9} className="px-5 py-5 text-left">
-                              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                          <tr className="hidden"><td colSpan={9}>
+                            <DetailDrawer
+                              kicker={`#${formatInvoiceNo(o.invoice_no || o.id)} • ${created.toLocaleDateString('en-IN')}`}
+                              title={o.customer_name || 'Walk-in Customer'}
+                              subtitle={toNumber(o.total_gst, 0) > 0 ? 'GST Invoice' : 'Non-GST Bill'}
+                              onClose={() => setHistoryExpandedId(null)}
+                              onPrint={() => void openOrderInvoice(o, 'print')}
+                              onView={() => void openOrderInvoice(o, 'view')}
+                              onWhatsApp={o.phone ? () => handleShareViaWhatsApp(o) : null}
+                              stats={[
+                                { label: 'Total', value: formatCurrency(getOrderTotal(o)) },
+                                { label: 'Payment', value: formatPaymentMode(o.payment_mode || o.payment_method, o.split_details) || '—' },
+                                o.credit_status === 'outstanding'
+                                  ? { label: 'Credit Due', value: formatCurrency(getOrderTotal(o)), tone: 'red' as const }
+                                  : { label: 'Status', value: normalizeStatus(o.status).toUpperCase(), tone: normalizeStatus(o.status) === 'completed' ? 'green' as const : undefined },
+                              ]}
+                            >
+                              <div className="grid grid-cols-2 gap-4 text-xs rounded-xl border border-black/10 p-4">
                                 <Info label="Customer" value={o.customer_name} />
                                 <Info label="Mobile Number" value={o.phone ? formatPhoneDisplay(o.phone) : ''} />
                                 <Info label="Address" value={o.address} />
@@ -3509,7 +3527,7 @@ export default function Dashboard() {
                                 {o.scheme_number && <Info label="Scheme" value={o.scheme_number} />}
                               </div>
 
-                              <div className="mt-5 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_280px] gap-5 text-xs">
+                              <div className="mt-4 grid grid-cols-1 gap-4 text-xs">
                                 <div className="rounded-xl border border-black/10 bg-white overflow-hidden">
                                   <div className="grid grid-cols-[minmax(0,1fr)_70px_100px_110px] gap-3 px-4 py-2.5 border-b border-black/10 text-[10px] font-bold uppercase tracking-wider text-[#000000]">
                                     <span>Item</span><span className="text-center">Qty</span><span className="text-right">Rate</span><span className="text-right">Amount</span>
@@ -3541,16 +3559,21 @@ export default function Dashboard() {
                                   {toNumber(o.discount_amount, 0) > 0 && <Money label={`Coupon${o.coupon_code ? ` (${o.coupon_code})` : ''}`} value={`−${formatCurrency(toNumber(o.discount_amount, 0))}`} tone="text-emerald-700" />}
                                   {toNumber(o.manual_discount_amount, 0) > 0 && <Money label="Discount" value={`−${formatCurrency(toNumber(o.manual_discount_amount, 0))}`} tone="text-emerald-700" />}
                                   {toNumber(o.scheme_discount, 0) > 0 && <Money label="Scheme Benefit" value={`−${formatCurrency(toNumber(o.scheme_discount, 0))}`} tone="text-emerald-700" />}
-                                  {toNumber(o.total_gst, 0) > 0 && <Money label="GST" value={`+${formatCurrency(toNumber(o.total_gst, 0))}`} />}
+                                  {toNumber(o.total_gst, 0) > 0 && <>
+                                  <Money label={gstParts.cgstLabel} value={`+${formatCurrency(gstParts.cgst)}`} />
+                                  <Money label={gstParts.sgstLabel} value={`+${formatCurrency(gstParts.sgst)}`} />
+                                  <Money label={gstParts.totalLabel} value={`+${formatCurrency(toNumber(o.total_gst, 0))}`} />
+                                </>}
                                   {toNumber(o.delivery_charge, 0) > 0 && <Money label="Delivery" value={`+${formatCurrency(toNumber(o.delivery_charge, 0))}`} />}
                                   <div className="border-t border-black/10 pt-2 mt-1"><Money label="Total" value={formatCurrency(getOrderTotal(o))} /></div>
                                   {toNumber(o.scheme_amount_used, 0) > 0 && <Money label="Paid from Scheme" value={`−${formatCurrency(toNumber(o.scheme_amount_used, 0))}`} tone="text-[var(--accent-dark)]" />}
                                   {toNumber(o.advance_amount_used, 0) > 0 && <Money label="Advance Adjusted" value={`−${formatCurrency(toNumber(o.advance_amount_used, 0))}`} tone="text-[var(--accent-dark)]" />}
                                   {toNumber(o.exchange_amount, 0) > 0 && <Money label="Old Gold Exchange" value={`−${formatCurrency(toNumber(o.exchange_amount, 0))}`} tone="text-[var(--accent-dark)]" />}
+                                  {paymentSplitRows(o.split_details).map(([label, amount]) => <Money key={label} label={`Paid by ${label}`} value={formatCurrency(amount)} />)}
                                 </div>
                               </div>
-                            </td>
-                          </tr>
+                            </DetailDrawer>
+                          </td></tr>
                           )
                         })()}
                         </React.Fragment>

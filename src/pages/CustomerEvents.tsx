@@ -1,3 +1,4 @@
+import { DetailDrawer, DrawerTable } from '../components/DetailDrawer'
 import { useEffect, useMemo, useState } from 'react'
 import {
   Cake, Gift, Heart, MessageCircle, Pencil, Plus, RefreshCw, Search, Trash2, X, Eye,
@@ -620,60 +621,21 @@ export default function CustomerEvents() {
 
       {/* View Modal */}
       {modalMode === 'view' && activeCustomer && (
-        <ModalPortal><div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="bg-white rounded-xl w-full max-w-sm shadow-2xl overflow-y-auto border border-pink-200 animate-in fade-in zoom-in-95">
-            <div className="px-4 sm:px-5 py-3 border-b border-black/10 flex items-center justify-between bg-white">
-              <h3 className="font-bold text-sm text-[#000000] flex items-center gap-2">
-                <Eye className="w-4 h-4 text-pink-600" /> Customer Details
-              </h3>
-              <button type="button" onClick={closeModal} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 cursor-pointer" aria-label="Close">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="p-5 space-y-3 text-xs">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#9CA3AF]">Name</p>
-                <p className="text-sm font-bold text-[#000000]">{activeCustomer.name || '—'}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#9CA3AF]">Phone</p>
-                <p className="text-sm font-bold text-[#000000]">{formatPhoneDisplay(activeCustomer.phone) || activeCustomer.phone}</p>
-              </div>
-              {activeCustomer.address && (
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#9CA3AF]">Address</p>
-                  <p className="text-sm font-semibold text-[#000000] break-words">{activeCustomer.address}</p>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#9CA3AF]">Birthday</p>
-                  <p className="text-sm font-bold text-[#000000]">{formatMonthDay(activeCustomer.birthday)}</p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#9CA3AF]">Anniversary</p>
-                  <p className="text-sm font-bold text-[#000000]">{formatMonthDay(activeCustomer.anniversary)}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => sendWishes(activeCustomer, activeCustomer.birthday ? 'birthday' : 'anniversary')}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-3 py-2 text-[11px] font-black text-white cursor-pointer"
-                >
-                  <MessageCircle size={13} /> Send Wishes
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openEdit(activeCustomer)}
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2 text-[11px] font-black text-gray-700 hover:bg-gray-100 cursor-pointer"
-                >
-                  <Pencil size={13} /> Edit
-                </button>
-              </div>
-            </div>
-          </div>
-        </div></ModalPortal>
+        <DetailDrawer
+          kicker="Customer Details"
+          title={activeCustomer.name || '—'}
+          subtitle={formatPhoneDisplay(activeCustomer.phone) || activeCustomer.phone}
+          onClose={closeModal}
+          onView={() => openEdit(activeCustomer)}
+          viewLabel="Edit"
+          onWhatsApp={activeCustomer.phone ? () => sendWishes(activeCustomer, activeCustomer.birthday ? 'birthday' : 'anniversary') : null}
+          stats={[
+            { label: 'Birthday', value: formatMonthDay(activeCustomer.birthday) },
+            { label: 'Anniversary', value: formatMonthDay(activeCustomer.anniversary) },
+          ]}
+        >
+          <DrawerTable rows={[['Name', activeCustomer.name || '—'], ['Phone', formatPhoneDisplay(activeCustomer.phone) || activeCustomer.phone], ['Address', activeCustomer.address || '—']]} />
+        </DetailDrawer>
       )}
     </div>
   )

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
-  AlertTriangle, CalendarDays, CheckCircle2, Clock3, Download, Edit2, Gem, MessageCircle, PiggyBank, Trash2,
+  AlertTriangle, CalendarDays, CheckCircle2, Clock3, Download, Edit2, Eye, Gem, MessageCircle, PiggyBank, Trash2,
   Plus, Printer, RefreshCw, Search, Settings, Trophy, Wallet, X,
 } from 'lucide-react'
 import { getErrorMessage } from '../lib/errorMessage'
@@ -551,14 +551,15 @@ export default function Schemes() {
   }
 
   const [receiptPreview, setReceiptPreview] = useState<{ scheme: JewelleryScheme; installment: SchemeInstallment; totals: ReceiptTotals } | null>(null)
-  const latestReceipt = async (scheme: JewelleryScheme, mode: 'print' | 'whatsapp') => {
+  const latestReceipt = async (scheme: JewelleryScheme, mode: 'print' | 'whatsapp' | 'page') => {
     try {
       const inst = await schemeService.fetchInstallments(scheme.id)
       const paid = inst.filter((i) => i.status === 'paid')
       const last = paid[paid.length - 1]
       if (!last) { setError(`${scheme.schemeNumber} has no payments yet.`); return }
       const totals = totalsAfterInstallment(scheme, inst, last)
-      if (mode === 'print') setReceiptPreview({ scheme, installment: last, totals })
+      if (mode === 'page') navigate(`/scheme-receipt/${scheme.id}/${last.id}`)
+      else if (mode === 'print') setReceiptPreview({ scheme, installment: last, totals })
       else whatsappReceipt(scheme, last, totals)
     } catch (err) {
       setError(getErrorMessage(err, 'Unable to load the receipt'))
@@ -1240,8 +1241,13 @@ export default function Schemes() {
     {detail && <ModalPortal><div className="fixed inset-0 z-[997] flex justify-end bg-black/45">
       <div className="h-full w-full max-w-2xl overflow-y-auto bg-white p-5 sm:p-6 shadow-2xl">
         <div className="flex items-start justify-between">
-          <div><p className="text-xs font-black text-emerald-600">{detail.schemeNumber}</p><h3 className="text-2xl font-black">{detail.schemeName}</h3></div>
+          <div><p className="text-xs font-black text-emerald-600">{detail.schemeNumber}</p><h3 className="text-2xl font-black">{detail.schemeName}</h3><p className="text-xs text-[#000000]">{detail.customerName}{detail.phone ? ` • ${detail.phone}` : ''}</p></div>
           <button onClick={() => setDetail(null)}><X /></button>
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-2">
+          <button type="button" disabled={detail.installmentsPaid === 0} onClick={() => void latestReceipt(detail, 'page')} title="Print the latest receipt" className="flex items-center justify-center gap-2 rounded-xl border border-black/15 bg-white py-3 text-[11px] font-black uppercase tracking-wider text-[#000000] hover:bg-black/5 cursor-pointer disabled:opacity-40"><Printer className="w-4 h-4 text-[var(--accent)]" /> Print</button>
+          <button type="button" disabled={detail.installmentsPaid === 0} onClick={() => void latestReceipt(detail, 'print')} title="View the latest receipt" className="flex items-center justify-center gap-2 rounded-xl border border-black/15 bg-white py-3 text-[11px] font-black uppercase tracking-wider text-[#000000] hover:bg-black/5 cursor-pointer disabled:opacity-40"><Eye className="w-4 h-4 text-[var(--accent)]" /> View Receipt</button>
+          <button type="button" disabled={detail.installmentsPaid === 0 || !detail.phone} onClick={() => void latestReceipt(detail, 'whatsapp')} className="flex items-center justify-center gap-2 rounded-xl bg-[#10B981] hover:bg-[#059669] py-3 text-[11px] font-black uppercase tracking-wider text-white cursor-pointer disabled:opacity-40"><WhatsAppIcon className="w-4 h-4" /> WhatsApp</button>
         </div>
         {modalError && <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{modalError}</div>}
         <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-3">

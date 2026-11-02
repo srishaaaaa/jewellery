@@ -16,6 +16,7 @@ import { printDeskReceipt, storeDeskDoc, type DeskReceipt } from '../lib/deskRec
 import { useNavigate } from 'react-router-dom'
 import { DocIcon, EyeIcon, WhatsAppIcon } from '../components/ActionIcons'
 import { PaymentModePicker } from '../components/PaymentModePicker'
+import { DetailDrawer, DrawerTable } from '../components/DetailDrawer'
 import { parseSplitNote, splitError, splitSummary, stripSplitNote, type PaymentMode, type SplitAmounts } from '../lib/paymentModes'
 import { gstSplit } from '../lib/gst'
 import { DocumentPreviewModal } from '../components/invoice/InvoiceParts'
@@ -187,8 +188,10 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
   const viewBtn = (d: DeskReceipt) => (
     <button className={`${iconBtn} bg-black/10 text-[#000000] hover:bg-black/15`} title="View slip / invoice" onClick={() => viewDoc(d)}><DocIcon className="w-4 h-4" /></button>
   )
-  const eyeBtn = (d: DeskReceipt) => (
-    <button className={`${iconBtn} bg-black/5 text-[#000000] hover:bg-black/10`} title="Open full page (print from there)" onClick={() => { storeDeskDoc(d); navigate('/document') }}><EyeIcon className="w-4 h-4" /></button>
+  // Eye: details drawer (Print / View Bill / WhatsApp), same as the purchase details
+  const [drawer, setDrawer] = useState<{ doc: DeskReceipt; send?: () => void } | null>(null)
+  const eyeBtn = (d: DeskReceipt, send?: () => void) => (
+    <button className={`${iconBtn} bg-black/5 text-[#000000] hover:bg-black/10`} title="View details" onClick={() => setDrawer({ doc: d, send })}><EyeIcon className="w-4 h-4" /></button>
   )
   const slipText = (d: DeskReceipt) => [
     `🧾 *${d.title} — ${shopName()}*`, '', `Dear ${d.customerName || 'Customer'},`, '', `*No:* ${d.number}`, `*Date:* ${d.date}`,
@@ -721,7 +724,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                     <td className="px-4 py-3.5 text-xs">{fmtDate(x.validUntil)}</td>
                     <td className="px-4 py-3.5">{statusChip(x.status === 'open' ? 'Open' : x.status === 'converted' ? 'Billed' : 'Cancelled', x.status === 'open' ? 'blue' : x.status === 'converted' ? 'green' : 'gray')}</td>
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
-                      {waBtn(quotationDoc(x), () => quotationWhatsApp(x))}{viewBtn(quotationDoc(x))}{editBtn('quotations', x.id, x.quotationNumber, x.customerName, x.phone, x.notes || '')}{eyeBtn(quotationDoc(x))}
+                      {waBtn(quotationDoc(x), () => quotationWhatsApp(x))}{viewBtn(quotationDoc(x))}{editBtn('quotations', x.id, x.quotationNumber, x.customerName, x.phone, x.notes || '')}{eyeBtn(quotationDoc(x), () => quotationWhatsApp(x))}
                       <button className={`${iconBtn} bg-[#10B981]/10 text-[#10B981] hover:bg-[#10B981]/20`} title="Download PDF" onClick={() => void quotationPdf(x)}><Download size={15} /></button>
                       {x.status === 'open' && onBillQuotation && <button className={`${iconBtn} bg-[#0A0A0A] text-white hover:bg-[#1A1A1A]`} title={x.validUntil && x.validUntil < new Date().toISOString().slice(0, 10) ? 'Bill now (expired: priced at today\'s rate)' : 'Bill now at the quoted prices'} onClick={() => onBillQuotation(x)}><Receipt size={15} /></button>}
                       {x.status === 'open' && <button className={`${iconBtn} bg-[#F59E0B]/10 text-[#D97706] hover:bg-[#F59E0B]/20`} title="Mark as billed" onClick={() => void setQuotationStatus(x, 'converted')}><CheckCircle2 size={15} /></button>}
@@ -798,7 +801,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                     <td className="px-4 py-3.5 text-xs"><p>Used {formatCurrency(x.amountUsed)}</p><p className="font-black text-emerald-700">Balance {formatCurrency(x.balance)}</p></td>
                     <td className="px-4 py-3.5">{statusChip(x.status === 'active' ? 'Available' : x.status === 'used' ? 'Fully used' : 'Cancelled', x.status === 'active' ? 'green' : 'gray')}</td>
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
-                      {waBtn(advanceDoc(x), () => whatsappAdvance(x))}{viewBtn(advanceDoc(x))}{editBtn('customer_advances', x.id, x.receiptNumber, x.customerName, x.phone, x.purpose)}{eyeBtn(advanceDoc(x))}
+                      {waBtn(advanceDoc(x), () => whatsappAdvance(x))}{viewBtn(advanceDoc(x))}{editBtn('customer_advances', x.id, x.receiptNumber, x.customerName, x.phone, x.purpose)}{eyeBtn(advanceDoc(x), () => whatsappAdvance(x))}
                       {isAdmin && x.status === 'active' && x.amountUsed === 0 && <button className={`${iconBtn} bg-[#DC2626]/10 text-[#DC2626] hover:bg-[#DC2626]/20`} title="Cancel / refund advance" onClick={() => void cancelAdvance(x)}><XCircle size={15} /></button>}
                       {isAdmin && x.amountUsed === 0 && x.source !== 'old_gold' && deleteBtn(() => void deleteRecord('customer_advances', x.id, x.receiptNumber, 'advance', x.status === 'active' ? 'Only delete an advance entered by mistake. To give money back, use Cancel / refund instead.' : ''))}
                     </div></td>
@@ -825,7 +828,7 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
                       </select>
                     </td>
                     <td className="px-4 py-3.5"><div className="flex items-center gap-1.5">
-                      {waBtn(repairDoc(x), () => whatsappRepair(x))}{viewBtn(repairDoc(x))}{editBtn('repairs', x.id, x.repairNumber, x.customerName, x.phone, x.notes)}{eyeBtn(repairDoc(x))}
+                      {waBtn(repairDoc(x), () => whatsappRepair(x))}{viewBtn(repairDoc(x))}{editBtn('repairs', x.id, x.repairNumber, x.customerName, x.phone, x.notes)}{eyeBtn(repairDoc(x), () => whatsappRepair(x))}
                       <button className={`${iconBtn} bg-[#F59E0B]/10 text-[#D97706] hover:bg-[#F59E0B]/20`} title="Update charges" onClick={() => { setRepairEdit(x); setRepairEditForm({ charge: String(x.repairCharge), advance: String(x.advancePaid), expectedDate: x.expectedDate || '', assignedTo: x.assignedTo }); setModalError('') }}><Wallet size={15} /></button>
                       {isAdmin && deleteBtn(() => void deleteRecord('repairs', x.id, x.repairNumber, 'repair'))}
                     </div></td>
@@ -1076,6 +1079,26 @@ export default function SalesDesk({ onBillQuotation }: { onBillQuotation?: (quot
         <DeskDocSheet doc={previewDoc} />
       </DocumentPreviewModal>
     )}
+    {drawer && (() => {
+      const d = drawer.doc
+      const stats = (d.totals || []).slice(-3).map(([label, value]) => ({ label, value, tone: /balance|owed|due/i.test(label) && !/₹\s*0(\.00)?$/.test(value) ? 'red' as const : undefined }))
+      return (
+        <DetailDrawer
+          kicker={`${d.number} • ${d.date}`}
+          title={d.customerName || 'Walk-in Customer'}
+          subtitle={<>{d.title}{d.phone ? ` • ${d.phone}` : ''}</>}
+          onClose={() => setDrawer(null)}
+          onPrint={() => setPrintDoc(d)}
+          onView={() => viewDoc(d)}
+          onWhatsApp={d.phone ? () => (drawer.send ? drawer.send() : sendWhatsApp(d.phone || '', slipText(d))) : null}
+          stats={stats}
+        >
+          <DrawerTable rows={[...d.rows, ...(d.totals || []).slice(0, -3)]} />
+          {d.footer && <p className="mt-3 text-[11px] font-semibold text-[#000000]/60">{d.footer}</p>}
+        </DetailDrawer>
+      )
+    })()}
+
     {printDoc && (
       <PrintSettingsModal onClose={() => setPrintDoc(null)} onPrint={(prefs) => { if (prefs.paper === 'thermal') printDeskReceipt(printDoc, thermalWidth(prefs)); else { storeDeskDoc(printDoc); navigate(`/document?print=${prefs.size}`) } }} />
     )}
