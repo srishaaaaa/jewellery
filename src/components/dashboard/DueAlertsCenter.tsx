@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { BellRing, Cake, CalendarClock, Clock, Heart, PiggyBank, Truck, Volume2, VolumeX, Wallet, Wrench } from 'lucide-react'
+import { BadgeCheck, BellRing, Boxes, Cake, CalendarClock, Clock, FileText, Heart, PiggyBank, Truck, Volume2, VolumeX, Wallet, Wrench } from 'lucide-react'
 import { creditService } from '../../services/creditService'
 import { listAdvanceOrders } from '../../services/advanceOrderService'
 import { schemeService } from '../../services/schemeService'
 import { purchaseService, supplierService } from '../../services/purchaseService'
-import { repairService } from '../../services/salesDeskService'
+import { quotationService, repairService } from '../../services/salesDeskService'
+import { certificateService } from '../../services/stoneRateService'
+import { systemNotify } from '../../lib/systemNotify'
+import { useAdminAuthStore, DEFAULT_STAFF_PANELS } from '../../store/store'
 import { customerService } from '../../services/customerService'
 import { useSettingsStore } from '../../store/store'
 import { useAlarmQueueStore } from '../../store/alarmQueueStore'
@@ -31,8 +34,8 @@ type DueItem = {
 
 const ACK_KEY = 'jewellery_due_alerts_ack'
 const CHECK_EVERY_MS = 30 * 60 * 1000
-const ICONS: Record<AlertKind, typeof Wallet> = { credit: Wallet, advance: Clock, scheme: PiggyBank, purchase: Truck, repair: Wrench, birthday: Cake, anniversary: Heart }
-const KIND_LABEL: Record<AlertKind, string> = { credit: 'Credit', advance: 'Advance Order', scheme: 'Scheme', purchase: 'Supplier', repair: 'Repair', birthday: 'Birthday', anniversary: 'Anniversary' }
+const ICONS: Record<AlertKind, typeof Wallet> = { credit: Wallet, advance: Clock, scheme: PiggyBank, purchase: Truck, repair: Wrench, birthday: Cake, anniversary: Heart, quotation: FileText, certificate: BadgeCheck, stock: Boxes }
+const KIND_LABEL: Record<AlertKind, string> = { credit: 'Credit', advance: 'Advance Order', scheme: 'Scheme', purchase: 'Supplier', repair: 'Repair', birthday: 'Birthday', anniversary: 'Anniversary', quotation: 'Quotation', certificate: 'Certificate', stock: 'Low stock' }
 const isEvent = (k: AlertKind) => k === 'birthday' || k === 'anniversary'
 
 const daysBetween = (from: string, to: string) => Math.round((new Date(`${to}T00:00:00`).getTime() - new Date(`${from}T00:00:00`).getTime()) / 86400000)
@@ -154,6 +157,30 @@ async function loadDueItems(cfg: AlertSettings): Promise<DueItem[]> {
     }
   }))
 
+  if (cfg.leads.quotation !== 'off') jobs.push(quotationService.list().then(rows => {
+    for (const q of rows) {
+      if (q.status !== 'open' || !q.validUntil) continue
+      const d = within('quotation', q.validUntil)
+      if (d === null) continue
+      found.push({
+        key: `quotation:${q.id}:${q.validUntil}`, kind: 'quotation', tab: 'sales_desk', title: q.customerName || q.phone || q.quotationNumber,
+        detail: `${q.quotationNumber} • valid until ${fmt(q.validUntil)}`, date: q.validUntil, daysLeft: d, amount: q.total, phone: q.phone,
+        message: `Dear ${q.customerName || 'Customer'},\n\nYour quotation *${q.quotationNumber}* for *${formatCurrency(q.total)}* ${d < 0 ? 'expired' : d === 0 ? 'expires today' : 'is valid until'} *${fmt(q.validUntil)}*.\nVisit us to bill it at the quoted price before it expires.\n\nThank you!`,
+      })
+    }
+  }))
+  if (cfg.leads.certificate !== 'off') jobs.push(certificateService.list().then(rows => {
+    for (const c of rows) {
+      if (!c.expiryDate || c.status === 'rejected') continue
+      const d = within('certificate', c.expiryDate)
+      if (d === null) continue
+      found.push({
+        key: `certificate:${c.id}:${c.expiryDate}`, kind: 'certificate', tab: 'inventory', title: `${c.lab} ${c.certificateNo}`,
+        detail: c.stoneDescription || 'Stone certificate', date: c.expiryDate, daysLeft: d, amount: 0,
+      })
+    }
+  }))
+
   await Promise.allSettled(jobs)
   const acked = readAck(today)
   return found.filter(i => !acked.has(i.key)).sort((a, b) => a.daysLeft - b.daysLeft)
@@ -175,19 +202,25 @@ export default function DueAlertsCenter({ onOpenTab }: { onOpenTab: (tab: string
   const dequeue = useAlarmQueueStore(s => s.dequeue)
   const isFront = queue[0] === 'dueAlerts'
   const settingsKey = JSON.stringify(alertSettings)
+  // Staff only get reminders for the panels they can open
+  const role = useAdminAuthStore(s => s.role)
+  const staffPanels = useAdminAuthStore(s => s.panels)
+  const allowedKey = role === 'staff' ? JSON.stringify(staffPanels && staffPanels.length ? staffPanels : DEFAULT_STAFF_PANELS) : ''
 
   useEffect(() => {
     let alive = true
     const cfg = normalizeAlertSettings(JSON.parse(settingsKey))
-    const run = () => loadDueItems(cfg).then(list => {
+    const allowed: string[] | null = allowedKey ? JSON.parse(allowedKey) : null
+    const run = () => loadDueItems(cfg).then(all => {
       if (!alive) return
+      const list = allowed ? all.filter(i => allowed.includes(i.tab)) : all
       setItems(list)
       if (list.length) enqueue('dueAlerts')
     })
     void run()
     const t = window.setInterval(() => void run(), CHECK_EVERY_MS)
     return () => { alive = false; window.clearInterval(t) }
-  }, [settingsKey, enqueue])
+  }, [settingsKey, allowedKey, enqueue])
 
   const beep = useCallback(() => {
     try {
@@ -215,11 +248,9 @@ export default function DueAlertsCenter({ onOpenTab }: { onOpenTab: (tab: string
     if (!items.length || !isFront) return
     if (alertSettings.sound) { beep(); intervalRef.current = window.setInterval(beep, 4000) }
     const sig = items.map(i => i.key).join('|')
-    if (alertSettings.notifications && notifiedRef.current !== sig && 'Notification' in window) {
+    if (alertSettings.notifications && notifiedRef.current !== sig) {
       notifiedRef.current = sig
-      const show = () => { try { new Notification(`${items.length} reminder${items.length === 1 ? '' : 's'} due`, { body: items.slice(0, 4).map(i => `${KIND_LABEL[i.kind]}: ${i.title} — ${whenText(i.daysLeft, i.kind)}`).join('\n') }) } catch { /* not allowed here */ } }
-      if (Notification.permission === 'granted') show()
-      else if (Notification.permission === 'default') void Notification.requestPermission().then(p => { if (p === 'granted') show() })
+      void systemNotify(`${items.length} reminder${items.length === 1 ? '' : 's'} due`, items.slice(0, 4).map(i => `${KIND_LABEL[i.kind]}: ${i.title} — ${whenText(i.daysLeft, i.kind)}`).join('\n'), 'due-alerts')
     }
     return () => { if (intervalRef.current) window.clearInterval(intervalRef.current) }
   }, [items, isFront, alertSettings.sound, alertSettings.notifications, beep])

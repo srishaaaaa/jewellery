@@ -1,4 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
+import { useSettingsStore } from '../../store/store'
+import { normalizeAlertSettings } from '../../lib/alertSettings'
+import { systemNotify } from '../../lib/systemNotify'
 import { AlertTriangle, Volume2, VolumeX, Package } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { useSound } from '../../context/SoundContext'
@@ -33,7 +36,10 @@ interface ProductStockRow {
  * future logins/Inventory visits.
  */
 export default function LowStockAlarmModal({ triggerKey }: { triggerKey?: string | number }) {
-  const { soundEnabled } = useSound()
+  const alertCfg = normalizeAlertSettings(useSettingsStore(s => s.settings?.posPermissions?.alerts))
+  const { soundEnabled: appSound } = useSound()
+  const soundEnabled = appSound && alertCfg.sound
+  const alarmOn = alertCfg.notifications && alertCfg.leads.stock !== 'off'
   const [items, setItems] = useState<LowStockItem[] | null>(null)
   const intervalRef = useRef<number | null>(null)
   const audioCtxRef = useRef<AudioContext | null>(null)
@@ -47,6 +53,7 @@ export default function LowStockAlarmModal({ triggerKey }: { triggerKey?: string
     const isInitialMount = !hasCheckedOnMount.current
     hasCheckedOnMount.current = true
     if (!isInitialMount && triggerKey !== 'inventory') return
+    if (!alarmOn) return
 
     let cancelled = false
     const check = async () => {
@@ -68,11 +75,12 @@ export default function LowStockAlarmModal({ triggerKey }: { triggerKey?: string
       if (low.length > 0) {
         setItems(low)
         enqueueAlarm('lowStock')
+        void systemNotify(`${low.length} item${low.length === 1 ? '' : 's'} low on stock`, low.slice(0, 4).map(p => `${p.name}: ${p.stock_quantity} left`).join('\n'), 'low-stock')
       }
     }
     void check()
     return () => { cancelled = true }
-  }, [triggerKey, enqueueAlarm])
+  }, [triggerKey, enqueueAlarm, alarmOn])
 
   const beep = () => {
     if (!soundEnabled) return

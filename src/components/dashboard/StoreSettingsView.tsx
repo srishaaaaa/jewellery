@@ -523,7 +523,9 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                           onChange={e => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, alerts: { ...f.posPermissions.alerts, leads: { ...f.posPermissions.alerts.leads, [kind]: e.target.value as AlertLead } } } }))}
                           className="shrink-0 rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-xs font-bold text-[#000000] focus:border-[var(--accent)] focus:outline-none cursor-pointer"
                         >
-                          {(['day', 'week', 'month', 'off'] as AlertLead[]).map(l => <option key={l} value={l}>{LEAD_LABELS[l]}</option>)}
+                          {kind === 'stock'
+                            ? (['day', 'off'] as AlertLead[]).map(l => <option key={l} value={l}>{l === 'day' ? 'On' : 'Off'}</option>)
+                            : (['day', 'week', 'month', 'off'] as AlertLead[]).map(l => <option key={l} value={l}>{LEAD_LABELS[l]}</option>)}
                         </select>
                       </div>
                     ))}
