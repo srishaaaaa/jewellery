@@ -530,11 +530,16 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                   </div>
                 </div>
                 <div className="pt-3 border-t border-black/10 space-y-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Net Profit calculation</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Net Profit calculation — money going out</p>
+                  <p className="text-[11px] text-[#000000]/70">Each one that is on is taken off the amount received (Net Earnings on the Analytics dashboard).</p>
                   {([
-                    ['netProfitIncludeExpenses', 'Subtract expenses', 'On: Net Profit = sales − expenses from the Expense Tracker.'],
-                    ['netProfitIncludeOldGold', 'Subtract old gold exchange', 'On: Net Profit also takes off old gold taken in — exchanged on bills and bought at the counter.'],
-                    ['netProfitIncludePurchases', 'Subtract supplier purchases', 'On: Net Profit also takes off what you bought from suppliers in the period.'],
+                    ['netProfitIncludeExpenses', 'Subtract expenses', 'Expense Tracker entries in the period.'],
+                    ['netProfitIncludePurchases', 'Subtract supplier purchases', 'What you bought from suppliers in the period (Purchases).'],
+                    ['netProfitIncludeCounterOldGold', 'Subtract old gold bought at the counter', 'Old gold bought at the Sales Desk — paid out or given as store credit.'],
+                    ['netProfitIncludeOldGold', 'Subtract old gold taken on bills', 'Old gold the customer gave as part-payment on a bill.'],
+                    ['netProfitIncludeRefunds', 'Subtract refunds', 'Money given back on approved returns (refund type).'],
+                    ['netProfitIncludeCancelledAdvances', 'Subtract cancelled advances', 'Customer advances cancelled and refunded at the Sales Desk.'],
+                    ['netProfitIncludeChange', 'Subtract change returned', 'Change given back on cash bills. Usually off: the amount received is already the bill amount, not the cash handed over.'],
                   ] as const).map(([key, label, hint]) => (
                     <div key={key} className="flex items-start justify-between gap-4">
                       <span>

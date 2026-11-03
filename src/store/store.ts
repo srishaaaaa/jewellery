@@ -183,15 +183,23 @@ export interface PosPermissions {
   allowCashAboveLimit: boolean
   /** Net Profit subtracts expenses from the Expense Tracker. */
   netProfitIncludeExpenses: boolean
-  /** Net Profit subtracts old gold taken in (exchanged on bills and bought at the counter). */
+  /** Net Profit subtracts old gold taken in on bills (part-payment). */
   netProfitIncludeOldGold: boolean
+  /** Net Profit subtracts old gold bought at the counter (paid out or given as store credit). */
+  netProfitIncludeCounterOldGold: boolean
+  /** Net Profit subtracts refunds paid on returns. */
+  netProfitIncludeRefunds: boolean
+  /** Net Profit subtracts customer advances cancelled and refunded. */
+  netProfitIncludeCancelledAdvances: boolean
+  /** Net Profit subtracts change given back on cash bills (off: bills already count only the bill amount). */
+  netProfitIncludeChange: boolean
   /** Net Profit subtracts supplier purchases (off by default: stock bought is not yet sold) */
   netProfitIncludePurchases: boolean
   /** Due-date reminders: pop-up, sound and how early each kind shows */
   alerts: AlertSettings
 }
 
-export const DEFAULT_POS_PERMISSIONS: PosPermissions = { staffMaxDiscountPercent: 5, staffCanCustomiseSchemes: false, staffCanOverrideStonePrice: false, cashLimit: 199500, allowCashAboveLimit: false, netProfitIncludeExpenses: true, netProfitIncludeOldGold: true, netProfitIncludePurchases: false, alerts: DEFAULT_ALERT_SETTINGS }
+export const DEFAULT_POS_PERMISSIONS: PosPermissions = { staffMaxDiscountPercent: 5, staffCanCustomiseSchemes: false, staffCanOverrideStonePrice: false, cashLimit: 199500, allowCashAboveLimit: false, netProfitIncludeExpenses: true, netProfitIncludeOldGold: true, netProfitIncludeCounterOldGold: true, netProfitIncludeRefunds: true, netProfitIncludeCancelledAdvances: true, netProfitIncludeChange: false, netProfitIncludePurchases: false, alerts: DEFAULT_ALERT_SETTINGS }
 
 export const normalizePosPermissions = (raw: unknown): PosPermissions => {
   const r = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {}
@@ -205,6 +213,12 @@ export const normalizePosPermissions = (raw: unknown): PosPermissions => {
     netProfitIncludeExpenses: typeof r.netProfitIncludeExpenses === 'boolean' ? r.netProfitIncludeExpenses : DEFAULT_POS_PERMISSIONS.netProfitIncludeExpenses,
     netProfitIncludeOldGold: typeof r.netProfitIncludeOldGold === 'boolean' ? r.netProfitIncludeOldGold : DEFAULT_POS_PERMISSIONS.netProfitIncludeOldGold,
     netProfitIncludePurchases: typeof r.netProfitIncludePurchases === 'boolean' ? r.netProfitIncludePurchases : DEFAULT_POS_PERMISSIONS.netProfitIncludePurchases,
+    // Before the split, one switch covered both kinds of old gold: keep what was chosen.
+    netProfitIncludeCounterOldGold: typeof r.netProfitIncludeCounterOldGold === 'boolean' ? r.netProfitIncludeCounterOldGold
+      : typeof r.netProfitIncludeOldGold === 'boolean' ? r.netProfitIncludeOldGold : DEFAULT_POS_PERMISSIONS.netProfitIncludeCounterOldGold,
+    netProfitIncludeRefunds: typeof r.netProfitIncludeRefunds === 'boolean' ? r.netProfitIncludeRefunds : DEFAULT_POS_PERMISSIONS.netProfitIncludeRefunds,
+    netProfitIncludeCancelledAdvances: typeof r.netProfitIncludeCancelledAdvances === 'boolean' ? r.netProfitIncludeCancelledAdvances : DEFAULT_POS_PERMISSIONS.netProfitIncludeCancelledAdvances,
+    netProfitIncludeChange: typeof r.netProfitIncludeChange === 'boolean' ? r.netProfitIncludeChange : DEFAULT_POS_PERMISSIONS.netProfitIncludeChange,
     alerts: normalizeAlertSettings(r.alerts),
   }
 }

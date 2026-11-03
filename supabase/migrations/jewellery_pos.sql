@@ -2971,3 +2971,11 @@ $$;
 GRANT EXECUTE ON FUNCTION public.delete_sales_return(UUID, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.delete_jewellery_scheme(UUID) TO anon, authenticated;
 NOTIFY pgrst, 'reload schema';
+
+-- ============================================================================
+-- 34. Cash received and change given back on a bill (for the Net Profit setting
+--     "Subtract change returned")
+-- ============================================================================
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS cash_received NUMERIC(12,2);
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS change_returned NUMERIC(12,2) NOT NULL DEFAULT 0;
+NOTIFY pgrst, 'reload schema';

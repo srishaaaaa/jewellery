@@ -64,7 +64,7 @@ import type { AdvanceOrder } from '../services/advanceOrderService'
 import { InventoryTable } from '../components/inventory/InventoryTable'
 import { ExpensesView } from '../components/expenses/ExpensesView'
 import { expenseService, type ExpenseRecord } from '../services/expenseService'
-import { oldGoldService, type OldGoldRecord } from '../services/salesDeskService'
+import { advanceService, oldGoldService, returnService, type CustomerAdvance, type OldGoldRecord, type SalesReturn } from '../services/salesDeskService'
 import { purchaseService, type Purchase } from '../services/purchaseService'
 import { listAdvanceOrders } from '../services/advanceOrderService'
 import { useNavigationStore } from '../store/navigationStore'
@@ -326,6 +326,9 @@ export default function Dashboard() {
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([])
   const [oldGold, setOldGold] = useState<OldGoldRecord[]>([])
   const [supplierPurchases, setSupplierPurchases] = useState<Purchase[]>([])
+  const [returnsList, setReturnsList] = useState<SalesReturn[]>([])
+  const [customerAdvances, setCustomerAdvances] = useState<CustomerAdvance[]>([])
+  const [changeRows, setChangeRows] = useState<Array<{ id: string; created_at: string; change_returned: number }>>([])
   const [advanceList, setAdvanceList] = useState<AdvanceOrder[]>([])
   const netRules = useSettingsStore(s => s.settings?.posPermissions)
 
@@ -495,6 +498,8 @@ export default function Dashboard() {
     const onlinePosRevenue   = onlinePOS.reduce((s, o) => s + getOrderTotal(o), 0)
     const manualRevenue      = manualSales.reduce((s, o) => s + getOrderTotal(o), 0)
 
+    const inPeriod = (day: string) => (!analyticsDateFrom || day >= analyticsDateFrom) && (!analyticsDateTo || day <= analyticsDateTo)
+    const inPeriodDay = (day: string) => Boolean(day) && inPeriod(day)
     // Expenses & Net Profit calculation:
     // Net Profit = Revenue (total selling based on orders) - Total Expense (from expense tracker)
     let datedExpenses = expenses
@@ -506,14 +511,32 @@ export default function Dashboard() {
     // GST / Non-GST: old gold on a bill follows that bill; counter purchases have no GST invoice
     const gstByOrder = new Map(orders.map(o => [o.id, isGstBill(o)]))
     const kindMatch = (gst: boolean) => analyticsBillKind === 'all' || (analyticsBillKind === 'gst') === gst
-    const totalOldGold = oldGold
+    const periodOldGold = oldGold
       .filter(g => (!analyticsDateFrom || oldGoldDay(g.createdAt) >= analyticsDateFrom) && (!analyticsDateTo || oldGoldDay(g.createdAt) <= analyticsDateTo))
       .filter(g => kindMatch(g.source === 'billing' && g.orderId ? gstByOrder.get(g.orderId) ?? false : false))
-      .reduce((s, g) => s + (Number(g.netValue) || 0), 0)
+    const billOldGold = periodOldGold.filter(g => g.source === 'billing').reduce((s, g) => s + (Number(g.netValue) || 0), 0)
+    const counterOldGold = periodOldGold.filter(g => g.source === 'counter').reduce((s, g) => s + (Number(g.netValue) || 0), 0)
+    const totalOldGold = billOldGold + counterOldGold
     const subtractExpenses = netRules?.netProfitIncludeExpenses ?? true
     const subtractOldGold = netRules?.netProfitIncludeOldGold ?? true
+    const subtractCounterOldGold = netRules?.netProfitIncludeCounterOldGold ?? subtractOldGold
+    const subtractRefunds = netRules?.netProfitIncludeRefunds ?? true
+    const subtractCancelledAdvances = netRules?.netProfitIncludeCancelledAdvances ?? true
+    const subtractChange = netRules?.netProfitIncludeChange ?? false
+    const localDay = (iso: string | null | undefined) => (iso ? toLocalDateStr(new Date(iso)) : '')
+    // Refunds paid on approved returns (a return follows its bill's GST; no bill = Non-GST)
+    const totalRefunds = returnsList
+      .filter(r => r.status === 'approved' && r.returnType === 'refund' && inPeriodDay(localDay(r.approvedAt || r.createdAt)))
+      .filter(r => kindMatch(r.orderId ? gstByOrder.get(r.orderId) ?? false : false))
+      .reduce((s, r) => s + (Number(r.refundAmount) || 0), 0)
+    // Advances paid in cash / UPI and later cancelled (refunded); credits from exchanges, old gold or vouchers were never cash in
+    const totalCancelledAdvances = analyticsBillKind === 'gst' ? 0 : customerAdvances
+      .filter(a => a.status === 'cancelled' && a.source === 'payment' && inPeriodDay(localDay(a.createdAt)))
+      .reduce((s, a) => s + (Number(a.amount) || 0), 0)
+    const totalChange = changeRows
+      .filter(c => inPeriodDay(localDay(c.created_at)) && kindMatch(gstByOrder.get(c.id) ?? false))
+      .reduce((s, c) => s + (Number(c.change_returned) || 0), 0)
     const subtractPurchases = netRules?.netProfitIncludePurchases ?? false
-    const inPeriod = (day: string) => (!analyticsDateFrom || day >= analyticsDateFrom) && (!analyticsDateTo || day <= analyticsDateTo)
     const kindPurchases = supplierPurchases.filter(p => kindMatch(p.gstAmount > 0))
     const periodPurchases = kindPurchases.filter(p => inPeriod(p.purchaseDate))
     const totalPurchases = periodPurchases.reduce((s, p) => s + p.totalAmount, 0)
@@ -524,8 +547,13 @@ export default function Dashboard() {
     const creditBills = orders.filter(o => o.credit_status === 'outstanding' && kindMatch(isGstBill(o)))
     const creditOutstanding = creditBills.reduce((s, o) => s + getOrderTotal(o), 0)
     const creditOutstandingCount = creditBills.length
-    const netProfit = completedRevenue - (subtractExpenses ? totalExpenses : 0) - (subtractOldGold ? totalOldGold : 0) - (subtractPurchases ? totalPurchases : 0)
-    const netFormula = ['GST + Non-GST', subtractExpenses ? 'Expenses' : '', subtractOldGold ? 'Old Gold' : '', subtractPurchases ? 'Purchases' : ''].filter(Boolean).join(' − ')
+    // Net = amount received − every kind of money going out that is switched on in Settings
+    const moneyOut = (subtractExpenses ? totalExpenses : 0) + (subtractOldGold ? billOldGold : 0) + (subtractCounterOldGold ? counterOldGold : 0)
+      + (subtractPurchases ? totalPurchases : 0) + (subtractRefunds ? totalRefunds : 0) + (subtractCancelledAdvances ? totalCancelledAdvances : 0)
+      + (subtractChange ? totalChange : 0)
+    const netProfit = completedRevenue - moneyOut
+    const netFormula = ['GST + Non-GST', subtractExpenses ? 'Expenses' : '', subtractPurchases ? 'Purchases' : '', subtractCounterOldGold ? 'Counter Old Gold' : '',
+      subtractOldGold ? 'Old Gold on Bills' : '', subtractRefunds ? 'Refunds' : '', subtractCancelledAdvances ? 'Cancelled Advances' : '', subtractChange ? 'Change Returned' : ''].filter(Boolean).join(' − ')
     const isProfitable = netProfit >= 0
     const gstBills = billableCompleted.filter(isGstBill)
     const nonGstBills = billableCompleted.filter(o => !isGstBill(o))
@@ -848,6 +876,16 @@ export default function Dashboard() {
       topWACategories,
       totalExpenses,
       totalOldGold,
+      billOldGold,
+      counterOldGold,
+      totalRefunds,
+      totalCancelledAdvances,
+      totalChange,
+      moneyOut,
+      subtractCounterOldGold,
+      subtractRefunds,
+      subtractCancelledAdvances,
+      subtractChange,
       totalPurchases,
       purchaseCount: periodPurchases.length,
       supplierOwed,
@@ -865,7 +903,7 @@ export default function Dashboard() {
       gstBillCount: gstBills.length,
       nonGstBillCount: nonGstBills.length,
     }
-  }, [orders, orderItems, products, expenses, oldGold, supplierPurchases, advanceList, netRules, analyticsDateFrom, analyticsDateTo, analyticsBillKind])
+  }, [orders, orderItems, products, expenses, oldGold, supplierPurchases, advanceList, returnsList, customerAdvances, changeRows, netRules, analyticsDateFrom, analyticsDateTo, analyticsBillKind])
 
   // Bill-type filtered results for Order Management table (client-side, instant)
   const filteredSearchResults = useMemo(() => {
@@ -908,6 +946,11 @@ export default function Dashboard() {
       setCoupons((couponRes.data || []) as DashboardCoupon[])
       setExpenses(expList || [])
       oldGoldService.list().then(setOldGold).catch(() => setOldGold([]))
+      // Money going out at the Sales Desk / counter (for the Net Profit settings)
+      returnService.list().then(setReturnsList).catch(() => setReturnsList([]))
+      advanceService.list().then(setCustomerAdvances).catch(() => setCustomerAdvances([]))
+      Promise.resolve(supabase.from('orders').select('id, created_at, change_returned').gt('change_returned', 0).limit(5000))
+        .then(({ data }) => setChangeRows((data || []) as Array<{ id: string; created_at: string; change_returned: number }>)).catch(() => setChangeRows([]))
       purchaseService.list().then(setSupplierPurchases).catch(() => setSupplierPurchases([]))
       listAdvanceOrders().then(setAdvanceList).catch(() => setAdvanceList([]))
 
@@ -2511,26 +2554,28 @@ export default function Dashboard() {
                     </div>
                     <p className="mt-4 text-[28px] font-black leading-tight text-rose-600 break-words">−{formatCurrency(analytics.totalExpenses)}</p>
                     <button type="button" onClick={() => handleTabClick('expenses')} className="mt-2 text-xs font-black text-rose-600 underline cursor-pointer">Money out — Expense Tracker</button>
-                    {analytics.totalOldGold > 0 && (
-                      <p className="mt-2 text-xs font-semibold text-[#000000]">
-                        Old gold taken in: <span className="font-black text-rose-600">−{formatCurrency(analytics.totalOldGold)}</span>
-                        {!(netRules?.netProfitIncludeOldGold ?? true) && ' (not subtracted — see Settings)'}
-                      </p>
-                    )}
+                    <p className="mt-2 text-xs font-semibold text-[#000000]">
+                      All money out subtracted: <span className="font-black text-rose-600">−{formatCurrency(analytics.moneyOut)}</span>
+                      <span className="block text-[10px] text-[#000000]/60">Choose what is subtracted in Settings → Net Profit calculation</span>
+                    </p>
                   </div>
                 </div>
 
                 {/* Business summary: everything except schemes (they have their own dashboard) */}
-                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
                   {([
                     ['Expenses', formatCurrency(analytics.totalExpenses), `${(netRules?.netProfitIncludeExpenses ?? true) ? 'Subtracted' : 'Not subtracted'} from Net Profit`, 'expenses', 'text-rose-600'],
-                    ['Old Gold Taken In', formatCurrency(analytics.totalOldGold), `${(netRules?.netProfitIncludeOldGold ?? true) ? 'Subtracted' : 'Not subtracted'} from Net Profit`, 'sales_desk', 'text-rose-600'],
+                    ['Old Gold at Counter', formatCurrency(analytics.counterOldGold), `${analytics.subtractCounterOldGold ? 'Subtracted' : 'Not subtracted'} from Net Profit`, 'sales_desk', 'text-rose-600'],
+                    ['Old Gold on Bills', formatCurrency(analytics.billOldGold), `${(netRules?.netProfitIncludeOldGold ?? true) ? 'Subtracted' : 'Not subtracted'} from Net Profit`, 'sales_desk', 'text-rose-600'],
+                    ['Refunds', formatCurrency(analytics.totalRefunds), `${analytics.subtractRefunds ? 'Subtracted' : 'Not subtracted'} from Net Profit`, 'sales_desk', 'text-rose-600'],
+                    ['Cancelled Advances', formatCurrency(analytics.totalCancelledAdvances), `${analytics.subtractCancelledAdvances ? 'Subtracted' : 'Not subtracted'} from Net Profit`, 'sales_desk', 'text-rose-600'],
+                    ['Change Returned', formatCurrency(analytics.totalChange), `${analytics.subtractChange ? 'Subtracted' : 'Not subtracted'} from Net Profit`, 'billing', 'text-rose-600'],
                     ['Supplier Purchases', formatCurrency(analytics.totalPurchases), `${analytics.purchaseCount} bill${analytics.purchaseCount === 1 ? '' : 's'} · ${(netRules?.netProfitIncludePurchases ?? false) ? 'subtracted' : 'not subtracted'}`, 'purchases', 'text-[#000000]'],
                     ['Owed to Suppliers', formatCurrency(analytics.supplierOwed), 'Balance still to pay', 'purchases', 'text-rose-600'],
                     ['Advance Deposits Held', formatCurrency(analytics.advanceDepositsHeld), `${analytics.openAdvanceCount} open order${analytics.openAdvanceCount === 1 ? '' : 's'} · ${formatCurrency(analytics.advanceBalanceDue)} to collect`, 'advance_orders', 'text-[#000000]'],
                     ['Credit Outstanding', formatCurrency(analytics.creditOutstanding), `${analytics.creditOutstandingCount} unpaid credit bill${analytics.creditOutstandingCount === 1 ? '' : 's'}`, 'outstanding_credits', 'text-rose-600'],
                   ] as const).map(([label, value, rawHint, target, tone]) => {
-                    const hint = analyticsBillKind !== 'all' && ['Expenses', 'Advance Deposits Held'].includes(label) ? `${rawHint} · all bills` : rawHint
+                    const hint = analyticsBillKind !== 'all' && ['Expenses', 'Advance Deposits Held', 'Cancelled Advances'].includes(label) ? `${rawHint} · all bills` : rawHint
                     return (
                     <button key={label} type="button" onClick={() => handleTabClick(target)} className="text-left bg-white border border-black/10 rounded-xl p-4 shadow-sm hover:border-black/25 transition-colors cursor-pointer">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-[#000000]">{label}</p>
@@ -2545,7 +2590,7 @@ export default function Dashboard() {
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-black/10 bg-white px-5 py-4 shadow-sm">
                   <div className="flex flex-wrap items-center gap-3 min-w-0">
                     <span className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-indigo-700">Calculation Formula</span>
-                    <span className="text-xs font-semibold text-[#000000]">GST ({formatCurrency(analytics.gstSales)}) + Non-GST ({formatCurrency(analytics.nonGstSales)}) − Expenses ({formatCurrency(analytics.totalExpenses)})</span>
+                    <span className="text-xs font-semibold text-[#000000]">GST ({formatCurrency(analytics.gstSales)}) + Non-GST ({formatCurrency(analytics.nonGstSales)}) − Money out ({formatCurrency(analytics.moneyOut)}: {analytics.netFormula.replace(/^GST \+ Non-GST( − )?/, '') || 'nothing switched on in Settings'})</span>
                   </div>
                   <span className="text-sm font-black text-[#000000]">= {analytics.isProfitable ? 'Net Profit' : 'Net Loss'}: <span className={analytics.isProfitable ? 'text-emerald-600' : 'text-rose-600'}>{formatCurrency(Math.abs(analytics.netProfit))}</span></span>
                 </div>

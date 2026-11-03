@@ -1506,6 +1506,11 @@ export default function Pos(props: PosProps = {}) {
         await schemeService.linkRedemption(schemeReservation.redemption.id, created.orderId, created.invoiceNo)
           .catch((linkErr) => console.error('Scheme redemption saved but not linked to the invoice:', linkErr))
       }
+      // Cash received and change given back (for the "Subtract change returned" setting)
+      if (balanceToReturn > 0) {
+        void Promise.resolve(supabase.from('orders').update({ cash_received: cashReceivedNum, change_returned: balanceToReturn }).eq('id', created.orderId))
+          .then(({ error: chErr }) => { if (chErr) console.error('Bill saved, but the change returned was not recorded:', chErr) })
+      }
       // Jewellery bill details (separate update: these columns come with the jewellery database update)
       if (advanceAmountUsed > 0 || exchangeTotal > 0 || customerGstin.trim() || adjustmentsTotal > 0) {
         try {
