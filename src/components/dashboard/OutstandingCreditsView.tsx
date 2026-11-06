@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Banknote, CheckCircle2, AlertTriangle, IndianRupee, Printer, Download, Trash2, History } from 'lucide-react'
 import { DocIcon, WhatsAppIcon, actionBtn } from '../ActionIcons'
 import { creditService, toDaysOverdue } from '../../services/creditService'
@@ -10,6 +10,11 @@ import { getPresetRange, toLocalDateStr } from '../../lib/dateRanges'
 import { csvDate, csvPhone, downloadCsv } from '../../lib/csv'
 import { FilterCard, FilterField, PeriodBar } from '../filters/PageFilters'
 import { filterInput } from '../filters/filterStyles'
+import { QrCode } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
+import { paymentLinkUrl } from '../../lib/upi'
+import { toWhatsAppUrl } from '../../lib/phone'
+import { useSettingsStore } from '../../store/store'
 import { ModalPortal } from '../ModalPortal'
 import { PaymentModePicker } from '../PaymentModePicker'
 import { splitError, splitSummary, type PaymentMode, type SplitAmounts } from '../../lib/paymentModes'
@@ -32,19 +37,25 @@ const matchesSearch = (order: DashboardOrder, q: CreditQuery) => {
   return has(formatInvoiceNo(order.invoice_no), q.invoice) && has(order.customer_name, q.name) && has(order.phone, q.phone)
 }
 
-function ActionButtons({ order, onView, onPrint, onDownload, onShare, onDelete }: {
+function ActionButtons({ order, onView, onPrint, onDownload, onShare, onDelete, onPayLink }: {
   order: DashboardOrder
   onView: (order: DashboardOrder) => void
   onPrint: (order: DashboardOrder) => void
   onDownload: (order: DashboardOrder) => void
   onShare: (order: DashboardOrder) => void
   onDelete: (order: DashboardOrder) => void
+  onPayLink?: (order: DashboardOrder) => void
 }) {
   return (
     <div className="flex items-center justify-center gap-1.5">
       <button type="button" onClick={() => onShare(order)} className={`${actionBtn} bg-[#10B981]/10 hover:bg-[#10B981]/20 text-[#10B981]`} title="Send on WhatsApp">
         <WhatsAppIcon className="w-4 h-4" />
       </button>
+      {onPayLink && (
+        <button type="button" onClick={() => onPayLink(order)} className={`${actionBtn} bg-[#2563EB]/10 hover:bg-[#2563EB]/20 text-[#2563EB]`} title="Send UPI payment link on WhatsApp">
+          <QrCode className="w-4 h-4" />
+        </button>
+      )}
       <button type="button" onClick={() => onView(order)} className={`${actionBtn} bg-[var(--accent-a10)] hover:bg-[var(--accent-a20)] text-[var(--accent)]`} title="View invoice">
         <DocIcon className="w-4 h-4" />
       </button>
@@ -118,6 +129,22 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
   )
 
   // Mark paid: ask how the customer paid (any mode, or mixed with the split)
+  // Part payments confirmed from UPI claims (separate query: the column comes with the portal database update)
+  const [paidById, setPaidById] = useState<Record<string, number>>({})
+  useEffect(() => {
+    let live = true
+    supabase.from('orders').select('id, credit_paid_amount').eq('credit_status', 'outstanding').gt('credit_paid_amount', 0)
+      .then(({ data }) => { if (live && data) setPaidById(Object.fromEntries(data.map((r) => [String(r.id), Number(r.credit_paid_amount) || 0]))) })
+    return () => { live = false }
+  }, [orders])
+  const balanceOf = (o: DashboardOrder) => Math.max(0, Number(o.total) - (paidById[o.id] || 0))
+  const sendPayLink = async (o: DashboardOrder) => {
+    const { data, error } = await supabase.rpc('create_payment_link', { p_order_id: o.id, p_by: 'Admin' })
+    if (error) { alert(/upi|UPI/.test(error.message) ? 'Add the shop UPI ID in Settings → Guests Paying by UPI first.' : /create_payment_link/.test(error.message) ? 'Payment links need the database update: run supabase/migrations/customer_portal.sql.' : error.message); return }
+    const link = data as { token: string; amount: number }
+    const msg = `Dear ${o.customer_name || 'Customer'}, your invoice ${formatInvoiceNo(o.invoice_no)} has an outstanding balance of ${formatCurrency(link.amount)}. You can complete your payment using the secure UPI payment link below:\n${paymentLinkUrl(link.token)}\n\nThank you!\n- ${useSettingsStore.getState().settings?.name || ''}`
+    window.open(toWhatsAppUrl(o.phone, msg), '_blank', 'noopener,noreferrer')
+  }
   const [settleFor, setSettleFor] = useState<DashboardOrder | null>(null)
   const [settleMode, setSettleMode] = useState<PaymentMode>('cash')
   const [settleSplit, setSettleSplit] = useState<SplitAmounts>({})
@@ -128,7 +155,7 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
   const confirmSettle = async () => {
     const order = settleFor
     if (!order) return
-    const err = splitError(settleMode, settleSplit, order.total)
+    const err = splitError(settleMode, settleSplit, balanceOf(order))
     if (err) { setSettleError(err); return }
     setSettleFor(null)
     setSettlingId(order.id)
@@ -289,7 +316,7 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
                     )}
                   </div>
                   <div className="flex items-center justify-between gap-2 pt-1">
-                    <ActionButtons order={order} onView={onView} onPrint={onPrint} onDownload={onDownload} onShare={onShare} onDelete={onDelete} />
+                    <ActionButtons order={order} onView={onView} onPrint={onPrint} onDownload={onDownload} onShare={onShare} onDelete={onDelete} onPayLink={(o) => void sendPayLink(o)} />
                     <button
                       type="button"
                       onClick={() => void handleMarkAsPaid(order)}
@@ -355,7 +382,7 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
                       <td className="p-3.5 text-right font-black text-gray-900">{formatCurrency(order.total)}</td>
                       <td className="p-3.5">
                         <div className="flex items-center justify-center gap-1">
-                          <ActionButtons order={order} onView={onView} onPrint={onPrint} onDownload={onDownload} onShare={onShare} onDelete={onDelete} />
+                          <ActionButtons order={order} onView={onView} onPrint={onPrint} onDownload={onDownload} onShare={onShare} onDelete={onDelete} onPayLink={(o) => void sendPayLink(o)} />
                           <button
                             type="button"
                             onClick={() => void handleMarkAsPaid(order)}
@@ -464,11 +491,11 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
           <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div className="bg-[#1C1C1C] px-5 py-4">
               <h3 className="text-sm font-black uppercase tracking-wider text-white">Mark Credit Paid • {formatInvoiceNo(settleFor.invoice_no)}</h3>
-              <p className="text-[11px] font-semibold text-white/70">{settleFor.customer_name} • {formatCurrency(settleFor.total)}</p>
+              <p className="text-[11px] font-semibold text-white/70">{settleFor.customer_name} • Balance {formatCurrency(balanceOf(settleFor))}{paidById[settleFor.id] ? ` (${formatCurrency(paidById[settleFor.id])} already paid by UPI)` : ''}</p>
             </div>
             <div className="space-y-4 p-5">
               {settleError && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{settleError}</div>}
-              <PaymentModePicker label="Paid by" mode={settleMode} onMode={setSettleMode} split={settleSplit} onSplit={setSettleSplit} total={settleFor.total} />
+              <PaymentModePicker label="Paid by" mode={settleMode} onMode={setSettleMode} split={settleSplit} onSplit={setSettleSplit} total={balanceOf(settleFor)} />
             </div>
             <div className="flex justify-end gap-3 border-t border-black/10 bg-[#FAFAFA] px-5 py-4">
               <button type="button" onClick={() => setSettleFor(null)} className="rounded-xl px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-black/60 hover:bg-black/5 cursor-pointer">Cancel</button>

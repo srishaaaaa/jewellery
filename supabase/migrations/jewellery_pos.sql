@@ -2979,3 +2979,15 @@ NOTIFY pgrst, 'reload schema';
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS cash_received NUMERIC(12,2);
 ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS change_returned NUMERIC(12,2) NOT NULL DEFAULT 0;
 NOTIFY pgrst, 'reload schema';
+
+-- Once the security lock-down is switched on, keep it on after re-running this file.
+DO $$
+DECLARE v_locked BOOLEAN := FALSE;
+BEGIN
+  IF to_regclass('public.security_flags') IS NOT NULL THEN
+    EXECUTE 'SELECT COALESCE((SELECT locked FROM public.security_flags WHERE id = 1), FALSE)' INTO v_locked;
+  END IF;
+  IF v_locked THEN
+    EXECUTE 'SELECT public.apply_security_lockdown()';
+  END IF;
+END $$;

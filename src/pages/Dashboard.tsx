@@ -4,7 +4,7 @@ import {
   Box, AlertCircle, Download, TrendingUp, TrendingDown,
   Package, Search, RefreshCw, ShieldCheck, ShieldOff, Trophy,
   MessageCircle, Eye, FileText, X, Receipt, Wallet,
-  Gem, PiggyBank, Briefcase, Truck, LogOut, Menu, Boxes, Clock, History, Banknote, Tag, Settings2, Users, Cake, CheckCircle2, Percent, Info, Sparkles, Ticket,
+  QrCode, Gem, PiggyBank, Briefcase, Truck, LogOut, Menu, Boxes, Clock, History, Banknote, Tag, Settings2, Users, Cake, CheckCircle2, Percent, Info, Sparkles, Ticket,
 } from 'lucide-react'
 
 // Custom Malaysian Ringgit icon — replaces the generic dollar-sign icon
@@ -71,6 +71,8 @@ import { useNavigationStore } from '../store/navigationStore'
 import { useHardwareBarcodeScanner } from '../hooks/useHardwareBarcodeScanner'
 import { BarcodeRedirectDialog } from '../components/pos/BarcodeRedirectDialog'
 import { SectionAnalytics } from '../components/dashboard/SectionAnalytics'
+import UpiPaymentsView from '../components/dashboard/UpiPaymentsView'
+import { UpiClaimWatcher } from '../components/dashboard/UpiClaimWatcher'
 import DueAlertsCenter from '../components/dashboard/DueAlertsCenter'
 import { OutstandingCreditsView } from '../components/dashboard/OutstandingCreditsView'
 import { creditService } from '../services/creditService'
@@ -155,7 +157,7 @@ type DashboardCoupon = {
   /** Phones this coupon is locked to; empty means anyone */
   allowed_phones?: string[] | null
 }
-type TabKey = 'overview' | 'whatsapp' | 'pos_analytics' | 'billing' | 'advance_orders' | 'inventory' | 'expenses' | 'coupons' | 'users' | 'history' | 'settings' | 'outstanding_credits' | 'customers' | 'customer_events' | 'metal_rates' | 'schemes' | 'sales_desk' | 'purchases'
+type TabKey = 'overview' | 'whatsapp' | 'pos_analytics' | 'billing' | 'advance_orders' | 'inventory' | 'expenses' | 'coupons' | 'users' | 'history' | 'settings' | 'outstanding_credits' | 'customers' | 'customer_events' | 'metal_rates' | 'schemes' | 'sales_desk' | 'purchases' | 'upi_payments'
 type PosAnalyticsTab = 'revenue' | 'today' | 'products' | 'categories' | 'coupons' | 'jewellery'
 type ProfileUser = { id: string; email: string; name: string; mobile: string; role: string; created_at: string }
 
@@ -325,6 +327,7 @@ export default function Dashboard() {
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([])
   const [oldGold, setOldGold] = useState<OldGoldRecord[]>([])
   const [supplierPurchases, setSupplierPurchases] = useState<Purchase[]>([])
+  const [pendingUpiClaims, setPendingUpiClaims] = useState(0)
   const [returnsList, setReturnsList] = useState<SalesReturn[]>([])
   const [customerAdvances, setCustomerAdvances] = useState<CustomerAdvance[]>([])
   const [changeRows, setChangeRows] = useState<Array<{ id: string; created_at: string; change_returned: number }>>([])
@@ -1583,6 +1586,7 @@ export default function Dashboard() {
         { id: 'customer_events', icon: <Cake size={20} />,        label: 'Special Occasions' },
         { id: 'expenses',       icon: <Wallet size={20} />,       label: 'Expense Tracker' },
         { id: 'outstanding_credits', icon: <Banknote size={20} />, label: 'Outstanding Credits', badge: outstandingCreditCount },
+        { id: 'upi_payments',   icon: <QrCode size={20} />,       label: 'UPI Payments', badge: pendingUpiClaims },
         { id: 'history',        icon: <History size={20} />,      label: 'Order History' },
         { id: 'pos_analytics',  icon: <BarChart2 size={20} />,    label: 'Analytics Dashboard' },
         { id: 'coupons',        icon: <Tag size={20} />,          label: 'Coupons' },
@@ -1600,6 +1604,7 @@ export default function Dashboard() {
     <div className="admin-shell h-dvh max-h-dvh min-h-dvh bg-white flex overflow-hidden">
       <LowStockAlarmModal triggerKey={tab} />
       <DueAlertsCenter onOpenTab={(t) => handleTabClick(t as TabKey)} />
+      {(role === 'admin' || staffAllowedTabs.includes('upi_payments')) && <UpiClaimWatcher onCount={setPendingUpiClaims} onOpen={() => handleTabClick('upi_payments')} />}
 
       {/* Mobile / tablet sidebar backdrop */}
       {sidebarOpen && (
@@ -4058,6 +4063,8 @@ export default function Dashboard() {
           <ExpensesView />
         )}
         {/* ── OUTSTANDING CREDITS TAB ── */}
+        {tab === 'upi_payments' && <UpiPaymentsView />}
+
         {tab === 'outstanding_credits' && (
           <OutstandingCreditsView
             orders={outstandingCreditOrders}

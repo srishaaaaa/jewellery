@@ -19,6 +19,19 @@ const SchemeReceiptPage = lazy(() => import('./pages/SchemeReceiptPage'))
 const DeskDocPage = lazy(() => import('./pages/DeskDocPage'))
 const Login = lazy(() => import('./pages/Login'))
 const AdminLogin = lazy(() => import('./pages/AdminLogin'))
+// Customer portal (separate from the POS: OTP login, own records only)
+const PortalLogin = lazy(() => import('./pages/customer/PortalLogin'))
+const PortalLayout = lazy(() => import('./pages/customer/PortalLayout'))
+const PayPage = lazy(() => import('./pages/customer/PayPage'))
+const PortalHome = lazy(() => import('./pages/customer/PortalPages').then((m) => ({ default: m.PortalHome })))
+const PortalSchemes = lazy(() => import('./pages/customer/PortalPages').then((m) => ({ default: m.PortalSchemes })))
+const PortalSchemeDetail = lazy(() => import('./pages/customer/PortalPages').then((m) => ({ default: m.PortalSchemeDetail })))
+const PortalPurchases = lazy(() => import('./pages/customer/PortalPages').then((m) => ({ default: m.PortalPurchases })))
+const PortalBills = lazy(() => import('./pages/customer/PortalPages').then((m) => ({ default: m.PortalBills })))
+const PortalBillDetail = lazy(() => import('./pages/customer/PortalPages').then((m) => ({ default: m.PortalBillDetail })))
+const PortalPayments = lazy(() => import('./pages/customer/PortalPages').then((m) => ({ default: m.PortalPayments })))
+const PortalNotifications = lazy(() => import('./pages/customer/PortalPages').then((m) => ({ default: m.PortalNotifications })))
+const PortalProfile = lazy(() => import('./pages/customer/PortalPages').then((m) => ({ default: m.PortalProfile })))
 
 function LoadingSpinner() {
   return (
@@ -224,6 +237,23 @@ function AppShell() {
               </Suspense>
             }
           />
+          {/* ── Customer portal ── */}
+          <Route path="/customer" element={<Navigate to="/customer/dashboard" replace />} />
+          <Route path="/customer/login" element={<Suspense fallback={<LoadingSpinner />}><PortalLogin /></Suspense>} />
+          <Route path="/customer/verify-otp" element={<Navigate to="/customer/login" replace />} />
+          <Route path="/customer/pay/:token" element={<Suspense fallback={<LoadingSpinner />}><PayPage /></Suspense>} />
+          <Route path="/pay/:token" element={<Suspense fallback={<LoadingSpinner />}><PayPage /></Suspense>} />
+          <Route element={<Suspense fallback={<LoadingSpinner />}><PortalLayout /></Suspense>}>
+            <Route path="/customer/dashboard" element={<Suspense fallback={<LoadingSpinner />}><PortalHome /></Suspense>} />
+            <Route path="/customer/schemes" element={<Suspense fallback={<LoadingSpinner />}><PortalSchemes /></Suspense>} />
+            <Route path="/customer/schemes/:id" element={<Suspense fallback={<LoadingSpinner />}><PortalSchemeDetail /></Suspense>} />
+            <Route path="/customer/purchases" element={<Suspense fallback={<LoadingSpinner />}><PortalPurchases /></Suspense>} />
+            <Route path="/customer/bills" element={<Suspense fallback={<LoadingSpinner />}><PortalBills /></Suspense>} />
+            <Route path="/customer/bills/:id" element={<Suspense fallback={<LoadingSpinner />}><PortalBillDetail /></Suspense>} />
+            <Route path="/customer/payments" element={<Suspense fallback={<LoadingSpinner />}><PortalPayments /></Suspense>} />
+            <Route path="/customer/notifications" element={<Suspense fallback={<LoadingSpinner />}><PortalNotifications /></Suspense>} />
+            <Route path="/customer/profile" element={<Suspense fallback={<LoadingSpinner />}><PortalProfile /></Suspense>} />
+          </Route>
           <Route
             path="/coupon/:code"
             element={

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { supabase } from '../lib/supabase'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { ChevronRight, Eye, EyeOff, Lock, User } from 'lucide-react'
 import { useAdminAuthStore, useSettingsStore } from '../store/store'
@@ -25,6 +26,11 @@ export default function AdminLogin() {
 
   const from = (location.state as { from?: Location })?.from?.pathname || '/dashboard'
 
+  // A shop database login left over from a closed tab is closed until the passcode is entered again.
+  useEffect(() => {
+    if (!useAdminAuthStore.getState().isLoggedIn) void supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -38,7 +44,7 @@ export default function AdminLogin() {
     } else if (role === 'staff') {
       navigate('/dashboard', { replace: true })
     } else {
-      setError(l('Invalid login ID or passcode.', 'தவறான உள்நுழைவு ID அல்லது கடவுச்சொல்.'))
+      setError(useAdminAuthStore.getState().lastError || l('Invalid login ID or passcode.', 'தவறான உள்நுழைவு ID அல்லது கடவுச்சொல்.'))
     }
   }
 

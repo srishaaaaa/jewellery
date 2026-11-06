@@ -3,6 +3,7 @@ import type { Quotation } from '../services/salesDeskService'
 
 export type DashboardTab =
   | 'billing'
+  | 'upi_payments'
   | 'pos'
   | 'inventory'
   | 'advance_orders'

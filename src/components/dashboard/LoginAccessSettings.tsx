@@ -9,7 +9,7 @@ const PANELS: Array<[string, string]> = [
   ['billing', 'Billing Panel'], ['advance_orders', 'Advance Orders'], ['history', 'Order History'], ['inventory', 'Inventory'],
   ['sales_desk', 'Sales Desk'], ['schemes', 'Schema'], ['metal_rates', 'Metal Rates'], ['customers', 'Customers'],
   ['customer_events', 'Special Occasions'], ['purchases', 'Purchases'], ['expenses', 'Expense Tracker'],
-  ['outstanding_credits', 'Outstanding Credits'], ['pos_analytics', 'Analytics Dashboard'], ['coupons', 'Coupons'],
+  ['outstanding_credits', 'Outstanding Credits'], ['upi_payments', 'UPI Payments'], ['pos_analytics', 'Analytics Dashboard'], ['coupons', 'Coupons'],
 ]
 
 type StaffRow = { id?: string; name: string; login_id: string; passcode: string; panels: string[]; active: boolean; has_passcode?: boolean }

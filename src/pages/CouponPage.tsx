@@ -15,7 +15,9 @@ export default function CouponPage() {
 
   useEffect(() => {
     if (!isSupabaseConfigured) return
-    supabase.from('coupons').select('*').ilike('code', code.trim()).maybeSingle()
+    // Public page: read through the safe coupon function (the coupons table is closed after the lock-down)
+    Promise.resolve(supabase.rpc('get_public_coupon', { p_code: code.trim() }))
+      .then(async (res) => (res.error ? await supabase.from('coupons').select('*').ilike('code', code.trim()).maybeSingle() : res))
       .then(({ data }) => {
         if (!data) { setState('missing'); return }
         const expired = data.expiry_date && new Date(data.expiry_date) < new Date()

@@ -1,3 +1,5 @@
+import { UpiQr } from '../components/UpiQr'
+import { useUpiConfig } from '../lib/upiConfig'
 import { LooseStonePicker } from '../components/pos/LooseStonePicker'
 import { looseStoneService, type LooseStone } from '../services/stoneRateService'
 import { couponAllowsPhone } from '../lib/couponShare'
@@ -463,6 +465,7 @@ export default function Pos(props: PosProps = {}) {
   const [calculatorOpen, setCalculatorOpen] = useState(false)
   const [addUnregisteredOpen, setAddUnregisteredOpen] = useState(false)
   const [loosePickerOpen, setLoosePickerOpen] = useState(false)
+  const upiConfig = useUpiConfig()
   const [depositOpen, setDepositOpen] = useState(false)
   const [depositCreated, setDepositCreated] = useState<AdvanceOrder | null>(null)
   const [depositForm, setDepositForm] = useState({ amount: '', expectedDeliveryDate: '', paymentMethod: 'cash' as AdvancePaymentMethod, address: '', remarks: '', referenceNumber: '' })
@@ -2891,6 +2894,20 @@ export default function Pos(props: PosProps = {}) {
                   </div>
                 </div>
               )}
+
+              {/* Counter UPI QR for the amount to pay (Settings -> Guests Paying by UPI) */}
+              {(paymentType === 'qr' || (paymentType === 'split' && mixedParts.some((part) => part.method === 'qr' && Number(part.amount) > 0))) && (() => {
+                const qrAmount = paymentType === 'qr' ? payable : Number(mixedParts.find((part) => part.method === 'qr')?.amount) || 0
+                if (!upiConfig) return <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-bold text-amber-800">Add the shop UPI ID in Settings → Guests Paying by UPI to show a payment QR here.</p>
+                if (!(qrAmount > 0)) return null
+                return (
+                  <div className="rounded-xl border border-black/10 bg-white p-3">
+                    <p className="mb-2 text-center text-[10px] font-black uppercase tracking-wider text-[#000000]">Customer scans to pay {formatCurrency(qrAmount)}</p>
+                    <UpiQr upiId={upiConfig.upiId} name={upiConfig.upiName} amount={qrAmount} invoiceNo="POS" rotateMinutes={upiConfig.rotateMinutes} size={170} showOpenButton={false} />
+                    <p className="mt-2 text-center text-[10px] font-semibold text-[#000000]/60">Complete the sale after you see the money in your UPI app.</p>
+                  </div>
+                )
+              })()}
 
               {/* Credit is a billing type, not a payment mode — kept as its own toggle */}
               <button

@@ -1,4 +1,5 @@
 import { LoginAccessSettings } from './LoginAccessSettings'
+import { UpiSettingsCard } from './UpiSettingsCard'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { ALERT_KINDS, LEAD_LABELS, type AlertLead } from '../../lib/alertSettings'
 import { Store, Phone, MapPin, Palette, Package, SlidersHorizontal, Lock, RefreshCw, Camera, Trash2, X, Check, AlertCircle, Save, Receipt, ShieldCheck } from 'lucide-react'
@@ -566,6 +567,7 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
           </div>
 
           {/* Login passcodes + staff access (admin); other logins just change their own password */}
+          {role === 'admin' && <UpiSettingsCard />}
           {role === 'admin' ? <LoginAccessSettings /> : (
           <div className="bg-white rounded-xl border border-black/10 p-4 sm:p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-2.5">

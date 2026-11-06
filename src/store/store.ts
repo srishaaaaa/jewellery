@@ -589,7 +589,12 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
   fetchSettings: async () => {
     set({ loading: true })
     if (isSupabaseConfigured) {
-      const { data, error } = await supabase.from('store_settings').select('*').limit(1).single()
+      let { data, error } = await supabase.from('store_settings').select('*').limit(1).single()
+      if (error || !data) {
+        // Locked database without a shop login yet (login screen, public pages): the safe public profile
+        const pub = await supabase.rpc('get_public_shop_profile')
+        if (!pub.error && pub.data) { data = pub.data as typeof data; error = null }
+      }
       if (!error && data) {
         const logoUrl: string | null = data.logo_url || null
         set({
@@ -724,6 +729,32 @@ export const useSettingsStore = create<SettingsState>()((set) => ({
 // --- Admin Auth Store ---
 export type AdminRole = 'admin' | 'staff' | null
 
+/**
+ * Opens the shop's Supabase login through the shop-session Edge Function (the passcode is checked
+ * again on the server). Returns a message when the POS cannot work without it, else null.
+ */
+async function openShopSession(login: string, passcode: string): Promise<string | null> {
+  if (!isSupabaseConfigured) return null
+  try {
+    const { data, error } = await supabase.functions.invoke('shop-session', { body: { login, passcode } })
+    const r = (data || {}) as { access_token?: string; refresh_token?: string; error?: string }
+    if (!error && r.access_token && r.refresh_token) {
+      const { error: setErr } = await supabase.auth.setSession({ access_token: r.access_token, refresh_token: r.refresh_token })
+      if (!setErr) return null
+    }
+    let message = r.error || ''
+    if (!message && error && 'context' in error) {
+      try { message = String(((await (error as { context: Response }).context.json()) as { error?: string }).error || '') } catch { /* no body */ }
+    }
+    // Only a problem once the database is locked down; before that the POS works without it.
+    const { data: profile } = await supabase.rpc('get_public_shop_profile')
+    const locked = Boolean((profile as { portal_locked?: boolean } | null)?.portal_locked)
+    return locked ? (message || 'The shop sign-in service is not reachable. Check the shop-session Edge Function.') : null
+  } catch {
+    return null
+  }
+}
+
 /** Panels a staff login opens when none are saved yet (the shared staff default). */
 export const DEFAULT_STAFF_PANELS = ['billing', 'inventory', 'metal_rates', 'schemes', 'sales_desk', 'advance_orders', 'history', 'customers', 'customer_events']
 
@@ -739,6 +770,8 @@ interface AdminAuthState {
   /** Staff member's name for a personal login */
   staffName: string | null
   login: (portalId: string, password: string) => Promise<AdminRole | false>
+  /** Why the last sign-in failed (shown on the login screen) */
+  lastError: string
   logout: () => void
 }
 
@@ -750,9 +783,19 @@ export const useAdminAuthStore = create<AdminAuthState>()(
       adminId: null,
       panels: null,
       staffName: null,
+      lastError: '',
       login: async (portalId: string, password: string) => {
         const trimmedId = String(portalId || '').trim()
         const trimmedPass = String(password || '').trim()
+        set({ lastError: '' })
+        // After the passcode is accepted, the shop's database login is opened (needed once the lock-down is on).
+        const accept = async (state: { role: 'admin' | 'staff'; panels: string[] | null; staffName: string | null }) => {
+          const problem = await openShopSession(trimmedId, trimmedPass)
+          if (problem) { set({ lastError: problem }); return false as const }
+          set({ isLoggedIn: true, role: state.role, adminId: trimmedId, panels: state.panels, staffName: state.staffName })
+          void useSettingsStore.getState().fetchSettings()
+          return state.role
+        }
 
         // Passcodes saved in Settings are checked in the database (personal staff passcodes are hashed there).
         let sharedPanels: string[] | null = null
@@ -761,8 +804,8 @@ export const useAdminAuthStore = create<AdminAuthState>()(
           if (!error && data && typeof data === 'object') {
             const r = data as { role?: string | null; name?: string; panels?: unknown; use_builtin?: boolean }
             const panels = Array.isArray(r.panels) ? r.panels.map(String) : null
-            if (r.role === 'admin') { set({ isLoggedIn: true, role: 'admin', adminId: trimmedId, panels: null, staffName: null }); return 'admin' }
-            if (r.role === 'staff') { set({ isLoggedIn: true, role: 'staff', adminId: trimmedId, panels, staffName: r.name || null }); return 'staff' }
+            if (r.role === 'admin') return accept({ role: 'admin', panels: null, staffName: null })
+            if (r.role === 'staff') return accept({ role: 'staff', panels, staffName: r.name || null })
             if (!r.use_builtin) return false
             sharedPanels = panels
           }
@@ -781,8 +824,7 @@ export const useAdminAuthStore = create<AdminAuthState>()(
         const adminPass = String(dbRow?.admin_password || import.meta.env.VITE_ADMIN_PASSWORD || import.meta.env.VITE_PORTAL_PASSWORD || 'admin123').trim()
 
         if (trimmedId === adminId && trimmedPass === adminPass) {
-          set({ isLoggedIn: true, role: 'admin', adminId: trimmedId, panels: null, staffName: null })
-          return 'admin'
+          return accept({ role: 'admin', panels: null, staffName: null })
         }
 
         // 2. Check Staff Credentials (DB override, else VITE_STAFF_ID, else 'staff')
@@ -790,13 +832,15 @@ export const useAdminAuthStore = create<AdminAuthState>()(
         const staffPass = String(dbRow?.staff_password || import.meta.env.VITE_STAFF_PASSWORD || 'staff123').trim()
 
         if (trimmedId === staffId && trimmedPass === staffPass) {
-          set({ isLoggedIn: true, role: 'staff', adminId: trimmedId, panels: sharedPanels, staffName: null })
-          return 'staff'
+          return accept({ role: 'staff', panels: sharedPanels, staffName: null })
         }
 
         return false
       },
-      logout: () => set({ isLoggedIn: false, role: null, adminId: null, panels: null, staffName: null }),
+      logout: () => {
+        void supabase.auth.signOut({ scope: 'local' }).catch(() => undefined)
+        set({ isLoggedIn: false, role: null, adminId: null, panels: null, staffName: null, lastError: '' })
+      },
     }),
     {
       name: 'jewellery-pos-admin-session',
