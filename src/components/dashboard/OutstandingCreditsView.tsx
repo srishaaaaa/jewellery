@@ -17,7 +17,7 @@ import { toWhatsAppUrl } from '../../lib/phone'
 import { useSettingsStore } from '../../store/store'
 import { ModalPortal } from '../ModalPortal'
 import { PaymentModePicker } from '../PaymentModePicker'
-import { splitError, splitSummary, type PaymentMode, type SplitAmounts } from '../../lib/paymentModes'
+import { paymentModeLabel, splitError, splitSummary, type PaymentMode, type SplitAmounts } from '../../lib/paymentModes'
 
 export interface OutstandingCreditsViewProps {
   orders: DashboardOrder[]
@@ -149,24 +149,42 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
   const [settleMode, setSettleMode] = useState<PaymentMode>('cash')
   const [settleSplit, setSettleSplit] = useState<SplitAmounts>({})
   const [settleError, setSettleError] = useState('')
+  const [settleAmount, setSettleAmount] = useState('')
+  const [settleNote, setSettleNote] = useState('')
+  const [settleHistory, setSettleHistory] = useState<Awaited<ReturnType<typeof creditService.payments>>>([])
+  const [notice, setNotice] = useState('')
   const handleMarkAsPaid = async (order: DashboardOrder) => {
-    setSettleFor(order); setSettleMode('cash'); setSettleSplit({}); setSettleError('')
+    setSettleFor(order); setSettleMode('cash'); setSettleSplit({}); setSettleError(''); setSettleNote('')
+    setSettleAmount(String(balanceOf(order)))
+    setSettleHistory([])
+    void creditService.payments(order.id).then(setSettleHistory)
   }
   const confirmSettle = async () => {
     const order = settleFor
     if (!order) return
-    const err = splitError(settleMode, settleSplit, balanceOf(order))
+    const balance = balanceOf(order)
+    const amount = Math.round((Number(settleAmount) || 0) * 100) / 100
+    if (!(amount > 0)) { setSettleError('Enter the amount received now.'); return }
+    if (amount > balance) { setSettleError(`The amount is more than the balance of ${formatCurrency(balance)}.`); return }
+    const err = splitError(settleMode, settleSplit, amount)
     if (err) { setSettleError(err); return }
-    setSettleFor(null)
-    setSettlingId(order.id)
+    setSettlingId(order.id); setSettleError('')
     try {
-      await creditService.markAsPaid(order.id, settleMode, settleMode === 'mixed' ? `Split: ${splitSummary(settleSplit)}` : '')
+      const note = [settleMode === 'mixed' ? `Split: ${splitSummary(settleSplit)}` : '', settleNote.trim()].filter(Boolean).join(' • ')
+      const r = await creditService.recordPayment(order.id, amount, settleMode, note, amount === balance)
       play('success')
-      onSettled(order.id, new Date().toISOString())
+      setSettleFor(null)
+      if (r.fullyPaid) {
+        onSettled(order.id, new Date().toISOString())
+        setNotice(`${formatInvoiceNo(order.invoice_no)} is fully paid.`)
+      } else {
+        setPaidById((m) => ({ ...m, [order.id]: Math.round((Number(order.total) - r.balance) * 100) / 100 }))
+        setNotice(`${formatCurrency(amount)} recorded on ${formatInvoiceNo(order.invoice_no)}. Balance ${formatCurrency(r.balance)} still to collect.`)
+      }
     } catch (err) {
-      console.error('Failed to mark credit as paid:', err)
+      console.error('Failed to record the credit payment:', err)
       play('error')
-      alert('Failed to mark this credit sale as paid. Please try again.')
+      setSettleError(err instanceof Error ? err.message.replace(/^.*?:\s(?=The amount)/, '') : 'Could not save the payment. Please try again.')
     } finally {
       setSettlingId(null)
     }
@@ -194,9 +212,10 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
     ])
   }
 
-  const totalOutstanding = items.reduce((sum, o) => sum + Number(o.total || 0), 0)
+  // Part payments already taken are not owed any more.
+  const totalOutstanding = items.reduce((sum, o) => sum + balanceOf(o), 0)
   const overdueItems = items.filter((o) => o.daysOverdue > 0)
-  const totalOverdue = overdueItems.reduce((sum, o) => sum + Number(o.total || 0), 0)
+  const totalOverdue = overdueItems.reduce((sum, o) => sum + balanceOf(o), 0)
 
   return (
     <div className="flex-1 flex flex-col w-full pb-8 space-y-6 animate-in fade-in duration-300">
@@ -208,8 +227,9 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
             Outstanding Credits
           </h2>
           <p className="text-xs text-[#000000] font-semibold mt-1">
-            Credit sales still to be collected. Mark a bill paid when the customer settles it.
+            Credit sales still to be collected. Record each payment as it comes in: part now, the rest later.
           </p>
+          {notice && <p role="status" className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">{notice}</p>}
         </div>
         <PeriodBar
           preset={datePreset}
@@ -292,7 +312,11 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
                       <p className="font-black text-gray-900 text-xs">{order.customer_name}</p>
                       <p className="text-[11px] text-gray-400 font-medium mt-0.5">{formatInvoiceNo(order.invoice_no)} · {order.phone}</p>
                     </div>
-                    <p className="font-black text-gray-900 text-xs shrink-0">{formatCurrency(order.total)}</p>
+                    <div className="shrink-0 text-right">
+                      <p className="font-black text-gray-900 text-xs">{formatCurrency(order.total)}</p>
+                      {paidById[order.id] > 0 && <p className="text-[10px] font-bold text-emerald-700">Paid {formatCurrency(paidById[order.id])}</p>}
+                      {paidById[order.id] > 0 && <p className="text-[10px] font-black text-red-600">Due {formatCurrency(balanceOf(order))}</p>}
+                    </div>
                   </div>
                   <div className="flex items-center flex-wrap gap-2">
                     <span className="text-[10px] font-bold text-gray-500">Sale: {formatDateDDMMYYYY(order.created_at)}</span>
@@ -323,7 +347,7 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
                       disabled={settlingId === order.id}
                       className="px-3 py-1.5 rounded-lg bg-[#0A0A0A] border border-[var(--accent)] text-white text-[11px] font-black hover:bg-[#1A1A1A] transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5 whitespace-nowrap shrink-0"
                     >
-                      <CheckCircle2 size={13} /> {settlingId === order.id ? 'Saving...' : 'Mark as Paid'}
+                      <CheckCircle2 size={13} /> {settlingId === order.id ? 'Saving...' : 'Record Payment'}
                     </button>
                   </div>
                 </div>
@@ -379,7 +403,11 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
                           )}
                         </div>
                       </td>
-                      <td className="p-3.5 text-right font-black text-gray-900">{formatCurrency(order.total)}</td>
+                      <td className="p-3.5 text-right font-black text-gray-900">
+                        {formatCurrency(order.total)}
+                        {paidById[order.id] > 0 && <span className="block text-[10px] font-bold text-emerald-700">Paid {formatCurrency(paidById[order.id])}</span>}
+                        {paidById[order.id] > 0 && <span className="block text-[10px] font-black text-red-600">Due {formatCurrency(balanceOf(order))}</span>}
+                      </td>
                       <td className="p-3.5">
                         <div className="flex items-center justify-center gap-1">
                           <ActionButtons order={order} onView={onView} onPrint={onPrint} onDownload={onDownload} onShare={onShare} onDelete={onDelete} onPayLink={(o) => void sendPayLink(o)} />
@@ -389,7 +417,7 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
                             disabled={settlingId === order.id}
                             className="ml-1 px-3 py-1.5 rounded-lg bg-[#0A0A0A] border border-[var(--accent)] text-white text-[11px] font-black hover:bg-[#1A1A1A] transition-colors cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5 whitespace-nowrap"
                           >
-                            <CheckCircle2 size={13} /> {settlingId === order.id ? 'Saving...' : 'Mark as Paid'}
+                            <CheckCircle2 size={13} /> {settlingId === order.id ? 'Saving...' : 'Record Payment'}
                           </button>
                         </div>
                       </td>
@@ -490,16 +518,60 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
         <ModalPortal><div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3 sm:p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setSettleFor(null) }}>
           <div className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
             <div className="bg-[#1C1C1C] px-5 py-4">
-              <h3 className="text-sm font-black uppercase tracking-wider text-white">Mark Credit Paid • {formatInvoiceNo(settleFor.invoice_no)}</h3>
-              <p className="text-[11px] font-semibold text-white/70">{settleFor.customer_name} • Balance {formatCurrency(balanceOf(settleFor))}{paidById[settleFor.id] ? ` (${formatCurrency(paidById[settleFor.id])} already paid by UPI)` : ''}</p>
+              <h3 className="text-sm font-black uppercase tracking-wider text-white">Record Payment • {formatInvoiceNo(settleFor.invoice_no)}</h3>
+              <p className="text-[11px] font-semibold text-white/70">{settleFor.customer_name}</p>
             </div>
-            <div className="space-y-4 p-5">
+            <div className="max-h-[70vh] space-y-4 overflow-y-auto p-5">
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {([['Bill Total', Number(settleFor.total), 'text-[#000000]'], ['Paid So Far', paidById[settleFor.id] || 0, 'text-emerald-700'], ['Balance', balanceOf(settleFor), 'text-red-600']] as const).map(([l, v, tone]) => (
+                  <div key={l} className="rounded-xl border border-black/10 bg-[#FAFAFA] px-2 py-2.5">
+                    <p className="text-[9px] font-black uppercase tracking-wider text-[#000000]/60">{l}</p>
+                    <p className={`mt-0.5 text-sm font-black ${tone}`}>{formatCurrency(v)}</p>
+                  </div>
+                ))}
+              </div>
               {settleError && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{settleError}</div>}
-              <PaymentModePicker label="Paid by" mode={settleMode} onMode={setSettleMode} split={settleSplit} onSplit={setSettleSplit} total={balanceOf(settleFor)} />
+              <div>
+                <label htmlFor="credit-pay-amount" className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-[#000000]/70">Amount Received Now (₹)</label>
+                <input id="credit-pay-amount" type="number" inputMode="decimal" min={0} step="0.01" value={settleAmount} onChange={(e) => setSettleAmount(e.target.value)}
+                  className="w-full rounded-xl border border-black/15 px-3 py-2.5 text-base font-black outline-none focus:border-black" />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {[['Full Balance', balanceOf(settleFor)], ['Half', Math.round(balanceOf(settleFor) / 2 * 100) / 100]].map(([l, v]) => (
+                    <button key={String(l)} type="button" onClick={() => setSettleAmount(String(v))} className="rounded-lg border border-black/15 px-3 py-1.5 text-[10px] font-black uppercase tracking-wider hover:bg-black/5 cursor-pointer">{l}</button>
+                  ))}
+                </div>
+                {(() => {
+                  const left = Math.round((balanceOf(settleFor) - (Number(settleAmount) || 0)) * 100) / 100
+                  return Number(settleAmount) > 0 && left >= 0 && (
+                    <p className={`mt-2 text-[11px] font-bold ${left > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                      {left > 0 ? `Part payment: ${formatCurrency(left)} will still be due, and the bill stays in Outstanding Credits.` : 'This clears the bill. It moves to settled credits.'}
+                    </p>
+                  )
+                })()}
+              </div>
+              <PaymentModePicker label="Paid by" mode={settleMode} onMode={setSettleMode} split={settleSplit} onSplit={setSettleSplit} total={Number(settleAmount) || 0} />
+              <div>
+                <label htmlFor="credit-pay-note" className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-[#000000]/70">Note (optional)</label>
+                <input id="credit-pay-note" value={settleNote} onChange={(e) => setSettleNote(e.target.value)} placeholder="e.g. cheque number, promised rest by Friday"
+                  className="w-full rounded-xl border border-black/15 px-3 py-2.5 text-sm font-semibold outline-none focus:border-black" />
+              </div>
+              {settleHistory.length > 0 && (
+                <div className="rounded-xl border border-black/10">
+                  <p className="border-b border-black/10 px-3 py-2 text-[10px] font-black uppercase tracking-wider text-[#000000]/70">Payments So Far</p>
+                  {settleHistory.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
+                      <span className="min-w-0"><b>{formatDateDDMMYYYY(p.created_at)}</b> • {paymentModeLabel(p.payment_method)}{p.reference ? <span className="block truncate text-[10px] text-[#000000]/60">{p.reference}</span> : null}</span>
+                      <b className="shrink-0">{formatCurrency(p.amount)}</b>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-3 border-t border-black/10 bg-[#FAFAFA] px-5 py-4">
               <button type="button" onClick={() => setSettleFor(null)} className="rounded-xl px-5 py-2.5 text-xs font-bold uppercase tracking-wider text-black/60 hover:bg-black/5 cursor-pointer">Cancel</button>
-              <button type="button" onClick={() => void confirmSettle()} className="rounded-xl bg-[#111111] px-6 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:bg-black cursor-pointer">Mark as Paid</button>
+              <button type="button" disabled={settlingId === settleFor.id} onClick={() => void confirmSettle()} className="rounded-xl bg-[#111111] px-6 py-2.5 text-xs font-black uppercase tracking-wider text-white hover:bg-black disabled:opacity-50 cursor-pointer">
+                {settlingId === settleFor.id ? 'Saving…' : Math.round((Number(settleAmount) || 0) * 100) / 100 >= balanceOf(settleFor) ? 'Record & Mark Paid' : 'Record Part Payment'}
+              </button>
             </div>
           </div>
         </div></ModalPortal>

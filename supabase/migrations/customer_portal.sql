@@ -913,6 +913,47 @@ RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
   UPDATE public.upi_payment_links SET revoked_at = NOW() WHERE id = p_link_id AND revoked_at IS NULL;
 $$;
 
+-- Shop: money taken for a credit bill at the counter, all of the balance or part of it. Each payment is kept;
+-- the bill is marked paid only when the payments reach its total.
+CREATE OR REPLACE FUNCTION public.record_credit_payment(p_order_id UUID, p_amount NUMERIC, p_method TEXT, p_note TEXT DEFAULT '', p_by TEXT DEFAULT 'Admin')
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  o public.orders;
+  v_due NUMERIC;
+  v_amount NUMERIC := ROUND(COALESCE(p_amount, 0), 2);
+  v_method TEXT := LOWER(COALESCE(NULLIF(BTRIM(p_method), ''), 'cash'));
+  v_paid NUMERIC;
+  v_full BOOLEAN;
+  v_methods INTEGER;
+  v_by TEXT := COALESCE(NULLIF(BTRIM(p_by), ''), 'Admin');
+BEGIN
+  SELECT * INTO o FROM public.orders WHERE id = p_order_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Bill not found.'; END IF;
+  IF o.credit_status IS DISTINCT FROM 'outstanding' THEN RAISE EXCEPTION 'Bill % is not an outstanding credit bill.', o.invoice_no; END IF;
+  v_due := public.order_outstanding(o);
+  IF v_amount <= 0 THEN RAISE EXCEPTION 'Enter the amount received.'; END IF;
+  IF v_amount > v_due THEN RAISE EXCEPTION 'The amount (₹%) is more than the balance (₹%).', v_amount, v_due; END IF;
+  IF v_method NOT IN ('cash', 'upi', 'card', 'bank', 'cheque', 'mixed') THEN v_method := 'cash'; END IF;
+  INSERT INTO public.order_payments (order_id, amount, payment_method, reference, verified_by)
+  VALUES (o.id, v_amount, v_method, LEFT(BTRIM(COALESCE(p_note, '')), 300), v_by);
+  v_paid := ROUND(COALESCE(o.credit_paid_amount, 0) + v_amount, 2);
+  v_full := v_paid >= COALESCE(o.total, 0);
+  SELECT COUNT(DISTINCT payment_method) INTO v_methods FROM public.order_payments WHERE order_id = o.id;
+  UPDATE public.orders SET credit_paid_amount = v_paid, updated_at = NOW(),
+         credit_status = CASE WHEN v_full THEN 'paid' ELSE credit_status END,
+         credit_paid_at = CASE WHEN v_full THEN NOW() ELSE credit_paid_at END,
+         credit_paid_method = CASE WHEN v_full THEN CASE WHEN v_methods > 1 THEN 'mixed' ELSE v_method END ELSE credit_paid_method END,
+         credit_paid_note = CASE WHEN v_full THEN LEFT(BTRIM(COALESCE(p_note, '')), 300) ELSE credit_paid_note END
+  WHERE id = o.id;
+  INSERT INTO public.audit_logs (action, entity_type, entity_id, new_value, user_name)
+  VALUES ('credit_payment_recorded', 'order', o.invoice_no, jsonb_build_object('amount', v_amount, 'method', v_method, 'balance', GREATEST(COALESCE(o.total, 0) - v_paid, 0)), v_by);
+  PERFORM public.notify_customer(public.customer_id_for_phone(o.phone), 'payment_verified', CASE WHEN v_full THEN 'Bill fully paid' ELSE 'Payment received' END,
+    'We received ₹' || v_amount || ' for bill ' || o.invoice_no || CASE WHEN v_full THEN '. The bill is fully paid. Thank you!' ELSE '. Balance ₹' || GREATEST(COALESCE(o.total, 0) - v_paid, 0) || '.' END,
+    'bill', o.id::TEXT, NULL);
+  RETURN jsonb_build_object('paid', v_paid, 'balance', GREATEST(COALESCE(o.total, 0) - v_paid, 0), 'fully_paid', v_full);
+END;
+$$;
+
 -- Customer: "Pay Now" on one of their own bills.
 CREATE OR REPLACE FUNCTION public.customer_payment_link(p_token TEXT, p_order_id UUID)
 RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -1386,6 +1427,7 @@ GRANT EXECUTE ON FUNCTION public.submit_payment_claim(TEXT, TEXT, NUMERIC, TIMES
 GRANT EXECUTE ON FUNCTION public.get_public_shop_profile() TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_public_coupon(TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.create_payment_link(UUID, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.record_credit_payment(UUID, NUMERIC, TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.revoke_payment_link(UUID) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.verify_payment_claim(UUID, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reject_payment_claim(UUID, TEXT, TEXT) TO anon, authenticated;
