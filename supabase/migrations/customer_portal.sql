@@ -572,7 +572,7 @@ CREATE OR REPLACE FUNCTION public.customer_password_login(p_login TEXT, p_passwo
 RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   v_cid UUID := public.customer_id_for_login(p_login);
-  v_wrong TEXT := 'Wrong mobile number, email or password. First time here? Use Forgot password or ask the shop.';
+  v_wrong TEXT := 'Wrong mobile number or password. First time here? Use Forgot password or ask the shop.';
   p public.customer_passwords;
   v_session JSONB;
 BEGIN
