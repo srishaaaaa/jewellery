@@ -24,7 +24,7 @@ export function CustomerPasswordModal({ customer, onClose }: { customer: Custome
     setBusy(false)
     if (err) {
       setError(/permission denied|not find the function|PGRST202/i.test(`${err.message} ${err.code}`)
-        ? 'This needs the shop sign-in and the latest database update. See CUSTOMER_PORTAL_SETUP.md.'
+        ? 'One setup step first: save the admin and staff passcodes in Settings → Login Passcodes, then log out and log in again. After that, this will work.'
         : err.message)
       return
     }
