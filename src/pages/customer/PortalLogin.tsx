@@ -75,10 +75,10 @@ export default function PortalLogin() {
 
   const signIn = async (e: FormEvent) => {
     e.preventDefault(); setError(''); setNotice('')
-    if (!login.trim() || !password) { setError('Enter your mobile number or email, and your password.'); return }
+    if (!/^[6-9]\d{9}$/.test(mobile10(login)) || !password) { setError('Enter your 10-digit mobile number and your password.'); return }
     setBusy(true)
     try {
-      const r = await passwordLogin(login.trim(), password)
+      const r = await passwordLogin(mobile10(login), password)
       if (r.mustChange) { setPending(r.session); goTo('set_new'); setNotice('Welcome! Please choose your own password to continue.'); return }
       savePortalSession(r.session); enter()
     } catch (err) { setError(errText(err, 'Could not log you in.')) } finally { setBusy(false) }
@@ -182,9 +182,9 @@ export default function PortalLogin() {
             {method === 'password' ? (
               <form onSubmit={signIn} className="space-y-4">
                 <label className="block">
-                  <span className={fieldLabel}>Mobile number or email</span>
-                  <span className="relative block"><User className={icon} />
-                    <input autoComplete="username" className={field} placeholder="98765 43210" value={login} onChange={(e) => setLogin(e.target.value)} /></span>
+                  <span className={fieldLabel}>Registered mobile number</span>
+                  <span className="relative block"><Phone className={icon} />
+                    <input inputMode="numeric" autoComplete="username" className={field} placeholder="98765 43210" value={login} onChange={(e) => setLogin(e.target.value)} /></span>
                 </label>
                 <PasswordField label="Password" value={password} onChange={setPassword} show={show} onToggle={() => setShow(!show)} autoComplete="current-password" />
                 <button disabled={busy} className={primary}>{busy ? 'Checking…' : 'Login'}</button>

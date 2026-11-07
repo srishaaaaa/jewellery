@@ -584,7 +584,7 @@ export function PortalProfile() {
             </span>}
           </div>
           {editing === 'email' && <VerifyWithCode kind="email" initial={c.email_verified ? '' : c.email} onDone={(t) => void done(t)} onCancel={() => setEditing('')} />}
-          <p className="mt-1 text-[11px] text-black/60">You can log in with this email too.</p>
+          <p className="mt-1 text-[11px] text-black/60">Magic Link login sends its link to this email.</p>
         </div>
         <div>
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
