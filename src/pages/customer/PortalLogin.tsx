@@ -104,7 +104,7 @@ export default function PortalLogin() {
       setBusy(false)
       if (!r.ok) { setError(r.message); return }
       setStep('otp'); started(r.resendIn)
-      setNotice('If this email is on a customer account, a code has been sent. Check your spam folder too.')
+      setNotice('If this email is on a customer account, we have sent a login link and a code. Press the link, or enter the code here. Check your spam folder too.')
       return
     }
     if (!/^[6-9]\d{9}$/.test(digits)) { setError('Enter your 10-digit mobile number.'); return }
@@ -138,7 +138,7 @@ export default function PortalLogin() {
     const byEmail = typed.includes('@')
     if (byEmail ? !isEmail(typed) : !/^[6-9]\d{9}$/.test(mobile10(typed))) { setError('Enter your mobile number or email.'); return }
     setBusy(true)
-    const r = byEmail ? await requestEmailOtp(typed) : await requestOtp(mobile10(typed))
+    const r = byEmail ? await requestEmailOtp(typed, 'reset') : await requestOtp(mobile10(typed))
     setBusy(false)
     if (r.ok) {
       setStep('forgot_code'); started(r.resendIn)
@@ -206,7 +206,7 @@ export default function PortalLogin() {
                       <input type="email" inputMode="email" autoComplete="email" className={field} placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} /></span>
                   </label>
                 )}
-                <button disabled={busy} className={primary}>{busy ? 'Sending…' : method === 'email' ? 'Email Me a Code' : 'Generate OTP'}</button>
+                <button disabled={busy} className={primary}>{busy ? 'Sending…' : method === 'email' ? 'Email Me a Login Link' : 'Generate OTP'}</button>
               </form>
             )}
           </>

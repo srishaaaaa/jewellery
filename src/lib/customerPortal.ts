@@ -31,7 +31,7 @@ type OtpResult = { ok: true; resendIn: number; expiresIn: number } | { ok: false
 
 /** Asks the customer-otp Edge Function to send a code by SMS or email. */
 export const requestOtp = (phone: string) => requestCode({ phone })
-export const requestEmailOtp = (email: string) => requestCode({ email })
+export const requestEmailOtp = (email: string, purpose?: 'reset') => requestCode({ email, purpose })
 /** Logged-in customer: a code to the new email / mobile number. */
 export const requestChangeCode = (target: { new_email: string } | { new_phone: string }) => requestCode({ token: readPortalSession()?.token, ...target })
 
@@ -88,6 +88,12 @@ export async function changePasswordWithToken(token: string, current: string, ne
 /** Forgot password: the code sent by SMS or email, and the new password. Logs the customer in. */
 export async function resetPassword(login: string, code: string, next: string) {
   const { data, error } = await supabase.rpc('customer_reset_password', { p_login: login, p_code: code, p_new: next })
+  return startSession(data, error)
+}
+
+/** The login link from the customer's email. */
+export async function magicLinkLogin(token: string) {
+  const { data, error } = await supabase.rpc('customer_magic_login', { p_token: token })
   return startSession(data, error)
 }
 

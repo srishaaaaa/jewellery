@@ -380,13 +380,24 @@ DECLARE
   v_key TEXT := public.email_key(p_email);
   v_customer UUID;
   v_shared BOOLEAN;
+  v_otp JSONB;
+  v_link TEXT;
 BEGIN
   IF v_key !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' THEN RETURN jsonb_build_object('status', 'unknown'); END IF;
   SELECT COUNT(*) > 0 INTO v_shared FROM public.customers WHERE public.email_key(email) = v_key;
   IF NOT v_shared THEN RETURN jsonb_build_object('status', 'unknown'); END IF;
   v_customer := public.customer_id_for_email(v_key);
   -- Issued even for a shared address, so its limit also caps the "use your mobile instead" email.
-  RETURN public.otp_issue('email', v_key, v_customer) || jsonb_build_object('status', CASE WHEN v_customer IS NULL THEN 'shared' ELSE 'ok' END);
+  v_otp := public.otp_issue('email', v_key, v_customer) || jsonb_build_object('status', CASE WHEN v_customer IS NULL THEN 'shared' ELSE 'ok' END);
+  IF v_customer IS NOT NULL THEN
+    -- One-time login link for the same email. Long and random, so only its hash is kept, with no salt, and it can be looked up.
+    v_link := public.new_portal_token();
+    UPDATE public.customer_otps SET used = TRUE WHERE phone_key = v_key AND channel = 'magic' AND NOT used;
+    INSERT INTO public.customer_otps (phone_key, channel, customer_id, salt, code_hash, expires_at)
+    VALUES (v_key, 'magic', v_customer, '', encode(sha256(convert_to(v_link, 'UTF8')), 'hex'), NOW() + INTERVAL '15 minutes');
+    v_otp := v_otp || jsonb_build_object('magic_token', v_link, 'magic_minutes', 15);
+  END IF;
+  RETURN v_otp;
 END;
 $$;
 
@@ -402,7 +413,28 @@ BEGIN
   v_customer := public.customer_id_for_email(v_key);
   IF v_customer IS NULL THEN RETURN jsonb_build_object('problem', 'Please log in with your mobile number.'); END IF;
   UPDATE public.customers SET verified_email = v_key, updated_at = NOW() WHERE id = v_customer;
+  -- The link from the same email goes with the code.
+  UPDATE public.customer_otps SET used = TRUE WHERE phone_key = v_key AND channel = 'magic' AND NOT used;
   RETURN public.portal_new_session(v_customer);
+END;
+$$;
+
+-- The emailed login link. Works once, for 15 minutes, and never if that email has since moved to someone else.
+CREATE OR REPLACE FUNCTION public.customer_magic_login(p_token TEXT)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_expired TEXT := 'This login link has expired or was already used. Please ask for a new one.';
+  o public.customer_otps;
+BEGIN
+  SELECT * INTO o FROM public.customer_otps
+  WHERE channel = 'magic' AND code_hash = encode(sha256(convert_to(COALESCE(p_token, ''), 'UTF8')), 'hex') FOR UPDATE;
+  IF NOT FOUND OR o.used OR o.expires_at < NOW() THEN RETURN jsonb_build_object('problem', v_expired); END IF;
+  UPDATE public.customer_otps SET used = TRUE WHERE id = o.id;
+  -- The code from the same email goes with the link.
+  UPDATE public.customer_otps SET used = TRUE WHERE phone_key = o.phone_key AND channel = 'email' AND NOT used;
+  IF public.customer_id_for_email(o.phone_key) IS DISTINCT FROM o.customer_id THEN RETURN jsonb_build_object('problem', v_expired); END IF;
+  UPDATE public.customers SET verified_email = o.phone_key, updated_at = NOW() WHERE id = o.customer_id;
+  RETURN public.portal_new_session(o.customer_id);
 END;
 $$;
 
@@ -622,7 +654,10 @@ BEGIN
   IF v_problem <> '' THEN RETURN jsonb_build_object('problem', v_problem); END IF;
   IF v_cid IS NULL THEN RETURN jsonb_build_object('problem', 'Please contact the shop.'); END IF;
   PERFORM public.customer_password_store(v_cid, p_new, FALSE);
-  IF v_is_email THEN UPDATE public.customers SET verified_email = v_key, updated_at = NOW() WHERE id = v_cid; END IF;
+  IF v_is_email THEN
+    UPDATE public.customers SET verified_email = v_key, updated_at = NOW() WHERE id = v_cid;
+    UPDATE public.customer_otps SET used = TRUE WHERE phone_key = v_key AND channel = 'magic' AND NOT used;
+  END IF;
   UPDATE public.customer_sessions SET revoked = TRUE WHERE customer_id = v_cid;
   PERFORM public.notify_customer(v_cid, 'profile', 'Password changed', 'Your password was reset. If this was not you, contact the shop straight away.', '', '', NULL);
   RETURN public.portal_new_session(v_cid);
@@ -1358,6 +1393,7 @@ GRANT EXECUTE ON FUNCTION public.generate_scheme_reminders() TO anon, authentica
 GRANT EXECUTE ON FUNCTION public.generate_credit_reminders() TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.customer_verify_email_otp(TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.customer_password_login(TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_magic_login(TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.customer_change_password(TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.customer_reset_password(TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.customer_confirm_email_change(TEXT, TEXT, TEXT) TO anon, authenticated;

@@ -2,7 +2,8 @@
 // (5 tries per code, expires after Settings -> otp_minutes).
 //
 //   { phone }              login code by SMS
-//   { email }              login code by email (same answer whether or not the address is a customer's)
+//   { email }              login link and code by email (same answer whether or not the address is a customer's)
+//   { email, purpose: 'reset' }  code only, for Forgot password: its next screen needs the code to save the new password
 //   { token, new_email }   logged-in customer proving a new or existing email
 //   { token, new_phone }   logged-in customer proving a new mobile number
 //
@@ -11,11 +12,15 @@
 //   SMS_PROVIDER=twilio  TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM (or TWILIO_MESSAGING_SERVICE_SID)
 //   RESEND_API_KEY, EMAIL_FROM   for email codes
 //   OTP_SHOP_NAME        optional, the shop's name in messages
+//   SITE_URL             optional, the portal's address in emailed links (never taken from the request, which could be forged)
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4'
 import { corsHeaders, env, json } from '../_shared/http.ts'
 import { emailReady, sendEmail, sendSmsOtp, shopName, smsProvider } from '../_shared/senders.ts'
 
-type Otp = { code: string; expires_in_seconds: number; resend_in_seconds: number; status?: string; key?: string }
+type Otp = { code: string; expires_in_seconds: number; resend_in_seconds: number; status?: string; key?: string; magic_token?: string; magic_minutes?: number }
+const siteUrl = () => (env('SITE_URL') || 'https://jewellery-rosy-seven.vercel.app').replace(/\/$/, '')
+const emailLoginLink = (to: string, otp: Otp) => sendEmail(to, `Your ${shopName()} login link`,
+  `Press this link to log in to your customer account. It works once, for ${otp.magic_minutes} minutes:\n\n${siteUrl()}/customer/magic#${otp.magic_token}\n\nOr enter this code on the login page: ${otp.code} (it expires in ${Math.round(otp.expires_in_seconds / 60)} minutes).\n\nDo not share the link or the code with anyone. If you did not ask for this, you can ignore this email.\n\n${shopName()}`)
 const emailCode = (to: string, otp: Otp, purpose: string) => sendEmail(to, `${otp.code} is your ${shopName()} code`,
   `${otp.code} is your code to ${purpose}. It expires in ${Math.round(otp.expires_in_seconds / 60)} minutes.\n\nDo not share it with anyone. If you did not ask for this, you can ignore this email.\n\n${shopName()}`)
 
@@ -61,7 +66,8 @@ Deno.serve(async (req) => {
       if (otp.status === 'shared') {
         await sendEmail(email, `Logging in to ${shopName()}`, `This email is used on more than one customer account, so it cannot be used to log in. Please log in with your mobile number, or ask the shop to update it.\n\n${shopName()}`)
       } else {
-        await emailCode(email, otp, 'log in to your customer account')
+        if (text('purpose') === 'reset' || !otp.magic_token) await emailCode(email, otp, 'reset your customer account password')
+        else await emailLoginLink(email, otp)
       }
     } catch (err) {
       await admin.rpc('otp_discard', { p_channel: 'email', p_key: email })

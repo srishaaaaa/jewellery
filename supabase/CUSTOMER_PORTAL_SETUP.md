@@ -59,6 +59,8 @@ Settings → **Guests Paying by UPI** → enter the UPI ID and press **Save Shop
 
 **Forgot password** sends an SMS or email code, then lets the customer choose a new password. It needs one of the accounts below; without them, the shop resets it with the key icon.
 
+**Email login link:** the Email tab sends a one-time link that works for 15 minutes, with a 6-digit code as a fallback. It needs the Resend account below. If the site moves to another address, add a secret `SITE_URL` with the new address.
+
 **Codes:** customers can also log in with a code by SMS or by email. Each option stays off, with a clear message, until its secrets are added under Edge Functions → Secrets. You can add either one or both.
 
 **SMS: MSG91**

@@ -21,6 +21,7 @@ const Login = lazy(() => import('./pages/Login'))
 const AdminLogin = lazy(() => import('./pages/AdminLogin'))
 // Customer portal (separate from the POS: OTP login, own records only)
 const PortalLogin = lazy(() => import('./pages/customer/PortalLogin'))
+const PortalMagicLink = lazy(() => import('./pages/customer/PortalMagicLink'))
 const PortalLayout = lazy(() => import('./pages/customer/PortalLayout'))
 const PayPage = lazy(() => import('./pages/customer/PayPage'))
 const PortalHome = lazy(() => import('./pages/customer/PortalPages').then((m) => ({ default: m.PortalHome })))
@@ -240,6 +241,7 @@ function AppShell() {
           {/* ── Customer portal ── */}
           <Route path="/customer" element={<Navigate to="/customer/dashboard" replace />} />
           <Route path="/customer/login" element={<Suspense fallback={<LoadingSpinner />}><PortalLogin /></Suspense>} />
+          <Route path="/customer/magic" element={<Suspense fallback={<LoadingSpinner />}><PortalMagicLink /></Suspense>} />
           <Route path="/customer/verify-otp" element={<Navigate to="/customer/login" replace />} />
           <Route path="/customer/pay/:token" element={<Suspense fallback={<LoadingSpinner />}><PayPage /></Suspense>} />
           <Route path="/pay/:token" element={<Suspense fallback={<LoadingSpinner />}><PayPage /></Suspense>} />
