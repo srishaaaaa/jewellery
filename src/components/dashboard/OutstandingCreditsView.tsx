@@ -533,7 +533,7 @@ export const OutstandingCreditsView: React.FC<OutstandingCreditsViewProps> = ({
               {settleError && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{settleError}</div>}
               <div>
                 <label htmlFor="credit-pay-amount" className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-[#000000]/70">Amount Received Now (₹)</label>
-                <input id="credit-pay-amount" type="number" inputMode="decimal" min={0} step="0.01" value={settleAmount} onChange={(e) => setSettleAmount(e.target.value)}
+                <input id="credit-pay-amount" type="number" inputMode="decimal" min={0} step="0.01" value={settleAmount} onChange={(e) => { setSettleAmount(e.target.value); setSettleError('') }}
                   className="w-full rounded-xl border border-black/15 px-3 py-2.5 text-base font-black outline-none focus:border-black" />
                 <div className="mt-2 flex flex-wrap gap-2">
                   {[['Full Balance', balanceOf(settleFor)], ['Half', Math.round(balanceOf(settleFor) / 2 * 100) / 100]].map(([l, v]) => (
