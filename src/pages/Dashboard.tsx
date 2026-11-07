@@ -1121,6 +1121,7 @@ export default function Dashboard() {
       customerName: order.customer_name,
       phone: order.phone,
       invoiceNumber: order.invoice_no || order.id,
+      orderId: order.id,
       invoiceDate: order.created_at,
       paymentMode: formatPaymentMode(order.payment_mode || order.payment_method, order.split_details) || undefined,
       items: items.map(item => ({
@@ -2034,6 +2035,7 @@ export default function Dashboard() {
                       customerName: order.customer_name,
                       phone: order.phone,
                       invoiceNumber: formatInvoiceNo(order.invoice_no || order.id),
+                      orderId: order.id,
                       invoiceDate: order.created_at,
                       items: normalizedItems.map(item => ({
                         name: item.name,
@@ -2178,6 +2180,7 @@ export default function Dashboard() {
                           customerName: order.customer_name,
                           phone: order.phone,
                           invoiceNumber: formatInvoiceNo(order.invoice_no || order.id),
+                          orderId: order.id,
                           invoiceDate: order.created_at,
                           items: normalizedItems.map(item => ({
                             name: item.name,
@@ -4080,6 +4083,7 @@ export default function Dashboard() {
                 ? buildCreditPaidWhatsAppMessage({
                     customerName: o.customer_name,
                     invoiceNumber: o.invoice_no,
+                    orderId: o.id,
                     amount: Number(o.total || 0),
                     paidAt: o.credit_paid_at || null,
                   })

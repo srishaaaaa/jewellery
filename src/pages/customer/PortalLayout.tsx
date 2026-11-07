@@ -5,6 +5,8 @@ import { useSettingsStore } from '../../store/store'
 import { BRAND_EN, BRAND_LOGO } from '../../lib/brand'
 import { PortalSessionExpired, portalLogout, portalRpc, readPortalSession, type PortalData, type PortalNotification } from '../../lib/customerPortal'
 import { systemNotify } from '../../lib/systemNotify'
+import { supabase } from '../../lib/supabase'
+import { syncPushOwner } from '../../lib/portalPush'
 
 export type PortalContext = { data: PortalData | null; notifications: PortalNotification[]; refresh: () => Promise<void>; loading: boolean; error: string }
 
@@ -77,8 +79,18 @@ export default function PortalLayout() {
     const t = window.setInterval(run, 30000)
     const onFocus = () => run()
     window.addEventListener('focus', onFocus)
+    void syncPushOwner()
     return () => { live = false; window.clearInterval(t); window.removeEventListener('focus', onFocus) }
   }, [session, refresh])
+
+  // Instant reload when the shop does something for this customer. The signal holds no data; if it
+  // cannot connect, the 30-second check above still catches everything.
+  const liveTopic = data?.live_topic
+  useEffect(() => {
+    if (!liveTopic) return
+    const channel = supabase.channel(`portal:${liveTopic}`).on('broadcast', { event: 'refresh' }, () => { void refresh() }).subscribe()
+    return () => { void supabase.removeChannel(channel) }
+  }, [liveTopic, refresh])
 
   if (!session) return <Navigate to="/customer/login" replace />
 

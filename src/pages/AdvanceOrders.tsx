@@ -4,7 +4,7 @@ import { customerService } from '../services/customerService'
 import { getErrorMessage } from '../lib/errorMessage'
 import { formatCurrency } from '../lib/retail'
 import { printThermalReceipt } from '../lib/thermalPrint'
-import { buildAdvanceDepositWhatsAppMessage, buildProfessionalWhatsAppMessage, publicInvoiceUrl } from '../lib/whatsappMessage'
+import { buildAdvanceDepositWhatsAppMessage, buildProfessionalWhatsAppMessage } from '../lib/whatsappMessage'
 import { toWhatsAppUrl } from '../lib/phone'
 import { useNavigate } from 'react-router-dom'
 import { ModalPortal } from '../components/ModalPortal'
@@ -215,6 +215,7 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
       customerName: order.customer_name,
       phone: order.phone,
       invoiceNumber: invNum,
+      orderId: order.completed_order_id || '',
       invoiceDate: order.created_at,
       items: [{
         name: order.product_name,
@@ -226,7 +227,6 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
       }],
       subtotal: order.total_amount,
       total: order.total_amount,
-      invoiceUrl: publicInvoiceUrl(invNum),
     })
     window.open(toWhatsAppUrl(order.phone, message), '_blank', 'noopener,noreferrer')
   }

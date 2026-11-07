@@ -35,9 +35,11 @@ export function UpiClaimWatcher({ onCount, onOpen }: { onCount: (n: number) => v
     let live = true
     const check = async () => {
       const { data, error } = await supabase.from('upi_payment_claims')
-        .select('id, amount, created_at, orders(invoice_no, customer_name)').eq('status', 'pending').order('created_at', { ascending: false }).limit(100)
+        .select('id, amount, created_at, orders(invoice_no, customer_name), advance_orders(deposit_id, customer_name)').eq('status', 'pending').order('created_at', { ascending: false }).limit(100)
       if (!live || error) return
-      const rows = (data || []) as unknown as PendingClaim[]
+      const rows = ((data || []) as unknown as Array<PendingClaim & { advance_orders?: { deposit_id: string; customer_name: string } | null }>).map((r) => ({
+        ...r, orders: r.orders || (r.advance_orders ? { invoice_no: r.advance_orders.deposit_id, customer_name: r.advance_orders.customer_name } : null),
+      }))
       onCount(rows.length)
       const fresh = seen.current ? rows.filter((r) => !seen.current!.has(r.id)) : []
       seen.current = new Set(rows.map((r) => r.id))

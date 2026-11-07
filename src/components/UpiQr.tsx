@@ -21,7 +21,7 @@ export function UpiQr({ upiId, name, amount, invoiceNo, rotateMinutes = 5, size 
   const blockMs = minutes * 60000
   const block = Math.floor(now / blockMs)
   const ref = useMemo(() => upiReference(invoiceNo, minutes, block * blockMs), [invoiceNo, minutes, block, blockMs])
-  const uri = useMemo(() => upiUri({ upiId, name, amount, note: `Invoice ${invoiceNo}`, ref }), [upiId, name, amount, invoiceNo, ref])
+  const uri = useMemo(() => upiUri({ upiId, name, amount, note: `${invoiceNo.startsWith('DEP-') ? 'Order' : 'Invoice'} ${invoiceNo}`, ref }), [upiId, name, amount, invoiceNo, ref])
   useEffect(() => {
     let live = true
     QRCode.toDataURL(uri, { width: size * 2, margin: 1, errorCorrectionLevel: 'M' })

@@ -20,6 +20,13 @@ ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS upi_rotate_minutes IN
 ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS reminder_days INTEGER[] NOT NULL DEFAULT '{7,3,1,0,-1}';
 ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS otp_minutes INTEGER NOT NULL DEFAULT 5;
 ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS payment_link_hours INTEGER NOT NULL DEFAULT 6;
+-- Automatic reminders to customers (nothing is sent until the provider secrets are added).
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS whatsapp_reminders_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS sms_reminders_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS email TEXT;
+-- The address the customer has proved they own (compared with customers.email, so a later edit by the shop shows as not verified).
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS verified_email TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS reminders_opt_out BOOLEAN NOT NULL DEFAULT FALSE;
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'store_settings_upi_rotate_check') THEN
@@ -48,6 +55,12 @@ CREATE TABLE IF NOT EXISTS public.order_payments (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS order_payments_order_idx ON public.order_payments(order_id, created_at DESC);
+ALTER TABLE public.order_payments ALTER COLUMN order_id DROP NOT NULL;
+ALTER TABLE public.order_payments ADD COLUMN IF NOT EXISTS advance_order_id UUID REFERENCES public.advance_orders(id) ON DELETE CASCADE;
+-- A customer can clear an advance order's whole balance by UPI, so the deposit may reach the total.
+ALTER TABLE public.advance_orders DROP CONSTRAINT IF EXISTS advance_deposit_less_than_total;
+ALTER TABLE public.advance_orders DROP CONSTRAINT IF EXISTS advance_deposit_within_total;
+ALTER TABLE public.advance_orders ADD CONSTRAINT advance_deposit_within_total CHECK (deposit_amount <= total_amount);
 -- The same UPI transaction (UTR) can be credited only once.
 CREATE UNIQUE INDEX IF NOT EXISTS order_payments_utr_idx ON public.order_payments(UPPER(BTRIM(utr))) WHERE BTRIM(utr) <> '';
 
@@ -65,6 +78,10 @@ CREATE TABLE IF NOT EXISTS public.customer_otps (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS customer_otps_phone_idx ON public.customer_otps(phone_key, created_at DESC);
+-- channel: sms / email (login), email_change / phone_change (proving a new address while logged in).
+-- phone_key holds the mobile key, or the lower-case email address for the email channels.
+ALTER TABLE public.customer_otps ADD COLUMN IF NOT EXISTS channel TEXT NOT NULL DEFAULT 'sms';
+ALTER TABLE public.customer_otps ADD COLUMN IF NOT EXISTS customer_id UUID REFERENCES public.customers(id) ON DELETE CASCADE;
 
 CREATE TABLE IF NOT EXISTS public.customer_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -117,6 +134,25 @@ CREATE TABLE IF NOT EXISTS public.notification_deliveries (
   error TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE public.notification_deliveries ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+-- Each notification goes out at most once per channel.
+CREATE UNIQUE INDEX IF NOT EXISTS notification_deliveries_once_idx ON public.notification_deliveries(notification_id, channel);
+CREATE INDEX IF NOT EXISTS notification_deliveries_ref_idx ON public.notification_deliveries(provider_ref) WHERE provider_ref <> '';
+
+-- Phones / computers where the customer switched on alerts (never readable by the app).
+CREATE TABLE IF NOT EXISTS public.customer_push_subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  customer_id UUID NOT NULL REFERENCES public.customers(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE public.customer_push_subscriptions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.customer_push_subscriptions FROM anon, authenticated;
+
+-- Random topic for "something changed, reload" signals to this customer's open portal (it carries no data).
+ALTER TABLE public.customers ADD COLUMN IF NOT EXISTS live_topic TEXT;
 
 CREATE OR REPLACE FUNCTION public.notify_customer(p_customer_id UUID, p_kind TEXT, p_title TEXT, p_body TEXT, p_ref_type TEXT, p_ref_id TEXT, p_dedupe TEXT)
 RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -148,6 +184,8 @@ CREATE TABLE IF NOT EXISTS public.upi_payment_links (
   revoked_at TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS upi_payment_links_order_idx ON public.upi_payment_links(order_id);
+ALTER TABLE public.upi_payment_links ALTER COLUMN order_id DROP NOT NULL;
+ALTER TABLE public.upi_payment_links ADD COLUMN IF NOT EXISTS advance_order_id UUID REFERENCES public.advance_orders(id) ON DELETE CASCADE;
 
 CREATE TABLE IF NOT EXISTS public.upi_payment_claims (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -170,12 +208,23 @@ CREATE INDEX IF NOT EXISTS upi_payment_claims_status_idx ON public.upi_payment_c
 -- One open claim per transaction reference per bill.
 CREATE UNIQUE INDEX IF NOT EXISTS upi_payment_claims_open_utr_idx ON public.upi_payment_claims(order_id, UPPER(BTRIM(utr)))
   WHERE status = 'pending' AND BTRIM(utr) <> '';
+ALTER TABLE public.upi_payment_claims ALTER COLUMN order_id DROP NOT NULL;
+ALTER TABLE public.upi_payment_claims ADD COLUMN IF NOT EXISTS advance_order_id UUID REFERENCES public.advance_orders(id) ON DELETE CASCADE;
+CREATE UNIQUE INDEX IF NOT EXISTS upi_payment_claims_open_utr_adv_idx ON public.upi_payment_claims(advance_order_id, UPPER(BTRIM(utr)))
+  WHERE status = 'pending' AND BTRIM(utr) <> '' AND advance_order_id IS NOT NULL;
 
 -- Amount still owed on a bill: only credit bills have a balance.
 CREATE OR REPLACE FUNCTION public.order_outstanding(o public.orders)
 RETURNS NUMERIC LANGUAGE sql STABLE AS $$
   SELECT CASE WHEN o.credit_status = 'outstanding' AND LOWER(COALESCE(o.status, '')) <> 'cancelled'
               THEN GREATEST(ROUND(COALESCE(o.total, 0) - COALESCE(o.credit_paid_amount, 0), 2), 0) ELSE 0 END;
+$$;
+
+-- Balance on an advance order that is still open.
+CREATE OR REPLACE FUNCTION public.advance_outstanding(a public.advance_orders)
+RETURNS NUMERIC LANGUAGE sql STABLE AS $$
+  SELECT CASE WHEN a.status IN ('completed', 'cancelled') THEN 0
+              ELSE GREATEST(ROUND(COALESCE(a.total_amount, 0) - COALESCE(a.deposit_amount, 0), 2), 0) END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.new_portal_token()
@@ -186,67 +235,6 @@ $$;
 -- ---------------------------------------------------------------------------
 -- OTP: create (only the server-side OTP function may call this) and verify
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public.customer_create_otp(p_phone TEXT)
-RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE
-  v_key TEXT := public.phone_key(p_phone);
-  v_customer UUID;
-  v_last TIMESTAMPTZ;
-  v_recent INTEGER;
-  v_code TEXT;
-  v_salt TEXT := public.new_portal_token();
-  v_minutes INTEGER;
-BEGIN
-  IF LENGTH(v_key) <> 10 THEN RAISE EXCEPTION 'Enter a valid 10-digit mobile number.'; END IF;
-  v_customer := public.customer_id_for_phone(v_key);
-  IF v_customer IS NULL THEN RAISE EXCEPTION 'NOT_REGISTERED'; END IF;
-  SELECT MAX(created_at), COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 hour') INTO v_last, v_recent
-  FROM public.customer_otps WHERE phone_key = v_key;
-  IF v_last IS NOT NULL AND v_last > NOW() - INTERVAL '60 seconds' THEN
-    RAISE EXCEPTION 'Please wait % seconds before asking for a new OTP.', CEIL(EXTRACT(EPOCH FROM (v_last + INTERVAL '60 seconds' - NOW())));
-  END IF;
-  IF v_recent >= 5 THEN RAISE EXCEPTION 'Too many OTP requests. Try again in an hour.'; END IF;
-  SELECT COALESCE(otp_minutes, 5) INTO v_minutes FROM public.store_settings WHERE id = 1;
-  v_code := LPAD((FLOOR(random() * 1000000))::INT::TEXT, 6, '0');
-  UPDATE public.customer_otps SET used = TRUE WHERE phone_key = v_key AND NOT used;
-  INSERT INTO public.customer_otps (phone_key, salt, code_hash, expires_at)
-  VALUES (v_key, v_salt, encode(sha256(convert_to(v_salt || ':' || v_code, 'UTF8')), 'hex'), NOW() + make_interval(mins => COALESCE(v_minutes, 5)));
-  RETURN jsonb_build_object('code', v_code, 'expires_in_seconds', COALESCE(v_minutes, 5) * 60, 'resend_in_seconds', 60);
-END;
-$$;
-
--- Removes an OTP that could not be sent (so the cooldown does not block a retry).
-CREATE OR REPLACE FUNCTION public.customer_discard_otp(p_phone TEXT)
-RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
-  DELETE FROM public.customer_otps WHERE phone_key = public.phone_key(p_phone) AND NOT used AND created_at > NOW() - INTERVAL '2 minutes';
-$$;
-
-CREATE OR REPLACE FUNCTION public.customer_verify_otp(p_phone TEXT, p_code TEXT)
-RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE
-  v_key TEXT := public.phone_key(p_phone);
-  o public.customer_otps;
-  c public.customers;
-  v_token TEXT;
-BEGIN
-  SELECT * INTO o FROM public.customer_otps WHERE phone_key = v_key AND NOT used ORDER BY created_at DESC LIMIT 1 FOR UPDATE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Ask for a new OTP.'; END IF;
-  IF o.expires_at < NOW() THEN UPDATE public.customer_otps SET used = TRUE WHERE id = o.id; RAISE EXCEPTION 'The OTP has expired. Ask for a new one.'; END IF;
-  IF o.attempts >= 5 THEN UPDATE public.customer_otps SET used = TRUE WHERE id = o.id; RAISE EXCEPTION 'Too many wrong attempts. Ask for a new OTP.'; END IF;
-  IF encode(sha256(convert_to(o.salt || ':' || BTRIM(COALESCE(p_code, '')), 'UTF8')), 'hex') <> o.code_hash THEN
-    UPDATE public.customer_otps SET attempts = attempts + 1 WHERE id = o.id;
-    RAISE EXCEPTION 'Wrong OTP. % attempt(s) left.', GREATEST(0, 4 - o.attempts);
-  END IF;
-  UPDATE public.customer_otps SET used = TRUE WHERE id = o.id;
-  SELECT * INTO c FROM public.customers WHERE id = public.customer_id_for_phone(v_key);
-  IF NOT FOUND THEN RAISE EXCEPTION 'NOT_REGISTERED'; END IF;
-  v_token := public.new_portal_token();
-  INSERT INTO public.customer_sessions (customer_id, token_hash, expires_at)
-  VALUES (c.id, encode(sha256(convert_to(v_token, 'UTF8')), 'hex'), NOW() + INTERVAL '30 days');
-  RETURN jsonb_build_object('token', v_token, 'customer', jsonb_build_object('id', c.id, 'name', c.name, 'phone', c.phone));
-END;
-$$;
-
 -- Session token -> customer id (raises when missing, expired or logged out).
 CREATE OR REPLACE FUNCTION public.portal_customer(p_token TEXT)
 RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -257,6 +245,252 @@ BEGIN
   UPDATE public.customer_sessions SET last_seen_at = NOW() WHERE id = s.id AND last_seen_at < NOW() - INTERVAL '5 minutes';
   RETURN s.customer_id;
 END;
+$$;
+
+-- Shared by every kind of code: cooldown, hourly limit, one live code per address.
+CREATE OR REPLACE FUNCTION public.otp_issue(p_channel TEXT, p_key TEXT, p_customer UUID)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_last TIMESTAMPTZ;
+  v_recent INTEGER;
+  v_code TEXT;
+  v_salt TEXT := public.new_portal_token();
+  v_minutes INTEGER;
+BEGIN
+  SELECT MAX(created_at), COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '1 hour') INTO v_last, v_recent
+  FROM public.customer_otps WHERE phone_key = p_key AND channel = p_channel;
+  IF v_last IS NOT NULL AND v_last > NOW() - INTERVAL '60 seconds' THEN
+    RAISE EXCEPTION 'Please wait % seconds before asking for a new OTP.', CEIL(EXTRACT(EPOCH FROM (v_last + INTERVAL '60 seconds' - NOW())));
+  END IF;
+  IF v_recent >= 5 THEN RAISE EXCEPTION 'Too many OTP requests. Try again in an hour.'; END IF;
+  SELECT COALESCE(otp_minutes, 5) INTO v_minutes FROM public.store_settings WHERE id = 1;
+  -- gen_random_uuid is cryptographically random; random() is not.
+  v_code := LPAD((('x' || LEFT(replace(gen_random_uuid()::TEXT, '-', ''), 8))::BIT(32)::BIGINT % 1000000)::TEXT, 6, '0');
+  UPDATE public.customer_otps SET used = TRUE WHERE phone_key = p_key AND channel = p_channel AND NOT used;
+  INSERT INTO public.customer_otps (phone_key, channel, customer_id, salt, code_hash, expires_at)
+  VALUES (p_key, p_channel, p_customer, v_salt, encode(sha256(convert_to(v_salt || ':' || v_code, 'UTF8')), 'hex'), NOW() + make_interval(mins => COALESCE(v_minutes, 5)));
+  RETURN jsonb_build_object('code', v_code, 'expires_in_seconds', COALESCE(v_minutes, 5) * 60, 'resend_in_seconds', 60);
+END;
+$$;
+
+-- Checks a code and uses it up. Raises when it is wrong, expired or used. p_customer: the code must belong to this customer.
+-- A wrong try has to be saved, so failures come back as text for the caller to raise (a RAISE here would undo the count).
+CREATE OR REPLACE FUNCTION public.otp_check(p_channel TEXT, p_key TEXT, p_code TEXT, p_customer UUID)
+RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE o public.customer_otps;
+BEGIN
+  SELECT * INTO o FROM public.customer_otps
+  WHERE phone_key = p_key AND channel = p_channel AND NOT used AND (p_customer IS NULL OR customer_id = p_customer)
+  ORDER BY created_at DESC LIMIT 1 FOR UPDATE;
+  IF NOT FOUND THEN RETURN 'Ask for a new OTP.'; END IF;
+  IF o.expires_at < NOW() THEN UPDATE public.customer_otps SET used = TRUE WHERE id = o.id; RETURN 'The OTP has expired. Ask for a new one.'; END IF;
+  IF o.attempts >= 5 THEN UPDATE public.customer_otps SET used = TRUE WHERE id = o.id; RETURN 'Too many wrong attempts. Ask for a new OTP.'; END IF;
+  IF encode(sha256(convert_to(o.salt || ':' || BTRIM(COALESCE(p_code, '')), 'UTF8')), 'hex') <> o.code_hash THEN
+    UPDATE public.customer_otps SET attempts = attempts + 1 WHERE id = o.id;
+    RETURN 'Wrong OTP. ' || GREATEST(0, 4 - o.attempts) || ' attempt(s) left.';
+  END IF;
+  UPDATE public.customer_otps SET used = TRUE WHERE id = o.id;
+  RETURN '';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.otp_discard(p_channel TEXT, p_key TEXT)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  DELETE FROM public.customer_otps WHERE phone_key = p_key AND channel = p_channel AND NOT used AND created_at > NOW() - INTERVAL '2 minutes';
+$$;
+
+CREATE OR REPLACE FUNCTION public.portal_new_session(p_customer UUID)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  c public.customers;
+  v_token TEXT := public.new_portal_token();
+BEGIN
+  SELECT * INTO c FROM public.customers WHERE id = p_customer;
+  INSERT INTO public.customer_sessions (customer_id, token_hash, expires_at)
+  VALUES (c.id, encode(sha256(convert_to(v_token, 'UTF8')), 'hex'), NOW() + INTERVAL '30 days');
+  RETURN jsonb_build_object('token', v_token, 'customer', jsonb_build_object('id', c.id, 'name', c.name, 'phone', c.phone));
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.customer_create_otp(p_phone TEXT)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_key TEXT := public.phone_key(p_phone);
+  v_customer UUID;
+BEGIN
+  IF LENGTH(v_key) <> 10 THEN RAISE EXCEPTION 'Enter a valid 10-digit mobile number.'; END IF;
+  v_customer := public.customer_id_for_phone(v_key);
+  IF v_customer IS NULL THEN RAISE EXCEPTION 'NOT_REGISTERED'; END IF;
+  RETURN public.otp_issue('sms', v_key, v_customer);
+END;
+$$;
+
+-- Removes an OTP that could not be sent (so the cooldown does not block a retry).
+CREATE OR REPLACE FUNCTION public.customer_discard_otp(p_phone TEXT)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  SELECT public.otp_discard('sms', public.phone_key(p_phone));
+$$;
+
+CREATE OR REPLACE FUNCTION public.customer_verify_otp(p_phone TEXT, p_code TEXT)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_key TEXT := public.phone_key(p_phone);
+  v_problem TEXT;
+  v_customer UUID;
+BEGIN
+  -- Problems are returned, not raised, so a wrong try stays counted (a RAISE would undo it).
+  v_problem := public.otp_check('sms', v_key, p_code, NULL);
+  IF v_problem <> '' THEN RETURN jsonb_build_object('problem', v_problem); END IF;
+  v_customer := public.customer_id_for_phone(v_key);
+  IF v_customer IS NULL THEN RETURN jsonb_build_object('problem', 'NOT_REGISTERED'); END IF;
+  RETURN public.portal_new_session(v_customer);
+END;
+$$;
+
+-- Lower-case email; the customer it belongs to, or nothing when no one (or more than one person) uses it.
+CREATE OR REPLACE FUNCTION public.email_key(p TEXT)
+RETURNS TEXT LANGUAGE sql IMMUTABLE AS $$ SELECT LOWER(BTRIM(COALESCE(p, ''))) $$;
+
+CREATE OR REPLACE FUNCTION public.customer_id_for_email(p_email TEXT)
+RETURNS UUID LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT CASE WHEN COUNT(DISTINCT public.phone_key(phone)) = 1 THEN (ARRAY_AGG(id ORDER BY created_at))[1] END
+  FROM public.customers WHERE public.email_key(p_email) <> '' AND public.email_key(email) = public.email_key(p_email);
+$$;
+
+-- Email login, step 1 (server only). The web function always answers the same way, so nobody can test which addresses are customers.
+CREATE OR REPLACE FUNCTION public.customer_create_email_otp(p_email TEXT)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_key TEXT := public.email_key(p_email);
+  v_customer UUID;
+  v_shared BOOLEAN;
+BEGIN
+  IF v_key !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' THEN RETURN jsonb_build_object('status', 'unknown'); END IF;
+  SELECT COUNT(*) > 0 INTO v_shared FROM public.customers WHERE public.email_key(email) = v_key;
+  IF NOT v_shared THEN RETURN jsonb_build_object('status', 'unknown'); END IF;
+  v_customer := public.customer_id_for_email(v_key);
+  -- Issued even for a shared address, so its limit also caps the "use your mobile instead" email.
+  RETURN public.otp_issue('email', v_key, v_customer) || jsonb_build_object('status', CASE WHEN v_customer IS NULL THEN 'shared' ELSE 'ok' END);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.customer_verify_email_otp(p_email TEXT, p_code TEXT)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_key TEXT := public.email_key(p_email);
+  v_problem TEXT;
+  v_customer UUID;
+BEGIN
+  v_problem := public.otp_check('email', v_key, p_code, NULL);
+  IF v_problem <> '' THEN RETURN jsonb_build_object('problem', v_problem); END IF;
+  v_customer := public.customer_id_for_email(v_key);
+  IF v_customer IS NULL THEN RETURN jsonb_build_object('problem', 'Please log in with your mobile number.'); END IF;
+  UPDATE public.customers SET verified_email = v_key, updated_at = NOW() WHERE id = v_customer;
+  RETURN public.portal_new_session(v_customer);
+END;
+$$;
+
+-- Logged-in customer asks to prove a new email or mobile number (server only: the code is handed to the sender).
+CREATE OR REPLACE FUNCTION public.customer_create_change_otp(p_token TEXT, p_channel TEXT, p_target TEXT)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_cid UUID := public.portal_customer(p_token);
+  c public.customers;
+  v_key TEXT;
+BEGIN
+  SELECT * INTO c FROM public.customers WHERE id = v_cid;
+  IF p_channel = 'email_change' THEN
+    v_key := public.email_key(p_target);
+    IF v_key !~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' THEN RAISE EXCEPTION 'Enter a valid email address.'; END IF;
+    IF EXISTS (SELECT 1 FROM public.customers x WHERE public.email_key(x.email) = v_key AND public.phone_key(x.phone) <> public.phone_key(c.phone)) THEN
+      RAISE EXCEPTION 'This email is already used on another account. Please contact the shop.';
+    END IF;
+  ELSIF p_channel = 'phone_change' THEN
+    v_key := public.phone_key(p_target);
+    IF v_key !~ '^[6-9][0-9]{9}$' THEN RAISE EXCEPTION 'Enter a valid 10-digit mobile number.'; END IF;
+    IF v_key = public.phone_key(c.phone) THEN RAISE EXCEPTION 'This is already your mobile number.'; END IF;
+    IF public.customer_id_for_phone(v_key) IS NOT NULL THEN RAISE EXCEPTION 'This number is already registered. Please contact the shop.'; END IF;
+  ELSE
+    RAISE EXCEPTION 'Unknown request.';
+  END IF;
+  RETURN public.otp_issue(p_channel, v_key, v_cid) || jsonb_build_object('key', v_key);
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.customer_confirm_email_change(p_token TEXT, p_email TEXT, p_code TEXT)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_cid UUID := public.portal_customer(p_token);
+  v_key TEXT := public.email_key(p_email);
+  v_problem TEXT;
+BEGIN
+  v_problem := public.otp_check('email_change', v_key, p_code, v_cid);
+  IF v_problem <> '' THEN RETURN jsonb_build_object('problem', v_problem); END IF;
+  UPDATE public.customers SET email = v_key, verified_email = v_key, updated_at = NOW() WHERE id = v_cid;
+  PERFORM public.notify_customer(v_cid, 'profile', 'Email verified', v_key || ' is now your email for this account.', '', '', NULL);
+  RETURN jsonb_build_object('ok', TRUE);
+END;
+$$;
+
+-- New number proved by OTP: the customer's records move with them, so whoever gets the old number later sees nothing of theirs.
+CREATE OR REPLACE FUNCTION public.customer_confirm_phone_change(p_token TEXT, p_phone TEXT, p_code TEXT)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_cid UUID := public.portal_customer(p_token);
+  v_new TEXT := public.phone_key(p_phone);
+  v_problem TEXT;
+  c public.customers;
+  v_old TEXT;
+  t TEXT;
+BEGIN
+  v_problem := public.otp_check('phone_change', v_new, p_code, v_cid);
+  IF v_problem <> '' THEN RETURN jsonb_build_object('problem', v_problem); END IF;
+  IF public.customer_id_for_phone(v_new) IS NOT NULL THEN RETURN jsonb_build_object('problem', 'This number is already registered. Please contact the shop.'); END IF;
+  SELECT * INTO c FROM public.customers WHERE id = v_cid FOR UPDATE;
+  v_old := public.phone_key(c.phone);
+  IF LENGTH(v_old) = 10 THEN
+    -- Keeps each record's own format (with or without the 91), only swapping the 10-digit number.
+    FOREACH t IN ARRAY ARRAY['orders', 'advance_orders', 'jewellery_schemes', 'customer_advances', 'old_gold_exchanges', 'sales_returns', 'quotations', 'repairs'] LOOP
+      IF to_regclass('public.' || t) IS NOT NULL THEN
+        EXECUTE format('UPDATE public.%I SET phone = regexp_replace(phone, ''[^0-9]'', '''', ''g'') WHERE public.phone_key(phone) = $1', t) USING v_old;
+        EXECUTE format('UPDATE public.%I SET phone = LEFT(phone, LENGTH(phone) - 10) || $2 WHERE public.phone_key(phone) = $1', t) USING v_old, v_new;
+      END IF;
+    END LOOP;
+  END IF;
+  UPDATE public.customers SET phone = LEFT(regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g'), GREATEST(LENGTH(regexp_replace(COALESCE(phone, ''), '[^0-9]', '', 'g')) - 10, 0)) || v_new, updated_at = NOW()
+  WHERE id = v_cid;
+  -- Every other device has to log in again with the new number.
+  UPDATE public.customer_sessions SET revoked = TRUE WHERE customer_id = v_cid AND token_hash <> encode(sha256(convert_to(p_token, 'UTF8')), 'hex');
+  INSERT INTO public.audit_logs (action, entity_type, entity_id, new_value, user_name)
+  VALUES ('customer_phone_changed', 'customer', v_cid::TEXT, jsonb_build_object('old_phone', v_old, 'new_phone', v_new), 'Customer portal');
+  PERFORM public.notify_customer(v_cid, 'profile', 'Mobile number changed', 'Your login number is now +91 ' || v_new || '. If this was not you, contact the shop straight away.', '', '', NULL);
+  RETURN jsonb_build_object('ok', TRUE, 'phone', v_new);
+END;
+$$;
+
+-- Customer's reminder and alert choices.
+CREATE OR REPLACE FUNCTION public.customer_set_reminders(p_token TEXT, p_on BOOLEAN)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  UPDATE public.customers SET reminders_opt_out = NOT COALESCE(p_on, TRUE), updated_at = NOW() WHERE id = public.portal_customer(p_token);
+$$;
+
+CREATE OR REPLACE FUNCTION public.customer_push_subscribe(p_token TEXT, p_endpoint TEXT, p_p256dh TEXT, p_auth TEXT)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_cid UUID := public.portal_customer(p_token);
+BEGIN
+  IF COALESCE(p_endpoint, '') !~ '^https://' OR COALESCE(p_p256dh, '') = '' OR COALESCE(p_auth, '') = '' THEN RAISE EXCEPTION 'Bad subscription.'; END IF;
+  IF (SELECT COUNT(*) FROM public.customer_push_subscriptions WHERE customer_id = v_cid AND endpoint <> p_endpoint) >= 10 THEN
+    DELETE FROM public.customer_push_subscriptions WHERE id = (SELECT id FROM public.customer_push_subscriptions WHERE customer_id = v_cid ORDER BY created_at LIMIT 1);
+  END IF;
+  -- A shared device moves to whoever logged in last.
+  INSERT INTO public.customer_push_subscriptions (customer_id, endpoint, p256dh, auth) VALUES (v_cid, LEFT(p_endpoint, 1000), LEFT(p_p256dh, 200), LEFT(p_auth, 100))
+  ON CONFLICT (endpoint) DO UPDATE SET customer_id = v_cid, p256dh = EXCLUDED.p256dh, auth = EXCLUDED.auth, created_at = NOW();
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.customer_push_unsubscribe(p_token TEXT, p_endpoint TEXT)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  DELETE FROM public.customer_push_subscriptions WHERE customer_id = public.portal_customer(p_token) AND endpoint = p_endpoint;
 $$;
 
 CREATE OR REPLACE FUNCTION public.customer_logout(p_token TEXT)
@@ -305,9 +539,19 @@ DECLARE
   v_schemes JSONB;
   v_payments JSONB;
   v_unread INTEGER;
+  v_advances JSONB;
 BEGIN
   SELECT * INTO c FROM public.customers WHERE id = v_cid;
+  IF c.live_topic IS NULL THEN
+    UPDATE public.customers SET live_topic = public.new_portal_token() WHERE id = v_cid RETURNING * INTO c;
+  END IF;
   v_key := public.phone_key(c.phone);
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('id', a.id, 'deposit_id', a.deposit_id, 'product_name', a.product_name, 'total_amount', a.total_amount,
+      'paid', a.deposit_amount, 'balance', public.advance_outstanding(a), 'status', a.status, 'expected_delivery_date', a.expected_delivery_date,
+      'created_at', a.created_at, 'invoice_number', a.invoice_number,
+      'pending_claim', EXISTS (SELECT 1 FROM public.upi_payment_claims k WHERE k.advance_order_id = a.id AND k.status = 'pending')
+    ) ORDER BY a.created_at DESC), '[]'::JSONB) INTO v_advances
+  FROM public.advance_orders a WHERE public.phone_key(a.phone) = v_key AND v_key <> '';
   SELECT COALESCE(jsonb_agg(public.portal_bill_json(o) ORDER BY o.created_at DESC), '[]'::JSONB) INTO v_bills
   FROM public.orders o WHERE public.phone_key(o.phone) = v_key AND v_key <> '' AND COALESCE(o.order_type, '') <> 'online_request';
   SELECT COALESCE(jsonb_agg(jsonb_build_object(
@@ -335,11 +579,27 @@ BEGIN
                               'reference', i.receipt_number, 'status', 'verified', 'verified_at', i.payment_date, 'scheme_id', s.id, 'installment_id', i.id)
     FROM public.scheme_installments i JOIN public.jewellery_schemes s ON s.id = i.scheme_id
     WHERE i.status = 'paid' AND (s.customer_id = v_cid OR (public.phone_key(s.phone) = v_key AND v_key <> ''))
+    UNION ALL
+    SELECT jsonb_build_object('kind', 'advance', 'date', ap.received_at, 'invoice_no', a.deposit_id, 'amount', ap.amount, 'method', ap.payment_method,
+                              'reference', NULL, 'status', 'verified', 'verified_at', ap.received_at)
+    FROM public.advance_order_payments ap JOIN public.advance_orders a ON a.id = ap.advance_order_id
+    WHERE ap.amount > 0 AND public.phone_key(a.phone) = v_key AND v_key <> ''
+    UNION ALL
+    SELECT jsonb_build_object('kind', 'advance', 'date', p.created_at, 'invoice_no', a.deposit_id, 'amount', p.amount, 'method', p.payment_method,
+                              'reference', NULLIF(p.utr, ''), 'status', 'verified', 'verified_at', p.created_at)
+    FROM public.order_payments p JOIN public.advance_orders a ON a.id = p.advance_order_id WHERE public.phone_key(a.phone) = v_key AND v_key <> ''
+    UNION ALL
+    SELECT jsonb_build_object('kind', 'claim', 'date', k.created_at, 'invoice_no', a.deposit_id, 'amount', k.amount, 'method', 'upi',
+                              'reference', NULLIF(k.utr, ''), 'status', CASE k.status WHEN 'pending' THEN 'awaiting_verification' ELSE k.status END,
+                              'verified_at', k.reviewed_at, 'reason', NULLIF(k.review_reason, ''))
+    FROM public.upi_payment_claims k JOIN public.advance_orders a ON a.id = k.advance_order_id
+    WHERE public.phone_key(a.phone) = v_key AND v_key <> '' AND k.status <> 'verified'
   ) q;
   SELECT COUNT(*) INTO v_unread FROM public.customer_notifications WHERE customer_id = v_cid AND read_at IS NULL;
   RETURN jsonb_build_object(
-    'customer', jsonb_build_object('id', c.id, 'code', LEFT(c.id::TEXT, 8), 'name', c.name, 'phone', c.phone, 'email', c.email, 'address', c.address, 'created_at', c.created_at),
-    'bills', v_bills, 'schemes', v_schemes, 'payments', v_payments, 'unread', v_unread);
+    'customer', jsonb_build_object('id', c.id, 'code', LEFT(c.id::TEXT, 8), 'name', c.name, 'phone', c.phone, 'email', COALESCE(c.email, ''), 'address', c.address, 'created_at', c.created_at,
+      'email_verified', public.email_key(c.email) <> '' AND public.email_key(c.email) = c.verified_email, 'reminders_on', NOT c.reminders_opt_out),
+    'bills', v_bills, 'schemes', v_schemes, 'payments', v_payments, 'advances', v_advances, 'unread', v_unread, 'live_topic', c.live_topic);
 END;
 $$;
 
@@ -395,13 +655,17 @@ RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
   WHERE customer_id = public.portal_customer(p_token) AND read_at IS NULL AND (p_id IS NULL OR id = p_id);
 $$;
 
--- Customers may change only their email and address (the phone is their login).
+-- Customers may clear their email and edit their address here. A new email or mobile needs a code (functions above).
 CREATE OR REPLACE FUNCTION public.customer_update_profile(p_token TEXT, p_email TEXT, p_address TEXT)
 RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE v_cid UUID := public.portal_customer(p_token);
+DECLARE
+  v_cid UUID := public.portal_customer(p_token);
+  v_current TEXT;
 BEGIN
-  IF BTRIM(COALESCE(p_email, '')) <> '' AND BTRIM(p_email) !~* '^[^@\s]+@[^@\s]+\.[^@\s]+$' THEN RAISE EXCEPTION 'Enter a valid email address.'; END IF;
-  UPDATE public.customers SET email = LEFT(BTRIM(COALESCE(p_email, '')), 120), address = LEFT(BTRIM(COALESCE(p_address, '')), 300), updated_at = NOW() WHERE id = v_cid;
+  SELECT public.email_key(email) INTO v_current FROM public.customers WHERE id = v_cid;
+  -- A different email can log in to this account, so it only changes through customer_confirm_email_change.
+  IF public.email_key(p_email) NOT IN ('', v_current) THEN RAISE EXCEPTION 'Verify the new email with its code first.'; END IF;
+  UPDATE public.customers SET email = public.email_key(p_email), address = LEFT(BTRIM(COALESCE(p_address, '')), 300), updated_at = NOW() WHERE id = v_cid;
 END;
 $$;
 
@@ -451,30 +715,66 @@ BEGIN
 END;
 $$;
 
+-- Customer: "Pay Now" on the balance of one of their own advance orders.
+CREATE OR REPLACE FUNCTION public.customer_advance_payment_link(p_token TEXT, p_advance_id UUID)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_cid UUID := public.portal_customer(p_token);
+  a public.advance_orders;
+  v_due NUMERIC;
+  v_hours INTEGER;
+  l public.upi_payment_links;
+BEGIN
+  SELECT * INTO a FROM public.advance_orders WHERE id = p_advance_id;
+  IF NOT FOUND OR public.phone_key(a.phone) <> (SELECT public.phone_key(phone) FROM public.customers WHERE id = v_cid) THEN RAISE EXCEPTION 'Order not found.'; END IF;
+  v_due := public.advance_outstanding(a);
+  IF v_due <= 0 THEN RAISE EXCEPTION 'Order % has no balance to pay.', a.deposit_id; END IF;
+  IF COALESCE((SELECT upi_id FROM public.store_settings WHERE id = 1), '') = '' THEN RAISE EXCEPTION 'The shop has not set up UPI payments yet.'; END IF;
+  SELECT * INTO l FROM public.upi_payment_links WHERE advance_order_id = p_advance_id AND revoked_at IS NULL AND expires_at > NOW() + INTERVAL '30 minutes' AND amount = v_due
+  ORDER BY created_at DESC LIMIT 1;
+  IF NOT FOUND THEN
+    SELECT COALESCE(payment_link_hours, 6) INTO v_hours FROM public.store_settings WHERE id = 1;
+    INSERT INTO public.upi_payment_links (token, advance_order_id, amount, created_by, expires_at)
+    VALUES (public.new_portal_token(), p_advance_id, v_due, 'Customer portal', NOW() + make_interval(hours => COALESCE(v_hours, 6)))
+    RETURNING * INTO l;
+  END IF;
+  RETURN jsonb_build_object('token', l.token, 'amount', l.amount, 'expires_at', l.expires_at, 'invoice_no', a.deposit_id);
+END;
+$$;
+
 -- Public payment page: shop UPI details and the approved amount (never more than the bill still owes).
 CREATE OR REPLACE FUNCTION public.get_payment_link(p_token TEXT)
 RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   l public.upi_payment_links;
   o public.orders;
+  a public.advance_orders;
   s public.store_settings;
   v_due NUMERIC;
   v_state TEXT;
+  v_doc TEXT;
+  v_name TEXT;
 BEGIN
   SELECT * INTO l FROM public.upi_payment_links WHERE token = BTRIM(COALESCE(p_token, ''));
   IF NOT FOUND THEN RETURN jsonb_build_object('state', 'not_found'); END IF;
-  SELECT * INTO o FROM public.orders WHERE id = l.order_id;
+  IF l.advance_order_id IS NOT NULL THEN
+    SELECT * INTO a FROM public.advance_orders WHERE id = l.advance_order_id;
+    v_due := LEAST(l.amount, public.advance_outstanding(a)); v_doc := a.deposit_id; v_name := a.customer_name;
+  ELSE
+    SELECT * INTO o FROM public.orders WHERE id = l.order_id;
+    v_due := LEAST(l.amount, public.order_outstanding(o)); v_doc := o.invoice_no; v_name := o.customer_name;
+  END IF;
   SELECT * INTO s FROM public.store_settings WHERE id = 1;
-  v_due := LEAST(l.amount, public.order_outstanding(o));
   v_state := CASE WHEN l.revoked_at IS NOT NULL THEN 'revoked' WHEN l.expires_at < NOW() THEN 'expired'
                   WHEN v_due <= 0 THEN 'paid' WHEN COALESCE(s.upi_id, '') = '' THEN 'no_upi' ELSE 'open' END;
   RETURN jsonb_build_object(
-    'state', v_state, 'invoice_no', o.invoice_no, 'amount', v_due, 'expires_at', l.expires_at,
-    'customer_first_name', split_part(BTRIM(COALESCE(o.customer_name, '')), ' ', 1),
+    'state', v_state, 'invoice_no', v_doc, 'amount', v_due, 'expires_at', l.expires_at,
+    'customer_first_name', split_part(BTRIM(COALESCE(v_name, '')), ' ', 1),
     'shop_name', s.name, 'upi_id', CASE WHEN v_state = 'open' THEN s.upi_id ELSE '' END,
     'upi_name', COALESCE(NULLIF(s.upi_name, ''), s.name), 'rotate_minutes', COALESCE(s.upi_rotate_minutes, 5),
     'logo_url', s.logo_url, 'link_id', l.id,
-    'pending_claim', EXISTS (SELECT 1 FROM public.upi_payment_claims k WHERE k.order_id = o.id AND k.status = 'pending'));
+    'pending_claim', EXISTS (SELECT 1 FROM public.upi_payment_claims k WHERE k.status = 'pending'
+                             AND ((l.order_id IS NOT NULL AND k.order_id = l.order_id) OR (l.advance_order_id IS NOT NULL AND k.advance_order_id = l.advance_order_id))));
 END;
 $$;
 
@@ -484,15 +784,22 @@ RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   l public.upi_payment_links;
   o public.orders;
+  a public.advance_orders;
   v_due NUMERIC;
   v_amount NUMERIC;
+  v_phone TEXT;
   v_utr TEXT := UPPER(BTRIM(COALESCE(p_utr, '')));
   k public.upi_payment_claims;
 BEGIN
   SELECT * INTO l FROM public.upi_payment_links WHERE token = BTRIM(COALESCE(p_link_token, '')) FOR UPDATE;
   IF NOT FOUND OR l.revoked_at IS NOT NULL OR l.expires_at < NOW() THEN RAISE EXCEPTION 'This payment link is no longer valid. Ask the shop for a new one.'; END IF;
-  SELECT * INTO o FROM public.orders WHERE id = l.order_id;
-  v_due := LEAST(l.amount, public.order_outstanding(o));
+  IF l.advance_order_id IS NOT NULL THEN
+    SELECT * INTO a FROM public.advance_orders WHERE id = l.advance_order_id;
+    v_due := LEAST(l.amount, public.advance_outstanding(a)); v_phone := a.phone;
+  ELSE
+    SELECT * INTO o FROM public.orders WHERE id = l.order_id;
+    v_due := LEAST(l.amount, public.order_outstanding(o)); v_phone := o.phone;
+  END IF;
   IF v_due <= 0 THEN RAISE EXCEPTION 'This bill has no balance to pay.'; END IF;
   v_amount := ROUND(COALESCE(NULLIF(p_amount, 0), v_due), 2);
   IF v_amount <= 0 OR v_amount > v_due THEN RAISE EXCEPTION 'The amount must be between ₹1 and ₹% (the balance).', v_due; END IF;
@@ -500,11 +807,12 @@ BEGIN
   IF v_utr <> '' AND EXISTS (SELECT 1 FROM public.order_payments WHERE UPPER(BTRIM(utr)) = v_utr) THEN
     RAISE EXCEPTION 'This transaction ID has already been recorded.';
   END IF;
-  IF (SELECT COUNT(*) FROM public.upi_payment_claims WHERE order_id = o.id AND status = 'pending') >= 3 THEN
+  IF (SELECT COUNT(*) FROM public.upi_payment_claims WHERE status = 'pending'
+      AND ((l.order_id IS NOT NULL AND order_id = l.order_id) OR (l.advance_order_id IS NOT NULL AND advance_order_id = l.advance_order_id))) >= 3 THEN
     RAISE EXCEPTION 'The shop is already checking your payment. Please wait for it to be confirmed.';
   END IF;
-  INSERT INTO public.upi_payment_claims (order_id, link_id, customer_id, amount, utr, paid_at, screenshot_path, note)
-  VALUES (o.id, l.id, public.customer_id_for_phone(o.phone), v_amount, v_utr, COALESCE(p_paid_at, NOW()),
+  INSERT INTO public.upi_payment_claims (order_id, advance_order_id, link_id, customer_id, amount, utr, paid_at, screenshot_path, note)
+  VALUES (l.order_id, l.advance_order_id, l.id, public.customer_id_for_phone(v_phone), v_amount, v_utr, COALESCE(p_paid_at, NOW()),
           LEFT(COALESCE(p_screenshot_path, ''), 300), LEFT(BTRIM(COALESCE(p_note, '')), 300))
   RETURNING * INTO k;
   RETURN jsonb_build_object('claim_id', k.id, 'status', 'awaiting_verification');
@@ -519,23 +827,43 @@ RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   k public.upi_payment_claims;
   o public.orders;
+  a public.advance_orders;
   v_due NUMERIC;
   v_utr TEXT;
   p public.order_payments;
   v_paid NUMERIC;
+  v_by TEXT := COALESCE(NULLIF(p_by, ''), 'Admin');
 BEGIN
   SELECT * INTO k FROM public.upi_payment_claims WHERE id = p_claim_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Payment claim not found.'; END IF;
   IF k.status <> 'pending' THEN RAISE EXCEPTION 'This claim is already %.', k.status; END IF;
-  SELECT * INTO o FROM public.orders WHERE id = k.order_id FOR UPDATE;
-  v_due := public.order_outstanding(o);
+  IF k.advance_order_id IS NOT NULL THEN
+    SELECT * INTO a FROM public.advance_orders WHERE id = k.advance_order_id FOR UPDATE;
+    v_due := public.advance_outstanding(a);
+  ELSE
+    SELECT * INTO o FROM public.orders WHERE id = k.order_id FOR UPDATE;
+    v_due := public.order_outstanding(o);
+  END IF;
   IF k.amount > v_due THEN RAISE EXCEPTION 'The claim (₹%) is more than the balance still owed (₹%).', k.amount, v_due; END IF;
   v_utr := UPPER(BTRIM(COALESCE(NULLIF(p_utr, ''), k.utr)));
   IF v_utr <> '' AND EXISTS (SELECT 1 FROM public.order_payments WHERE UPPER(BTRIM(utr)) = v_utr) THEN
     RAISE EXCEPTION 'Transaction % has already been credited.', v_utr;
   END IF;
-  INSERT INTO public.order_payments (order_id, amount, payment_method, utr, claim_id, verified_by)
-  VALUES (o.id, k.amount, 'upi', v_utr, k.id, COALESCE(NULLIF(p_by, ''), 'Admin')) RETURNING * INTO p;
+  INSERT INTO public.order_payments (order_id, advance_order_id, amount, payment_method, utr, claim_id, verified_by)
+  VALUES (k.order_id, k.advance_order_id, k.amount, 'upi', v_utr, k.id, v_by) RETURNING * INTO p;
+  UPDATE public.upi_payment_claims SET status = 'verified', utr = v_utr, reviewed_by = v_by, reviewed_at = NOW(), payment_id = p.id WHERE id = k.id;
+
+  IF k.advance_order_id IS NOT NULL THEN
+    UPDATE public.advance_orders SET deposit_amount = deposit_amount + k.amount, updated_at = NOW() WHERE id = a.id;
+    INSERT INTO public.advance_order_timeline (advance_order_id, event_type, label, remarks)
+    VALUES (a.id, 'upi_payment_received', 'UPI Payment Confirmed (INR ' || k.amount || ')', v_utr);
+    INSERT INTO public.audit_logs (action, entity_type, entity_id, new_value, user_name)
+    VALUES ('upi_payment_verified', 'advance_order', a.deposit_id, jsonb_build_object('amount', k.amount, 'utr', v_utr, 'claim', k.id), v_by);
+    PERFORM public.notify_customer(public.customer_id_for_phone(a.phone), 'payment_verified', 'Payment received',
+      'Your UPI payment of ₹' || k.amount || ' for order ' || a.deposit_id || ' has been confirmed. Thank you!', 'advance', a.id::TEXT, 'claim_ok:' || k.id);
+    RETURN jsonb_build_object('payment_id', p.id, 'balance', GREATEST(v_due - k.amount, 0));
+  END IF;
+
   v_paid := ROUND(COALESCE(o.credit_paid_amount, 0) + k.amount, 2);
   UPDATE public.orders SET credit_paid_amount = v_paid,
          credit_status = CASE WHEN v_paid >= COALESCE(total, 0) THEN 'paid' ELSE credit_status END,
@@ -543,10 +871,8 @@ BEGIN
          credit_paid_method = CASE WHEN v_paid >= COALESCE(total, 0) THEN 'upi' ELSE credit_paid_method END,
          updated_at = NOW()
   WHERE id = o.id;
-  UPDATE public.upi_payment_claims SET status = 'verified', utr = v_utr, reviewed_by = COALESCE(NULLIF(p_by, ''), 'Admin'), reviewed_at = NOW(), payment_id = p.id
-  WHERE id = k.id;
   INSERT INTO public.audit_logs (action, entity_type, entity_id, new_value, user_name)
-  VALUES ('upi_payment_verified', 'order', o.invoice_no, jsonb_build_object('amount', k.amount, 'utr', v_utr, 'claim', k.id), COALESCE(NULLIF(p_by, ''), 'Admin'));
+  VALUES ('upi_payment_verified', 'order', o.invoice_no, jsonb_build_object('amount', k.amount, 'utr', v_utr, 'claim', k.id), v_by);
   PERFORM public.notify_customer(public.customer_id_for_phone(o.phone), 'payment_verified', 'Payment received',
     'Your UPI payment of ₹' || k.amount || ' for bill ' || o.invoice_no || ' has been confirmed. Thank you!', 'bill', o.id::TEXT, 'claim_ok:' || k.id);
   RETURN jsonb_build_object('payment_id', p.id, 'balance', GREATEST(COALESCE(o.total, 0) - v_paid, 0));
@@ -557,18 +883,28 @@ CREATE OR REPLACE FUNCTION public.reject_payment_claim(p_claim_id UUID, p_reason
 RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 DECLARE
   k public.upi_payment_claims;
-  o public.orders;
+  v_doc TEXT;
+  v_phone TEXT;
+  v_ref_type TEXT;
+  v_ref TEXT;
+  v_word TEXT;
 BEGIN
   IF BTRIM(COALESCE(p_reason, '')) = '' THEN RAISE EXCEPTION 'Enter why the payment was not found.'; END IF;
   SELECT * INTO k FROM public.upi_payment_claims WHERE id = p_claim_id FOR UPDATE;
   IF NOT FOUND OR k.status <> 'pending' THEN RAISE EXCEPTION 'Only a claim awaiting verification can be rejected.'; END IF;
-  SELECT * INTO o FROM public.orders WHERE id = k.order_id;
+  IF k.advance_order_id IS NOT NULL THEN
+    SELECT deposit_id, phone INTO v_doc, v_phone FROM public.advance_orders WHERE id = k.advance_order_id;
+    v_ref_type := 'advance'; v_ref := k.advance_order_id::TEXT; v_word := 'order';
+  ELSE
+    SELECT invoice_no, phone INTO v_doc, v_phone FROM public.orders WHERE id = k.order_id;
+    v_ref_type := 'bill'; v_ref := k.order_id::TEXT; v_word := 'bill';
+  END IF;
   UPDATE public.upi_payment_claims SET status = 'rejected', review_reason = BTRIM(p_reason), reviewed_by = COALESCE(NULLIF(p_by, ''), 'Admin'), reviewed_at = NOW()
   WHERE id = k.id;
   INSERT INTO public.audit_logs (action, entity_type, entity_id, new_value, user_name, note)
-  VALUES ('upi_payment_rejected', 'order', o.invoice_no, jsonb_build_object('amount', k.amount, 'utr', k.utr, 'claim', k.id), COALESCE(NULLIF(p_by, ''), 'Admin'), BTRIM(p_reason));
-  PERFORM public.notify_customer(public.customer_id_for_phone(o.phone), 'payment_rejected', 'Payment could not be verified',
-    'Your UPI payment of ₹' || k.amount || ' for bill ' || o.invoice_no || ' could not be found: ' || BTRIM(p_reason) || '. Please contact the shop.', 'bill', o.id::TEXT, 'claim_no:' || k.id);
+  VALUES ('upi_payment_rejected', CASE WHEN k.advance_order_id IS NOT NULL THEN 'advance_order' ELSE 'order' END, v_doc, jsonb_build_object('amount', k.amount, 'utr', k.utr, 'claim', k.id), COALESCE(NULLIF(p_by, ''), 'Admin'), BTRIM(p_reason));
+  PERFORM public.notify_customer(public.customer_id_for_phone(v_phone), 'payment_rejected', 'Payment could not be verified',
+    'Your UPI payment of ₹' || k.amount || ' for ' || v_word || ' ' || v_doc || ' could not be found: ' || BTRIM(p_reason) || '. Please contact the shop.', v_ref_type, v_ref, 'claim_no:' || k.id);
 END;
 $$;
 
@@ -650,12 +986,119 @@ BEGIN
 END;
 $$;
 
+-- Credit bills: the same stages against the bill's due date.
+CREATE OR REPLACE FUNCTION public.generate_credit_reminders()
+RETURNS INTEGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  o public.orders;
+  v_days INTEGER[];
+  v_cid UUID;
+  v_due NUMERIC;
+  v_left INTEGER;
+  v_stage INTEGER;
+  v_count INTEGER := 0;
+  v_before INTEGER;
+BEGIN
+  SELECT COALESCE(reminder_days, '{7,3,1,0,-1}') INTO v_days FROM public.store_settings WHERE id = 1;
+  FOR o IN SELECT * FROM public.orders WHERE credit_status = 'outstanding' AND credit_due_date IS NOT NULL AND LOWER(COALESCE(status, '')) <> 'cancelled' LOOP
+    v_due := public.order_outstanding(o);
+    CONTINUE WHEN v_due <= 0;
+    v_cid := public.customer_id_for_phone(o.phone);
+    CONTINUE WHEN v_cid IS NULL;
+    v_left := o.credit_due_date::DATE - CURRENT_DATE;
+    v_stage := CASE WHEN v_left < 0 AND -1 = ANY(v_days) THEN -1 WHEN v_left = ANY(v_days) THEN v_left ELSE NULL END;
+    CONTINUE WHEN v_stage IS NULL;
+    SELECT COUNT(*) INTO v_before FROM public.customer_notifications WHERE dedupe_key = 'credit_rem:' || o.id || ':' || v_stage;
+    PERFORM public.notify_customer(v_cid, CASE WHEN v_stage < 0 THEN 'credit_overdue' WHEN v_stage = 0 THEN 'credit_due_today' ELSE 'credit_due' END,
+      CASE WHEN v_stage < 0 THEN 'Bill payment overdue' WHEN v_stage = 0 THEN 'Bill payment due today' ELSE 'Bill payment due in ' || v_stage || ' day' || CASE WHEN v_stage = 1 THEN '' ELSE 's' END END,
+      'Dear ' || COALESCE(NULLIF(o.customer_name, ''), 'Customer') || ', ₹' || v_due || ' on your bill ' || COALESCE(o.invoice_no, '')
+        || CASE WHEN v_stage < 0 THEN ' was due on ' ELSE ' is due on ' END || to_char(o.credit_due_date::DATE, 'DD Mon YYYY') || '. Thank you!',
+      'bill', o.id::TEXT, 'credit_rem:' || o.id || ':' || v_stage);
+    IF v_before = 0 THEN v_count := v_count + 1; END IF;
+  END LOOP;
+  RETURN v_count;
+END;
+$$;
+
+-- Server only: picks the notifications to send on a channel and marks them queued, so two runs can never send one twice.
+-- WhatsApp / SMS carry only due-date reminders, recent ones, to customers who have not switched them off.
+-- Push carries everything, for devices that were switched on before the notification was made.
+CREATE OR REPLACE FUNCTION public.claim_outbound_notifications(p_channel TEXT, p_limit INTEGER DEFAULT 100)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_kinds TEXT[] := ARRAY['scheme_due', 'scheme_due_today', 'scheme_overdue', 'credit_due', 'credit_due_today', 'credit_overdue'];
+  v_on BOOLEAN;
+  v_out JSONB;
+BEGIN
+  IF p_channel NOT IN ('whatsapp', 'sms', 'push') THEN RAISE EXCEPTION 'Unknown channel.'; END IF;
+  SELECT CASE p_channel WHEN 'whatsapp' THEN whatsapp_reminders_enabled WHEN 'sms' THEN sms_reminders_enabled ELSE TRUE END INTO v_on FROM public.store_settings WHERE id = 1;
+  IF NOT COALESCE(v_on, FALSE) THEN RETURN '[]'::JSONB; END IF;
+  WITH picked AS (
+    SELECT n.id FROM public.customer_notifications n JOIN public.customers c ON c.id = n.customer_id
+    WHERE n.created_at > NOW() - INTERVAL '3 days'
+      AND NOT EXISTS (SELECT 1 FROM public.notification_deliveries d WHERE d.notification_id = n.id AND d.channel = p_channel)
+      AND CASE WHEN p_channel = 'push'
+               THEN EXISTS (SELECT 1 FROM public.customer_push_subscriptions u WHERE u.customer_id = n.customer_id AND u.created_at <= n.created_at)
+               ELSE n.kind = ANY(v_kinds) AND NOT c.reminders_opt_out AND LENGTH(public.phone_key(c.phone)) = 10 END
+    ORDER BY n.created_at LIMIT LEAST(GREATEST(COALESCE(p_limit, 100), 1), 500)
+    FOR UPDATE OF n SKIP LOCKED
+  ), queued AS (
+    INSERT INTO public.notification_deliveries (notification_id, channel, status)
+    SELECT id, p_channel, 'queued' FROM picked ON CONFLICT (notification_id, channel) DO NOTHING
+    RETURNING id, notification_id
+  )
+  SELECT COALESCE(jsonb_agg(jsonb_build_object('delivery_id', q.id, 'kind', n.kind, 'title', n.title, 'body', n.body, 'customer_name', c.name,
+           'phone', public.phone_key(c.phone),
+           'targets', CASE WHEN p_channel = 'push' THEN (SELECT COALESCE(jsonb_agg(jsonb_build_object('endpoint', u.endpoint, 'p256dh', u.p256dh, 'auth', u.auth)), '[]'::JSONB)
+                                                         FROM public.customer_push_subscriptions u WHERE u.customer_id = n.customer_id AND u.created_at <= n.created_at) END)), '[]'::JSONB)
+  INTO v_out
+  FROM queued q JOIN public.customer_notifications n ON n.id = q.notification_id JOIN public.customers c ON c.id = n.customer_id;
+  RETURN v_out;
+END;
+$$;
+
+-- Server only: result of a send, and later delivery reports from the provider. A report never moves a message backwards.
+CREATE OR REPLACE FUNCTION public.record_delivery(p_id UUID, p_status TEXT, p_ref TEXT, p_error TEXT)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  UPDATE public.notification_deliveries SET status = p_status, provider_ref = COALESCE(p_ref, ''), error = LEFT(COALESCE(p_error, ''), 500), updated_at = NOW() WHERE id = p_id;
+$$;
+
+CREATE OR REPLACE FUNCTION public.record_delivery_report(p_ref TEXT, p_status TEXT, p_error TEXT)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  UPDATE public.notification_deliveries SET status = p_status, error = LEFT(COALESCE(p_error, ''), 500), updated_at = NOW()
+  WHERE provider_ref = p_ref AND p_ref <> '' AND status <> 'delivered' AND p_status IN ('sent', 'delivered', 'failed');
+$$;
+
+CREATE OR REPLACE FUNCTION public.delete_push_subscription(p_endpoint TEXT)
+RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  DELETE FROM public.customer_push_subscriptions WHERE endpoint = p_endpoint;
+$$;
+
+-- Tells the customer's open portal to reload straight away. Holds no customer data; failing here must never stop a bill being saved.
+CREATE OR REPLACE FUNCTION public.customer_notifications_live()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_topic TEXT;
+BEGIN
+  IF to_regprocedure('realtime.send(jsonb,text,text,boolean)') IS NULL THEN RETURN NEW; END IF;
+  SELECT live_topic INTO v_topic FROM public.customers WHERE id = NEW.customer_id;
+  IF v_topic IS NOT NULL THEN
+    EXECUTE 'SELECT realtime.send($1, $2, $3, FALSE)' USING '{}'::JSONB, 'refresh', 'portal:' || v_topic;
+  END IF;
+  RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS customer_notifications_live ON public.customer_notifications;
+CREATE TRIGGER customer_notifications_live AFTER INSERT ON public.customer_notifications
+  FOR EACH ROW EXECUTE FUNCTION public.customer_notifications_live();
+
 -- Daily at 09:00 IST (03:30 UTC), when pg_cron is enabled (Database -> Extensions -> pg_cron).
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
     PERFORM cron.unschedule(jobid) FROM cron.job WHERE jobname = 'scheme-reminders';
-    PERFORM cron.schedule('scheme-reminders', '30 3 * * *', 'SELECT public.generate_scheme_reminders()');
+    PERFORM cron.schedule('scheme-reminders', '30 3 * * *', 'SELECT public.generate_scheme_reminders(); SELECT public.generate_credit_reminders()');
   END IF;
 EXCEPTION WHEN OTHERS THEN
   RAISE NOTICE 'pg_cron schedule skipped: %', SQLERRM;
@@ -672,7 +1115,7 @@ DECLARE
   v_locked BOOLEAN := FALSE;
 BEGIN
   SELECT to_jsonb(s) - 'admin_id' - 'admin_password' - 'staff_id' - 'staff_password' - 'staff_panels' - 'scheme_rules'
-         - 'otp_minutes' - 'reminder_days' - 'payment_link_hours'
+         - 'otp_minutes' - 'reminder_days' - 'payment_link_hours' - 'whatsapp_reminders_enabled' - 'sms_reminders_enabled'
   INTO v FROM public.store_settings s WHERE id = 1;
   IF to_regclass('public.security_flags') IS NOT NULL THEN
     EXECUTE 'SELECT COALESCE((SELECT locked FROM public.security_flags WHERE id = 1), FALSE)' INTO v_locked;
@@ -684,6 +1127,12 @@ $$;
 CREATE OR REPLACE FUNCTION public.get_public_coupon(p_code TEXT)
 RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
   SELECT to_jsonb(c) - 'allowed_phones' FROM public.coupons c WHERE LOWER(c.code) = LOWER(BTRIM(COALESCE(p_code, ''))) LIMIT 1;
+$$;
+
+-- Invoice links sent to customers carry the bill's random id, so nobody can walk through other people's bills by number.
+CREATE OR REPLACE FUNCTION public.get_public_invoice_by_id(p_id UUID)
+RETURNS SETOF public.orders LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT * FROM public.orders WHERE id = p_id LIMIT 1;
 $$;
 
 -- Payment screenshots: private bucket; customers can upload, only the shop can read.
@@ -731,10 +1180,29 @@ GRANT EXECUTE ON FUNCTION public.revoke_payment_link(UUID) TO anon, authenticate
 GRANT EXECUTE ON FUNCTION public.verify_payment_claim(UUID, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.reject_payment_claim(UUID, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.generate_scheme_reminders() TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.generate_credit_reminders() TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_verify_email_otp(TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_confirm_email_change(TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_confirm_phone_change(TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_set_reminders(TEXT, BOOLEAN) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_push_subscribe(TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_push_unsubscribe(TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_advance_payment_link(TEXT, UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_public_invoice_by_id(UUID) TO anon, authenticated;
 REVOKE ALL ON FUNCTION public.customer_create_otp(TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.customer_discard_otp(TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.portal_customer(TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.notify_customer(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.otp_issue(TEXT, TEXT, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.otp_check(TEXT, TEXT, TEXT, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.otp_discard(TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.portal_new_session(UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.customer_create_email_otp(TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.customer_create_change_otp(TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.claim_outbound_notifications(TEXT, INTEGER) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.record_delivery(UUID, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.record_delivery_report(TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.delete_push_subscription(TEXT) FROM PUBLIC, anon, authenticated;
 
 NOTIFY pgrst, 'reload schema';
 
@@ -753,6 +1221,13 @@ BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'service_role') THEN
     GRANT EXECUTE ON FUNCTION public.customer_create_otp(TEXT) TO service_role;
     GRANT EXECUTE ON FUNCTION public.customer_discard_otp(TEXT) TO service_role;
+    GRANT EXECUTE ON FUNCTION public.otp_discard(TEXT, TEXT) TO service_role;
+    GRANT EXECUTE ON FUNCTION public.customer_create_email_otp(TEXT) TO service_role;
+    GRANT EXECUTE ON FUNCTION public.customer_create_change_otp(TEXT, TEXT, TEXT) TO service_role;
+    GRANT EXECUTE ON FUNCTION public.claim_outbound_notifications(TEXT, INTEGER) TO service_role;
+    GRANT EXECUTE ON FUNCTION public.record_delivery(UUID, TEXT, TEXT, TEXT) TO service_role;
+    GRANT EXECUTE ON FUNCTION public.record_delivery_report(TEXT, TEXT, TEXT) TO service_role;
+    GRANT EXECUTE ON FUNCTION public.delete_push_subscription(TEXT) TO service_role;
   END IF;
 END $$;
 

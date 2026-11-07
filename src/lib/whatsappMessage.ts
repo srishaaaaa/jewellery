@@ -32,6 +32,8 @@ export type BuildWhatsAppMessageInput = {
   customerName?: string
   phone?: string
   invoiceNumber: string
+  /** The bill's random id: it goes in the customer's link, the invoice number does not. */
+  orderId: string
   invoiceDate?: string
   invoiceUrl?: string
   paymentMode?: string
@@ -85,6 +87,7 @@ export type CreditReminderWhatsAppInput = {
 export type CreditPaidWhatsAppInput = {
   customerName?: string
   invoiceNumber: string
+  orderId: string
   amount: number
   paidAt?: string | null
 }
@@ -100,13 +103,8 @@ export type AdvanceDepositWhatsAppInput = {
   paymentMethod?: string
 }
 
-export const publicInvoiceUrl = (invoiceNumberOrId: string) => {
-  // Link with the invoice number exactly as stored (or the order id). Reformatting it
-  // here (e.g. keeping only the last 8 digits) produces a number the invoice page
-  // cannot find in the database.
-  const identifier = String(invoiceNumberOrId || '').trim()
-  return `${publicSiteOrigin()}/invoice/${encodeURIComponent(identifier)}`
-}
+/** Customer link to a bill. It carries the bill's random id, so nobody can reach other bills by changing a number. */
+export const publicInvoiceUrl = (orderId: string) => `${publicSiteOrigin()}/invoice/${encodeURIComponent(String(orderId || '').trim())}`
 
 /** Address of the live site, used in links sent to customers. */
 export const publicSiteOrigin = () => {
@@ -120,7 +118,7 @@ export const publicSiteOrigin = () => {
 export const buildProfessionalWhatsAppMessage = (input: BuildWhatsAppMessageInput) => {
   const shop = getShopInfo()
   const customerName = input.customerName?.trim() || 'Valued Customer'
-  const invoiceUrl = input.invoiceUrl || publicInvoiceUrl(input.invoiceNumber)
+  const invoiceUrl = input.invoiceUrl || publicInvoiceUrl(input.orderId)
   const formattedNo = formatInvoiceNo(input.invoiceNumber)
   const itemsText = input.items && input.items.length > 0
     ? input.items.map(item => `• ${item.name} (x${item.qty}) - ₹ ${Number(item.lineTotal || 0).toFixed(2)}` +
@@ -215,7 +213,7 @@ We have received your payment and your credit bill is now fully cleared. Thank y
 ${paidDateText ? `📅 *Paid On:* ${paidDateText}\n` : ''}✔️ *Balance Due:* ₹ 0.00
 
 📄 *View & Download Your Invoice:*
-👉 ${publicInvoiceUrl(input.invoiceNumber)}
+👉 ${publicInvoiceUrl(input.orderId)}
 
 Thank you for shopping with us — we look forward to seeing you again! 🙏
 

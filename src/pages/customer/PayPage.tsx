@@ -16,7 +16,7 @@ type LinkInfo = {
 const STATE_TEXT: Record<Exclude<LinkInfo['state'], 'open'>, string> = {
   expired: 'This payment link has expired. Please ask the shop for a new one.',
   revoked: 'This payment link was cancelled by the shop. Please ask the shop for a new one.',
-  paid: 'This bill has no balance to pay. Thank you!',
+  paid: 'There is no balance to pay. Thank you!',
   not_found: 'This payment link is not valid.',
   no_upi: 'UPI payments are not set up at the shop yet. Please pay at the counter.',
 }
@@ -85,12 +85,12 @@ export default function PayPage() {
         {!info ? <p className="text-sm text-black/60">Loading…</p> : info.state !== 'open' ? (
           <div className="rounded-2xl border border-black/10 bg-white p-6 text-center shadow-sm">
             <p className="text-sm font-bold">{STATE_TEXT[info.state]}</p>
-            {info.invoice_no && <p className="mt-1 text-xs text-black/60">Invoice {formatInvoiceNo(info.invoice_no)}</p>}
+            {info.invoice_no && <p className="mt-1 text-xs text-black/60">{info.invoice_no.startsWith('DEP-') ? 'Order' : 'Invoice'} {formatInvoiceNo(info.invoice_no)}</p>}
           </div>
         ) : (
           <>
             <div className="rounded-2xl border border-black/10 bg-white p-5 shadow-sm">
-              <p className="text-xs font-semibold text-black/60">{info.customer_first_name ? `Hi ${info.customer_first_name}, ` : ''}amount to pay for invoice {formatInvoiceNo(info.invoice_no || '')}</p>
+              <p className="text-xs font-semibold text-black/60">{info.customer_first_name ? `Hi ${info.customer_first_name}, ` : ''}amount to pay for {info.invoice_no?.startsWith('DEP-') ? 'order' : 'invoice'} {formatInvoiceNo(info.invoice_no || '')}</p>
               <p className="mt-1 text-3xl font-black">{inr(info.amount || 0)}</p>
               <p className="mt-1 flex items-center gap-1 text-[11px] font-semibold text-black/50"><Clock className="h-3.5 w-3.5" /> Link valid until {info.expires_at ? new Date(info.expires_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'}</p>
               <div className="mt-4">

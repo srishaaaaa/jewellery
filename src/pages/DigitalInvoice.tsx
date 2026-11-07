@@ -61,7 +61,10 @@ export default function DigitalInvoice() {
 
         const tryRpc = async (invNo: string) => supabase.rpc('get_public_invoice_by_number', { p_invoice_no: invNo })
 
-        let rpcResult = await tryRpc(identifier)
+        // Links sent to customers carry the bill's random id; numbers only open for a logged-in shop.
+        let rpcResult = isUuid(identifier)
+          ? await supabase.rpc('get_public_invoice_by_id', { p_id: identifier })
+          : await tryRpc(identifier)
         if (!rpcResult.data || (Array.isArray(rpcResult.data) && rpcResult.data.length === 0)) {
           if (strippedIdentifier && strippedIdentifier !== identifier) {
              rpcResult = await tryRpc(strippedIdentifier)
@@ -175,7 +178,7 @@ export default function DigitalInvoice() {
     return (
       <div className="min-h-screen bg-[#f9faf6] flex flex-col items-center justify-center text-center p-6">
         <h1 className="text-2xl font-bold text-sageDark mb-2">Invoice Not Found</h1>
-        <p className="text-gray-500 mb-6">The requested invoice could not be found.</p>
+        <p className="text-gray-500 mb-6">This invoice could not be found. If this is an older link, please ask the shop to send you a new one.</p>
         <button
           onClick={handleBack}
           className="inline-flex items-center gap-2 px-6 py-2 bg-sage text-white rounded-full font-bold hover:bg-sageDark transition cursor-pointer"
@@ -266,6 +269,7 @@ export default function DigitalInvoice() {
       customerName: invoice.customer_name,
       phone: invoice.phone,
       invoiceNumber: invoice.invoice_no,
+      orderId: invoice.id,
       invoiceDate: invoice.created_at,
       items,
       subtotal,

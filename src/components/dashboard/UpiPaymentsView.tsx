@@ -41,15 +41,20 @@ export default function UpiPaymentsView() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const order = 'orders(invoice_no, customer_name, phone, total, credit_paid_amount, credit_status)'
+    const order = 'orders(invoice_no, customer_name, phone, total, credit_paid_amount, credit_status), advance_orders(deposit_id, customer_name, phone, total_amount, deposit_amount, status)'
+    // An advance order shows like a bill in this screen: its deposit is what has been paid so far.
+    const withDoc = <T,>(rows: unknown): T[] => ((rows || []) as Array<Record<string, unknown> & { advance_orders?: { deposit_id: string; customer_name: string; phone: string; total_amount: number; deposit_amount: number; status: string } | null; orders?: OrderRef }>).map((r) => {
+      const a = r.advance_orders
+      return { ...r, orders: r.orders || (a ? { invoice_no: a.deposit_id, customer_name: a.customer_name, phone: a.phone, total: a.total_amount, credit_paid_amount: a.deposit_amount, credit_status: a.status === 'completed' || a.status === 'cancelled' ? 'paid' : 'outstanding' } : null) } as unknown as T
+    })
     const [c, l, r] = await Promise.all([
       supabase.from('upi_payment_claims').select(`*, ${order}`).order('created_at', { ascending: false }).limit(1000),
       supabase.from('upi_payment_links').select(`*, ${order}`).order('created_at', { ascending: false }).limit(500),
       supabase.from('customer_registration_requests').select('*').order('created_at', { ascending: false }).limit(300),
     ])
     if (c.error) setError(/upi_payment_claims/.test(c.error.message) ? 'UPI payments need the database update: run supabase/migrations/customer_portal.sql in the Supabase SQL Editor.' : c.error.message)
-    else { setError(''); setClaims((c.data || []) as Claim[]) }
-    if (!l.error) setLinks((l.data || []) as LinkRow[])
+    else { setError(''); setClaims(withDoc<Claim>(c.data)) }
+    if (!l.error) setLinks(withDoc<LinkRow>(l.data))
     if (!r.error) setRegs((r.data || []) as RegRow[])
     setLoading(false)
   }, [])

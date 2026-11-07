@@ -1,70 +1,91 @@
-// customer-otp: makes a one-time code for a registered customer's mobile number and sends it by SMS.
-// The code itself is only ever stored as a salted hash in the database; checking it is done by the
-// customer_verify_otp database function (5 tries per code, expires after Settings -> otp_minutes).
+// customer-otp: makes a one-time code and sends it. Codes are stored only as salted hashes; the database functions check them
+// (5 tries per code, expires after Settings -> otp_minutes).
 //
-// Choose the provider with the SMS_PROVIDER secret. Until it is set, customers see
-// "OTP service not configured" and nothing is sent.
+//   { phone }              login code by SMS
+//   { email }              login code by email (same answer whether or not the address is a customer's)
+//   { token, new_email }   logged-in customer proving a new or existing email
+//   { token, new_phone }   logged-in customer proving a new mobile number
+//
+// Secrets. Until these are set, customers are told the option is not switched on and nothing is sent.
 //   SMS_PROVIDER=msg91   MSG91_AUTH_KEY, MSG91_TEMPLATE_ID   (DLT-approved OTP template with ##OTP##)
 //   SMS_PROVIDER=twilio  TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM (or TWILIO_MESSAGING_SERVICE_SID)
-//   OTP_SHOP_NAME        optional, used in the Twilio message text
+//   RESEND_API_KEY, EMAIL_FROM   for email codes
+//   OTP_SHOP_NAME        optional, the shop's name in messages
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4'
 import { corsHeaders, env, json } from '../_shared/http.ts'
+import { emailReady, sendEmail, sendSmsOtp, shopName, smsProvider } from '../_shared/senders.ts'
 
-async function sendMsg91(phone91: string, code: string) {
-  const res = await fetch(`https://control.msg91.com/api/v5/otp?template_id=${encodeURIComponent(env('MSG91_TEMPLATE_ID'))}&mobile=${phone91}&otp=${code}`, {
-    method: 'POST',
-    headers: { authkey: env('MSG91_AUTH_KEY'), 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
-  })
-  const body = await res.json().catch(() => ({}))
-  if (!res.ok || (body && body.type === 'error')) throw new Error(body?.message || `MSG91 error ${res.status}`)
-}
-
-async function sendTwilio(phone91: string, code: string, minutes: number) {
-  const sid = env('TWILIO_ACCOUNT_SID')
-  const form = new URLSearchParams({
-    To: `+${phone91}`,
-    Body: `${code} is your ${env('OTP_SHOP_NAME') || 'jewellery shop'} login code. It expires in ${minutes} minutes. Do not share it.`,
-  })
-  if (env('TWILIO_MESSAGING_SERVICE_SID')) form.set('MessagingServiceSid', env('TWILIO_MESSAGING_SERVICE_SID'))
-  else form.set('From', env('TWILIO_FROM'))
-  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-    method: 'POST',
-    headers: { Authorization: `Basic ${btoa(`${sid}:${env('TWILIO_AUTH_TOKEN')}`)}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: form,
-  })
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body?.message || `Twilio error ${res.status}`)
-  }
-}
+type Otp = { code: string; expires_in_seconds: number; resend_in_seconds: number; status?: string; key?: string }
+const emailCode = (to: string, otp: Otp, purpose: string) => sendEmail(to, `${otp.code} is your ${shopName()} code`,
+  `${otp.code} is your code to ${purpose}. It expires in ${Math.round(otp.expires_in_seconds / 60)} minutes.\n\nDo not share it with anyone. If you did not ask for this, you can ignore this email.\n\n${shopName()}`)
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
-  let phone = ''
-  try { phone = String((await req.json())?.phone || '') } catch { return json({ error: 'Bad request' }, 400) }
-  const digits = phone.replace(/\D/g, '').slice(-10)
-  if (!/^[6-9]\d{9}$/.test(digits)) return json({ error: 'Enter a valid 10-digit mobile number.' }, 400)
-
-  const provider = env('SMS_PROVIDER').toLowerCase()
-  if (provider !== 'msg91' && provider !== 'twilio') return json({ error: 'OTP_NOT_CONFIGURED' }, 503)
-
+  let input: Record<string, unknown>
+  try { input = await req.json() } catch { return json({ error: 'Bad request' }, 400) }
+  const text = (k: string) => String(input?.[k] || '').trim()
   const admin = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'), { auth: { persistSession: false, autoRefreshToken: false } })
+  const done = (otp: Otp) => json({ ok: true, expires_in_seconds: otp.expires_in_seconds, resend_in_seconds: otp.resend_in_seconds })
+
+  // ── Logged-in customer proving a new address ──
+  if (text('token')) {
+    const channel = text('new_email') ? 'email_change' : text('new_phone') ? 'phone_change' : ''
+    if (!channel) return json({ error: 'Bad request' }, 400)
+    if (channel === 'email_change' ? !emailReady() : !smsProvider()) return json({ error: channel === 'email_change' ? 'EMAIL_NOT_CONFIGURED' : 'OTP_NOT_CONFIGURED' }, 503)
+    const { data, error } = await admin.rpc('customer_create_change_otp', { p_token: text('token'), p_channel: channel, p_target: text('new_email') || text('new_phone') })
+    if (error) return /SESSION_EXPIRED/.test(error.message) ? json({ error: 'SESSION_EXPIRED' }, 401) : json({ error: error.message }, 400)
+    const otp = data as Otp
+    try {
+      if (channel === 'email_change') await emailCode(otp.key as string, otp, 'verify this email for your customer account')
+      else await sendSmsOtp(`91${otp.key}`, otp.code, Math.round(otp.expires_in_seconds / 60))
+    } catch (err) {
+      await admin.rpc('otp_discard', { p_channel: channel, p_key: otp.key })
+      return json({ error: `The code could not be sent: ${(err as Error).message}` }, 502)
+    }
+    return done(otp)
+  }
+
+  // ── Email login ──
+  if (text('email')) {
+    if (!emailReady()) return json({ error: 'EMAIL_NOT_CONFIGURED' }, 503)
+    const email = text('email').toLowerCase()
+    const generic = json({ ok: true, resend_in_seconds: 60 })
+    const { data, error } = await admin.rpc('customer_create_email_otp', { p_email: email })
+    // Waiting periods and unknown addresses answer the same, so nobody can test which addresses are customers.
+    if (error) return generic
+    const otp = data as Otp
+    if (otp.status === 'unknown') return generic
+    try {
+      if (otp.status === 'shared') {
+        await sendEmail(email, `Logging in to ${shopName()}`, `This email is used on more than one customer account, so it cannot be used to log in. Please log in with your mobile number, or ask the shop to update it.\n\n${shopName()}`)
+      } else {
+        await emailCode(email, otp, 'log in to your customer account')
+      }
+    } catch (err) {
+      await admin.rpc('otp_discard', { p_channel: 'email', p_key: email })
+      return json({ error: `The code could not be sent: ${(err as Error).message}` }, 502)
+    }
+    return generic
+  }
+
+  // ── Mobile login ──
+  const digits = text('phone').replace(/\D/g, '').slice(-10)
+  if (!/^[6-9]\d{9}$/.test(digits)) return json({ error: 'Enter a valid 10-digit mobile number.' }, 400)
+  if (!smsProvider()) return json({ error: 'OTP_NOT_CONFIGURED' }, 503)
   const { data, error } = await admin.rpc('customer_create_otp', { p_phone: digits })
   if (error) {
     if (/NOT_REGISTERED/.test(error.message)) return json({ error: 'NOT_REGISTERED' }, 404)
     return json({ error: error.message }, 429)
   }
-  const otp = data as { code: string; expires_in_seconds: number; resend_in_seconds: number }
+  const otp = data as Otp
   try {
-    if (provider === 'msg91') await sendMsg91(`91${digits}`, otp.code)
-    else await sendTwilio(`91${digits}`, otp.code, Math.round(otp.expires_in_seconds / 60))
+    await sendSmsOtp(`91${digits}`, otp.code, Math.round(otp.expires_in_seconds / 60))
   } catch (err) {
     // Not sent: remove the code so the customer can try again straight away.
     await admin.rpc('customer_discard_otp', { p_phone: digits })
     return json({ error: `The OTP could not be sent: ${(err as Error).message}` }, 502)
   }
-  return json({ ok: true, expires_in_seconds: otp.expires_in_seconds, resend_in_seconds: otp.resend_in_seconds })
+  return done(otp)
 })

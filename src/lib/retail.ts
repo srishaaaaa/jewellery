@@ -131,6 +131,7 @@ export const formatPaymentMode = (mode: unknown, splitDetails?: unknown): string
 
 export const formatInvoiceNo = (invNo: unknown): string => {
   const raw = String(invNo || '').trim()
+  if (/^DEP-/i.test(raw)) return raw // advance order numbers keep their own format
   const base = raw.replace(/^INV/i, '').replace(/[^\d]/g, '')
   if (!base) return 'INV10000001'
 

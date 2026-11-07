@@ -1666,11 +1666,12 @@ export default function Pos(props: PosProps = {}) {
     ? Number(cashReceived) - total : null
 
   const sendPosWhatsApp = (inv: InvoiceSnap) => {
-    const invoiceUrl = publicInvoiceUrl(inv.invoiceNo)
+    const invoiceUrl = publicInvoiceUrl(inv.id)
     const message = buildProfessionalWhatsAppMessage({
       customerName: inv.customerName,
       phone: inv.phone,
       invoiceNumber: inv.invoiceNo,
+      orderId: inv.id,
       invoiceUrl,
       paymentMode: inv.paymentMode || 'POS',
       items: inv.items.map((item) => ({
@@ -1774,9 +1775,9 @@ export default function Pos(props: PosProps = {}) {
     })
   }
 
-  const copyInvoiceLink = async (invoiceNo: string) => {
+  const copyInvoiceLink = async (orderId: string) => {
     try {
-      await navigator.clipboard.writeText(publicInvoiceUrl(invoiceNo))
+      await navigator.clipboard.writeText(publicInvoiceUrl(orderId))
       setLinkCopied(true)
       window.setTimeout(() => setLinkCopied(false), 1800)
     } catch { /* clipboard blocked */ }
@@ -1811,7 +1812,7 @@ export default function Pos(props: PosProps = {}) {
             </button>
             <div className="flex flex-wrap items-center gap-2">
               <button type="button" onClick={() => sendPosWhatsApp(invoice)} className={toolbarBtn}><MessageCircle className="w-4 h-4" /> Share WhatsApp</button>
-              <button type="button" onClick={() => void copyInvoiceLink(invoice.invoiceNo)} className={toolbarBtn}>
+              <button type="button" onClick={() => void copyInvoiceLink(invoice.id)} className={toolbarBtn}>
                 {linkCopied ? <><Check className="w-4 h-4" /> Copied</> : <><Copy className="w-4 h-4" /> Copy Link</>}
               </button>
               <button type="button" onClick={() => setPrintOpen(true)} className={toolbarBtnDark}><Printer className="w-4 h-4" /> Print</button>

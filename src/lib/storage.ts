@@ -31,7 +31,8 @@ export const uploadProductImage = async (file: File) => {
 
 export const uploadInvoicePdf = async (file: File, invoiceNo: string): Promise<string> => {
   const safeInvoiceNo = sanitizeFileName(invoiceNo)
-  const filePath = `invoices/${safeInvoiceNo}-${Date.now()}.pdf`
+  // The random part keeps a public file address from being worked out from the invoice number and date.
+  const filePath = `invoices/${safeInvoiceNo}-${crypto.randomUUID()}.pdf`
 
   const { error: uploadError } = await supabase.storage
     .from(INVOICE_BUCKET)

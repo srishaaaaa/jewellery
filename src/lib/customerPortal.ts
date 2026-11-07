@@ -27,36 +27,63 @@ export async function portalRpc<T>(fn: string, args: Record<string, unknown> = {
   return data as T
 }
 
-/** Asks the customer-otp Edge Function to send an OTP. */
-export async function requestOtp(phone: string): Promise<{ ok: true; resendIn: number; expiresIn: number } | { ok: false; code: 'NOT_REGISTERED' | 'NOT_CONFIGURED' | 'ERROR'; message: string }> {
+type OtpResult = { ok: true; resendIn: number; expiresIn: number } | { ok: false; code: 'NOT_REGISTERED' | 'NOT_CONFIGURED' | 'ERROR'; message: string }
+
+/** Asks the customer-otp Edge Function to send a code by SMS or email. */
+export const requestOtp = (phone: string) => requestCode({ phone })
+export const requestEmailOtp = (email: string) => requestCode({ email })
+/** Logged-in customer: a code to the new email / mobile number. */
+export const requestChangeCode = (target: { new_email: string } | { new_phone: string }) => requestCode({ token: readPortalSession()?.token, ...target })
+
+async function requestCode(request: Record<string, unknown>): Promise<OtpResult> {
+  const notOn = `${'phone' in request || 'new_phone' in request ? 'Mobile OTP' : 'Email verification'} is not switched on yet. Please contact the shop.`
   try {
-    const { data, error } = await supabase.functions.invoke('customer-otp', { body: { phone } })
+    const { data, error } = await supabase.functions.invoke('customer-otp', { body: request })
     let body = (data || {}) as { ok?: boolean; error?: string; resend_in_seconds?: number; expires_in_seconds?: number }
     if (error && 'context' in error) {
       try { body = (await (error as { context: Response }).context.json()) as typeof body } catch { /* no body */ }
     }
     if (body.ok) return { ok: true, resendIn: body.resend_in_seconds || 60, expiresIn: body.expires_in_seconds || 300 }
     if (body.error === 'NOT_REGISTERED') return { ok: false, code: 'NOT_REGISTERED', message: 'This mobile number is not registered with the shop.' }
-    if (body.error === 'OTP_NOT_CONFIGURED' || (!body.error && error)) {
-      return { ok: false, code: 'NOT_CONFIGURED', message: 'OTP login is not switched on yet. Please contact the shop.' }
+    if (body.error === 'OTP_NOT_CONFIGURED' || body.error === 'EMAIL_NOT_CONFIGURED' || (!body.error && error)) {
+      return { ok: false, code: 'NOT_CONFIGURED', message: notOn }
     }
+    if (body.error === 'SESSION_EXPIRED') return { ok: false, code: 'ERROR', message: 'Your session has ended. Please log in again.' }
     return { ok: false, code: 'ERROR', message: body.error || 'Could not send the OTP. Please try again.' }
   } catch {
-    return { ok: false, code: 'NOT_CONFIGURED', message: 'OTP login is not switched on yet. Please contact the shop.' }
+    return { ok: false, code: 'NOT_CONFIGURED', message: notOn }
   }
 }
 
-export async function verifyOtp(phone: string, code: string): Promise<PortalSession> {
-  const { data, error } = await supabase.rpc('customer_verify_otp', { p_phone: phone, p_code: code })
-  if (error) throw new Error(error.message.replace(/^.*?:\s*/, '') === 'NOT_REGISTERED' ? 'This mobile number is not registered with the shop.' : error.message)
-  const r = data as { token: string; customer: PortalCustomer }
+const startSession = (data: unknown, error: { message: string } | null): PortalSession => {
+  if (error) throw new Error(error.message)
+  const r = data as { token?: string; customer?: PortalCustomer; problem?: string }
+  if (r.problem || !r.token || !r.customer) throw new Error(r.problem === 'NOT_REGISTERED' ? 'This mobile number is not registered with the shop.' : r.problem || 'Could not verify the code.')
   const session = { token: r.token, customer: r.customer }
   savePortalSession(session)
   return session
 }
 
+export async function verifyOtp(phone: string, code: string) {
+  const { data, error } = await supabase.rpc('customer_verify_otp', { p_phone: phone, p_code: code })
+  return startSession(data, error)
+}
+
+export async function verifyEmailOtp(email: string, code: string) {
+  const { data, error } = await supabase.rpc('customer_verify_email_otp', { p_email: email, p_code: code })
+  return startSession(data, error)
+}
+
+/** Confirms a code for a new email / mobile. The database returns problems as text so a wrong try stays counted. */
+export async function confirmChange(fn: 'customer_confirm_email_change' | 'customer_confirm_phone_change', args: Record<string, string>) {
+  const r = await portalRpc<{ ok?: boolean; problem?: string }>(fn, args)
+  if (r.problem) throw new Error(r.problem)
+}
+
 export async function portalLogout() {
   const s = readPortalSession()
+  // Stop this customer's alerts on this device first: it needs the session.
+  await import('./portalPush').then((m) => m.disablePush()).catch(() => undefined)
   savePortalSession(null)
   if (s) await supabase.rpc('customer_logout', { p_token: s.token }).then(() => undefined, () => undefined)
 }
@@ -77,12 +104,16 @@ export type PortalScheme = {
   benefit_used: boolean; benefit_forfeited: boolean; duration_months: number
 }
 export type PortalPayment = {
-  kind: 'bill' | 'claim' | 'scheme'; date: string; invoice_no: string; amount: number; method: string | null
+  kind: 'bill' | 'claim' | 'scheme' | 'advance'; date: string; invoice_no: string; amount: number; method: string | null
   reference: string | null; status: string; verified_at: string | null; reason?: string | null; scheme_id?: string; installment_id?: string
 }
+export type PortalAdvance = {
+  id: string; deposit_id: string; product_name: string; total_amount: number; paid: number; balance: number; status: string
+  expected_delivery_date: string | null; created_at: string; invoice_number: string | null; pending_claim: boolean
+}
 export type PortalData = {
-  customer: { id: string; code: string; name: string; phone: string; email: string; address: string; created_at: string }
-  bills: PortalBill[]; schemes: PortalScheme[]; payments: PortalPayment[]; unread: number
+  customer: { id: string; code: string; name: string; phone: string; email: string; address: string; created_at: string; email_verified: boolean; reminders_on: boolean }
+  bills: PortalBill[]; schemes: PortalScheme[]; payments: PortalPayment[]; advances: PortalAdvance[]; unread: number; live_topic: string
 }
 export type PortalNotification = { id: string; kind: string; title: string; body: string; ref_type: string; ref_id: string; read_at: string | null; created_at: string }
 

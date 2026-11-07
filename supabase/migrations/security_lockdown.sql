@@ -38,10 +38,14 @@ DECLARE
   t TEXT;
   p TEXT;
   f TEXT;
-  v_private TEXT[] := ARRAY['customer_otps', 'customer_sessions', 'pos_staff_logins', 'security_flags'];
+  v_private TEXT[] := ARRAY['customer_otps', 'customer_sessions', 'customer_push_subscriptions', 'pos_staff_logins', 'security_flags'];
   v_server_only TEXT[] := ARRAY['customer_create_otp', 'customer_discard_otp', 'portal_customer', 'notify_customer', 'pos_pass_hash',
+                                'otp_issue', 'otp_check', 'otp_discard', 'portal_new_session', 'customer_create_email_otp', 'customer_create_change_otp',
+                                'claim_outbound_notifications', 'record_delivery', 'record_delivery_report', 'delete_push_subscription',
                                 'apply_security_lockdown', 'undo_security_lockdown'];
-  v_public TEXT[] := ARRAY['pos_login', 'get_public_invoice_by_number', 'get_public_shop_profile', 'get_public_coupon',
+  v_public TEXT[] := ARRAY['pos_login', 'get_public_invoice_by_id', 'get_public_shop_profile', 'get_public_coupon',
+                           'customer_verify_email_otp', 'customer_confirm_email_change', 'customer_confirm_phone_change', 'customer_set_reminders',
+                           'customer_push_subscribe', 'customer_push_unsubscribe', 'customer_advance_payment_link',
                            'customer_verify_otp', 'customer_logout', 'request_customer_registration', 'customer_portal_data',
                            'customer_scheme_detail', 'customer_bill', 'customer_notifications_list', 'customer_mark_read',
                            'customer_update_profile', 'customer_payment_link', 'get_payment_link', 'submit_payment_claim',
