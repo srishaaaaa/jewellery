@@ -97,11 +97,6 @@ export async function magicLinkLogin(token: string) {
   return startSession(data, error)
 }
 
-export async function verifyEmailOtp(email: string, code: string) {
-  const { data, error } = await supabase.rpc('customer_verify_email_otp', { p_email: email, p_code: code })
-  return startSession(data, error)
-}
-
 /** Confirms a code for a new email / mobile. The database returns problems as text so a wrong try stays counted. */
 export async function confirmChange(fn: 'customer_confirm_email_change' | 'customer_confirm_phone_change', args: Record<string, string>) {
   const r = await portalRpc<{ ok?: boolean; problem?: string }>(fn, args)

@@ -2,7 +2,7 @@
 // (5 tries per code, expires after Settings -> otp_minutes).
 //
 //   { phone }              login code by SMS
-//   { email }              login link and code by email (same answer whether or not the address is a customer's)
+//   { email }              one-time login link by email (same answer whether or not the address is a customer's)
 //   { email, purpose: 'reset' }  code only, for Forgot password: its next screen needs the code to save the new password
 //   { token, new_email }   logged-in customer proving a new or existing email
 //   { token, new_phone }   logged-in customer proving a new mobile number
@@ -20,7 +20,7 @@ import { emailReady, sendEmail, sendSmsOtp, shopName, smsProvider } from '../_sh
 type Otp = { code: string; expires_in_seconds: number; resend_in_seconds: number; status?: string; key?: string; magic_token?: string; magic_minutes?: number }
 const siteUrl = () => (env('SITE_URL') || 'https://jewellery-rosy-seven.vercel.app').replace(/\/$/, '')
 const emailLoginLink = (to: string, otp: Otp) => sendEmail(to, `Your ${shopName()} login link`,
-  `Press this link to log in to your customer account. It works once, for ${otp.magic_minutes} minutes:\n\n${siteUrl()}/customer/magic#${otp.magic_token}\n\nOr enter this code on the login page: ${otp.code} (it expires in ${Math.round(otp.expires_in_seconds / 60)} minutes).\n\nDo not share the link or the code with anyone. If you did not ask for this, you can ignore this email.\n\n${shopName()}`)
+  `Press this link to log in to your customer account. It works once, for ${otp.magic_minutes} minutes:\n\n${siteUrl()}/customer/magic#${otp.magic_token}\n\nDo not share this link with anyone. If you did not ask for this, you can ignore this email.\n\n${shopName()}`)
 const emailCode = (to: string, otp: Otp, purpose: string) => sendEmail(to, `${otp.code} is your ${shopName()} code`,
   `${otp.code} is your code to ${purpose}. It expires in ${Math.round(otp.expires_in_seconds / 60)} minutes.\n\nDo not share it with anyone. If you did not ask for this, you can ignore this email.\n\n${shopName()}`)
 

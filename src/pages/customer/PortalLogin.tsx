@@ -4,7 +4,7 @@ import { Eye, EyeOff, KeyRound, Lock, Mail, Phone, User } from 'lucide-react'
 import { useSettingsStore } from '../../store/store'
 import { BRAND_EN, BRAND_LOGO } from '../../lib/brand'
 import { supabase } from '../../lib/supabase'
-import { changePasswordWithToken, passwordLogin, readPortalSession, requestEmailOtp, requestOtp, resetPassword, savePortalSession, verifyEmailOtp, verifyOtp, type PortalSession } from '../../lib/customerPortal'
+import { changePasswordWithToken, passwordLogin, readPortalSession, requestEmailOtp, requestOtp, resetPassword, savePortalSession, verifyOtp, type PortalSession } from '../../lib/customerPortal'
 
 const field = 'w-full rounded-xl border border-black/15 bg-white py-3 pl-11 pr-3 text-base font-semibold outline-none focus:border-[#111111]'
 const primary = 'w-full rounded-xl bg-[#111111] py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50 cursor-pointer'
@@ -12,7 +12,7 @@ const fieldLabel = 'mb-1.5 block text-[10px] font-black uppercase tracking-wider
 const icon = 'absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-black/40'
 const PASSWORD_RULE = 'At least 8 characters. Not your mobile number.'
 
-type Step = 'start' | 'otp' | 'register' | 'forgot' | 'forgot_code' | 'set_new'
+type Step = 'start' | 'otp' | 'link_sent' | 'register' | 'forgot' | 'forgot_code' | 'set_new'
 const errText = (err: unknown, fallback: string) => (err instanceof Error ? err.message.replace(/^.*?:\s/, '') : fallback)
 const isEmail = (s: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s.trim())
 const mobile10 = (s: string) => s.replace(/\D/g, '').slice(-10)
@@ -31,11 +31,11 @@ function PasswordField({ label, value, onChange, show, onToggle, autoComplete, a
   )
 }
 
-/** Customer login: password, or a code by SMS or email. Forgot password: a code, then a new password. Unregistered numbers can ask the shop to register them. */
+/** Customer login: password, an OTP by SMS, or a one-time link by email. Forgot password: a code, then a new password. Unregistered numbers can ask the shop to register them. */
 export default function PortalLogin() {
   const navigate = useNavigate()
   const settings = useSettingsStore((s) => s.settings)
-  const [method, setMethod] = useState<'password' | 'mobile' | 'email'>('password')
+  const [method, setMethod] = useState<'password' | 'mobile' | 'link'>('password')
   const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
   const [phone, setPhone] = useState('')
@@ -56,7 +56,7 @@ export default function PortalLogin() {
 
   useEffect(() => { if (readPortalSession()) navigate('/customer/dashboard', { replace: true }) }, [navigate])
   useEffect(() => {
-    if (step !== 'otp' && step !== 'forgot_code') return
+    if (step !== 'otp' && step !== 'link_sent' && step !== 'forgot_code') return
     const t = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(t)
   }, [step])
@@ -97,14 +97,13 @@ export default function PortalLogin() {
   const send = async (e?: FormEvent) => {
     e?.preventDefault()
     setError(''); setNotice('')
-    if (method === 'email') {
+    if (method === 'link') {
       if (!isEmail(email)) { setError('Enter your email address.'); return }
       setBusy(true)
       const r = await requestEmailOtp(email.trim())
       setBusy(false)
       if (!r.ok) { setError(r.message); return }
-      setStep('otp'); started(r.resendIn)
-      setNotice('If this email is on a customer account, we have sent a login link and a code. Press the link, or enter the code here. Check your spam folder too.')
+      setStep('link_sent'); started(r.resendIn)
       return
     }
     if (!/^[6-9]\d{9}$/.test(digits)) { setError('Enter your 10-digit mobile number.'); return }
@@ -118,9 +117,9 @@ export default function PortalLogin() {
   const verify = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
-    if (!/^\d{6}$/.test(code.trim())) { setError(method === 'email' ? 'Enter the 6-digit code.' : 'Enter the 6-digit OTP.'); return }
+    if (!/^\d{6}$/.test(code.trim())) { setError('Enter the 6-digit OTP.'); return }
     setBusy(true)
-    try { await (method === 'email' ? verifyEmailOtp(email.trim(), code.trim()) : verifyOtp(digits, code.trim())); enter() } catch (err) { setError(errText(err, 'Could not verify the OTP.')) } finally { setBusy(false) }
+    try { await verifyOtp(digits, code.trim()); enter() } catch (err) { setError(errText(err, 'Could not verify the OTP.')) } finally { setBusy(false) }
   }
   const register = async (e: FormEvent) => {
     e.preventDefault()
@@ -173,7 +172,7 @@ export default function PortalLogin() {
         {step === 'start' && (
           <>
             <div role="tablist" aria-label="How to log in" className="mb-4 grid grid-cols-3 gap-1 rounded-xl bg-black/5 p-1">
-              {([['password', 'Password', Lock], ['mobile', 'Mobile OTP', Phone], ['email', 'Email', Mail]] as const).map(([value, label, Icon]) => (
+              {([['password', 'Password', Lock], ['mobile', 'Mobile OTP', Phone], ['link', 'Magic Link', Mail]] as const).map(([value, label, Icon]) => (
                 <button key={value} type="button" role="tab" aria-selected={method === value} onClick={() => { setMethod(value); setError(''); setNotice('') }}
                   className={`flex items-center justify-center gap-1 rounded-lg px-1 py-2 text-[10px] font-black uppercase tracking-wide cursor-pointer ${method === value ? 'bg-white text-black shadow-sm' : 'text-black/60'}`}>
                   <Icon className="h-3.5 w-3.5 shrink-0" /> {label}
@@ -206,7 +205,7 @@ export default function PortalLogin() {
                       <input type="email" inputMode="email" autoComplete="email" className={field} placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} /></span>
                   </label>
                 )}
-                <button disabled={busy} className={primary}>{busy ? 'Sending…' : method === 'email' ? 'Email Me a Login Link' : 'Generate OTP'}</button>
+                <button disabled={busy} className={primary}>{busy ? 'Sending…' : method === 'link' ? 'Email Me a Login Link' : 'Generate OTP'}</button>
               </form>
             )}
           </>
@@ -214,16 +213,27 @@ export default function PortalLogin() {
         {step === 'otp' && (
           <form onSubmit={verify} className="space-y-4">
             <label className="block">
-              <span className={fieldLabel}>{method === 'email' ? `Code for ${email.trim()}` : `OTP sent to +91 ${digits}`}</span>
+              <span className={fieldLabel}>OTP sent to +91 {digits}</span>
               <span className="relative block"><KeyRound className={icon} />
                 <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} className={`${field} tracking-[0.4em]`} placeholder="••••••" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} autoFocus /></span>
             </label>
             <button disabled={busy} className={primary}>{busy ? 'Checking…' : 'Verify & Login'}</button>
             <div className="flex justify-between text-[11px] font-bold">
-              <button type="button" onClick={() => goTo('start')} className="text-black/60 underline cursor-pointer">{method === 'email' ? 'Change email' : 'Change number'}</button>
-              <button type="button" disabled={wait > 0 || busy} onClick={() => void send()} className="underline disabled:no-underline disabled:text-black/40 cursor-pointer">{wait > 0 ? `Resend in ${wait}s` : method === 'email' ? 'Resend code' : 'Resend OTP'}</button>
+              <button type="button" onClick={() => goTo('start')} className="text-black/60 underline cursor-pointer">Change number</button>
+              <button type="button" disabled={wait > 0 || busy} onClick={() => void send()} className="underline disabled:no-underline disabled:text-black/40 cursor-pointer">{wait > 0 ? `Resend in ${wait}s` : 'Resend OTP'}</button>
             </div>
           </form>
+        )}
+        {step === 'link_sent' && (
+          <div className="space-y-4 text-center">
+            <Mail className="mx-auto h-8 w-8 text-black/70" />
+            <h2 className="text-sm font-black">Check your email</h2>
+            <p className="text-xs font-semibold text-black/60">If {email.trim()} is on a customer account, we have sent it a login link. Press the link within 15 minutes. Check your spam folder too.</p>
+            <div className="flex justify-between text-[11px] font-bold">
+              <button type="button" onClick={() => goTo('start')} className="text-black/60 underline cursor-pointer">Change email</button>
+              <button type="button" disabled={wait > 0 || busy} onClick={() => void send()} className="underline disabled:no-underline disabled:text-black/40 cursor-pointer">{wait > 0 ? `Resend in ${wait}s` : 'Resend link'}</button>
+            </div>
+          </div>
         )}
         {step === 'forgot' && (
           <form onSubmit={sendReset} className="space-y-4">
