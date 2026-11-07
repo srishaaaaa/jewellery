@@ -54,3 +54,4 @@ test_whatsapp_invoices.mjs
 test_whatsapp_proper.mjs
 verify_invoice_totals.mjs
 .claude_scratch/
+supabase/.temp/

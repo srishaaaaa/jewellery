@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom'
-import { ArrowLeft, Bell, BellRing, CheckCheck, CheckCircle2, Download, FileText, Mail, Phone, PiggyBank, Printer, QrCode, ShoppingBag, Wallet } from 'lucide-react'
+import { ArrowLeft, Bell, BellRing, CheckCheck, CheckCircle2, Download, FileText, Lock, Mail, Phone, PiggyBank, Printer, QrCode, ShoppingBag, Wallet } from 'lucide-react'
 import { Invoice } from '../../components/Invoice'
 import { SchemeReceiptSheet } from '../../components/invoice/SchemeReceiptSheet'
 import { orderToInvoiceProps } from '../../lib/orderInvoiceProps'
@@ -12,7 +12,7 @@ import { describeStones, mapSchemeRow, metalLabel, normalizeStoneDetails } from 
 import { totalsAfterInstallment } from '../../lib/schemeReceipt'
 import { mapInstallmentRow } from '../../services/schemeService'
 import {
-  PAY_STATUS_LABELS, PAYMENT_STATUS_LABELS, confirmChange, inr, portalRpc, requestChangeCode, savePortalSession, readPortalSession, shortDate,
+  PAY_STATUS_LABELS, PAYMENT_STATUS_LABELS, changePasswordWithToken, confirmChange, inr, portalRpc, requestChangeCode, savePortalSession, readPortalSession, shortDate,
   type PortalAdvance, type PortalBill, type PortalNotification, type PortalScheme,
 } from '../../lib/customerPortal'
 import { currentPushSubscription, disablePush, enablePush, pushSupported } from '../../lib/portalPush'
@@ -480,6 +480,38 @@ function VerifyWithCode({ kind, initial, onDone, onCancel }: { kind: 'email' | '
   )
 }
 
+/** Set a first password (customers who came in by code) or change the current one. */
+function ChangePassword({ hasPassword, onDone, onCancel }: { hasPassword: boolean; onDone: (text: string) => void; onCancel: () => void }) {
+  const [current, setCurrent] = useState('')
+  const [next, setNext] = useState('')
+  const [again, setAgain] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const save = async (e: FormEvent) => {
+    e.preventDefault(); setError('')
+    if (next.length < 8) { setError('The password must have at least 8 characters.'); return }
+    if (next !== again) { setError('The two passwords do not match.'); return }
+    const token = readPortalSession()?.token
+    if (!token) { setError('Your session has ended. Please log in again.'); return }
+    setBusy(true)
+    try { await changePasswordWithToken(token, current, next); onDone(hasPassword ? 'Password changed. Other devices have been logged out.' : 'Password set. You can now log in with it.') }
+    catch (err) { setError(errText(err, 'Could not save the password.')) } finally { setBusy(false) }
+  }
+  return (
+    <form onSubmit={save} className="mt-2 space-y-2 rounded-xl border border-black/10 bg-[#FAFAF7] p-3">
+      {hasPassword && <input aria-label="Current password" type="password" autoComplete="current-password" placeholder="Current password" className={inputCls} value={current} onChange={(e) => setCurrent(e.target.value)} />}
+      <input aria-label="New password" type="password" autoComplete="new-password" placeholder="New password" className={inputCls} value={next} onChange={(e) => setNext(e.target.value)} />
+      <input aria-label="New password again" type="password" autoComplete="new-password" placeholder="New password again" className={inputCls} value={again} onChange={(e) => setAgain(e.target.value)} />
+      <p className="text-[11px] text-black/60">At least 8 characters. Not your mobile number.</p>
+      {error && <p className="text-xs font-bold text-red-700">{error}</p>}
+      <div className="flex gap-2">
+        <button disabled={busy} className="rounded-lg bg-[#111111] px-4 py-2 text-[11px] font-black uppercase text-white disabled:opacity-50 cursor-pointer">{busy ? 'Please wait…' : 'Save Password'}</button>
+        <button type="button" onClick={onCancel} className="rounded-lg border border-black/15 px-4 py-2 text-[11px] font-black uppercase cursor-pointer">Cancel</button>
+      </div>
+    </form>
+  )
+}
+
 function Switch({ on, disabled, label, onChange }: { on: boolean; disabled?: boolean; label: string; onChange: (v: boolean) => void }) {
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled} onClick={() => onChange(!on)}
@@ -493,7 +525,7 @@ export function PortalProfile() {
   const { data, refresh } = usePortal()
   const [address, setAddress] = useState(data?.customer.address || '')
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null)
-  const [editing, setEditing] = useState<'' | 'email' | 'phone'>('')
+  const [editing, setEditing] = useState<'' | 'email' | 'phone' | 'password'>('')
   const [push, setPush] = useState(false)
   const [pushBusy, setPushBusy] = useState(false)
   useEffect(() => {
@@ -553,6 +585,13 @@ export function PortalProfile() {
           </div>
           {editing === 'email' && <VerifyWithCode kind="email" initial={c.email_verified ? '' : c.email} onDone={(t) => void done(t)} onCancel={() => setEditing('')} />}
           <p className="mt-1 text-[11px] text-black/60">You can log in with this email too.</p>
+        </div>
+        <div>
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+            <span className="flex min-w-0 items-center gap-2"><Lock className="h-4 w-4 shrink-0 text-black/50" /><span>Password <b className="block text-sm">{c.has_password ? 'Set' : 'Not set'}</b></span></span>
+            {editing !== 'password' && <button type="button" onClick={() => setEditing('password')} className={link}>{c.has_password ? 'Change Password' : 'Set Password'}</button>}
+          </div>
+          {editing === 'password' && <ChangePassword hasPassword={c.has_password} onDone={(t) => void done(t)} onCancel={() => setEditing('')} />}
         </div>
       </div>
       <form onSubmit={save} className={`${card} space-y-3`}>

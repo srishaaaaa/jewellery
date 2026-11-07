@@ -54,8 +54,12 @@ Database → Extensions → enable **pg_cron**, then run `customer_portal.sql` a
 ## 8. Shop UPI
 Settings → **Guests Paying by UPI** → enter the UPI ID and press **Save Shop Details**. Until this is saved, no QR is shown anywhere.
 
-## 9. Customer login codes
-Customers can log in with a code by SMS or by email. Each option stays off, with a clear message, until its secrets are added under Edge Functions → Secrets. You can add either one or both.
+## 9. Customer login
+**Password:** works as soon as the lock-down is on, with no SMS or email account. In the POS, open **Customers** and press the key icon beside a customer to give them a starting password. They must replace it the first time they log in. Use the Generate button, so each customer gets a different one; anyone who knows a shared password and a customer's mobile number can log in as that customer. The same button resets a forgotten password.
+
+**Forgot password** sends an SMS or email code, then lets the customer choose a new password. It needs one of the accounts below; without them, the shop resets it with the key icon.
+
+**Codes:** customers can also log in with a code by SMS or by email. Each option stays off, with a clear message, until its secrets are added under Edge Functions → Secrets. You can add either one or both.
 
 **SMS: MSG91**
 - `SMS_PROVIDER` = `msg91`

@@ -93,6 +93,21 @@ CREATE TABLE IF NOT EXISTS public.customer_sessions (
   revoked BOOLEAN NOT NULL DEFAULT FALSE
 );
 
+-- Customer passwords: only ever a salted, repeated hash, in a table the app cannot read.
+CREATE TABLE IF NOT EXISTS public.customer_passwords (
+  customer_id UUID PRIMARY KEY REFERENCES public.customers(id) ON DELETE CASCADE,
+  salt TEXT NOT NULL,
+  pass_hash TEXT NOT NULL,
+  must_change BOOLEAN NOT NULL DEFAULT FALSE,
+  failed_attempts INTEGER NOT NULL DEFAULT 0,
+  locked_until TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE public.customer_passwords ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.customer_passwords FROM anon, authenticated;
+-- A session opened with the shop's starting password can do nothing except choose a new password.
+ALTER TABLE public.customer_sessions ADD COLUMN IF NOT EXISTS password_change_required BOOLEAN NOT NULL DEFAULT FALSE;
+
 -- Numbers that tried to log in but are not customers yet (the shop registers them).
 CREATE TABLE IF NOT EXISTS public.customer_registration_requests (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -242,6 +257,7 @@ DECLARE s public.customer_sessions;
 BEGIN
   SELECT * INTO s FROM public.customer_sessions WHERE token_hash = encode(sha256(convert_to(COALESCE(p_token, ''), 'UTF8')), 'hex');
   IF NOT FOUND OR s.revoked OR s.expires_at < NOW() THEN RAISE EXCEPTION 'SESSION_EXPIRED'; END IF;
+  IF s.password_change_required THEN RAISE EXCEPTION 'PASSWORD_CHANGE_REQUIRED'; END IF;
   UPDATE public.customer_sessions SET last_seen_at = NOW() WHERE id = s.id AND last_seen_at < NOW() - INTERVAL '5 minutes';
   RETURN s.customer_id;
 END;
@@ -468,6 +484,164 @@ BEGIN
 END;
 $$;
 
+-- ---------------------------------------------------------------------------
+-- Customer passwords
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.customer_password_hash(p_salt TEXT, p_pass TEXT)
+RETURNS TEXT LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE
+  v BYTEA := sha256(convert_to(p_salt || ':' || p_pass, 'UTF8'));
+  v_salt BYTEA := convert_to(p_salt, 'UTF8');
+BEGIN
+  -- Repeated so that guessing against a stolen copy is slow.
+  FOR i IN 1..10000 LOOP v := sha256(v || v_salt); END LOOP;
+  RETURN encode(v, 'hex');
+END;
+$$;
+
+-- Why a password the customer chose cannot be used ('' when it is fine).
+CREATE OR REPLACE FUNCTION public.customer_password_problem(p_customer UUID, p_pass TEXT)
+RETURNS TEXT LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v TEXT := COALESCE(p_pass, '');
+  v_phone TEXT;
+BEGIN
+  IF LENGTH(v) < 8 THEN RETURN 'The password must have at least 8 characters.'; END IF;
+  IF LENGTH(v) > 72 THEN RETURN 'The password can have at most 72 characters.'; END IF;
+  SELECT public.phone_key(phone) INTO v_phone FROM public.customers WHERE id = p_customer;
+  IF LOWER(v) IN ('customer123', 'password', 'password1', 'password123', '12345678', '123456789', '1234567890', 'qwerty123', 'admin123', 'nandi123')
+     OR v ~ '^(.)\1+$' OR (COALESCE(v_phone, '') <> '' AND POSITION(v_phone IN v) > 0) THEN
+    RETURN 'This password is too easy to guess. Please choose another.';
+  END IF;
+  RETURN '';
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.customer_password_store(p_customer UUID, p_pass TEXT, p_must_change BOOLEAN)
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE v_salt TEXT := public.new_portal_token();
+BEGIN
+  INSERT INTO public.customer_passwords (customer_id, salt, pass_hash, must_change)
+  VALUES (p_customer, v_salt, public.customer_password_hash(v_salt, p_pass), p_must_change)
+  ON CONFLICT (customer_id) DO UPDATE SET salt = EXCLUDED.salt, pass_hash = EXCLUDED.pass_hash, must_change = EXCLUDED.must_change,
+    failed_attempts = 0, locked_until = NULL, updated_at = NOW();
+END;
+$$;
+
+-- The customer behind a mobile number or email typed at login.
+CREATE OR REPLACE FUNCTION public.customer_id_for_login(p_login TEXT)
+RETURNS UUID LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT CASE WHEN POSITION('@' IN COALESCE(p_login, '')) > 0 THEN public.customer_id_for_email(p_login)
+              WHEN LENGTH(public.phone_key(p_login)) = 10 THEN public.customer_id_for_phone(p_login) END;
+$$;
+
+-- Password login. Failures come back as text, because a RAISE would undo the count of wrong tries.
+CREATE OR REPLACE FUNCTION public.customer_password_login(p_login TEXT, p_password TEXT)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_cid UUID := public.customer_id_for_login(p_login);
+  v_wrong TEXT := 'Wrong mobile number, email or password. First time here? Use Forgot password or ask the shop.';
+  p public.customer_passwords;
+  v_session JSONB;
+BEGIN
+  SELECT * INTO p FROM public.customer_passwords WHERE customer_id = v_cid FOR UPDATE;
+  IF NOT FOUND THEN
+    -- Same work and same answer, so nobody can test who has an account.
+    PERFORM public.customer_password_hash('no-account', COALESCE(p_password, ''));
+    RETURN jsonb_build_object('problem', v_wrong);
+  END IF;
+  IF p.locked_until IS NOT NULL AND p.locked_until > NOW() THEN
+    RETURN jsonb_build_object('problem', 'Too many wrong tries. Try again in ' || CEIL(EXTRACT(EPOCH FROM (p.locked_until - NOW())) / 60) || ' minute(s), or use Forgot password.');
+  END IF;
+  IF public.customer_password_hash(p.salt, COALESCE(p_password, '')) <> p.pass_hash THEN
+    UPDATE public.customer_passwords
+    SET failed_attempts = CASE WHEN failed_attempts + 1 >= 5 THEN 0 ELSE failed_attempts + 1 END,
+        locked_until = CASE WHEN failed_attempts + 1 >= 5 THEN NOW() + INTERVAL '15 minutes' ELSE NULL END
+    WHERE customer_id = p.customer_id;
+    RETURN jsonb_build_object('problem', v_wrong);
+  END IF;
+  UPDATE public.customer_passwords SET failed_attempts = 0, locked_until = NULL WHERE customer_id = p.customer_id;
+  v_session := public.portal_new_session(p.customer_id);
+  IF p.must_change THEN
+    UPDATE public.customer_sessions SET password_change_required = TRUE
+    WHERE token_hash = encode(sha256(convert_to(v_session ->> 'token', 'UTF8')), 'hex');
+  END IF;
+  RETURN v_session || jsonb_build_object('must_change', p.must_change);
+END;
+$$;
+
+-- Logged in: set a first password, change it, or replace the shop's starting password.
+CREATE OR REPLACE FUNCTION public.customer_change_password(p_token TEXT, p_current TEXT, p_new TEXT)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_hash TEXT := encode(sha256(convert_to(COALESCE(p_token, ''), 'UTF8')), 'hex');
+  s public.customer_sessions;
+  p public.customer_passwords;
+  v_problem TEXT;
+BEGIN
+  SELECT * INTO s FROM public.customer_sessions WHERE token_hash = v_hash;
+  IF NOT FOUND OR s.revoked OR s.expires_at < NOW() THEN RAISE EXCEPTION 'SESSION_EXPIRED'; END IF;
+  SELECT * INTO p FROM public.customer_passwords WHERE customer_id = s.customer_id FOR UPDATE;
+  IF FOUND THEN
+    IF public.customer_password_hash(p.salt, COALESCE(p_current, '')) <> p.pass_hash THEN
+      -- Five wrong tries end this session, so an unattended phone cannot be used to guess.
+      IF p.failed_attempts + 1 >= 5 THEN
+        UPDATE public.customer_passwords SET failed_attempts = 0 WHERE customer_id = p.customer_id;
+        UPDATE public.customer_sessions SET revoked = TRUE WHERE id = s.id;
+        RETURN jsonb_build_object('problem', 'Too many wrong tries. Please log in again.');
+      END IF;
+      UPDATE public.customer_passwords SET failed_attempts = failed_attempts + 1 WHERE customer_id = p.customer_id;
+      RETURN jsonb_build_object('problem', 'The current password is wrong.');
+    END IF;
+    IF COALESCE(p_new, '') = COALESCE(p_current, '') THEN RETURN jsonb_build_object('problem', 'Choose a password different from the current one.'); END IF;
+  END IF;
+  v_problem := public.customer_password_problem(s.customer_id, p_new);
+  IF v_problem <> '' THEN RETURN jsonb_build_object('problem', v_problem); END IF;
+  PERFORM public.customer_password_store(s.customer_id, p_new, FALSE);
+  UPDATE public.customer_sessions SET password_change_required = FALSE WHERE id = s.id;
+  -- Every other device has to log in again.
+  UPDATE public.customer_sessions SET revoked = TRUE WHERE customer_id = s.customer_id AND id <> s.id;
+  PERFORM public.notify_customer(s.customer_id, 'profile', 'Password changed', 'Your password was changed. If this was not you, contact the shop straight away.', '', '', NULL);
+  RETURN jsonb_build_object('ok', TRUE);
+END;
+$$;
+
+-- Forgot password: the login code from SMS or email (see customer-otp) proves who it is, then the new password is saved.
+CREATE OR REPLACE FUNCTION public.customer_reset_password(p_login TEXT, p_code TEXT, p_new TEXT)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_is_email BOOLEAN := POSITION('@' IN COALESCE(p_login, '')) > 0;
+  v_key TEXT := CASE WHEN POSITION('@' IN COALESCE(p_login, '')) > 0 THEN public.email_key(p_login) ELSE public.phone_key(p_login) END;
+  v_cid UUID := public.customer_id_for_login(p_login);
+  v_problem TEXT;
+BEGIN
+  -- Checked first, so a weak password does not use up the code.
+  v_problem := public.customer_password_problem(v_cid, p_new);
+  IF v_problem <> '' THEN RETURN jsonb_build_object('problem', v_problem); END IF;
+  v_problem := public.otp_check(CASE WHEN v_is_email THEN 'email' ELSE 'sms' END, v_key, p_code, NULL);
+  IF v_problem <> '' THEN RETURN jsonb_build_object('problem', v_problem); END IF;
+  IF v_cid IS NULL THEN RETURN jsonb_build_object('problem', 'Please contact the shop.'); END IF;
+  PERFORM public.customer_password_store(v_cid, p_new, FALSE);
+  IF v_is_email THEN UPDATE public.customers SET verified_email = v_key, updated_at = NOW() WHERE id = v_cid; END IF;
+  UPDATE public.customer_sessions SET revoked = TRUE WHERE customer_id = v_cid;
+  PERFORM public.notify_customer(v_cid, 'profile', 'Password changed', 'Your password was reset. If this was not you, contact the shop straight away.', '', '', NULL);
+  RETURN public.portal_new_session(v_cid);
+END;
+$$;
+
+-- Shop: a starting password (or a reset) for one customer. The customer must replace it at first login.
+CREATE OR REPLACE FUNCTION public.shop_set_customer_password(p_customer_id UUID, p_password TEXT, p_by TEXT DEFAULT 'Admin')
+RETURNS VOID LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM public.customers WHERE id = p_customer_id) THEN RAISE EXCEPTION 'Customer not found.'; END IF;
+  IF LENGTH(COALESCE(p_password, '')) NOT BETWEEN 8 AND 72 THEN RAISE EXCEPTION 'The password must have 8 to 72 characters.'; END IF;
+  PERFORM public.customer_password_store(p_customer_id, p_password, TRUE);
+  UPDATE public.customer_sessions SET revoked = TRUE WHERE customer_id = p_customer_id;
+  INSERT INTO public.audit_logs (action, entity_type, entity_id, new_value, user_name)
+  VALUES ('customer_password_set_by_shop', 'customer', p_customer_id::TEXT, '{}'::JSONB, COALESCE(NULLIF(p_by, ''), 'Admin'));
+END;
+$$;
+
 -- Customer's reminder and alert choices.
 CREATE OR REPLACE FUNCTION public.customer_set_reminders(p_token TEXT, p_on BOOLEAN)
 RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
@@ -598,7 +772,8 @@ BEGIN
   SELECT COUNT(*) INTO v_unread FROM public.customer_notifications WHERE customer_id = v_cid AND read_at IS NULL;
   RETURN jsonb_build_object(
     'customer', jsonb_build_object('id', c.id, 'code', LEFT(c.id::TEXT, 8), 'name', c.name, 'phone', c.phone, 'email', COALESCE(c.email, ''), 'address', c.address, 'created_at', c.created_at,
-      'email_verified', public.email_key(c.email) <> '' AND public.email_key(c.email) = c.verified_email, 'reminders_on', NOT c.reminders_opt_out),
+      'email_verified', public.email_key(c.email) <> '' AND public.email_key(c.email) = c.verified_email, 'reminders_on', NOT c.reminders_opt_out,
+      'has_password', EXISTS (SELECT 1 FROM public.customer_passwords p WHERE p.customer_id = c.id)),
     'bills', v_bills, 'schemes', v_schemes, 'payments', v_payments, 'advances', v_advances, 'unread', v_unread, 'live_topic', c.live_topic);
 END;
 $$;
@@ -1182,6 +1357,9 @@ GRANT EXECUTE ON FUNCTION public.reject_payment_claim(UUID, TEXT, TEXT) TO anon,
 GRANT EXECUTE ON FUNCTION public.generate_scheme_reminders() TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.generate_credit_reminders() TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.customer_verify_email_otp(TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_password_login(TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_change_password(TEXT, TEXT, TEXT) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_reset_password(TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.customer_confirm_email_change(TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.customer_confirm_phone_change(TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.customer_set_reminders(TEXT, BOOLEAN) TO anon, authenticated;
@@ -1194,6 +1372,13 @@ REVOKE ALL ON FUNCTION public.customer_discard_otp(TEXT) FROM PUBLIC, anon, auth
 REVOKE ALL ON FUNCTION public.portal_customer(TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.notify_customer(UUID, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.otp_issue(TEXT, TEXT, UUID) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.customer_password_hash(TEXT, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.customer_password_problem(UUID, TEXT) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.customer_password_store(UUID, TEXT, BOOLEAN) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.customer_id_for_login(TEXT) FROM PUBLIC, anon, authenticated;
+-- Only a signed-in shop can set a customer's password, even before the lock-down.
+REVOKE ALL ON FUNCTION public.shop_set_customer_password(UUID, TEXT, TEXT) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.shop_set_customer_password(UUID, TEXT, TEXT) TO authenticated;
 REVOKE ALL ON FUNCTION public.otp_check(TEXT, TEXT, TEXT, UUID) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.otp_discard(TEXT, TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.portal_new_session(UUID) FROM PUBLIC, anon, authenticated;

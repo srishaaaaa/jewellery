@@ -21,7 +21,7 @@ export async function portalRpc<T>(fn: string, args: Record<string, unknown> = {
   if (!session) throw new PortalSessionExpired('Please log in again.')
   const { data, error } = await supabase.rpc(fn, { p_token: session.token, ...args })
   if (error) {
-    if (/SESSION_EXPIRED/.test(error.message)) { savePortalSession(null); throw new PortalSessionExpired('Your session has ended. Please log in again.') }
+    if (/SESSION_EXPIRED|PASSWORD_CHANGE_REQUIRED/.test(error.message)) { savePortalSession(null); throw new PortalSessionExpired('Your session has ended. Please log in again.') }
     throw new Error(error.message)
   }
   return data as T
@@ -69,6 +69,28 @@ export async function verifyOtp(phone: string, code: string) {
   return startSession(data, error)
 }
 
+/** Password login. A starting password's session is returned unsaved: it opens nothing until the password is replaced. */
+export async function passwordLogin(login: string, password: string): Promise<{ session: PortalSession; mustChange: boolean }> {
+  const { data, error } = await supabase.rpc('customer_password_login', { p_login: login, p_password: password })
+  if (error) throw new Error(error.message)
+  const r = data as { token?: string; customer?: PortalCustomer; problem?: string; must_change?: boolean }
+  if (r.problem || !r.token || !r.customer) throw new Error(r.problem || 'Could not log you in.')
+  return { session: { token: r.token, customer: r.customer }, mustChange: r.must_change === true }
+}
+
+export async function changePasswordWithToken(token: string, current: string, next: string) {
+  const { data, error } = await supabase.rpc('customer_change_password', { p_token: token, p_current: current, p_new: next })
+  if (error) throw new Error(/SESSION_EXPIRED/.test(error.message) ? 'Your session has ended. Please log in again.' : error.message)
+  const r = data as { ok?: boolean; problem?: string }
+  if (r.problem) throw new Error(r.problem)
+}
+
+/** Forgot password: the code sent by SMS or email, and the new password. Logs the customer in. */
+export async function resetPassword(login: string, code: string, next: string) {
+  const { data, error } = await supabase.rpc('customer_reset_password', { p_login: login, p_code: code, p_new: next })
+  return startSession(data, error)
+}
+
 export async function verifyEmailOtp(email: string, code: string) {
   const { data, error } = await supabase.rpc('customer_verify_email_otp', { p_email: email, p_code: code })
   return startSession(data, error)
@@ -112,7 +134,7 @@ export type PortalAdvance = {
   expected_delivery_date: string | null; created_at: string; invoice_number: string | null; pending_claim: boolean
 }
 export type PortalData = {
-  customer: { id: string; code: string; name: string; phone: string; email: string; address: string; created_at: string; email_verified: boolean; reminders_on: boolean }
+  customer: { id: string; code: string; name: string; phone: string; email: string; address: string; created_at: string; email_verified: boolean; reminders_on: boolean; has_password: boolean }
   bills: PortalBill[]; schemes: PortalScheme[]; payments: PortalPayment[]; advances: PortalAdvance[]; unread: number; live_topic: string
 }
 export type PortalNotification = { id: string; kind: string; title: string; body: string; ref_type: string; ref_id: string; read_at: string | null; created_at: string }

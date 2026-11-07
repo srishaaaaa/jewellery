@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Download } from 'lucide-react'
 import { csvDate, csvPhone, downloadCsv } from '../../lib/csv'
-import { ChevronRight, Plus, Search, Users } from 'lucide-react'
+import { ChevronRight, KeyRound, Plus, Search, Users } from 'lucide-react'
 import { customerService, maskAadhaar, type CustomerRecord } from '../../services/customerService'
 import { formatPhoneDisplay } from '../../lib/phone'
 import { CustomerFormModal } from './CustomerFormModal'
+import { CustomerPasswordModal } from './CustomerPasswordModal'
 import JewelleryCustomerProfile from './JewelleryCustomerProfile'
 
 const fmtDate = (iso: string | null | undefined) => {
@@ -22,6 +23,7 @@ export default function CustomersView() {
   const [search, setSearch] = useState('')
   const [selected, setSelected] = useState<CustomerRecord | null>(null)
   const [adding, setAdding] = useState(false)
+  const [passwordFor, setPasswordFor] = useState<CustomerRecord | null>(null)
 
   useEffect(() => {
     customerService.fetchAll().then(setCustomers).catch(() => undefined).finally(() => setLoading(false))
@@ -117,7 +119,7 @@ export default function CustomersView() {
           <table className="w-full text-left text-xs">
             <thead className="bg-[#F9FAFB]">
               <tr>
-                {['Name', 'Mobile', 'Email', 'Address', 'Birthday', 'Anniversary', 'PAN', 'Aadhaar', 'Offers'].map((h) => (
+                {['Name', 'Mobile', 'Email', 'Address', 'Birthday', 'Anniversary', 'PAN', 'Aadhaar', 'Offers', 'Portal'].map((h) => (
                   <th key={h} className="px-4 py-3 text-[10px] font-bold text-[#000000] uppercase tracking-widest whitespace-nowrap">{h}</th>
                 ))}
               </tr>
@@ -134,12 +136,16 @@ export default function CustomersView() {
                   <td className="px-4 py-2.5 text-[#000000] whitespace-nowrap">{c.pan || '—'}</td>
                   <td className="px-4 py-2.5 text-[#000000] whitespace-nowrap">{maskAadhaar(c.aadhaar) || '—'}</td>
                   <td className="px-4 py-2.5 text-[#000000] whitespace-nowrap">{c.allowOffers === false ? 'No' : 'Yes'}</td>
+                  <td className="px-4 py-1.5">
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setPasswordFor(c) }} aria-label={`Portal password for ${c.name || c.phone}`} title="Set or reset portal password" className="flex h-8 w-8 items-center justify-center rounded-lg border border-black/10 bg-white hover:bg-black/5 cursor-pointer"><KeyRound className="h-3.5 w-3.5" /></button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </>}
+      {passwordFor && <CustomerPasswordModal customer={passwordFor} onClose={() => setPasswordFor(null)} />}
     </div>
   )
 }
