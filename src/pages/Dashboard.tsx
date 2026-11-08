@@ -308,6 +308,12 @@ export default function Dashboard() {
   const [datePreset, setDatePreset] = useState<'today' | 'week' | 'month' | 'year' | 'custom' | ''>('')
   const [searchResults, setSearchResults] = useState<DashboardOrder[]>([])
   const [searchLoading, setSearchLoading] = useState(false)
+  // Order History loads 100 bills at a time; "Show More" fetches the next 100.
+  const [historyTotal, setHistoryTotal] = useState<number | null>(null)
+  const [historyHasMore, setHistoryHasMore] = useState(false)
+  const [historyLoadingMore, setHistoryLoadingMore] = useState(false)
+  const historyFetched = useRef(0)
+  const historySeq = useRef(0)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     // Phones and tablets start with the menu closed (it slides over the page).
     if (typeof window !== 'undefined' && window.innerWidth < 1024) return true
@@ -452,7 +458,7 @@ export default function Dashboard() {
       invoice_pdf_url: '',
     }
     setOrders(current => [completed, ...current.filter(order => order.id !== completed.id)])
-    setSearchResults(current => [completed, ...current.filter(order => order.id !== completed.id)].slice(0, 100))
+    setSearchResults(current => [completed, ...current.filter(order => order.id !== completed.id)])
     setOrderItems(current => [...completedItems.map(item => ({ order_id: completed.id, product_name: String(item.name || 'Product'), category: String(item.category || advance.category || ''), quantity: Number(item.quantity || 1), line_total: Number(item.line_total || 0), is_manual: false })), ...current.filter(row => row.order_id !== completed.id)])
   }, [user?.id])
 
@@ -944,7 +950,8 @@ export default function Dashboard() {
       if (oRes.error) throw oRes.error
       const mappedOrders = await attachSchemeInfo((oRes.data || []).map(r => toDashboardOrder(r as Record<string, unknown>)))
       setOrders(mappedOrders)
-      setSearchResults(mappedOrders.filter(o => normalizeOrderType(o.order_type) !== 'online_request').slice(0, 100))
+      // Order History: the first 100 bills (more on "Show More").
+      void runSearchRef.current()
       setCoupons((couponRes.data || []) as DashboardCoupon[])
       setExpenses(expList || [])
       oldGoldService.list().then(setOldGold).catch(() => setOldGold([]))
@@ -1389,10 +1396,14 @@ export default function Dashboard() {
     setSearch(s => ({ ...s, dateFrom: from, dateTo: to }))
   }
 
-  // Order search - POS bills only (online_request excluded)
-  const runSearch = async (e?: FormEvent) => {
+  // Order search - POS bills only (online_request excluded), 100 at a time.
+  // more = true fetches the next 100 and adds them below the ones already shown.
+  const HISTORY_PAGE = 100
+  const runSearch = async (e?: FormEvent, more = false) => {
     e?.preventDefault()
-    setSearchLoading(true)
+    const seq = ++historySeq.current
+    const offset = more ? historyFetched.current : 0
+    if (more) setHistoryLoadingMore(true); else setSearchLoading(true)
     try {
       const invInput = search.invoiceNo.trim().replace(/[,()%*\\]/g, '')
       const phoneInput = search.phone.trim().replace(/[,()%*\\]/g, '')
@@ -1400,10 +1411,13 @@ export default function Dashboard() {
       const hasQuery = Boolean(invInput || phoneInput || custInput)
 
       let q = supabase.from('orders')
-        .select('id, invoice_no, customer_name, phone, address, created_at, total, status, order_mode, order_type, items, coupon_code, discount_amount, manual_discount_amount, delivery_charge, total_gst, gst_amount, payment_mode, payment_method, split_details, invoice_pdf_url, remarks, reference_number, is_credit, credit_due_date, credit_status, credit_paid_at')
+        .select('id, invoice_no, customer_name, phone, address, created_at, total, status, order_mode, order_type, items, coupon_code, discount_amount, manual_discount_amount, delivery_charge, total_gst, gst_amount, payment_mode, payment_method, split_details, invoice_pdf_url, remarks, reference_number, is_credit, credit_due_date, credit_status, credit_paid_at', { count: 'exact' })
         .neq('order_type', 'online_request')
+        // Unpaid credit bills live in Outstanding Credits, not here.
+        .or('credit_status.is.null,credit_status.neq.outstanding')
         .order('created_at', { ascending: false })
-        .limit(hasQuery ? 1000 : 500)
+        .order('id', { ascending: false })
+        .range(offset, offset + HISTORY_PAGE - 1)
 
       if (invInput) {
         const digitsOnly = invInput.replace(/\D/g, '')
@@ -1437,9 +1451,15 @@ export default function Dashboard() {
       if (billTypeFilter === 'manual')       q = q.eq('order_type', 'manual_sale')
       else if (billTypeFilter === 'offline') q = q.eq('order_type', 'pos_sale').eq('order_mode', 'offline')
       else if (billTypeFilter === 'online')  q = q.eq('order_type', 'pos_sale').eq('order_mode', 'online')
+      if (gstFilter === 'gst')          q = q.gt('total_gst', 0)
+      else if (gstFilter === 'non_gst') q = q.or('total_gst.is.null,total_gst.lte.0')
 
-      const { data, error } = await q
+      const { data, error, count } = await q
       if (error) throw error
+      if (seq !== historySeq.current) return // a newer search has started
+      historyFetched.current = offset + (data || []).length
+      setHistoryTotal(typeof count === 'number' ? count : null)
+      setHistoryHasMore(typeof count === 'number' ? historyFetched.current < count : (data || []).length === HISTORY_PAGE)
 
       let results = await attachSchemeInfo((data || []).map(r => toDashboardOrder(r as Record<string, unknown>)))
 
@@ -1473,7 +1493,7 @@ export default function Dashboard() {
       }
 
       // Fallback: if query returned no results from Supabase, search in pre-loaded orders
-      if (hasQuery && results.length === 0 && orders.length > 0) {
+      if (!more && hasQuery && results.length === 0 && orders.length > 0) {
         const localMatches = orders.filter(o => {
           if (normalizeOrderType(o.order_type) === 'online_request') return false
           return matchOrder(o)
@@ -1483,12 +1503,15 @@ export default function Dashboard() {
         }
       }
 
-      setSearchResults(results.filter(o => !deletedOrderIds.current.has(o.id)))
+      if (seq !== historySeq.current) return
+      const fresh = results.filter(o => !deletedOrderIds.current.has(o.id))
+      if (more) setSearchResults(prev => { const have = new Set(prev.map(o => o.id)); return [...prev, ...fresh.filter(o => !have.has(o.id))] })
+      else setSearchResults(fresh)
     } catch (err) {
       console.error('Search error:', err)
-      setSearchResults([])
+      if (seq === historySeq.current && !more) { setSearchResults([]); setHistoryHasMore(false); setHistoryTotal(null) }
     } finally {
-      setSearchLoading(false)
+      if (seq === historySeq.current) { setSearchLoading(false); setHistoryLoadingMore(false) }
     }
   }
 
@@ -1500,7 +1523,7 @@ export default function Dashboard() {
   useEffect(() => {
     if (!searchFiltersReady.current) { searchFiltersReady.current = true; return }
     void runSearchRef.current()
-  }, [billTypeFilter, search.dateFrom, search.dateTo])
+  }, [billTypeFilter, gstFilter, search.dateFrom, search.dateTo])
 
   // Order ID / name / phone filter as you type (debounced).
   const typedFiltersReady = useRef(false)
@@ -3378,7 +3401,7 @@ export default function Dashboard() {
               </FilterCard>
               {searchLoading && <p className="mb-2 text-[11px] font-semibold text-[#000000]">{l('Searching...', 'தேடுகிறது...')}</p>}
               <div className="md:hidden rounded-xl border border-black/10 divide-y divide-black/5 overflow-hidden bg-white">
-                {filteredSearchResults.slice(0, 50).map(o => {
+                {filteredSearchResults.map(o => {
                   const billTypeLabel = normalizeOrderType(o.order_type) === 'manual_sale' ? 'MANUAL' : normalizeOrderMode(o.order_mode) === 'online' ? 'ONLINE' : 'OFFLINE'
                   const billTypeClass = normalizeOrderType(o.order_type) === 'manual_sale' ? 'bg-purple-50 text-purple-700' : normalizeOrderMode(o.order_mode) === 'online' ? 'bg-blue-50 text-blue-700' : 'bg-orange-50 text-orange-700'
                   const refNumber = (o as unknown as Record<string,unknown>).reference_number as string
@@ -3459,7 +3482,7 @@ export default function Dashboard() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-black/5 bg-white">
-                    {filteredSearchResults.slice(0, 50).map(o => {
+                    {filteredSearchResults.map(o => {
                       const billTypeLabel = normalizeOrderType(o.order_type) === 'manual_sale' ? 'MANUAL' : normalizeOrderMode(o.order_mode) === 'online' ? 'ONLINE' : 'OFFLINE'
                       return (
                         <React.Fragment key={o.id}>
@@ -3633,6 +3656,21 @@ export default function Dashboard() {
                   </tbody>
                 </table>
               </div>
+              {filteredSearchResults.length > 0 && (
+                <div className="mt-4 flex flex-col items-center gap-2">
+                  <p className="text-[11px] font-bold text-[#000000]">
+                    {historyTotal !== null
+                      ? l(`Showing ${filteredSearchResults.length} of ${historyTotal} bills`, `${historyTotal} பில்களில் ${filteredSearchResults.length} காட்டப்படுகிறது`)
+                      : l(`Showing ${filteredSearchResults.length} bills`, `${filteredSearchResults.length} பில்கள்`)}
+                  </p>
+                  {historyHasMore && (
+                    <button type="button" disabled={historyLoadingMore || searchLoading} onClick={() => void runSearchRef.current(undefined, true)}
+                      className="rounded-xl bg-[#111111] px-6 py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50 cursor-pointer">
+                      {historyLoadingMore ? l('Loading…', 'ஏற்றுகிறது…') : l(`Show More (next ${Math.min(HISTORY_PAGE, Math.max((historyTotal ?? HISTORY_PAGE) - historyFetched.current, 0)) || HISTORY_PAGE})`, 'மேலும் காட்டு')}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
