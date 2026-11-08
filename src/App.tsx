@@ -31,6 +31,7 @@ const PortalPurchases = lazy(() => import('./pages/customer/PortalPages').then((
 const PortalBills = lazy(() => import('./pages/customer/PortalPages').then((m) => ({ default: m.PortalBills })))
 const PortalBillDetail = lazy(() => import('./pages/customer/PortalPages').then((m) => ({ default: m.PortalBillDetail })))
 const PortalPayments = lazy(() => import('./pages/customer/PortalPages').then((m) => ({ default: m.PortalPayments })))
+const PortalPayUpi = lazy(() => import('./pages/customer/PortalPages').then((m) => ({ default: m.PortalPayUpi })))
 const PortalNotifications = lazy(() => import('./pages/customer/PortalPages').then((m) => ({ default: m.PortalNotifications })))
 const PortalProfile = lazy(() => import('./pages/customer/PortalPages').then((m) => ({ default: m.PortalProfile })))
 
@@ -253,6 +254,7 @@ function AppShell() {
             <Route path="/customer/bills" element={<Suspense fallback={<LoadingSpinner />}><PortalBills /></Suspense>} />
             <Route path="/customer/bills/:id" element={<Suspense fallback={<LoadingSpinner />}><PortalBillDetail /></Suspense>} />
             <Route path="/customer/payments" element={<Suspense fallback={<LoadingSpinner />}><PortalPayments /></Suspense>} />
+            <Route path="/customer/pay-upi" element={<Suspense fallback={<LoadingSpinner />}><PortalPayUpi /></Suspense>} />
             <Route path="/customer/notifications" element={<Suspense fallback={<LoadingSpinner />}><PortalNotifications /></Suspense>} />
             <Route path="/customer/profile" element={<Suspense fallback={<LoadingSpinner />}><PortalProfile /></Suspense>} />
           </Route>

@@ -34,11 +34,15 @@ export function UpiClaimWatcher({ onCount, onOpen }: { onCount: (n: number) => v
   useEffect(() => {
     let live = true
     const check = async () => {
-      const { data, error } = await supabase.from('upi_payment_claims')
-        .select('id, amount, created_at, orders(invoice_no, customer_name), advance_orders(deposit_id, customer_name)').eq('status', 'pending').order('created_at', { ascending: false }).limit(100)
+      const base = 'id, amount, created_at, orders(invoice_no, customer_name), advance_orders(deposit_id, customer_name)'
+      const query = (cols: string) => supabase.from('upi_payment_claims').select(cols).eq('status', 'pending').order('created_at', { ascending: false }).limit(100)
+      let { data, error } = await query(`${base}, jewellery_schemes(scheme_number, customer_name)`)
+      // Before the database update there is no scheme column: watch without it.
+      if (error && /scheme/i.test(error.message)) ({ data, error } = await query(base))
       if (!live || error) return
-      const rows = ((data || []) as unknown as Array<PendingClaim & { advance_orders?: { deposit_id: string; customer_name: string } | null }>).map((r) => ({
-        ...r, orders: r.orders || (r.advance_orders ? { invoice_no: r.advance_orders.deposit_id, customer_name: r.advance_orders.customer_name } : null),
+      const rows = ((data || []) as unknown as Array<PendingClaim & { advance_orders?: { deposit_id: string; customer_name: string } | null; jewellery_schemes?: { scheme_number: string; customer_name: string } | null }>).map((r) => ({
+        ...r, orders: r.orders || (r.advance_orders ? { invoice_no: r.advance_orders.deposit_id, customer_name: r.advance_orders.customer_name }
+          : r.jewellery_schemes ? { invoice_no: r.jewellery_schemes.scheme_number, customer_name: r.jewellery_schemes.customer_name } : null),
       }))
       onCount(rows.length)
       const fresh = seen.current ? rows.filter((r) => !seen.current!.has(r.id)) : []

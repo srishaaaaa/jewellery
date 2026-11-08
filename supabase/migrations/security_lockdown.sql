@@ -45,7 +45,7 @@ DECLARE
                                 'apply_security_lockdown', 'undo_security_lockdown'];
   v_public TEXT[] := ARRAY['pos_login', 'get_public_invoice_by_id', 'get_public_shop_profile', 'get_public_coupon',
                            'customer_password_login', 'customer_magic_login', 'customer_change_password', 'customer_reset_password', 'customer_verify_email_otp', 'customer_confirm_email_change', 'customer_confirm_phone_change', 'customer_set_reminders',
-                           'customer_push_subscribe', 'customer_push_unsubscribe', 'customer_advance_payment_link',
+                           'customer_push_subscribe', 'customer_push_unsubscribe', 'customer_advance_payment_link', 'customer_scheme_payment_link',
                            'customer_verify_otp', 'customer_logout', 'request_customer_registration', 'customer_portal_data',
                            'customer_scheme_detail', 'customer_bill', 'customer_notifications_list', 'customer_mark_read',
                            'customer_update_profile', 'customer_payment_link', 'get_payment_link', 'submit_payment_claim',

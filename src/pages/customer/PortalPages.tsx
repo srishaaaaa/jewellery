@@ -51,7 +51,7 @@ export function PortalHome() {
     <div className="space-y-5">
       <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
         <div><p className="text-xs font-semibold text-black/60">Customer ID {data.customer.code.toUpperCase()}</p><h1 className="text-2xl font-black">{data.customer.name || 'Customer'}</h1><p className="text-sm font-semibold">+{data.customer.phone}</p></div>
-        {pending > 0 && <Link to="/customer/bills" className="rounded-xl bg-[#111111] px-4 py-3 text-xs font-black uppercase tracking-wider text-white">Pay {inr(pending)}</Link>}
+        <Link to="/customer/pay-upi" className="flex items-center gap-2 rounded-xl bg-[#111111] px-4 py-3 text-xs font-black uppercase tracking-wider text-white"><QrCode className="h-4 w-4" /> {pending > 0 ? `Pay ${inr(pending)} by UPI` : 'Pay by UPI'}</Link>
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Total purchases" value={inr(purchases.reduce((a, b) => a + Number(b.total || 0), 0))} hint={`${purchases.length} bill${purchases.length === 1 ? '' : 's'}`} />
@@ -141,7 +141,10 @@ export function PortalSchemeDetail() {
     <div className="space-y-4">
       <Title back="/customer/schemes">{s.scheme_name}</Title>
       <div className={card}>
-        <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-black">{s.scheme_number}</p><Chip s={s.status} /></div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm font-black">{s.scheme_number}</p>
+          <span className="flex flex-wrap items-center gap-2"><Chip s={s.status} /><SchemePayButton s={s} /></span>
+        </div>
         <div className="mt-3 h-3 rounded-full bg-black/5"><div className="h-3 rounded-full bg-[var(--accent)]" style={{ width: `${pct}%` }} /></div>
         <p className="mt-2 text-xs font-bold">{s.installments_paid}/{s.total_installments} installments paid ({pct}%) · {remaining(s)} remaining</p>
         <div className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
@@ -178,7 +181,7 @@ export function PortalSchemeDetail() {
       )}
       <div className={card}><h2 className="mb-2 text-sm font-black uppercase tracking-wider">Terms</h2>
         <ul className="list-disc space-y-1 pl-5 text-xs text-black/80">
-          <li>Installments are paid at the shop; amounts, dates and benefits are set by the shop and cannot be changed here.</li>
+          <li>Installments are paid at the shop or by UPI here; amounts, dates and benefits are set by the shop and cannot be changed here.</li>
           <li>The savings are redeemed against jewellery at the shop, not paid out in cash.</li>
           {benefit && <li>Benefit: {benefit}, applied once on the redemption bill.</li>}
           {Boolean(d.terms && (d.terms as { requireMaturityForRedemption?: boolean }).requireMaturityForRedemption) && <li>Redemption is allowed on or after the maturity date.</li>}
@@ -322,6 +325,83 @@ export function PortalBillDetail() {
         </div>
       )}
       <div className="overflow-x-auto rounded-2xl border border-black/10 bg-white"><Invoice {...props} /></div>
+    </div>
+  )
+}
+
+// ── Pay by UPI ──
+/** Opens the shop's UPI QR for one thing the customer owes. Nothing is marked paid until the shop sees the money. */
+function usePayLink() {
+  const navigate = useNavigate()
+  const [busy, setBusy] = useState('')
+  const [error, setError] = useState('')
+  const open = async (key: string, fn: string, args: Record<string, unknown>) => {
+    setBusy(key); setError('')
+    try { const r = await portalRpc<{ token: string }>(fn, args); navigate(`/customer/pay/${r.token}`) }
+    catch (e) {
+      const m = e instanceof Error ? e.message : ''
+      setError(/customer_scheme_payment_link|not find the function|PGRST202/i.test(m) ? 'Paying installments by UPI is not switched on at the shop yet. Please pay at the counter.' : m || 'Could not open the payment.')
+    } finally { setBusy('') }
+  }
+  return { busy, error, open }
+}
+
+function SchemePayButton({ s }: { s: PortalScheme }) {
+  const { busy, error, open } = usePayLink()
+  if (s.status !== 'active' || !(Number(s.next_amount ?? s.monthly_amount) > 0)) return null
+  if (s.pending_claim) return <Chip s="awaiting_verification" label="Awaiting UPI Verification" />
+  return (
+    <>
+      <button type="button" disabled={busy === s.id} onClick={() => void open(s.id, 'customer_scheme_payment_link', { p_scheme_id: s.id })}
+        className="flex items-center gap-2 rounded-xl bg-[#111111] px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-white disabled:opacity-50 cursor-pointer">
+        <QrCode className="h-4 w-4" /> Pay {inr(Number(s.next_amount ?? s.monthly_amount))} by UPI
+      </button>
+      {error && <span className="basis-full text-right text-[11px] font-bold text-red-700">{error}</span>}
+    </>
+  )
+}
+
+export function PortalPayUpi() {
+  const { data } = usePortal()
+  const { busy, error, open } = usePayLink()
+  if (!data) return null
+  const bills = data.bills.filter((b) => b.balance > 0 && b.pay_status !== 'cancelled')
+  const advances = (data.advances || []).filter((a) => a.balance > 0 && a.status !== 'cancelled')
+  const schemes = data.schemes.filter((s) => s.status === 'active' && Number(s.next_amount ?? s.monthly_amount) > 0)
+  const rows: Array<{ key: string; title: string; sub: string; amount: number; waiting: boolean; go: () => void }> = [
+    ...schemes.map((s) => ({ key: s.id, title: `${s.scheme_name} — next installment`, sub: `${s.scheme_number}${s.next_due_date ? ` • Due ${shortDate(s.next_due_date)}` : ''}`,
+      amount: Number(s.next_amount ?? s.monthly_amount), waiting: Boolean(s.pending_claim), go: () => void open(s.id, 'customer_scheme_payment_link', { p_scheme_id: s.id }) })),
+    ...bills.map((b) => ({ key: b.id, title: `Bill ${formatInvoiceNo(b.invoice_no)} — balance`, sub: `Bill total ${inr(b.total)} • Paid ${inr(b.paid)}`,
+      amount: b.balance, waiting: b.pay_status === 'awaiting_verification', go: () => void open(b.id, 'customer_payment_link', { p_order_id: b.id }) })),
+    ...advances.map((a) => ({ key: a.id, title: `Order ${a.product_name} — balance`, sub: `${a.deposit_id} • Paid ${inr(a.paid)} of ${inr(a.total_amount)}`,
+      amount: a.balance, waiting: Boolean(a.pending_claim), go: () => void open(a.id, 'customer_advance_payment_link', { p_advance_id: a.id }) })),
+  ]
+  return (
+    <div className="space-y-4">
+      <Title>Pay by UPI</Title>
+      <div className={`${card} text-xs`}>
+        <p className="font-black uppercase tracking-wider">How it works</p>
+        <ol className="mt-2 list-decimal space-y-1 pl-4">
+          <li>Tap <b>Scan &amp; Pay</b> next to what you want to pay.</li>
+          <li>Scan the shop's QR with Google Pay, PhonePe, Paytm or any UPI app (or tap Open My UPI App on your phone) and pay.</li>
+          <li>Tap <b>I've Paid</b> and add the UPI transaction ID. The shop confirms it after seeing the money in its account.</li>
+        </ol>
+      </div>
+      {error && <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{error}</p>}
+      {rows.length === 0 ? <div className={card}><p className="text-sm font-semibold text-black/60">Nothing to pay right now. Thank you!</p></div> : (
+        <div className={`${card} divide-y divide-black/5 !py-1`}>
+          {rows.map((x) => (
+            <div key={x.key} className="flex flex-wrap items-center justify-between gap-3 py-3">
+              <div className="min-w-0"><p className="text-sm font-black">{x.title}</p><p className="text-[11px] font-semibold text-black/60">{x.sub}</p></div>
+              <div className="flex items-center gap-3">
+                <span className="text-base font-black">{inr(x.amount)}</span>
+                {x.waiting ? <Chip s="awaiting_verification" label="Awaiting Verification" />
+                  : <button type="button" disabled={busy === x.key} onClick={x.go} className="flex items-center gap-2 rounded-xl bg-[#111111] px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-white disabled:opacity-50 cursor-pointer"><QrCode className="h-4 w-4" /> {busy === x.key ? 'Opening…' : 'Scan & Pay'}</button>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

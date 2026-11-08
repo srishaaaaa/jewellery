@@ -16,6 +16,8 @@
 ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS upi_id TEXT NOT NULL DEFAULT '';
 ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS upi_name TEXT NOT NULL DEFAULT '';
 ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS upi_rotate_minutes INTEGER NOT NULL DEFAULT 5;
+-- Other UPI IDs the shop has used, so it can switch back with one tap: [{"id": "...", "name": "..."}].
+ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS upi_saved JSONB NOT NULL DEFAULT '[]'::JSONB;
 -- Days before the due date to remind (0 = on the day, -1 = once when overdue)
 ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS reminder_days INTEGER[] NOT NULL DEFAULT '{7,3,1,0,-1}';
 ALTER TABLE public.store_settings ADD COLUMN IF NOT EXISTS otp_minutes INTEGER NOT NULL DEFAULT 5;
@@ -227,6 +229,11 @@ ALTER TABLE public.upi_payment_claims ALTER COLUMN order_id DROP NOT NULL;
 ALTER TABLE public.upi_payment_claims ADD COLUMN IF NOT EXISTS advance_order_id UUID REFERENCES public.advance_orders(id) ON DELETE CASCADE;
 CREATE UNIQUE INDEX IF NOT EXISTS upi_payment_claims_open_utr_adv_idx ON public.upi_payment_claims(advance_order_id, UPPER(BTRIM(utr)))
   WHERE status = 'pending' AND BTRIM(utr) <> '' AND advance_order_id IS NOT NULL;
+-- Scheme installments paid by UPI from the customer portal.
+ALTER TABLE public.upi_payment_links ADD COLUMN IF NOT EXISTS scheme_id UUID REFERENCES public.jewellery_schemes(id) ON DELETE CASCADE;
+ALTER TABLE public.upi_payment_claims ADD COLUMN IF NOT EXISTS scheme_id UUID REFERENCES public.jewellery_schemes(id) ON DELETE CASCADE;
+CREATE UNIQUE INDEX IF NOT EXISTS upi_payment_claims_open_utr_scheme_idx ON public.upi_payment_claims(scheme_id, UPPER(BTRIM(utr)))
+  WHERE status = 'pending' AND BTRIM(utr) <> '' AND scheme_id IS NOT NULL;
 
 -- Amount still owed on a bill: only credit bills have a balance.
 CREATE OR REPLACE FUNCTION public.order_outstanding(o public.orders)
@@ -240,6 +247,13 @@ CREATE OR REPLACE FUNCTION public.advance_outstanding(a public.advance_orders)
 RETURNS NUMERIC LANGUAGE sql STABLE AS $$
   SELECT CASE WHEN a.status IN ('completed', 'cancelled') THEN 0
               ELSE GREATEST(ROUND(COALESCE(a.total_amount, 0) - COALESCE(a.deposit_amount, 0), 2), 0) END;
+$$;
+
+-- The next installment of an active scheme (a scheme is paid one whole installment at a time).
+CREATE OR REPLACE FUNCTION public.scheme_next_due(s public.jewellery_schemes)
+RETURNS NUMERIC LANGUAGE sql STABLE AS $$
+  SELECT CASE WHEN s.status <> 'active' THEN 0 ELSE COALESCE((
+    SELECT i.amount_due FROM public.scheme_installments i WHERE i.scheme_id = s.id AND i.status = 'pending' ORDER BY i.installment_number LIMIT 1), 0) END;
 $$;
 
 CREATE OR REPLACE FUNCTION public.new_portal_token()
@@ -770,7 +784,9 @@ BEGIN
       'next_due_date', s.next_due_date, 'status', s.status, 'total_grams', s.total_grams, 'gold_purity', s.gold_purity,
       'benefit_type', s.benefit_type, 'making_benefit_value', s.making_benefit_value, 'making_benefit_unit', s.making_benefit_unit,
       'wastage_benefit_value', s.wastage_benefit_value, 'wastage_benefit_unit', s.wastage_benefit_unit,
-      'benefit_used', s.benefit_used, 'benefit_forfeited', s.benefit_forfeited, 'duration_months', s.duration_months
+      'benefit_used', s.benefit_used, 'benefit_forfeited', s.benefit_forfeited, 'duration_months', s.duration_months,
+      'next_amount', public.scheme_next_due(s),
+      'pending_claim', EXISTS (SELECT 1 FROM public.upi_payment_claims k WHERE k.scheme_id = s.id AND k.status = 'pending')
     ) ORDER BY s.created_at DESC), '[]'::JSONB) INTO v_schemes
   FROM public.jewellery_schemes s WHERE s.customer_id = v_cid OR (public.phone_key(s.phone) = v_key AND v_key <> '');
   SELECT COALESCE(jsonb_agg(x ORDER BY x->>'date' DESC), '[]'::JSONB) INTO v_payments FROM (
@@ -803,6 +819,12 @@ BEGIN
                               'verified_at', k.reviewed_at, 'reason', NULLIF(k.review_reason, ''))
     FROM public.upi_payment_claims k JOIN public.advance_orders a ON a.id = k.advance_order_id
     WHERE public.phone_key(a.phone) = v_key AND v_key <> '' AND k.status <> 'verified'
+    UNION ALL
+    SELECT jsonb_build_object('kind', 'claim', 'date', k.created_at, 'invoice_no', s.scheme_number, 'amount', k.amount, 'method', 'upi',
+                              'reference', NULLIF(k.utr, ''), 'status', CASE k.status WHEN 'pending' THEN 'awaiting_verification' ELSE k.status END,
+                              'verified_at', k.reviewed_at, 'reason', NULLIF(k.review_reason, ''))
+    FROM public.upi_payment_claims k JOIN public.jewellery_schemes s ON s.id = k.scheme_id
+    WHERE (s.customer_id = v_cid OR (public.phone_key(s.phone) = v_key AND v_key <> '')) AND k.status <> 'verified'
   ) q;
   SELECT COUNT(*) INTO v_unread FROM public.customer_notifications WHERE customer_id = v_cid AND read_at IS NULL;
   RETURN jsonb_build_object(
@@ -993,6 +1015,35 @@ BEGIN
 END;
 $$;
 
+-- Customer: pay the next installment of one of their own schemes by UPI.
+CREATE OR REPLACE FUNCTION public.customer_scheme_payment_link(p_token TEXT, p_scheme_id UUID)
+RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_cid UUID := public.portal_customer(p_token);
+  s public.jewellery_schemes;
+  v_due NUMERIC;
+  v_hours INTEGER;
+  l public.upi_payment_links;
+BEGIN
+  SELECT * INTO s FROM public.jewellery_schemes WHERE id = p_scheme_id;
+  IF NOT FOUND OR NOT (s.customer_id IS NOT DISTINCT FROM v_cid OR public.phone_key(s.phone) = (SELECT public.phone_key(phone) FROM public.customers WHERE id = v_cid)) THEN
+    RAISE EXCEPTION 'Scheme not found.';
+  END IF;
+  v_due := public.scheme_next_due(s);
+  IF v_due <= 0 THEN RAISE EXCEPTION 'Scheme % has no installment to pay.', s.scheme_number; END IF;
+  IF COALESCE((SELECT upi_id FROM public.store_settings WHERE id = 1), '') = '' THEN RAISE EXCEPTION 'The shop has not set up UPI payments yet.'; END IF;
+  SELECT * INTO l FROM public.upi_payment_links WHERE scheme_id = p_scheme_id AND revoked_at IS NULL AND expires_at > NOW() + INTERVAL '30 minutes' AND amount = v_due
+  ORDER BY created_at DESC LIMIT 1;
+  IF NOT FOUND THEN
+    SELECT COALESCE(payment_link_hours, 6) INTO v_hours FROM public.store_settings WHERE id = 1;
+    INSERT INTO public.upi_payment_links (token, scheme_id, amount, created_by, expires_at)
+    VALUES (public.new_portal_token(), p_scheme_id, v_due, 'Customer portal', NOW() + make_interval(hours => COALESCE(v_hours, 6)))
+    RETURNING * INTO l;
+  END IF;
+  RETURN jsonb_build_object('token', l.token, 'amount', l.amount, 'expires_at', l.expires_at, 'invoice_no', s.scheme_number);
+END;
+$$;
+
 -- Public payment page: shop UPI details and the approved amount (never more than the bill still owes).
 CREATE OR REPLACE FUNCTION public.get_payment_link(p_token TEXT)
 RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -1000,17 +1051,24 @@ DECLARE
   l public.upi_payment_links;
   o public.orders;
   a public.advance_orders;
+  sc public.jewellery_schemes;
   s public.store_settings;
   v_due NUMERIC;
   v_state TEXT;
   v_doc TEXT;
   v_name TEXT;
+  v_kind TEXT := 'bill';
 BEGIN
   SELECT * INTO l FROM public.upi_payment_links WHERE token = BTRIM(COALESCE(p_token, ''));
   IF NOT FOUND THEN RETURN jsonb_build_object('state', 'not_found'); END IF;
-  IF l.advance_order_id IS NOT NULL THEN
+  IF l.scheme_id IS NOT NULL THEN
+    SELECT * INTO sc FROM public.jewellery_schemes WHERE id = l.scheme_id;
+    v_due := public.scheme_next_due(sc);
+    v_due := CASE WHEN v_due = l.amount THEN v_due ELSE 0 END;
+    v_doc := sc.scheme_number; v_name := sc.customer_name; v_kind := 'scheme';
+  ELSIF l.advance_order_id IS NOT NULL THEN
     SELECT * INTO a FROM public.advance_orders WHERE id = l.advance_order_id;
-    v_due := LEAST(l.amount, public.advance_outstanding(a)); v_doc := a.deposit_id; v_name := a.customer_name;
+    v_due := LEAST(l.amount, public.advance_outstanding(a)); v_doc := a.deposit_id; v_name := a.customer_name; v_kind := 'advance';
   ELSE
     SELECT * INTO o FROM public.orders WHERE id = l.order_id;
     v_due := LEAST(l.amount, public.order_outstanding(o)); v_doc := o.invoice_no; v_name := o.customer_name;
@@ -1019,13 +1077,14 @@ BEGIN
   v_state := CASE WHEN l.revoked_at IS NOT NULL THEN 'revoked' WHEN l.expires_at < NOW() THEN 'expired'
                   WHEN v_due <= 0 THEN 'paid' WHEN COALESCE(s.upi_id, '') = '' THEN 'no_upi' ELSE 'open' END;
   RETURN jsonb_build_object(
-    'state', v_state, 'invoice_no', v_doc, 'amount', v_due, 'expires_at', l.expires_at,
+    'state', v_state, 'kind', v_kind, 'invoice_no', v_doc, 'amount', v_due, 'expires_at', l.expires_at,
     'customer_first_name', split_part(BTRIM(COALESCE(v_name, '')), ' ', 1),
     'shop_name', s.name, 'upi_id', CASE WHEN v_state = 'open' THEN s.upi_id ELSE '' END,
     'upi_name', COALESCE(NULLIF(s.upi_name, ''), s.name), 'rotate_minutes', COALESCE(s.upi_rotate_minutes, 5),
     'logo_url', s.logo_url, 'link_id', l.id,
     'pending_claim', EXISTS (SELECT 1 FROM public.upi_payment_claims k WHERE k.status = 'pending'
-                             AND ((l.order_id IS NOT NULL AND k.order_id = l.order_id) OR (l.advance_order_id IS NOT NULL AND k.advance_order_id = l.advance_order_id))));
+                             AND ((l.order_id IS NOT NULL AND k.order_id = l.order_id) OR (l.advance_order_id IS NOT NULL AND k.advance_order_id = l.advance_order_id)
+                                  OR (l.scheme_id IS NOT NULL AND k.scheme_id = l.scheme_id))));
 END;
 $$;
 
@@ -1036,15 +1095,26 @@ DECLARE
   l public.upi_payment_links;
   o public.orders;
   a public.advance_orders;
+  sc public.jewellery_schemes;
   v_due NUMERIC;
   v_amount NUMERIC;
   v_phone TEXT;
+  v_cust UUID;
   v_utr TEXT := UPPER(BTRIM(COALESCE(p_utr, '')));
   k public.upi_payment_claims;
 BEGIN
   SELECT * INTO l FROM public.upi_payment_links WHERE token = BTRIM(COALESCE(p_link_token, '')) FOR UPDATE;
   IF NOT FOUND OR l.revoked_at IS NOT NULL OR l.expires_at < NOW() THEN RAISE EXCEPTION 'This payment link is no longer valid. Ask the shop for a new one.'; END IF;
-  IF l.advance_order_id IS NOT NULL THEN
+  IF l.scheme_id IS NOT NULL THEN
+    SELECT * INTO sc FROM public.jewellery_schemes WHERE id = l.scheme_id;
+    v_due := public.scheme_next_due(sc); v_phone := sc.phone; v_cust := sc.customer_id;
+    IF v_due <= 0 THEN RAISE EXCEPTION 'This scheme has no installment to pay.'; END IF;
+    IF v_due <> l.amount THEN RAISE EXCEPTION 'The installment amount has changed. Please open the payment again from My Schemes.'; END IF;
+    IF COALESCE(NULLIF(p_amount, 0), v_due) <> v_due THEN RAISE EXCEPTION 'Pay the full installment of ₹%.', v_due; END IF;
+    IF EXISTS (SELECT 1 FROM public.upi_payment_claims WHERE status = 'pending' AND scheme_id = l.scheme_id) THEN
+      RAISE EXCEPTION 'The shop is already checking your last installment payment. Please wait for it to be confirmed.';
+    END IF;
+  ELSIF l.advance_order_id IS NOT NULL THEN
     SELECT * INTO a FROM public.advance_orders WHERE id = l.advance_order_id;
     v_due := LEAST(l.amount, public.advance_outstanding(a)); v_phone := a.phone;
   ELSE
@@ -1055,15 +1125,17 @@ BEGIN
   v_amount := ROUND(COALESCE(NULLIF(p_amount, 0), v_due), 2);
   IF v_amount <= 0 OR v_amount > v_due THEN RAISE EXCEPTION 'The amount must be between ₹1 and ₹% (the balance).', v_due; END IF;
   IF v_utr <> '' AND v_utr !~ '^[A-Z0-9]{6,35}$' THEN RAISE EXCEPTION 'Enter the UPI transaction ID / UTR as shown in your UPI app.'; END IF;
-  IF v_utr <> '' AND EXISTS (SELECT 1 FROM public.order_payments WHERE UPPER(BTRIM(utr)) = v_utr) THEN
+  IF v_utr <> '' AND (EXISTS (SELECT 1 FROM public.order_payments WHERE UPPER(BTRIM(utr)) = v_utr)
+                      OR EXISTS (SELECT 1 FROM public.upi_payment_claims WHERE status = 'verified' AND UPPER(BTRIM(utr)) = v_utr)) THEN
     RAISE EXCEPTION 'This transaction ID has already been recorded.';
   END IF;
   IF (SELECT COUNT(*) FROM public.upi_payment_claims WHERE status = 'pending'
-      AND ((l.order_id IS NOT NULL AND order_id = l.order_id) OR (l.advance_order_id IS NOT NULL AND advance_order_id = l.advance_order_id))) >= 3 THEN
+      AND ((l.order_id IS NOT NULL AND order_id = l.order_id) OR (l.advance_order_id IS NOT NULL AND advance_order_id = l.advance_order_id)
+           OR (l.scheme_id IS NOT NULL AND scheme_id = l.scheme_id))) >= 3 THEN
     RAISE EXCEPTION 'The shop is already checking your payment. Please wait for it to be confirmed.';
   END IF;
-  INSERT INTO public.upi_payment_claims (order_id, advance_order_id, link_id, customer_id, amount, utr, paid_at, screenshot_path, note)
-  VALUES (l.order_id, l.advance_order_id, l.id, public.customer_id_for_phone(v_phone), v_amount, v_utr, COALESCE(p_paid_at, NOW()),
+  INSERT INTO public.upi_payment_claims (order_id, advance_order_id, scheme_id, link_id, customer_id, amount, utr, paid_at, screenshot_path, note)
+  VALUES (l.order_id, l.advance_order_id, l.scheme_id, l.id, COALESCE(v_cust, public.customer_id_for_phone(v_phone)), v_amount, v_utr, COALESCE(p_paid_at, NOW()),
           LEFT(COALESCE(p_screenshot_path, ''), 300), LEFT(BTRIM(COALESCE(p_note, '')), 300))
   RETURNING * INTO k;
   RETURN jsonb_build_object('claim_id', k.id, 'status', 'awaiting_verification');
@@ -1084,10 +1156,29 @@ DECLARE
   p public.order_payments;
   v_paid NUMERIC;
   v_by TEXT := COALESCE(NULLIF(p_by, ''), 'Admin');
+  sc public.jewellery_schemes;
+  v_rec JSON;
 BEGIN
   SELECT * INTO k FROM public.upi_payment_claims WHERE id = p_claim_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Payment claim not found.'; END IF;
   IF k.status <> 'pending' THEN RAISE EXCEPTION 'This claim is already %.', k.status; END IF;
+  IF k.scheme_id IS NOT NULL THEN
+    SELECT * INTO sc FROM public.jewellery_schemes WHERE id = k.scheme_id FOR UPDATE;
+    v_due := public.scheme_next_due(sc);
+    IF v_due <= 0 THEN RAISE EXCEPTION 'Scheme % has no installment left to pay.', sc.scheme_number; END IF;
+    IF k.amount <> v_due THEN RAISE EXCEPTION 'The claim (₹%) does not match the next installment (₹%).', k.amount, v_due; END IF;
+    v_utr := UPPER(BTRIM(COALESCE(NULLIF(p_utr, ''), k.utr)));
+    IF v_utr <> '' AND (EXISTS (SELECT 1 FROM public.order_payments WHERE UPPER(BTRIM(utr)) = v_utr)
+                        OR EXISTS (SELECT 1 FROM public.upi_payment_claims WHERE status = 'verified' AND UPPER(BTRIM(utr)) = v_utr)) THEN
+      RAISE EXCEPTION 'Transaction % has already been credited.', v_utr;
+    END IF;
+    -- Records the installment with its receipt and gold weight; the installment trigger notifies the customer.
+    v_rec := public.record_scheme_installment(sc.id, 'upi', v_by, CASE WHEN v_utr <> '' THEN 'UPI UTR ' || v_utr ELSE 'UPI (customer portal)' END);
+    UPDATE public.upi_payment_claims SET status = 'verified', utr = v_utr, reviewed_by = v_by, reviewed_at = NOW() WHERE id = k.id;
+    INSERT INTO public.audit_logs (action, entity_type, entity_id, new_value, user_name)
+    VALUES ('upi_payment_verified', 'scheme', sc.scheme_number, jsonb_build_object('amount', k.amount, 'utr', v_utr, 'claim', k.id), v_by);
+    RETURN jsonb_build_object('receipt', v_rec->'installment'->>'receipt_number', 'balance', 0);
+  END IF;
   IF k.advance_order_id IS NOT NULL THEN
     SELECT * INTO a FROM public.advance_orders WHERE id = k.advance_order_id FOR UPDATE;
     v_due := public.advance_outstanding(a);
@@ -1097,7 +1188,8 @@ BEGIN
   END IF;
   IF k.amount > v_due THEN RAISE EXCEPTION 'The claim (₹%) is more than the balance still owed (₹%).', k.amount, v_due; END IF;
   v_utr := UPPER(BTRIM(COALESCE(NULLIF(p_utr, ''), k.utr)));
-  IF v_utr <> '' AND EXISTS (SELECT 1 FROM public.order_payments WHERE UPPER(BTRIM(utr)) = v_utr) THEN
+  IF v_utr <> '' AND (EXISTS (SELECT 1 FROM public.order_payments WHERE UPPER(BTRIM(utr)) = v_utr)
+                      OR EXISTS (SELECT 1 FROM public.upi_payment_claims WHERE status = 'verified' AND UPPER(BTRIM(utr)) = v_utr)) THEN
     RAISE EXCEPTION 'Transaction % has already been credited.', v_utr;
   END IF;
   INSERT INTO public.order_payments (order_id, advance_order_id, amount, payment_method, utr, claim_id, verified_by)
@@ -1139,11 +1231,15 @@ DECLARE
   v_ref_type TEXT;
   v_ref TEXT;
   v_word TEXT;
+  v_cust UUID;
 BEGIN
   IF BTRIM(COALESCE(p_reason, '')) = '' THEN RAISE EXCEPTION 'Enter why the payment was not found.'; END IF;
   SELECT * INTO k FROM public.upi_payment_claims WHERE id = p_claim_id FOR UPDATE;
   IF NOT FOUND OR k.status <> 'pending' THEN RAISE EXCEPTION 'Only a claim awaiting verification can be rejected.'; END IF;
-  IF k.advance_order_id IS NOT NULL THEN
+  IF k.scheme_id IS NOT NULL THEN
+    SELECT scheme_number, phone, customer_id INTO v_doc, v_phone, v_cust FROM public.jewellery_schemes WHERE id = k.scheme_id;
+    v_ref_type := 'scheme'; v_ref := k.scheme_id::TEXT; v_word := 'scheme';
+  ELSIF k.advance_order_id IS NOT NULL THEN
     SELECT deposit_id, phone INTO v_doc, v_phone FROM public.advance_orders WHERE id = k.advance_order_id;
     v_ref_type := 'advance'; v_ref := k.advance_order_id::TEXT; v_word := 'order';
   ELSE
@@ -1153,8 +1249,8 @@ BEGIN
   UPDATE public.upi_payment_claims SET status = 'rejected', review_reason = BTRIM(p_reason), reviewed_by = COALESCE(NULLIF(p_by, ''), 'Admin'), reviewed_at = NOW()
   WHERE id = k.id;
   INSERT INTO public.audit_logs (action, entity_type, entity_id, new_value, user_name, note)
-  VALUES ('upi_payment_rejected', CASE WHEN k.advance_order_id IS NOT NULL THEN 'advance_order' ELSE 'order' END, v_doc, jsonb_build_object('amount', k.amount, 'utr', k.utr, 'claim', k.id), COALESCE(NULLIF(p_by, ''), 'Admin'), BTRIM(p_reason));
-  PERFORM public.notify_customer(public.customer_id_for_phone(v_phone), 'payment_rejected', 'Payment could not be verified',
+  VALUES ('upi_payment_rejected', CASE WHEN k.scheme_id IS NOT NULL THEN 'scheme' WHEN k.advance_order_id IS NOT NULL THEN 'advance_order' ELSE 'order' END, v_doc, jsonb_build_object('amount', k.amount, 'utr', k.utr, 'claim', k.id), COALESCE(NULLIF(p_by, ''), 'Admin'), BTRIM(p_reason));
+  PERFORM public.notify_customer(COALESCE(v_cust, public.customer_id_for_phone(v_phone)), 'payment_rejected', 'Payment could not be verified',
     'Your UPI payment of ₹' || k.amount || ' for ' || v_word || ' ' || v_doc || ' could not be found: ' || BTRIM(p_reason) || '. Please contact the shop.', v_ref_type, v_ref, 'claim_no:' || k.id);
 END;
 $$;
@@ -1444,6 +1540,7 @@ GRANT EXECUTE ON FUNCTION public.customer_set_reminders(TEXT, BOOLEAN) TO anon, 
 GRANT EXECUTE ON FUNCTION public.customer_push_subscribe(TEXT, TEXT, TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.customer_push_unsubscribe(TEXT, TEXT) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.customer_advance_payment_link(TEXT, UUID) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.customer_scheme_payment_link(TEXT, UUID) TO anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.get_public_invoice_by_id(UUID) TO anon, authenticated;
 REVOKE ALL ON FUNCTION public.customer_create_otp(TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.customer_discard_otp(TEXT) FROM PUBLIC, anon, authenticated;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { NavLink, Navigate, Outlet, useNavigate } from 'react-router-dom'
-import { Bell, BellOff, CreditCard, FileText, Gem, Home, LogOut, PiggyBank, ShoppingBag, User, Volume2, VolumeX } from 'lucide-react'
+import { Bell, BellOff, CreditCard, FileText, Gem, Home, LogOut, PiggyBank, QrCode, ShoppingBag, User, Volume2, VolumeX } from 'lucide-react'
 import { useSettingsStore } from '../../store/store'
 import { BRAND_EN, BRAND_LOGO } from '../../lib/brand'
 import { PortalSessionExpired, portalLogout, portalRpc, readPortalSession, type PortalData, type PortalNotification } from '../../lib/customerPortal'
@@ -15,7 +15,7 @@ const SEEN_KEY = 'jewellery_portal_seen'
 
 const NAV = [
   ['/customer/dashboard', 'Home', Home], ['/customer/schemes', 'My Schemes', PiggyBank], ['/customer/purchases', 'My Purchases', ShoppingBag],
-  ['/customer/bills', 'My Bills', FileText], ['/customer/payments', 'Payments', CreditCard], ['/customer/notifications', 'Notifications', Bell],
+  ['/customer/bills', 'My Bills', FileText], ['/customer/pay-upi', 'Pay by UPI', QrCode], ['/customer/payments', 'Payments', CreditCard], ['/customer/notifications', 'Notifications', Bell],
   ['/customer/profile', 'Profile', User],
 ] as const
 

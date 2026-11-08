@@ -42,14 +42,25 @@ export default function UpiPaymentsView() {
   const load = useCallback(async () => {
     setLoading(true)
     const order = 'orders(invoice_no, customer_name, phone, total, credit_paid_amount, credit_status), advance_orders(deposit_id, customer_name, phone, total_amount, deposit_amount, status)'
-    // An advance order shows like a bill in this screen: its deposit is what has been paid so far.
-    const withDoc = <T,>(rows: unknown): T[] => ((rows || []) as Array<Record<string, unknown> & { advance_orders?: { deposit_id: string; customer_name: string; phone: string; total_amount: number; deposit_amount: number; status: string } | null; orders?: OrderRef }>).map((r) => {
+    const scheme = 'jewellery_schemes(scheme_number, customer_name, phone, total_paid, status)'
+    // An advance order or a scheme shows like a bill in this screen (scheme: the next installment is the "balance").
+    type Adv = { deposit_id: string; customer_name: string; phone: string; total_amount: number; deposit_amount: number; status: string }
+    type Sch = { scheme_number: string; customer_name: string; phone: string; total_paid: number; status: string }
+    const withDoc = <T,>(rows: unknown): T[] => ((rows || []) as Array<Record<string, unknown> & { advance_orders?: Adv | null; jewellery_schemes?: Sch | null; orders?: OrderRef }>).map((r) => {
       const a = r.advance_orders
-      return { ...r, orders: r.orders || (a ? { invoice_no: a.deposit_id, customer_name: a.customer_name, phone: a.phone, total: a.total_amount, credit_paid_amount: a.deposit_amount, credit_status: a.status === 'completed' || a.status === 'cancelled' ? 'paid' : 'outstanding' } : null) } as unknown as T
+      const s = r.jewellery_schemes
+      return { ...r, orders: r.orders
+        || (a ? { invoice_no: a.deposit_id, customer_name: a.customer_name, phone: a.phone, total: a.total_amount, credit_paid_amount: a.deposit_amount, credit_status: a.status === 'completed' || a.status === 'cancelled' ? 'paid' : 'outstanding' } : null)
+        || (s ? { invoice_no: s.scheme_number, customer_name: s.customer_name, phone: s.phone, total: s.total_paid, credit_paid_amount: s.total_paid, credit_status: s.status === 'active' ? 'outstanding' : 'paid' } : null) } as unknown as T
     })
+    const select = async (table: 'upi_payment_claims' | 'upi_payment_links', limit: number) => {
+      const res = await supabase.from(table).select(`*, ${order}, ${scheme}`).order('created_at', { ascending: false }).limit(limit)
+      // Before the database update there is no scheme column: load without it.
+      return res.error && /scheme/i.test(res.error.message) ? supabase.from(table).select(`*, ${order}`).order('created_at', { ascending: false }).limit(limit) : res
+    }
     const [c, l, r] = await Promise.all([
-      supabase.from('upi_payment_claims').select(`*, ${order}`).order('created_at', { ascending: false }).limit(1000),
-      supabase.from('upi_payment_links').select(`*, ${order}`).order('created_at', { ascending: false }).limit(500),
+      select('upi_payment_claims', 1000),
+      select('upi_payment_links', 500),
       supabase.from('customer_registration_requests').select('*').order('created_at', { ascending: false }).limit(300),
     ])
     if (c.error) setError(/upi_payment_claims/.test(c.error.message) ? 'UPI payments need the database update: run supabase/migrations/customer_portal.sql in the Supabase SQL Editor.' : c.error.message)

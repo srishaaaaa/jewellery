@@ -125,6 +125,8 @@ export type PortalScheme = {
   next_due_date: string | null; status: string; total_grams: number; gold_purity: string; benefit_type: string
   making_benefit_value: number; making_benefit_unit: string; wastage_benefit_value: number; wastage_benefit_unit: string
   benefit_used: boolean; benefit_forfeited: boolean; duration_months: number
+  /** The next installment to pay (0 when nothing is due); a claim the shop has not checked yet. */
+  next_amount?: number; pending_claim?: boolean
 }
 export type PortalPayment = {
   kind: 'bill' | 'claim' | 'scheme' | 'advance'; date: string; invoice_no: string; amount: number; method: string | null
