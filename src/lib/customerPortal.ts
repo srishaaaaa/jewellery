@@ -115,7 +115,7 @@ export async function portalLogout() {
 export type PortalBill = {
   id: string; invoice_no: string; created_at: string; total: number; status: string; payment_mode: string | null
   total_gst: number; advance_amount_used: number; exchange_amount: number; scheme_amount_used: number
-  credit_status: string | null; balance: number; paid: number
+  credit_status: string | null; balance: number; paid: number; due_date?: string | null
   pay_status: 'paid' | 'partially_paid' | 'pending' | 'awaiting_verification' | 'cancelled' | 'refunded'
   items: Array<Record<string, unknown>>
 }

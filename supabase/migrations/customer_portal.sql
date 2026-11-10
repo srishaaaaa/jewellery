@@ -753,7 +753,7 @@ RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $
     'payment_mode', COALESCE(o.payment_mode, o.payment_method), 'total_gst', o.total_gst,
     'advance_amount_used', COALESCE(o.advance_amount_used, 0), 'exchange_amount', COALESCE(o.exchange_amount, 0),
     'scheme_amount_used', COALESCE(o.scheme_amount_used, 0), 'credit_status', o.credit_status,
-    'balance', public.order_outstanding(o),
+    'balance', public.order_outstanding(o), 'due_date', o.credit_due_date,
     'paid', CASE WHEN o.credit_status = 'outstanding' THEN COALESCE(o.credit_paid_amount, 0) ELSE COALESCE(o.total, 0) END,
     'pay_status', CASE
       WHEN LOWER(COALESCE(o.status, '')) = 'cancelled' THEN 'cancelled'

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom'
-import { ArrowLeft, Bell, BellRing, CheckCheck, CheckCircle2, Download, FileText, Lock, Mail, Phone, PiggyBank, Printer, QrCode, ShoppingBag, Wallet } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Bell, BellRing, CalendarClock, CheckCheck, CheckCircle2, Coins, CreditCard, Download, FileText, Gem, Lock, Mail, Phone, PiggyBank, Printer, QrCode, ShoppingBag, Sparkles, Wallet } from 'lucide-react'
 import { Invoice } from '../../components/Invoice'
 import { SchemeReceiptSheet } from '../../components/invoice/SchemeReceiptSheet'
 import { orderToInvoiceProps } from '../../lib/orderInvoiceProps'
@@ -26,9 +26,6 @@ const STATUS_TONE: Record<string, string> = {
   completed: 'bg-blue-50 text-blue-700', matured: 'bg-amber-50 text-amber-800', redeemed: 'bg-black/5 text-black/60',
 }
 const Chip = ({ s, label }: { s: string; label?: string }) => <span className={`inline-block rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${STATUS_TONE[s] || 'bg-black/5'}`}>{label || s.replace(/_/g, ' ')}</span>
-const Stat = ({ label, value, hint }: { label: string; value: ReactNode; hint?: string }) => (
-  <div className={card}><p className="text-[10px] font-black uppercase tracking-wider text-black/60">{label}</p><p className="mt-2 text-xl font-black">{value}</p>{hint && <p className="mt-1 text-[11px] font-semibold text-black/50">{hint}</p>}</div>
-)
 const Title = ({ children, back }: { children: ReactNode; back?: string }) => (
   <div className="mb-4 flex items-center gap-2">
     {back && <Link to={back} className="flex h-9 w-9 items-center justify-center rounded-lg border border-black/10 bg-white"><ArrowLeft className="h-4 w-4" /></Link>}
@@ -40,49 +37,178 @@ const FREQ: Record<string, string> = { daily: 'Daily', weekly: 'Weekly', monthly
 const remaining = (s: PortalScheme) => Math.max(0, s.total_installments - s.installments_paid)
 
 // ── Home ──
+const greeting = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening' }
+const SectionHead = ({ title, to, label }: { title: string; to?: string; label?: string }) => (
+  <div className="mb-1 flex items-center justify-between gap-2">
+    <h2 className="text-[13px] font-black uppercase tracking-wider">{title}</h2>
+    {to && <Link to={to} className="flex items-center gap-1 text-[11px] font-bold text-black/60 hover:text-black">{label || 'View all'} <ArrowRight className="h-3.5 w-3.5" /></Link>}
+  </div>
+)
+const Empty = ({ children }: { children: ReactNode }) => <p className="py-4 text-center text-xs font-semibold text-black/50">{children}</p>
+
 export function PortalHome() {
   const { data, notifications } = usePortal()
   if (!data) return null
+  const first = (data.customer.name || '').trim().split(/\s+/)[0] || 'there'
+  const purchases = data.bills.filter((b) => b.pay_status !== 'cancelled')
+  const keptSchemes = data.schemes.filter((s) => s.status === 'active' || s.status === 'matured' || s.status === 'completed')
+  const saved = keptSchemes.reduce((a, s) => a + Number(s.total_paid || 0) - Number(s.amount_redeemed || 0), 0)
+  const grams = keptSchemes.reduce((a, s) => a + Number(s.total_grams || 0), 0)
   const active = data.schemes.filter((s) => s.status === 'active')
   const nextDue = active.map((s) => s.next_due_date).filter(Boolean).sort()[0] as string | undefined
-  const pending = data.bills.reduce((a, b) => a + Number(b.balance || 0), 0) + (data.advances || []).reduce((a, b) => a + Number(b.balance || 0), 0)
-  const purchases = data.bills.filter((b) => b.pay_status !== 'cancelled')
+
+  // Everything this customer still has to pay, soonest first.
+  const today = new Date().toISOString().slice(0, 10)
+  const dues = [
+    ...active.filter((s) => Number(s.next_amount ?? s.monthly_amount) > 0).map((s) => ({
+      key: s.id, to: `/customer/schemes/${s.id}`, icon: PiggyBank, title: s.scheme_name, sub: `Installment ${s.installments_paid + 1} of ${s.total_installments}`,
+      amount: Number(s.next_amount ?? s.monthly_amount), date: s.next_due_date || '', waiting: Boolean(s.pending_claim) })),
+    ...data.bills.filter((b) => b.balance > 0 && b.pay_status !== 'cancelled').map((b) => ({
+      key: b.id, to: `/customer/bills/${b.id}`, icon: FileText, title: `Bill ${formatInvoiceNo(b.invoice_no)}`, sub: b.paid > 0 ? `Paid ${inr(b.paid)} of ${inr(b.total)}` : `Bill total ${inr(b.total)}`,
+      amount: b.balance, date: b.due_date || '', waiting: b.pay_status === 'awaiting_verification' })),
+    ...(data.advances || []).filter((a) => a.balance > 0 && a.status !== 'cancelled').map((a) => ({
+      key: a.id, to: '/customer/payments', icon: Gem, title: a.product_name || 'Advance order', sub: `Order ${a.deposit_id}`,
+      amount: a.balance, date: a.expected_delivery_date || '', waiting: a.pending_claim })),
+  ].sort((x, y) => (x.date || '9999').localeCompare(y.date || '9999'))
+  const pending = dues.filter((d) => d.icon !== PiggyBank).reduce((a, d) => a + d.amount, 0)
+  const overdue = dues.filter((d) => d.date && d.date < today && !d.waiting)
+
   return (
-    <div className="space-y-5">
-      <div className={`${card} flex flex-wrap items-center justify-between gap-3`}>
-        <div><p className="text-xs font-semibold text-black/60">Customer ID {data.customer.code.toUpperCase()}</p><h1 className="text-2xl font-black">{data.customer.name || 'Customer'}</h1><p className="text-sm font-semibold">+{data.customer.phone}</p></div>
-        <Link to="/customer/pay-upi" className="flex items-center gap-2 rounded-xl bg-[#111111] px-4 py-3 text-xs font-black uppercase tracking-wider text-white"><QrCode className="h-4 w-4" /> {pending > 0 ? `Pay ${inr(pending)} by UPI` : 'Pay by UPI'}</Link>
-      </div>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat label="Total purchases" value={inr(purchases.reduce((a, b) => a + Number(b.total || 0), 0))} hint={`${purchases.length} bill${purchases.length === 1 ? '' : 's'}`} />
-        <Stat label="Active schemes" value={active.length} hint={`${inr(data.schemes.reduce((a, s) => a + Number(s.total_paid || 0), 0))} saved in all`} />
-        <Stat label="Next installment" value={nextDue ? shortDate(nextDue) : '—'} hint={nextDue ? active.find((s) => s.next_due_date === nextDue)?.scheme_name : 'Nothing due'} />
-        <Stat label="Pending to pay" value={inr(pending)} hint={pending ? 'On credit bills' : 'All bills paid'} />
-      </div>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className={card}>
-          <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-black uppercase tracking-wider">Recent bills</h2><Link to="/customer/bills" className="text-[11px] font-bold underline">All bills</Link></div>
-          {data.bills.length === 0 ? <p className="text-xs text-black/60">No bills yet.</p> : data.bills.slice(0, 5).map((b) => (
-            <Link key={b.id} to={`/customer/bills/${b.id}`} className="flex items-center justify-between gap-2 border-b border-black/5 py-2.5 last:border-0">
-              <span><span className="block text-sm font-black">{formatInvoiceNo(b.invoice_no)}</span><span className="text-[11px] text-black/60">{shortDate(b.created_at)}</span></span>
-              <span className="text-right"><span className="block text-sm font-black">{inr(b.total)}</span><Chip s={b.pay_status} label={PAY_STATUS_LABELS[b.pay_status]} /></span>
+    <div className="space-y-4">
+      {/* Welcome + what is owed */}
+      <section className="relative overflow-hidden rounded-3xl bg-[#111111] p-5 text-white shadow-sm sm:p-6">
+        <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[#D4A537] opacity-25 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-[#D4A537] opacity-10 blur-3xl" />
+        <div className="relative flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+          <div className="min-w-0">
+            <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#D4A537]"><Sparkles className="h-3.5 w-3.5" /> {greeting()}</p>
+            <h1 className="mt-1 truncate text-3xl font-black tracking-tight sm:text-4xl">{first}</h1>
+            <p className="mt-1.5 text-xs font-semibold text-white/60">Customer ID {data.customer.code.toUpperCase()} · +{data.customer.phone}{data.customer.created_at ? ` · With us since ${new Date(data.customer.created_at).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}` : ''}</p>
+          </div>
+          <div className="md:text-right">
+            {pending > 0 ? (
+              <>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-white/60">Balance on bills &amp; orders</p>
+                <p className="text-3xl font-black text-[#D4A537]">{inr(pending)}</p>
+                {overdue.length > 0 && <p className="text-[11px] font-bold text-red-300">{overdue.length} overdue</p>}
+              </>
+            ) : (
+              <p className="flex items-center gap-2 text-sm font-black text-emerald-300 md:justify-end"><CheckCircle2 className="h-5 w-5" /> All bills paid. Thank you!</p>
+            )}
+            <Link to="/customer/pay-upi" className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#D4A537] px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-white hover:brightness-110">
+              <QrCode className="h-4 w-4" /> Pay by UPI
             </Link>
-          ))}
+          </div>
         </div>
-        <div className={card}>
-          <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-black uppercase tracking-wider">Notifications</h2><Link to="/customer/notifications" className="text-[11px] font-bold underline">All</Link></div>
-          {notifications.length === 0 ? <p className="text-xs text-black/60">No notifications yet.</p> : notifications.slice(0, 5).map((n) => (
-            <div key={n.id} className="border-b border-black/5 py-2.5 last:border-0"><p className={`text-sm ${n.read_at ? 'font-semibold' : 'font-black'}`}>{n.title}</p><p className="text-[11px] text-black/60">{n.body}</p></div>
-          ))}
-        </div>
-        <div className={`${card} lg:col-span-2`}>
-          <div className="mb-2 flex items-center justify-between"><h2 className="text-sm font-black uppercase tracking-wider">Recent payments</h2><Link to="/customer/payments" className="text-[11px] font-bold underline">All payments</Link></div>
-          {data.payments.length === 0 ? <p className="text-xs text-black/60">No payments yet.</p> : data.payments.slice(0, 5).map((p, i) => (
-            <div key={i} className="flex items-center justify-between gap-2 border-b border-black/5 py-2.5 last:border-0">
-              <span className="text-sm font-bold">{p.kind === 'scheme' ? `Scheme ${p.invoice_no}` : formatInvoiceNo(p.invoice_no)}<span className="block text-[11px] font-semibold text-black/60">{shortDate(p.date)} · {(p.method || '').toUpperCase()}</span></span>
-              <span className="text-right"><span className="block text-sm font-black">{inr(p.amount)}</span><Chip s={p.status} label={PAYMENT_STATUS_LABELS[p.status]} /></span>
+      </section>
+
+      {/* Quick look */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {([
+          [ShoppingBag, 'Purchases', inr(purchases.reduce((a, b) => a + Number(b.total || 0), 0)), `${purchases.length} bill${purchases.length === 1 ? '' : 's'}`, '/customer/purchases'],
+          [Coins, 'Saved in schemes', inr(saved), `${active.length} active scheme${active.length === 1 ? '' : 's'}`, '/customer/schemes'],
+          [Gem, 'Gold saved', `${grams.toFixed(3)} g`, grams > 0 ? 'Across your schemes' : 'Start a scheme at the shop', '/customer/schemes'],
+          [CalendarClock, 'Next installment', nextDue ? shortDate(nextDue) : '—', nextDue ? active.find((s) => s.next_due_date === nextDue)?.scheme_name || '' : 'Nothing due', '/customer/schemes'],
+        ] as const).map(([Icon, label, value, hint, to]) => (
+          <Link key={label} to={to} className="group rounded-2xl border border-black/10 bg-white p-4 shadow-sm transition hover:border-black/25 hover:shadow">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-black uppercase tracking-wider text-black/55">{label}</p>
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#FBF5E6] text-[#D4A537]"><Icon className="h-4 w-4" /></span>
             </div>
-          ))}
+            <p className="mt-2 truncate text-xl font-black">{value}</p>
+            <p className="mt-0.5 truncate text-[11px] font-semibold text-black/50">{hint}</p>
+          </Link>
+        ))}
+      </div>
+
+      <div className="grid items-start gap-4 xl:grid-cols-3">
+        <div className="min-w-0 space-y-4 xl:col-span-2">
+          {/* What to pay */}
+          <section className={card}>
+            <SectionHead title="To pay" to="/customer/pay-upi" label="Pay by UPI" />
+            {dues.length === 0 ? <Empty>Nothing to pay right now.</Empty> : (
+              <div className="divide-y divide-black/5">
+                {dues.slice(0, 6).map((d) => {
+                  const late = d.date && d.date < today && !d.waiting
+                  return (
+                    <Link key={d.key} to={d.to} className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-2.5 hover:bg-black/[0.03]">
+                      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${late ? 'bg-red-50 text-red-600' : 'bg-black/[0.04]'}`}><d.icon className="h-[18px] w-[18px]" /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-black">{d.title}</span>
+                        <span className="block truncate text-[11px] font-semibold text-black/55">{d.sub}{d.date ? ` · ${late ? 'Was due' : d.icon === Gem ? 'Ready by' : 'Due'} ${shortDate(d.date)}` : ''}</span>
+                      </span>
+                      <span className="text-right">
+                        <span className="block text-sm font-black">{inr(d.amount)}</span>
+                        {d.waiting ? <Chip s="awaiting_verification" label="Checking" /> : late ? <Chip s="pending" label="Overdue" /> : null}
+                      </span>
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* Recent bills */}
+          <section className={card}>
+            <SectionHead title="Recent bills" to="/customer/bills" />
+            {data.bills.length === 0 ? <Empty>No bills yet.</Empty> : (
+              <div className="divide-y divide-black/5">
+                {data.bills.slice(0, 5).map((b) => (
+                  <Link key={b.id} to={`/customer/bills/${b.id}`} className="-mx-2 flex items-center gap-3 rounded-xl px-2 py-2.5 hover:bg-black/[0.03]">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black/[0.04]"><FileText className="h-[18px] w-[18px]" /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-black">{formatInvoiceNo(b.invoice_no)}</span>
+                      <span className="block truncate text-[11px] font-semibold text-black/55">{shortDate(b.created_at)} · {b.items?.length || 0} item{b.items?.length === 1 ? '' : 's'}</span>
+                    </span>
+                    <span className="text-right"><span className="block text-sm font-black">{inr(b.total)}</span><Chip s={b.pay_status} label={PAY_STATUS_LABELS[b.pay_status]} /></span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div className="min-w-0 space-y-4">
+          {/* Notifications */}
+          <section className={card}>
+            <SectionHead title="Updates" to="/customer/notifications" />
+            {notifications.length === 0 ? <Empty>No updates yet.</Empty> : (
+              <div className="divide-y divide-black/5">
+                {notifications.slice(0, 4).map((n) => {
+                  const Icon = NOTICE_ICON[n.kind] || Bell
+                  return (
+                    <div key={n.id} className="flex gap-3 py-2.5">
+                      <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${n.read_at ? 'bg-black/[0.04] text-black/50' : 'bg-[#D4A537] text-white'}`}><Icon className="h-3.5 w-3.5" /></span>
+                      <div className="min-w-0">
+                        <p className={`text-[13px] ${n.read_at ? 'font-semibold text-black/70' : 'font-black'}`}>{n.title}</p>
+                        <p className="line-clamp-2 text-[11px] text-black/60">{n.body}</p>
+                        <p className="mt-0.5 text-[10px] font-semibold text-black/40">{new Date(n.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* Recent payments */}
+          <section className={card}>
+            <SectionHead title="Recent payments" to="/customer/payments" />
+            {data.payments.length === 0 ? <Empty>No payments yet.</Empty> : (
+              <div className="divide-y divide-black/5">
+                {data.payments.slice(0, 4).map((p, i) => (
+                  <div key={i} className="flex items-center gap-3 py-2.5">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-700"><CreditCard className="h-3.5 w-3.5" /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[13px] font-bold">{p.kind === 'scheme' ? `Scheme ${p.invoice_no}` : formatInvoiceNo(p.invoice_no)}</span>
+                      <span className="block text-[10px] font-semibold text-black/50">{shortDate(p.date)} · {(p.method || '').toUpperCase()}</span>
+                    </span>
+                    <span className="text-right"><span className="block text-[13px] font-black">{inr(p.amount)}</span>{p.status !== 'verified' && <Chip s={p.status} label={PAYMENT_STATUS_LABELS[p.status]} />}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
       </div>
     </div>
@@ -104,7 +230,7 @@ export function PortalSchemes() {
               <Link key={s.id} to={`/customer/schemes/${s.id}`} className={`${card} block hover:border-black/30`}>
                 <div className="flex items-start justify-between gap-2"><div><p className="text-[11px] font-black text-black/50">{s.scheme_number}</p><h2 className="text-lg font-black">{s.scheme_name}</h2></div><Chip s={s.status} /></div>
                 <p className="mt-1 text-xs font-semibold">{inr(s.monthly_amount)} · {FREQ[s.frequency] || s.frequency}</p>
-                <div className="mt-3 h-2.5 rounded-full bg-black/5"><div className="h-2.5 rounded-full bg-[var(--accent)]" style={{ width: `${pct}%` }} /></div>
+                <div className="mt-3 h-2.5 rounded-full bg-black/5"><div className="h-2.5 rounded-full bg-[#D4A537]" style={{ width: `${pct}%` }} /></div>
                 <div className="mt-2 flex justify-between text-[11px] font-bold"><span>{s.installments_paid}/{s.total_installments} paid · {remaining(s)} left</span><span>{inr(s.total_paid)} saved</span></div>
                 <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]"><span>Next due: <b>{s.status === 'active' ? shortDate(s.next_due_date) : '—'}</b></span><span>Matures: <b>{shortDate(s.maturity_date)}</b></span></div>
               </Link>
@@ -145,7 +271,7 @@ export function PortalSchemeDetail() {
           <p className="text-sm font-black">{s.scheme_number}</p>
           <span className="flex flex-wrap items-center gap-2"><Chip s={s.status} /><SchemePayButton s={s} /></span>
         </div>
-        <div className="mt-3 h-3 rounded-full bg-black/5"><div className="h-3 rounded-full bg-[var(--accent)]" style={{ width: `${pct}%` }} /></div>
+        <div className="mt-3 h-3 rounded-full bg-black/5"><div className="h-3 rounded-full bg-[#D4A537]" style={{ width: `${pct}%` }} /></div>
         <p className="mt-2 text-xs font-bold">{s.installments_paid}/{s.total_installments} installments paid ({pct}%) · {remaining(s)} remaining</p>
         <div className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
           {[['Installment', inr(s.monthly_amount)], ['Plan', FREQ[s.frequency] || s.frequency], ['Started', shortDate(s.start_date)], ['Matures', shortDate(s.maturity_date)],
@@ -493,7 +619,7 @@ export function PortalNotifications() {
           const Icon = NOTICE_ICON[n.kind] || Bell
           const href = link(n)
           return (
-            <div key={n.id} className={`${card} flex items-start gap-3 ${n.read_at ? 'opacity-70' : 'border-[var(--accent)]/40'}`}>
+            <div key={n.id} className={`${card} flex items-start gap-3 ${n.read_at ? 'opacity-70' : 'border-[#D4A537]/60'}`}>
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black/5"><Icon className="h-4 w-4" /></span>
               <div className="min-w-0 flex-1">
                 <p className={`text-sm ${n.read_at ? 'font-semibold' : 'font-black'}`}>{n.title}</p><p className="text-xs text-black/70">{n.body}</p>
