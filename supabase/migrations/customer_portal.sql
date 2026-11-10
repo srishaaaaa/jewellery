@@ -691,6 +691,19 @@ BEGIN
 END;
 $$;
 
+-- Shop: whether a customer has a password and whose it is, so the key icon can warn before replacing the customer's own one.
+-- Dates and yes/no only, never the password or its hash.
+CREATE OR REPLACE FUNCTION public.shop_customer_password_status(p_customer_id UUID)
+RETURNS JSONB LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
+  SELECT jsonb_build_object(
+    'has_password', p.customer_id IS NOT NULL,
+    'own_password', p.customer_id IS NOT NULL AND NOT p.must_change,
+    'updated_at', p.updated_at,
+    'locked', COALESCE(p.locked_until > NOW(), FALSE),
+    'shop_set_at', (SELECT MAX(a.created_at) FROM public.audit_logs a WHERE a.action = 'customer_password_set_by_shop' AND a.entity_id = p_customer_id::TEXT))
+  FROM (SELECT p_customer_id AS id) x LEFT JOIN public.customer_passwords p ON p.customer_id = x.id;
+$$;
+
 -- Customer's reminder and alert choices.
 CREATE OR REPLACE FUNCTION public.customer_set_reminders(p_token TEXT, p_on BOOLEAN)
 RETURNS VOID LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
@@ -1554,6 +1567,8 @@ REVOKE ALL ON FUNCTION public.customer_id_for_login(TEXT) FROM PUBLIC, anon, aut
 -- Only a signed-in shop can set a customer's password, even before the lock-down.
 REVOKE ALL ON FUNCTION public.shop_set_customer_password(UUID, TEXT, TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.shop_set_customer_password(UUID, TEXT, TEXT) TO authenticated;
+REVOKE ALL ON FUNCTION public.shop_customer_password_status(UUID) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.shop_customer_password_status(UUID) TO authenticated;
 REVOKE ALL ON FUNCTION public.otp_check(TEXT, TEXT, TEXT, UUID) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.otp_discard(TEXT, TEXT) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.portal_new_session(UUID) FROM PUBLIC, anon, authenticated;

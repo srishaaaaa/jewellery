@@ -1,11 +1,14 @@
-import { useState, type FormEvent } from 'react'
-import { Check, Copy, KeyRound, RefreshCw, X } from 'lucide-react'
+import { useEffect, useState, type FormEvent } from 'react'
+import { AlertTriangle, Check, Copy, KeyRound, RefreshCw, X } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
 import { formatPhoneDisplay } from '../../lib/phone'
 import type { CustomerRecord } from '../../services/customerService'
 
 // No look-alike characters (0/O, 1/l/I), since this is read out at the counter.
 const CHARS = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+type Status = { has_password: boolean; own_password: boolean; updated_at: string | null; locked: boolean; shop_set_at: string | null }
+const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '')
+
 const generate = () => Array.from(crypto.getRandomValues(new Uint32Array(10)), (n) => CHARS[n % CHARS.length]).join('')
 
 /** Shop: gives one customer a starting password, or resets a forgotten one. The customer must replace it at first login. */
@@ -15,10 +18,22 @@ export function CustomerPasswordModal({ customer, onClose }: { customer: Custome
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
   const [copied, setCopied] = useState(false)
+  // Whether the customer already has a password, and whose: undefined while loading, null if it cannot be checked.
+  const [status, setStatus] = useState<Status | null | undefined>(undefined)
+  const [confirmReplace, setConfirmReplace] = useState(false)
+  useEffect(() => {
+    let live = true
+    supabase.rpc('shop_customer_password_status', { p_customer_id: customer.id }).then(({ data, error: err }) => {
+      if (live) setStatus(err ? null : (data as Status))
+    })
+    return () => { live = false }
+  }, [customer.id])
+  const ownPassword = Boolean(status?.own_password)
 
   const save = async (e: FormEvent) => {
     e.preventDefault(); setError('')
     if (password.trim().length < 8) { setError('The password must have at least 8 characters.'); return }
+    if (ownPassword && !confirmReplace) { setError('Tick the box first: this replaces the password the customer chose.'); return }
     setBusy(true)
     const { error: err } = await supabase.rpc('shop_set_customer_password', { p_customer_id: customer.id, p_password: password.trim(), p_by: 'Shop' })
     setBusy(false)
@@ -55,7 +70,20 @@ export function CustomerPasswordModal({ customer, onClose }: { customer: Custome
           </div>
         ) : (
           <form onSubmit={save} className="space-y-3">
-            <p className="text-[11px] font-semibold text-[#000000]/60">Replaces any password this customer has and logs them out everywhere. Use a different password for each customer.</p>
+            {status === undefined && <p className="text-[11px] font-semibold text-[#000000]/50">Checking this customer's password…</p>}
+            {status && ownPassword && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900">
+                <p className="flex items-start gap-1.5"><AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> This customer has set their own password{status.updated_at ? ` (on ${when(status.updated_at)})` : ''}. They do not need one from the shop to log in.</p>
+                <p className="mt-1 font-semibold">Only give a new one if they forgot it: saving replaces their password and logs them out everywhere.</p>
+                <label className="mt-2 flex items-center gap-2 font-black cursor-pointer"><input type="checkbox" checked={confirmReplace} onChange={(e) => { setConfirmReplace(e.target.checked); setError('') }} /> Yes, they forgot it. Replace their password.</label>
+              </div>
+            )}
+            {status && !ownPassword && status.has_password && (
+              <p className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800">A starting password was given{status.shop_set_at ? ` on ${when(status.shop_set_at)}` : ''} and the customer has not logged in to change it yet. Saving gives a new one instead.</p>
+            )}
+            {status && !status.has_password && <p className="rounded-lg border border-black/10 bg-[#F9FAFB] px-3 py-2 text-xs font-bold text-[#000000]/70">No portal password yet. Give this starting password to the customer; they choose their own at first login.</p>}
+            {status?.locked && <p className="text-[11px] font-bold text-red-700">Locked for a few minutes after 5 wrong tries.</p>}
+            <p className="text-[11px] font-semibold text-[#000000]/60">Logs the customer out everywhere. Use a different password for each customer.</p>
             <label className="block">
               <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wider text-[#000000]/60">Starting password</span>
               <span className="flex gap-2">
@@ -64,7 +92,7 @@ export function CustomerPasswordModal({ customer, onClose }: { customer: Custome
               </span>
             </label>
             {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{error}</p>}
-            <button disabled={busy} className="w-full rounded-xl bg-[#111111] py-2.5 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50 cursor-pointer">{busy ? 'Saving…' : 'Save Password'}</button>
+            <button disabled={busy || (ownPassword && !confirmReplace)} className="w-full rounded-xl bg-[#111111] py-2.5 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50 cursor-pointer">{busy ? 'Saving…' : ownPassword ? 'Replace Their Password' : 'Save Password'}</button>
           </form>
         )}
       </div>
