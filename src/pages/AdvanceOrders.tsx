@@ -17,7 +17,7 @@ import { PrintSettingsModal } from '../components/invoice/PrintSettingsModal'
 import { thermalWidth, type PrintPrefs } from '../lib/printPrefs'
 import { DocIcon, WhatsAppIcon, actionBtn } from '../components/ActionIcons'
 import { printAdvanceReceipt } from '../lib/advanceReceipt'
-import { useAdminAuthStore, useProductStore } from '../store/store'
+import { cashLimitCheck, gstCashBlocked, useAdminAuthStore, useProductStore, useSettingsStore } from '../store/store'
 import { auditService } from '../services/auditService'
 import {
   completeAdvanceOrder, createAdvanceOrder, deleteAdvanceOrder, listAdvanceOrders, updateAdvanceStatus,
@@ -34,6 +34,10 @@ type StatusFilter = 'all' | 'pending' | 'ready' | 'completed' | 'cancelled'
 const STATUS_LABELS: Record<AdvanceStatus, string> = {
   pending_deposit: 'Pending Deposit', ready_for_delivery: 'Ready for Delivery', waiting_final_payment: 'Waiting for Final Payment', completed: 'Completed', cancelled: 'Cancelled',
 }
+/** Saved on GST deposit orders from the POS (see Pos.tsx saveDepositOrder). */
+const isGstAdvance = (o: AdvanceOrder) => (o.products || []).some((p) => p && p.gst_bill === true)
+const advanceDepositCash = (o: AdvanceOrder) => Number((o.products || [])[0]?.deposit_cash) || 0
+
 const initialForm = { customerName: '', phone: '', address: '', productName: '', category: '', description: '', totalAmount: '', depositAmount: '', expectedDeliveryDate: '', status: 'pending_deposit' as AdvanceStatus, remarks: '', reference_number: '', paymentMethod: 'cash' as AdvancePaymentMethod }
 
 type AdvanceOrdersProps = {
@@ -45,6 +49,7 @@ const inputClass = 'w-full bg-white border border-black/10 focus:border-[var(--a
 
 export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps = {}) {
   const role = useAdminAuthStore(state => state.role)
+  const posPermissions = useSettingsStore(state => state.settings?.posPermissions)
   const products = useProductStore(state => state.products)
   const fetchProducts = useProductStore(state => state.fetchProducts)
   useEffect(() => { void fetchProducts() }, [fetchProducts])
@@ -180,6 +185,19 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
     const amount = paymentOrder.remaining_balance
     const mixError = splitError(payMode, paySplit, amount)
     if (mixError) { setPayError(mixError); return }
+    // GST invoice: cash on the whole order (deposit + this payment) stays within the government limit.
+    // Non-GST bill: the shop's own cash limit from Settings.
+    const cashNow = payMode === 'cash' ? amount : payMode === 'mixed' ? Number(paySplit.cash) || 0 : 0
+    if (cashNow > 0) {
+      if (isGstAdvance(paymentOrder)) {
+        const gstBlock = gstCashBlocked(cashNow, advanceDepositCash(paymentOrder))
+        if (gstBlock) { setPayError(gstBlock); return }
+      } else {
+        const rule = cashLimitCheck(cashNow, role, posPermissions)
+        if (rule.blocked) { setPayError(rule.blocked); return }
+        if (rule.needsConfirm && !window.confirm(`Accept ${formatCurrency(cashNow)} in cash? This is above the cash limit.`)) return
+      }
+    }
     setSaving(true); setError(''); setPayError('')
     try {
       const remarks = payMode === 'mixed' ? `Split: ${splitSummary(paySplit)}` : ''
@@ -427,6 +445,7 @@ export default function AdvanceOrders({ onOrderCompleted }: AdvanceOrdersProps =
             <p className="text-[10px] font-bold uppercase tracking-wider text-[#166534]">Remaining Amount</p>
             <p className="mt-1 text-3xl font-black text-[#166534]">{formatCurrency(paymentOrder.remaining_balance)}</p>
             <p className="mt-1 text-[11px] font-semibold text-[#166534]/80">{paymentOrder.customer_name} • Total {formatCurrency(paymentOrder.total_amount)} • Paid {formatCurrency(paymentOrder.deposit_amount)}</p>
+            {isGstAdvance(paymentOrder) && <p className="mt-1 text-[11px] font-bold text-amber-800">GST invoice: cash on this order is limited to ₹1,99,000 in all{advanceDepositCash(paymentOrder) > 0 ? ` (₹${advanceDepositCash(paymentOrder).toLocaleString('en-IN')} already paid in cash)` : ''}.</p>}
           </div>
           <PaymentModePicker mode={payMode} onMode={setPayMode} split={paySplit} onSplit={setPaySplit} total={paymentOrder.remaining_balance} />
           {payError && <p className="text-xs font-bold text-[#DC2626]">{payError}</p>}

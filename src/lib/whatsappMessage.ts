@@ -253,7 +253,7 @@ We have successfully received your initial advance payment!
 
 Your jewellery is being prepared with utmost care. We will have everything ready on or before ${deliveryDateFormatted}!
 
-${shop.phone ? `📞 *Shop Contact:* ${shop.phone}` : ''}${shop.instagramHandle ? `\n📷 *Instagram:* @${shop.instagramHandle}` : ''}`
+${shop.phone ? `📞 *Shop Contact:* ${shop.phone}` : ''}${shop.instagramUrl ? `\n📷 *Follow us on Instagram:* ${shop.instagramUrl}` : ''}`
 }
 
 /** Receipt for a savings-scheme installment. */

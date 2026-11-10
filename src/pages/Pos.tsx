@@ -72,7 +72,7 @@ import {
 import { schemeService } from '../services/schemeService'
 import { advanceService, oldGoldService, quotationService, type CustomerAdvance, type OldGoldEntry, type Quotation } from '../services/salesDeskService'
 import { auditService } from '../services/auditService'
-import { cashLimitCheck, useSettingsStore } from '../store/store'
+import { cashLimitCheck, gstCashBlocked, useSettingsStore } from '../store/store'
 import { COUNTER_PAYMENT_METHODS, PAYMENT_REFERENCE_KEY, type CounterPaymentMethod } from '../lib/retail'
 import { calculateNetWeight, calculateOldGoldValue, normalizeMetalType, suggestOldGoldRate, STANDARD_PURITY, GOLD_PURITIES, ITEM_STATUS_LABELS, pieceLabel, samePiece, stoneTotals, type JewelleryPiece } from '../lib/jewellery'
 
@@ -1300,7 +1300,12 @@ export default function Pos(props: PosProps = {}) {
     const depositAmount = Number(depositForm.amount)
     if (!Number.isFinite(depositAmount) || depositAmount <= 0 || depositAmount >= total) { setError(`Deposit must be greater than ${formatCurrency(0)} and less than ${formatCurrency(total)}.`); return }
     if (!depositForm.expectedDeliveryDate) { setError('Select the expected delivery date.'); return }
-    if (depositForm.paymentMethod === 'cash') {
+    // GST invoice: the government cash limit, always. Non-GST bill: the shop's own cash limit from Settings.
+    if (depositForm.paymentMethod === 'cash' && billGstEnabled) {
+      const gstBlock = gstCashBlocked(depositAmount)
+      if (gstBlock) { setError(gstBlock); return }
+    }
+    if (depositForm.paymentMethod === 'cash' && !billGstEnabled) {
       const depositCash = cashLimitCheck(depositAmount, role, posPermissions)
       if (depositCash.blocked) { setError(depositCash.blocked); return }
       if (depositCash.needsConfirm && !window.confirm(`Accept ${formatCurrency(depositAmount)} in cash? This is above the cash limit.`)) return
@@ -1320,6 +1325,8 @@ export default function Pos(props: PosProps = {}) {
           description: item.note || '', quantity: item.qty, unit: item.selectedUnit, unit_type: item.unitType,
           base_quantity: item.baseQuantity, base_price: Number(item.basePrice) || 0, line_total: lineTotal,
           source: 'advance_order', note: item.note || null,
+          gst_bill: billGstEnabled,
+          ...(index === 0 ? { deposit_cash: depositForm.paymentMethod === 'cash' ? depositAmount : 0 } : {}),
           ...(item.jewellery ? { jewellery: item.jewellery } : {}),
         }
       })

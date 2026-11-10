@@ -227,6 +227,16 @@ export const normalizePosPermissions = (raw: unknown): PosPermissions => {
  * Why this much cash cannot be taken (null = fine). Above the limit only the admin can accept,
  * and only when "Allow cash above the limit" is on; then the caller asks to confirm.
  */
+/** GST invoices: cash above this is never accepted, whatever the shop's own setting (government rule, Income Tax s.269ST). */
+export const GST_CASH_LIMIT = 199000
+export const gstCashBlocked = (cash: number, earlierCash = 0): string | null => {
+  if (!(cash + earlierCash > GST_CASH_LIMIT)) return null
+  const room = Math.max(0, GST_CASH_LIMIT - earlierCash)
+  return `GST invoice: cash above ₹${GST_CASH_LIMIT.toLocaleString('en-IN')} is not allowed (government rule).`
+    + (earlierCash > 0 ? ` ₹${earlierCash.toLocaleString('en-IN')} was already paid in cash on this order, so at most ₹${room.toLocaleString('en-IN')} more can be cash.` : '')
+    + ' Take the rest by UPI / card / bank.'
+}
+
 export const cashLimitCheck = (cash: number, role: string | null, p: PosPermissions | undefined): { blocked: string | null; needsConfirm: boolean } => {
   const perms = p || DEFAULT_POS_PERMISSIONS
   if (!(cash > perms.cashLimit)) return { blocked: null, needsConfirm: false }
