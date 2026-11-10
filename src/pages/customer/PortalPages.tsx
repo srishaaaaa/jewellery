@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Bell, BellRing, CalendarClock, CheckCheck, CheckCircle2, Coins, CreditCard, Download, FileText, Gem, Lock, Mail, Phone, PiggyBank, Printer, QrCode, ShoppingBag, Sparkles, Wallet } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ArrowRight, Bell, BellRing, CalendarClock, CheckCheck, CheckCircle2, Clock, Coins, CreditCard, Download, FileText, Gem, Lock, Mail, MapPin, Phone, PiggyBank, Printer, QrCode, ShieldCheck, ShoppingBag, Sparkles, UserRound, Wallet, type LucideIcon } from 'lucide-react'
 import { Invoice } from '../../components/Invoice'
 import { SchemeReceiptSheet } from '../../components/invoice/SchemeReceiptSheet'
 import { orderToInvoiceProps } from '../../lib/orderInvoiceProps'
@@ -26,12 +26,33 @@ const STATUS_TONE: Record<string, string> = {
   completed: 'bg-blue-50 text-blue-700', matured: 'bg-amber-50 text-amber-800', redeemed: 'bg-black/5 text-black/60',
 }
 const Chip = ({ s, label }: { s: string; label?: string }) => <span className={`inline-block rounded-full px-2.5 py-1 text-[10px] font-black uppercase ${STATUS_TONE[s] || 'bg-black/5'}`}>{label || s.replace(/_/g, ' ')}</span>
-const Title = ({ children, back }: { children: ReactNode; back?: string }) => (
-  <div className="mb-4 flex items-center gap-2">
-    {back && <Link to={back} className="flex h-9 w-9 items-center justify-center rounded-lg border border-black/10 bg-white"><ArrowLeft className="h-4 w-4" /></Link>}
-    <h1 className="text-2xl font-black tracking-tight">{children}</h1>
+const Title = ({ children, back, sub }: { children: ReactNode; back?: string; sub?: ReactNode }) => (
+  <div className="mb-4 flex items-center gap-3">
+    {back && <Link to={back} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-black/10 bg-white"><ArrowLeft className="h-4 w-4" /></Link>}
+    <div className="min-w-0">
+      <h1 className="text-2xl font-black tracking-tight">{children}</h1>
+      {sub && <p className="text-xs font-semibold text-black/55">{sub}</p>}
+    </div>
   </div>
 )
+type TileItem = { icon: LucideIcon; label: string; value: ReactNode; hint?: ReactNode; tone?: 'red' | 'green' | 'blue' }
+const TONE: Record<string, string> = { red: 'bg-red-50 text-red-600', green: 'bg-emerald-50 text-emerald-700', blue: 'bg-blue-50 text-blue-700' }
+/** A row of this customer's own figures at the top of a page. */
+const Tiles = ({ items }: { items: TileItem[] }) => (
+  <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
+    {items.map((t) => (
+      <div key={t.label} className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-2">
+          <p className="truncate text-[10px] font-black uppercase tracking-wider text-black/55">{t.label}</p>
+          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${t.tone ? TONE[t.tone] : 'bg-[color-mix(in_srgb,var(--accent)_12%,white)] text-[var(--accent)]'}`}><t.icon className="h-4 w-4" /></span>
+        </div>
+        <p className={`mt-2 truncate text-xl font-black ${t.tone === 'red' ? 'text-red-600' : ''}`}>{t.value}</p>
+        {t.hint && <p className="mt-0.5 truncate text-[11px] font-semibold text-black/50">{t.hint}</p>}
+      </div>
+    ))}
+  </div>
+)
+const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? '' : 's'}`
 const usePortal = () => useOutletContext<PortalContext>()
 const FREQ: Record<string, string> = { daily: 'Daily', weekly: 'Weekly', monthly: 'Monthly', one_time: 'One-time deposit' }
 const remaining = (s: PortalScheme) => Math.max(0, s.total_installments - s.installments_paid)
@@ -76,26 +97,26 @@ export function PortalHome() {
   return (
     <div className="space-y-4">
       {/* Welcome + what is owed */}
-      <section className="relative overflow-hidden rounded-3xl bg-[#111111] p-5 text-white shadow-sm sm:p-6">
-        <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[#D4A537] opacity-25 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-[#D4A537] opacity-10 blur-3xl" />
+      <section className="relative overflow-hidden rounded-3xl border border-black/10 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_16%,white),white_75%)] p-5 text-[#111111] shadow-sm sm:p-6">
+        <div className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-[var(--accent)] opacity-[0.12] blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 left-1/3 h-56 w-56 rounded-full bg-[var(--accent)] opacity-[0.06] blur-3xl" />
         <div className="relative flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
           <div className="min-w-0">
-            <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[#D4A537]"><Sparkles className="h-3.5 w-3.5" /> {greeting()}</p>
+            <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--accent)]"><Sparkles className="h-3.5 w-3.5" /> {greeting()}</p>
             <h1 className="mt-1 truncate text-3xl font-black tracking-tight sm:text-4xl">{first}</h1>
-            <p className="mt-1.5 text-xs font-semibold text-white/60">Customer ID {data.customer.code.toUpperCase()} · +{data.customer.phone}{data.customer.created_at ? ` · With us since ${new Date(data.customer.created_at).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}` : ''}</p>
+            <p className="mt-1.5 text-xs font-semibold text-black/60">Customer ID {data.customer.code.toUpperCase()} · +{data.customer.phone}{data.customer.created_at ? ` · With us since ${new Date(data.customer.created_at).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}` : ''}</p>
           </div>
           <div className="md:text-right">
             {pending > 0 ? (
               <>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-white/60">Balance on bills &amp; orders</p>
-                <p className="text-3xl font-black text-[#D4A537]">{inr(pending)}</p>
-                {overdue.length > 0 && <p className="text-[11px] font-bold text-red-300">{overdue.length} overdue</p>}
+                <p className="text-[11px] font-bold uppercase tracking-wider text-black/60">Balance on bills &amp; orders</p>
+                <p className="text-3xl font-black text-[var(--accent)]">{inr(pending)}</p>
+                {overdue.length > 0 && <p className="text-[11px] font-bold text-red-600">{overdue.length} overdue</p>}
               </>
             ) : (
-              <p className="flex items-center gap-2 text-sm font-black text-emerald-300 md:justify-end"><CheckCircle2 className="h-5 w-5" /> All bills paid. Thank you!</p>
+              <p className="flex items-center gap-2 text-sm font-black text-emerald-700 md:justify-end"><CheckCircle2 className="h-5 w-5" /> All bills paid. Thank you!</p>
             )}
-            <Link to="/customer/pay-upi" className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[#D4A537] px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-white hover:brightness-110">
+            <Link to="/customer/pay-upi" className="mt-3 inline-flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-white hover:brightness-110">
               <QrCode className="h-4 w-4" /> Pay by UPI
             </Link>
           </div>
@@ -113,7 +134,7 @@ export function PortalHome() {
           <Link key={label} to={to} className="group rounded-2xl border border-black/10 bg-white p-4 shadow-sm transition hover:border-black/25 hover:shadow">
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-black uppercase tracking-wider text-black/55">{label}</p>
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#FBF5E6] text-[#D4A537]"><Icon className="h-4 w-4" /></span>
+              <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--accent)_12%,white)] text-[var(--accent)]"><Icon className="h-4 w-4" /></span>
             </div>
             <p className="mt-2 truncate text-xl font-black">{value}</p>
             <p className="mt-0.5 truncate text-[11px] font-semibold text-black/50">{hint}</p>
@@ -178,7 +199,7 @@ export function PortalHome() {
                   const Icon = NOTICE_ICON[n.kind] || Bell
                   return (
                     <div key={n.id} className="flex gap-3 py-2.5">
-                      <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${n.read_at ? 'bg-black/[0.04] text-black/50' : 'bg-[#D4A537] text-white'}`}><Icon className="h-3.5 w-3.5" /></span>
+                      <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${n.read_at ? 'bg-black/[0.04] text-black/50' : 'bg-[var(--accent)] text-white'}`}><Icon className="h-3.5 w-3.5" /></span>
                       <div className="min-w-0">
                         <p className={`text-[13px] ${n.read_at ? 'font-semibold text-black/70' : 'font-black'}`}>{n.title}</p>
                         <p className="line-clamp-2 text-[11px] text-black/60">{n.body}</p>
@@ -219,20 +240,36 @@ export function PortalHome() {
 export function PortalSchemes() {
   const { data } = usePortal()
   if (!data) return null
+  const active = data.schemes.filter((s) => s.status === 'active')
+  const kept = data.schemes.filter((s) => ['active', 'matured', 'completed'].includes(s.status))
+  const next = active.filter((s) => s.next_due_date).sort((a, b) => String(a.next_due_date).localeCompare(String(b.next_due_date)))[0]
   return (
     <div>
-      <Title>My Schemes</Title>
-      {data.schemes.length === 0 ? <div className={card}><p className="text-sm text-black/60">You have no savings schemes yet.</p></div> : (
-        <div className="grid gap-4 md:grid-cols-2">
+      <Title sub="Your savings plans, installments and the gold they have bought.">My Schemes</Title>
+      <Tiles items={[
+        { icon: PiggyBank, label: 'Active schemes', value: active.length, hint: `${plural(data.schemes.length, 'scheme')} in all` },
+        { icon: Coins, label: 'Total saved', value: inr(kept.reduce((a, s) => a + Number(s.total_paid || 0) - Number(s.amount_redeemed || 0), 0)), hint: 'Ready to use at the shop' },
+        { icon: Gem, label: 'Gold saved', value: `${kept.reduce((a, s) => a + Number(s.total_grams || 0), 0).toFixed(3)} g`, hint: 'At the rate on each payment day' },
+        { icon: CalendarClock, label: 'Next installment', value: next ? inr(Number(next.next_amount ?? next.monthly_amount)) : '—', hint: next ? `${next.scheme_name} · ${shortDate(next.next_due_date)}` : 'Nothing due' },
+      ]} />
+      {data.schemes.length === 0 ? <div className={card}><p className="text-sm text-black/60">You have no savings schemes yet. Ask at the shop to start one.</p></div> : (
+        <div className="grid gap-4 md:grid-cols-2 2xl:grid-cols-3">
           {data.schemes.map((s) => {
             const pct = s.total_installments ? Math.round((s.installments_paid / s.total_installments) * 100) : 0
             return (
               <Link key={s.id} to={`/customer/schemes/${s.id}`} className={`${card} block hover:border-black/30`}>
                 <div className="flex items-start justify-between gap-2"><div><p className="text-[11px] font-black text-black/50">{s.scheme_number}</p><h2 className="text-lg font-black">{s.scheme_name}</h2></div><Chip s={s.status} /></div>
                 <p className="mt-1 text-xs font-semibold">{inr(s.monthly_amount)} · {FREQ[s.frequency] || s.frequency}</p>
-                <div className="mt-3 h-2.5 rounded-full bg-black/5"><div className="h-2.5 rounded-full bg-[#D4A537]" style={{ width: `${pct}%` }} /></div>
+                <div className="mt-3 h-2.5 rounded-full bg-black/5"><div className="h-2.5 rounded-full bg-[var(--accent)]" style={{ width: `${pct}%` }} /></div>
                 <div className="mt-2 flex justify-between text-[11px] font-bold"><span>{s.installments_paid}/{s.total_installments} paid · {remaining(s)} left</span><span>{inr(s.total_paid)} saved</span></div>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]"><span>Next due: <b>{s.status === 'active' ? shortDate(s.next_due_date) : '—'}</b></span><span>Matures: <b>{shortDate(s.maturity_date)}</b></span></div>
+                <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-[#FAFAF7] p-2.5 text-[11px]">
+                  <span><span className="block text-black/50">Next due</span><b>{s.status === 'active' ? shortDate(s.next_due_date) : '—'}</b></span>
+                  <span><span className="block text-black/50">Matures</span><b>{shortDate(s.maturity_date)}</b></span>
+                  <span><span className="block text-black/50">Gold</span><b>{Number(s.total_grams || 0).toFixed(3)} g</b></span>
+                </div>
+                {s.status === 'active' && (s.pending_claim
+                  ? <p className="mt-2 text-[11px] font-bold text-blue-700">UPI payment being checked by the shop</p>
+                  : Number(s.next_amount ?? s.monthly_amount) > 0 && <p className="mt-2 flex items-center gap-1 text-[11px] font-black"><QrCode className="h-3.5 w-3.5" /> Pay {inr(Number(s.next_amount ?? s.monthly_amount))} by UPI <ArrowRight className="h-3.5 w-3.5" /></p>)}
               </Link>
             )
           })}
@@ -271,7 +308,7 @@ export function PortalSchemeDetail() {
           <p className="text-sm font-black">{s.scheme_number}</p>
           <span className="flex flex-wrap items-center gap-2"><Chip s={s.status} /><SchemePayButton s={s} /></span>
         </div>
-        <div className="mt-3 h-3 rounded-full bg-black/5"><div className="h-3 rounded-full bg-[#D4A537]" style={{ width: `${pct}%` }} /></div>
+        <div className="mt-3 h-3 rounded-full bg-black/5"><div className="h-3 rounded-full bg-[var(--accent)]" style={{ width: `${pct}%` }} /></div>
         <p className="mt-2 text-xs font-bold">{s.installments_paid}/{s.total_installments} installments paid ({pct}%) · {remaining(s)} remaining</p>
         <div className="mt-4 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
           {[['Installment', inr(s.monthly_amount)], ['Plan', FREQ[s.frequency] || s.frequency], ['Started', shortDate(s.start_date)], ['Matures', shortDate(s.maturity_date)],
@@ -316,7 +353,7 @@ export function PortalSchemeDetail() {
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3" onMouseDown={(e) => { if (e.target === e.currentTarget) setReceipt(null) }}>
           <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white">
-            <div className="flex items-center justify-between bg-[#1C1C1C] px-4 py-3"><p className="text-xs font-black uppercase text-white">Receipt {open.receiptNumber}</p>
+            <div className="flex items-center justify-between bg-[var(--accent)] px-4 py-3"><p className="text-xs font-black uppercase text-white">Receipt {open.receiptNumber}</p>
               <span className="flex gap-2"><button type="button" onClick={() => printSheet('a4')} className="rounded-lg bg-white/15 px-3 py-1.5 text-[11px] font-black text-white">Print</button><button type="button" onClick={() => setReceipt(null)} className="rounded-lg bg-white/15 px-3 py-1.5 text-[11px] font-black text-white">Close</button></span></div>
             <SchemeReceiptSheet scheme={scheme} installment={open} totals={totalsAfterInstallment(scheme, insts, open)} />
           </div>
@@ -339,9 +376,19 @@ export function PortalPurchases() {
     return (!from || day >= from) && (!to || day <= to) && (!status || b.pay_status === status)
       && (!q || `${b.invoice_no} ${it.name} ${it.category || ''}`.toLowerCase().includes(q.toLowerCase()))
   })
+  const live = rows.filter(({ b }) => b.pay_status !== 'cancelled' && b.pay_status !== 'refunded')
+  const goldGrams = live.reduce((a, { it }) => a + (it.jewellery && /gold/i.test(it.jewellery.metal_type) ? Number(it.jewellery.net_weight || 0) * Number(it.quantity || 1) : 0), 0)
+  const silverGrams = live.reduce((a, { it }) => a + (it.jewellery && /silver/i.test(it.jewellery.metal_type) ? Number(it.jewellery.net_weight || 0) * Number(it.quantity || 1) : 0), 0)
+  const lastBill = (data?.bills || [])[0]
   return (
     <div>
-      <Title>My Purchases</Title>
+      <Title sub="Every piece you have bought from us, as billed.">My Purchases</Title>
+      <Tiles items={[
+        { icon: ShoppingBag, label: 'Pieces bought', value: live.reduce((a, { it }) => a + Number(it.quantity || 1), 0), hint: plural((data?.bills || []).filter((b) => b.pay_status !== 'cancelled').length, 'bill') },
+        { icon: Wallet, label: 'Total spent', value: inr(live.reduce((a, { it }) => a + Number(it.line_total || 0), 0)), hint: 'Not counting refunds' },
+        { icon: Gem, label: 'Gold bought', value: `${goldGrams.toFixed(3)} g`, hint: silverGrams > 0 ? `Silver ${silverGrams.toFixed(3)} g` : 'Net weight' },
+        { icon: CalendarClock, label: 'Last purchase', value: lastBill ? shortDate(lastBill.created_at) : '—', hint: lastBill ? formatInvoiceNo(lastBill.invoice_no) : 'No bills yet' },
+      ]} />
       <div className={`${card} mb-4 grid gap-3 sm:grid-cols-4`}>
         <input className="rounded-xl border border-black/15 px-3 py-2.5 text-sm" placeholder="Invoice / item / category" value={q} onChange={(e) => setQ(e.target.value)} />
         <input type="date" className="rounded-xl border border-black/15 px-3 py-2.5 text-sm" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -349,7 +396,7 @@ export function PortalPurchases() {
         <select className="rounded-xl border border-black/15 px-3 py-2.5 text-sm" value={status} onChange={(e) => setStatus(e.target.value)}><option value="">All payment statuses</option>{Object.entries(PAY_STATUS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
       </div>
       {visible.length === 0 ? <div className={card}><p className="text-sm text-black/60">No purchases match.</p></div> : (
-        <div className="space-y-3">
+        <div className="grid gap-3 xl:grid-cols-2">
           {visible.map(({ b, k, it }) => {
             const j = it.jewellery
             const stones = j ? describeStones(normalizeStoneDetails(j.stones)) || j.stone_summary : ''
@@ -381,9 +428,17 @@ export function PortalPurchases() {
 export function PortalBills() {
   const { data } = usePortal()
   if (!data) return null
+  const billed = data.bills.filter((b) => b.pay_status !== 'cancelled')
+  const due = billed.filter((b) => b.balance > 0)
   return (
     <div>
-      <Title>My Bills</Title>
+      <Title sub="Open any bill to see it, download the PDF or pay the balance by UPI.">My Bills</Title>
+      <Tiles items={[
+        { icon: FileText, label: 'Bills', value: billed.length, hint: data.bills.length > billed.length ? `${data.bills.length - billed.length} cancelled` : 'All your bills' },
+        { icon: Wallet, label: 'Total billed', value: inr(billed.reduce((a, b) => a + Number(b.total || 0), 0)) },
+        { icon: CheckCircle2, label: 'Paid', value: inr(billed.reduce((a, b) => a + Number(b.paid || 0), 0)), tone: 'green' },
+        { icon: AlertTriangle, label: 'Balance due', value: inr(due.reduce((a, b) => a + Number(b.balance || 0), 0)), hint: due.length ? `On ${plural(due.length, 'bill')}` : 'Nothing due', tone: due.length ? 'red' : 'green' },
+      ]} />
       {data.bills.length === 0 ? <div className={card}><p className="text-sm text-black/60">No bills yet.</p></div> : (
         <div className={`${card} overflow-x-auto p-0 sm:p-0`}>
           <table className="w-full min-w-[720px] text-left text-xs">
@@ -397,7 +452,7 @@ export function PortalBills() {
                   <td className={`p-3 font-black ${b.balance > 0 ? 'text-red-600' : ''}`}>{inr(b.balance)}</td>
                   <td className="p-3"><Chip s={b.pay_status} label={PAY_STATUS_LABELS[b.pay_status]} /></td>
                   <td className="p-3">{(b.payment_mode || '—').toUpperCase()}</td>
-                  <td className="p-3"><Link to={`/customer/bills/${b.id}`} className="rounded-lg bg-[#111111] px-3 py-1.5 text-[10px] font-black uppercase text-white">{b.balance > 0 ? 'View / Pay' : 'View'}</Link></td>
+                  <td className="p-3"><Link to={`/customer/bills/${b.id}`} className="rounded-lg bg-[var(--accent)] px-3 py-1.5 text-[10px] font-black uppercase text-white">{b.balance > 0 ? 'View / Pay' : 'View'}</Link></td>
                 </tr>
               ))}
             </tbody>
@@ -440,7 +495,7 @@ export function PortalBillDetail() {
           <span>Status <span className="block"><Chip s={s.pay_status} label={PAY_STATUS_LABELS[s.pay_status]} /></span></span>
         </div>
         <div className="flex flex-wrap gap-2">
-          {s.balance > 0 && s.pay_status !== 'cancelled' && <button type="button" disabled={busy} onClick={() => void pay()} className="flex items-center gap-2 rounded-xl bg-[#111111] px-4 py-2.5 text-xs font-black uppercase text-white disabled:opacity-50 cursor-pointer"><QrCode className="h-4 w-4" /> Pay Now</button>}
+          {s.balance > 0 && s.pay_status !== 'cancelled' && <button type="button" disabled={busy} onClick={() => void pay()} className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-xs font-black uppercase text-white disabled:opacity-50 cursor-pointer"><QrCode className="h-4 w-4" /> Pay Now</button>}
           <button type="button" disabled={busy} onClick={() => void pdf()} className="flex items-center gap-2 rounded-xl border border-black/15 bg-white px-4 py-2.5 text-xs font-black uppercase cursor-pointer"><Download className="h-4 w-4" /> PDF</button>
           <button type="button" onClick={() => printSheet('a4')} className="flex items-center gap-2 rounded-xl border border-black/15 bg-white px-4 py-2.5 text-xs font-black uppercase cursor-pointer"><Printer className="h-4 w-4" /> Print</button>
         </div>
@@ -479,7 +534,7 @@ function SchemePayButton({ s }: { s: PortalScheme }) {
   return (
     <>
       <button type="button" disabled={busy === s.id} onClick={() => void open(s.id, 'customer_scheme_payment_link', { p_scheme_id: s.id })}
-        className="flex items-center gap-2 rounded-xl bg-[#111111] px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-white disabled:opacity-50 cursor-pointer">
+        className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-white disabled:opacity-50 cursor-pointer">
         <QrCode className="h-4 w-4" /> Pay {inr(Number(s.next_amount ?? s.monthly_amount))} by UPI
       </button>
       {error && <span className="basis-full text-right text-[11px] font-bold text-red-700">{error}</span>}
@@ -502,17 +557,18 @@ export function PortalPayUpi() {
     ...advances.map((a) => ({ key: a.id, title: `Order ${a.product_name} — balance`, sub: `${a.deposit_id} • Paid ${inr(a.paid)} of ${inr(a.total_amount)}`,
       amount: a.balance, waiting: Boolean(a.pending_claim), go: () => void open(a.id, 'customer_advance_payment_link', { p_advance_id: a.id }) })),
   ]
+  const total = rows.filter((x) => !x.waiting).reduce((a, x) => a + x.amount, 0)
   return (
-    <div className="space-y-4">
-      <Title>Pay by UPI</Title>
-      <div className={`${card} text-xs`}>
-        <p className="font-black uppercase tracking-wider">How it works</p>
-        <ol className="mt-2 list-decimal space-y-1 pl-4">
-          <li>Tap <b>Scan &amp; Pay</b> next to what you want to pay.</li>
-          <li>Scan the shop's QR with Google Pay, PhonePe, Paytm or any UPI app (or tap Open My UPI App on your phone) and pay.</li>
-          <li>Tap <b>I've Paid</b> and add the UPI transaction ID. The shop confirms it after seeing the money in its account.</li>
-        </ol>
-      </div>
+    <div>
+      <Title sub="Scan the shop's QR from any UPI app. No card or bank details needed.">Pay by UPI</Title>
+      <Tiles items={[
+        { icon: Wallet, label: 'To pay now', value: inr(total), hint: plural(rows.filter((x) => !x.waiting).length, 'item'), tone: total > 0 ? 'red' : 'green' },
+        { icon: PiggyBank, label: 'Scheme installments', value: schemes.length, hint: schemes.length ? inr(schemes.reduce((a, s) => a + Number(s.next_amount ?? s.monthly_amount), 0)) : 'Nothing due' },
+        { icon: FileText, label: 'Bill balances', value: bills.length, hint: bills.length ? inr(bills.reduce((a, b) => a + b.balance, 0)) : 'All paid' },
+        { icon: Clock, label: 'Being checked', value: rows.filter((x) => x.waiting).length, hint: 'Payments the shop is confirming', tone: rows.some((x) => x.waiting) ? 'blue' : undefined },
+      ]} />
+      <div className="grid items-start gap-4 lg:grid-cols-3">
+      <div className="min-w-0 space-y-4 lg:col-span-2">
       {error && <p className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{error}</p>}
       {rows.length === 0 ? <div className={card}><p className="text-sm font-semibold text-black/60">Nothing to pay right now. Thank you!</p></div> : (
         <div className={`${card} divide-y divide-black/5 !py-1`}>
@@ -522,12 +578,28 @@ export function PortalPayUpi() {
               <div className="flex items-center gap-3">
                 <span className="text-base font-black">{inr(x.amount)}</span>
                 {x.waiting ? <Chip s="awaiting_verification" label="Awaiting Verification" />
-                  : <button type="button" disabled={busy === x.key} onClick={x.go} className="flex items-center gap-2 rounded-xl bg-[#111111] px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-white disabled:opacity-50 cursor-pointer"><QrCode className="h-4 w-4" /> {busy === x.key ? 'Opening…' : 'Scan & Pay'}</button>}
+                  : <button type="button" disabled={busy === x.key} onClick={x.go} className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-white disabled:opacity-50 cursor-pointer"><QrCode className="h-4 w-4" /> {busy === x.key ? 'Opening…' : 'Scan & Pay'}</button>}
               </div>
             </div>
           ))}
         </div>
       )}
+      </div>
+      <aside className="min-w-0 space-y-4">
+        <div className="rounded-2xl border border-black/10 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_16%,white),white_75%)] p-5 text-[#111111] shadow-sm">
+          <p className="flex items-center gap-2 text-[11px] font-black uppercase tracking-wider text-[var(--accent)]"><QrCode className="h-4 w-4" /> How it works</p>
+          <ol className="mt-3 space-y-3 text-xs">
+            {[['Tap Scan & Pay', 'next to what you want to pay.'], ['Scan the QR', 'with Google Pay, PhonePe, Paytm or any UPI app, or tap Open My UPI App on your phone.'], ["Tap I've Paid", 'and add the UPI transaction ID (UTR).']].map(([h, t], i) => (
+              <li key={h} className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-[11px] font-black text-white">{i + 1}</span><span><b>{h}</b> <span className="text-black/65">{t}</span></span></li>
+            ))}
+          </ol>
+        </div>
+        <div className={`${card} text-xs`}>
+          <p className="flex items-center gap-2 font-black"><ShieldCheck className="h-4 w-4 text-emerald-600" /> Safe and checked</p>
+          <p className="mt-1.5 text-black/65">The money goes straight to the shop's UPI account. Your bill or installment is marked paid after the shop sees it, usually the same day. You will get a notification.</p>
+        </div>
+      </aside>
+      </div>
     </div>
   )
 }
@@ -555,7 +627,7 @@ function AdvanceOrdersCard({ orders }: { orders: PortalAdvance[] }) {
               <p className="mt-1">Total <b>{inr(a.total_amount)}</b> • Paid <b>{inr(a.paid)}</b> • Balance <b className={a.balance > 0 ? 'text-red-600' : ''}>{inr(a.balance)}</b></p>
             </div>
             {a.pending_claim ? <Chip s="awaiting_verification" label="Awaiting UPI Verification" />
-              : a.balance > 0 ? <button type="button" disabled={busy === a.id} onClick={() => void pay(a.id)} className="flex items-center gap-2 rounded-xl bg-[#111111] px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-white disabled:opacity-50 cursor-pointer"><QrCode className="h-4 w-4" /> Pay Balance</button>
+              : a.balance > 0 ? <button type="button" disabled={busy === a.id} onClick={() => void pay(a.id)} className="flex items-center gap-2 rounded-xl bg-[var(--accent)] px-4 py-2.5 text-[11px] font-black uppercase tracking-wider text-white disabled:opacity-50 cursor-pointer"><QrCode className="h-4 w-4" /> Pay Balance</button>
               : <Chip s={a.status === 'cancelled' ? 'cancelled' : 'paid'} label={a.status === 'cancelled' ? 'Cancelled' : a.status === 'completed' ? 'Completed' : 'Paid'} />}
           </div>
         ))}
@@ -567,9 +639,17 @@ function AdvanceOrdersCard({ orders }: { orders: PortalAdvance[] }) {
 export function PortalPayments() {
   const { data } = usePortal()
   if (!data) return null
+  const ok = data.payments.filter((p) => p.status === 'verified')
+  const checking = data.payments.filter((p) => p.status === 'awaiting_verification')
   return (
     <div>
-      <Title>Payments</Title>
+      <Title sub="Every payment on your bills, schemes and orders.">Payments</Title>
+      <Tiles items={[
+        { icon: Wallet, label: 'Total paid', value: inr(ok.reduce((a, p) => a + Number(p.amount || 0), 0)), hint: plural(ok.length, 'payment'), tone: 'green' },
+        { icon: Clock, label: 'Being checked', value: checking.length ? inr(checking.reduce((a, p) => a + Number(p.amount || 0), 0)) : '—', hint: checking.length ? `${plural(checking.length, 'UPI payment')} at the shop` : 'Nothing waiting', tone: checking.length ? 'blue' : undefined },
+        { icon: QrCode, label: 'Paid by UPI', value: inr(ok.filter((p) => (p.method || '').toLowerCase() === 'upi').reduce((a, p) => a + Number(p.amount || 0), 0)) },
+        { icon: CalendarClock, label: 'Last payment', value: ok[0] ? shortDate(ok[0].date) : '—', hint: ok[0] ? inr(ok[0].amount) : 'No payments yet' },
+      ]} />
       {(data.advances || []).length > 0 && <AdvanceOrdersCard orders={data.advances} />}
       {data.payments.length === 0 ? <div className={card}><p className="text-sm text-black/60">No payments yet.</p></div> : (
         <div className={`${card} overflow-x-auto p-0 sm:p-0`}>
@@ -606,12 +686,18 @@ export function PortalNotifications() {
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-2xl font-black tracking-tight">Notifications</h1>
+        <div><h1 className="text-2xl font-black tracking-tight">Notifications</h1><p className="text-xs font-semibold text-black/55">Bills, payments, due dates and account changes.</p></div>
         <button type="button" onClick={() => void markAll()} className="flex items-center gap-1.5 rounded-xl border border-black/15 bg-white px-3 py-2 text-[11px] font-black uppercase cursor-pointer"><CheckCheck className="h-4 w-4" /> Mark all read</button>
       </div>
+      <Tiles items={[
+        { icon: Bell, label: 'Unread', value: notifications.filter((n) => !n.read_at).length, hint: `${notifications.length} in all` },
+        { icon: Wallet, label: 'Payment updates', value: notifications.filter((n) => /payment|scheme_paid/.test(n.kind)).length },
+        { icon: CalendarClock, label: 'Due reminders', value: notifications.filter((n) => /_due|_overdue/.test(n.kind)).length },
+        { icon: FileText, label: 'New bills', value: notifications.filter((n) => n.kind === 'bill').length },
+      ]} />
       <div className="mb-4 flex flex-wrap gap-1.5">
         {([['all', 'All'], ['upcoming', 'Upcoming payments'], ['today', 'Due today'], ['overdue', 'Overdue'], ['payments', 'Payments'], ['bills', 'Bills']] as const).map(([k, v]) => (
-          <button key={k} type="button" onClick={() => setTab(k)} className={`rounded-lg px-3 py-2 text-[11px] font-black uppercase cursor-pointer ${tab === k ? 'bg-[#111111] text-white' : 'border border-black/10 bg-white'}`}>{v}</button>
+          <button key={k} type="button" onClick={() => setTab(k)} className={`rounded-lg px-3 py-2 text-[11px] font-black uppercase cursor-pointer ${tab === k ? 'bg-[var(--accent)] text-white' : 'border border-black/10 bg-white'}`}>{v}</button>
         ))}
       </div>
       <div className="space-y-2">
@@ -619,7 +705,7 @@ export function PortalNotifications() {
           const Icon = NOTICE_ICON[n.kind] || Bell
           const href = link(n)
           return (
-            <div key={n.id} className={`${card} flex items-start gap-3 ${n.read_at ? 'opacity-70' : 'border-[#D4A537]/60'}`}>
+            <div key={n.id} className={`${card} flex items-start gap-3 ${n.read_at ? 'opacity-70' : 'border-[var(--accent)]/60'}`}>
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-black/5"><Icon className="h-4 w-4" /></span>
               <div className="min-w-0 flex-1">
                 <p className={`text-sm ${n.read_at ? 'font-semibold' : 'font-black'}`}>{n.title}</p><p className="text-xs text-black/70">{n.body}</p>
@@ -679,7 +765,7 @@ function VerifyWithCode({ kind, initial, onDone, onCancel }: { kind: 'email' | '
       )}
       {error && <p className="text-xs font-bold text-red-700">{error}</p>}
       <div className="flex gap-2">
-        <button type="button" disabled={busy || (sent ? code.length !== 6 : !clean)} onClick={() => void (sent ? confirm() : send())} className="rounded-lg bg-[#111111] px-4 py-2 text-[11px] font-black uppercase text-white disabled:opacity-50 cursor-pointer">{busy ? 'Please wait…' : sent ? 'Confirm' : 'Send Code'}</button>
+        <button type="button" disabled={busy || (sent ? code.length !== 6 : !clean)} onClick={() => void (sent ? confirm() : send())} className="rounded-lg bg-[var(--accent)] px-4 py-2 text-[11px] font-black uppercase text-white disabled:opacity-50 cursor-pointer">{busy ? 'Please wait…' : sent ? 'Confirm' : 'Send Code'}</button>
         <button type="button" onClick={onCancel} className="rounded-lg border border-black/15 px-4 py-2 text-[11px] font-black uppercase cursor-pointer">Cancel</button>
       </div>
     </div>
@@ -707,13 +793,13 @@ function ChangePassword({ hasPassword, phone, onDone, onCancel }: { hasPassword:
     <form onSubmit={save} className="mt-2 space-y-2 rounded-xl border border-black/10 bg-[#FAFAF7] p-3">
       {/* The mobile number, hidden, so the browser saves the new password for it instead of keeping the old one. */}
       <input type="text" name="username" autoComplete="username" value={phone.replace(/\D/g, '').slice(-10)} readOnly tabIndex={-1} aria-hidden="true" className="sr-only" />
-      {hasPassword && <input aria-label="Current password" type="password" autoComplete="current-password" placeholder="Current password" className={inputCls} value={current} onChange={(e) => setCurrent(e.target.value)} />}
-      <input aria-label="New password" type="password" autoComplete="new-password" placeholder="New password" className={inputCls} value={next} onChange={(e) => setNext(e.target.value)} />
-      <input aria-label="New password again" type="password" autoComplete="new-password" placeholder="New password again" className={inputCls} value={again} onChange={(e) => setAgain(e.target.value)} />
+      {hasPassword && <input aria-label="Current password" type="password" autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="current-password" placeholder="Current password" className={inputCls} value={current} onChange={(e) => setCurrent(e.target.value)} />}
+      <input aria-label="New password" type="password" autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="new-password" placeholder="New password" className={inputCls} value={next} onChange={(e) => setNext(e.target.value)} />
+      <input aria-label="New password again" type="password" autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete="new-password" placeholder="New password again" className={inputCls} value={again} onChange={(e) => setAgain(e.target.value)} />
       <p className="text-[11px] text-black/60">At least 8 characters. Not your mobile number.</p>
       {error && <p className="text-xs font-bold text-red-700">{error}</p>}
       <div className="flex gap-2">
-        <button disabled={busy} className="rounded-lg bg-[#111111] px-4 py-2 text-[11px] font-black uppercase text-white disabled:opacity-50 cursor-pointer">{busy ? 'Please wait…' : 'Save Password'}</button>
+        <button disabled={busy} className="rounded-lg bg-[var(--accent)] px-4 py-2 text-[11px] font-black uppercase text-white disabled:opacity-50 cursor-pointer">{busy ? 'Please wait…' : 'Save Password'}</button>
         <button type="button" onClick={onCancel} className="rounded-lg border border-black/15 px-4 py-2 text-[11px] font-black uppercase cursor-pointer">Cancel</button>
       </div>
     </form>
@@ -723,7 +809,7 @@ function ChangePassword({ hasPassword, phone, onDone, onCancel }: { hasPassword:
 function Switch({ on, disabled, label, onChange }: { on: boolean; disabled?: boolean; label: string; onChange: (v: boolean) => void }) {
   return (
     <button type="button" role="switch" aria-checked={on} aria-label={label} disabled={disabled} onClick={() => onChange(!on)}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 cursor-pointer ${on ? 'bg-[#111111]' : 'bg-black/20'}`}>
+      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 cursor-pointer ${on ? 'bg-[var(--accent)]' : 'bg-black/20'}`}>
       <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${on ? 'left-[22px]' : 'left-0.5'}`} />
     </button>
   )
@@ -763,59 +849,130 @@ export function PortalProfile() {
     } catch (err) { fail(err, 'Could not change alerts.') } finally { setPushBusy(false) }
   }
   const link = 'text-[11px] font-black underline cursor-pointer'
+  const billed = data.bills.filter((x) => x.pay_status !== 'cancelled')
+  const kept = data.schemes.filter((x) => ['active', 'matured', 'completed'].includes(x.status))
+  const due = billed.reduce((t, x) => t + Number(x.balance || 0), 0) + (data.advances || []).reduce((t, x) => t + Number(x.balance || 0), 0)
+  const lastPay = data.payments.find((x) => x.status === 'verified')
+  const initials = (c.name || 'C').split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]?.toUpperCase()).join('')
+  const row = (Icon: LucideIcon, label: string, value: ReactNode, action?: ReactNode, badge?: ReactNode) => (
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <span className="flex min-w-0 items-center gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black/[0.04]"><Icon className="h-4 w-4 text-black/60" /></span>
+        <span className="min-w-0"><span className="block text-[10px] font-black uppercase tracking-wider text-black/50">{label}</span><span className="flex flex-wrap items-center gap-2"><b className="break-all text-sm">{value}</b>{badge}</span></span>
+      </span>
+      {action}
+    </div>
+  )
   return (
-    <div className="max-w-xl space-y-4">
-      <Title>Profile</Title>
-      {msg && <p role="status" className={`rounded-xl border px-3 py-2 text-xs font-bold ${msg.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>{msg.text}</p>}
-      <div className={`${card} space-y-4`}>
-        <div className="grid grid-cols-2 gap-3 text-xs">
-          <span>Name <b className="block text-sm">{c.name || '—'}</b></span><span>Customer ID <b className="block text-sm">{c.code.toUpperCase()}</b></span>
-          <span className="col-span-2">Customer since <b className="block text-sm">{shortDate(c.created_at)}</b></span>
-        </div>
-        <div>
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-            <span className="flex min-w-0 items-center gap-2"><Phone className="h-4 w-4 shrink-0 text-black/50" /><span>Mobile (login) <b className="block text-sm">+{c.phone}</b></span></span>
-            {editing !== 'phone' && <button type="button" onClick={() => setEditing('phone')} className={link}>Change</button>}
+    <div>
+      <Title sub="Your details with the shop, how you log in and how we reach you.">Profile</Title>
+      {msg && <p role="status" className={`mb-4 rounded-xl border px-3 py-2 text-xs font-bold ${msg.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>{msg.text}</p>}
+      <div className="grid items-start gap-4 lg:grid-cols-3">
+        {/* Who you are with the shop */}
+        <aside className="min-w-0 space-y-4">
+          <div className="relative overflow-hidden rounded-3xl border border-black/10 bg-[linear-gradient(135deg,color-mix(in_srgb,var(--accent)_16%,white),white_75%)] p-5 text-[#111111] shadow-sm">
+            <div className="pointer-events-none absolute -right-12 -top-16 h-48 w-48 rounded-full bg-[var(--accent)] opacity-[0.12] blur-3xl" />
+            <div className="relative flex items-center gap-4">
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-[var(--accent)] text-xl font-black text-white">{initials}</span>
+              <div className="min-w-0">
+                <p className="truncate text-xl font-black">{c.name || 'Customer'}</p>
+                <p className="text-xs font-semibold text-black/60">Customer ID {c.code.toUpperCase()}</p>
+                <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-[color-mix(in_srgb,var(--accent)_12%,white)] px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-[var(--accent)]"><Sparkles className="h-3 w-3" /> With us since {new Date(c.created_at).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}</p>
+              </div>
+            </div>
+            <div className="relative mt-5 grid grid-cols-2 gap-3 text-xs">
+              {[['Bills', String(billed.length)], ['Total purchases', inr(billed.reduce((t, x) => t + Number(x.total || 0), 0))],
+                ['Schemes', String(data.schemes.length)], ['Saved in schemes', inr(kept.reduce((t, x) => t + Number(x.total_paid || 0) - Number(x.amount_redeemed || 0), 0))],
+                ['Gold saved', `${kept.reduce((t, x) => t + Number(x.total_grams || 0), 0).toFixed(3)} g`], ['Balance due', inr(due)],
+              ].map(([k, v]) => (
+                <div key={k} className="rounded-xl border border-black/5 bg-white/80 p-2.5"><p className="text-[10px] font-bold uppercase tracking-wider text-black/50">{k}</p><p className={`mt-0.5 truncate text-sm font-black ${k === 'Balance due' && due > 0 ? 'text-[var(--accent)]' : ''}`}>{v}</p></div>
+              ))}
+            </div>
           </div>
-          {editing === 'phone' && <VerifyWithCode kind="phone" initial="" onDone={(t) => void done(t)} onCancel={() => setEditing('')} />}
-        </div>
-        <div>
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-            <span className="flex min-w-0 items-center gap-2"><Mail className="h-4 w-4 shrink-0 text-black/50" /><span className="min-w-0">Email <b className="block break-all text-sm">{c.email || 'Not added'}</b></span>
-              {c.email && (c.email_verified
-                ? <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700"><CheckCircle2 className="h-3 w-3" /> Verified</span>
-                : <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-800">Not verified</span>)}
-            </span>
-            {editing !== 'email' && <span className="flex gap-3">
-              {c.email && !c.email_verified && <button type="button" onClick={() => setEditing('email')} className={link}>Verify</button>}
-              <button type="button" onClick={() => setEditing('email')} className={link}>{c.email ? 'Change' : 'Add'}</button>
-            </span>}
+          <div className={`${card} space-y-2 text-xs`}>
+            <p className="text-[10px] font-black uppercase tracking-wider text-black/50">Account</p>
+            {[['Customer since', shortDate(c.created_at)], ['Last purchase', data.bills[0] ? `${shortDate(data.bills[0].created_at)} · ${formatInvoiceNo(data.bills[0].invoice_no)}` : '—'],
+              ['Last payment', lastPay ? `${shortDate(lastPay.date)} · ${inr(lastPay.amount)}` : '—'], ['Advance orders', String((data.advances || []).length)],
+              ['Unread updates', String(data.unread || 0)]].map(([k, v]) => (
+              <div key={k} className="flex items-center justify-between gap-3 border-b border-black/5 pb-2 last:border-0 last:pb-0"><span className="text-black/55">{k}</span><b className="truncate text-right">{v}</b></div>
+            ))}
           </div>
-          {editing === 'email' && <VerifyWithCode kind="email" initial={c.email_verified ? '' : c.email} onDone={(t) => void done(t)} onCancel={() => setEditing('')} />}
-          <p className="mt-1 text-[11px] text-black/60">Magic Link login sends its link to this email.</p>
-        </div>
-        <div>
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-            <span className="flex min-w-0 items-center gap-2"><Lock className="h-4 w-4 shrink-0 text-black/50" /><span>Password <b className="block text-sm">{c.has_password ? 'Set' : 'Not set'}</b></span></span>
-            {editing !== 'password' && <button type="button" onClick={() => setEditing('password')} className={link}>{c.has_password ? 'Change Password' : 'Set Password'}</button>}
+        </aside>
+
+        <div className="min-w-0 space-y-4 lg:col-span-2">
+          {/* Contact and login */}
+          <section className={`${card} space-y-4`}>
+            <h2 className="flex items-center gap-2 text-[13px] font-black uppercase tracking-wider"><UserRound className="h-4 w-4" /> Contact and login</h2>
+            <div className="grid gap-4 md:grid-cols-2">
+              {row(UserRound, 'Name', c.name || '—', <span className="text-[10px] font-semibold text-black/45">Ask the shop to change</span>)}
+              <div>
+                {row(Phone, 'Mobile (login)', `+${c.phone}`, editing !== 'phone' ? <button type="button" onClick={() => setEditing('phone')} className={link}>Change</button> : null)}
+                {editing === 'phone' && <VerifyWithCode kind="phone" initial="" onDone={(t) => void done(t)} onCancel={() => setEditing('')} />}
+              </div>
+              <div>
+                {row(Mail, 'Email', c.email || 'Not added',
+                  editing !== 'email' ? <span className="flex gap-3">
+                    {c.email && !c.email_verified && <button type="button" onClick={() => setEditing('email')} className={link}>Verify</button>}
+                    <button type="button" onClick={() => setEditing('email')} className={link}>{c.email ? 'Change' : 'Add'}</button>
+                  </span> : null,
+                  c.email ? (c.email_verified
+                    ? <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-black text-emerald-700"><CheckCircle2 className="h-3 w-3" /> Verified</span>
+                    : <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-800">Not verified</span>) : null)}
+                {editing === 'email' && <VerifyWithCode kind="email" initial={c.email_verified ? '' : c.email} onDone={(t) => void done(t)} onCancel={() => setEditing('')} />}
+              </div>
+              <div>
+                {row(Lock, 'Password', c.has_password ? 'Set' : 'Not set', editing !== 'password' ? <button type="button" onClick={() => setEditing('password')} className={link}>{c.has_password ? 'Change' : 'Set'}</button> : null)}
+                {editing === 'password' && <ChangePassword hasPassword={c.has_password} phone={c.phone} onDone={(t) => void done(t)} onCancel={() => setEditing('')} />}
+              </div>
+            </div>
+          </section>
+
+          <div className="grid items-start gap-4 md:grid-cols-2">
+            {/* Address */}
+            <form onSubmit={save} className={`${card} space-y-3`}>
+              <h2 className="flex items-center gap-2 text-[13px] font-black uppercase tracking-wider"><MapPin className="h-4 w-4" /> Address</h2>
+              <textarea aria-label="Address" rows={4} className={inputCls} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="House, street, area, city, PIN" />
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] text-black/55">Used on your bills and for delivery.</p>
+                <button className="rounded-xl bg-[var(--accent)] px-5 py-2.5 text-xs font-black uppercase text-white cursor-pointer">Save</button>
+              </div>
+            </form>
+
+            {/* Reminders */}
+            <section className={`${card} space-y-4`}>
+              <h2 className="flex items-center gap-2 text-[13px] font-black uppercase tracking-wider"><BellRing className="h-4 w-4" /> Reminders and alerts</h2>
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span><b className="block text-sm">WhatsApp / SMS reminders</b><span className="text-black/60">Due dates for your schemes and bills.</span></span>
+                <Switch label="WhatsApp and SMS reminders" on={c.reminders_on} onChange={(v) => void setReminders(v)} />
+              </div>
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <span><b className="block text-sm">Alerts on this device</b><span className="text-black/60">{pushSupported() ? 'Bills, payments and due dates, even when this page is closed.' : 'Not available in this browser. On iPhone, add this site to your Home Screen first.'}</span></span>
+                <Switch label="Alerts on this device" on={push} disabled={pushBusy || !pushSupported()} onChange={(v) => void setAlerts(v)} />
+              </div>
+            </section>
           </div>
-          {editing === 'password' && <ChangePassword hasPassword={c.has_password} phone={c.phone} onDone={(t) => void done(t)} onCancel={() => setEditing('')} />}
-        </div>
-      </div>
-      <form onSubmit={save} className={`${card} space-y-3`}>
-        <label className="block"><span className="mb-1 block text-[10px] font-black uppercase text-black/60">Address</span><textarea rows={3} className={inputCls} value={address} onChange={(e) => setAddress(e.target.value)} /></label>
-        <p className="text-[11px] text-black/60">To change your name, please ask the shop.</p>
-        <button className="rounded-xl bg-[#111111] px-5 py-2.5 text-xs font-black uppercase text-white cursor-pointer">Save</button>
-      </form>
-      <div className={`${card} space-y-4`}>
-        <h2 className="flex items-center gap-2 text-sm font-black"><BellRing className="h-4 w-4" /> Reminders and Alerts</h2>
-        <div className="flex items-center justify-between gap-3 text-xs">
-          <span><b className="block text-sm">WhatsApp / SMS reminders</b>Due dates for your schemes and bills.</span>
-          <Switch label="WhatsApp and SMS reminders" on={c.reminders_on} onChange={(v) => void setReminders(v)} />
-        </div>
-        <div className="flex items-center justify-between gap-3 text-xs">
-          <span><b className="block text-sm">Alerts on this device</b>{pushSupported() ? 'Bills, payments and due dates, even when this page is closed.' : 'Not available in this browser. On iPhone, add this site to your Home Screen first.'}</span>
-          <Switch label="Alerts on this device" on={push} disabled={pushBusy || !pushSupported()} onChange={(v) => void setAlerts(v)} />
+
+          {/* Recent activity: bills and payments together, newest first */}
+          <section className={card}>
+            <SectionHead title="Recent activity" to="/customer/payments" label="All payments" />
+            {(() => {
+              const acts = [
+                ...data.bills.map((x) => ({ key: `b${x.id}`, date: x.created_at, icon: FileText, title: `Bill ${formatInvoiceNo(x.invoice_no)}`, sub: `${x.items?.length || 0} item${x.items?.length === 1 ? '' : 's'}`, amount: x.total, tone: '' , to: `/customer/bills/${x.id}` })),
+                ...data.payments.map((x, i) => ({ key: `p${i}`, date: x.date, icon: CreditCard, title: `Paid · ${x.kind === 'scheme' ? `Scheme ${x.invoice_no}` : formatInvoiceNo(x.invoice_no)}`, sub: `${(x.method || '').toUpperCase()}${x.status !== 'verified' ? ` · ${PAYMENT_STATUS_LABELS[x.status] || x.status}` : ''}`, amount: x.amount, tone: 'text-emerald-700', to: '/customer/payments' })),
+              ].sort((x, y) => String(y.date).localeCompare(String(x.date))).slice(0, 6)
+              return acts.length === 0 ? <Empty>No activity yet.</Empty> : (
+                <div className="grid gap-x-6 md:grid-cols-2">
+                  {acts.map((x) => (
+                    <Link key={x.key} to={x.to} className="flex items-center gap-3 border-b border-black/5 py-2.5 hover:bg-black/[0.02]">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-black/[0.04]"><x.icon className="h-4 w-4" /></span>
+                      <span className="min-w-0 flex-1"><span className="block truncate text-[13px] font-bold">{x.title}</span><span className="block truncate text-[10px] font-semibold text-black/50">{shortDate(x.date)} · {x.sub}</span></span>
+                      <b className={`text-[13px] ${x.tone}`}>{inr(x.amount)}</b>
+                    </Link>
+                  ))}
+                </div>
+              )
+            })()}
+          </section>
         </div>
       </div>
     </div>

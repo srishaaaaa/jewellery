@@ -36,11 +36,11 @@ export default function PortalMagicLink() {
         <p className="mb-5 text-xs font-semibold text-black/60">Customer portal — your schemes, bills and payments</p>
         {error && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700">{error}</p>}
         {token && !error && (
-          <button type="button" disabled={busy} onClick={() => void logIn()} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#111111] py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50 cursor-pointer">
+          <button type="button" disabled={busy} onClick={() => void logIn()} className="flex w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50 cursor-pointer">
             <Mail className="h-4 w-4" /> {busy ? 'Logging in…' : 'Log Me In'}
           </button>
         )}
-        {error && <Link to="/customer/login" className="block rounded-xl bg-[#111111] py-3 text-xs font-black uppercase tracking-wider text-white">Back to Login</Link>}
+        {error && <Link to="/customer/login" className="block rounded-xl bg-[var(--accent)] py-3 text-xs font-black uppercase tracking-wider text-white">Back to Login</Link>}
       </div>
     </div>
   )

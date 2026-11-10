@@ -6,8 +6,8 @@ import { BRAND_EN, BRAND_LOGO } from '../../lib/brand'
 import { supabase } from '../../lib/supabase'
 import { changePasswordWithToken, passwordLogin, readPortalSession, requestEmailOtp, requestOtp, resetPassword, savePortalSession, verifyOtp, type PortalSession } from '../../lib/customerPortal'
 
-const field = 'w-full rounded-xl border border-black/15 bg-white py-3 pl-11 pr-3 text-base font-semibold outline-none focus:border-[#111111]'
-const primary = 'w-full rounded-xl bg-[#111111] py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50 cursor-pointer'
+const field = 'w-full rounded-xl border border-black/15 bg-white py-3 pl-11 pr-3 text-base font-semibold outline-none focus:border-[var(--accent)]'
+const primary = 'w-full rounded-xl bg-[var(--accent)] py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50 cursor-pointer'
 const fieldLabel = 'mb-1.5 block text-[10px] font-black uppercase tracking-wider text-black/60'
 const icon = 'absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-black/40'
 const PASSWORD_RULE = 'At least 8 characters. Not your mobile number.'
@@ -28,7 +28,7 @@ function PasswordField({ label, value, onChange, show, onToggle, autoComplete, a
     <label className="block">
       <span className={fieldLabel}>{label}</span>
       <span className="relative block"><Lock className={icon} />
-        <input type={show ? 'text' : 'password'} autoComplete={autoComplete} autoFocus={autoFocus} className={`${field} pr-11`} value={value} onChange={(e) => onChange(e.target.value)} />
+        <input type={show ? 'text' : 'password'} autoCapitalize="none" autoCorrect="off" spellCheck={false} autoComplete={autoComplete} autoFocus={autoFocus} className={`${field} pr-11`} value={value} onChange={(e) => onChange(e.target.value)} />
         <button type="button" onClick={onToggle} aria-label={show ? 'Hide password' : 'Show password'} className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center text-black/50 cursor-pointer">
           {show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </button>
@@ -284,7 +284,7 @@ export default function PortalLogin() {
         {step === 'register' && (
           <form onSubmit={register} className="space-y-4">
             <p className="text-xs font-semibold">+91 {digits} is not registered with the shop yet. Leave your name and the shop will add you, or ask at the counter.</p>
-            <input className="w-full rounded-xl border border-black/15 px-3 py-3 text-sm font-semibold outline-none focus:border-[#111111]" placeholder="Your name" value={regName} onChange={(e) => setRegName(e.target.value)} />
+            <input className="w-full rounded-xl border border-black/15 px-3 py-3 text-sm font-semibold outline-none focus:border-[var(--accent)]" placeholder="Your name" value={regName} onChange={(e) => setRegName(e.target.value)} />
             <button disabled={busy} className={primary}>Ask the shop to register me</button>
             <button type="button" onClick={() => goTo('start')} className="w-full text-[11px] font-bold text-black/60 underline cursor-pointer">Back</button>
           </form>

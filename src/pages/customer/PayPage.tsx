@@ -122,10 +122,10 @@ export default function PayPage() {
                   : <label className="block text-xs font-bold">Amount paid<input type="number" min="1" step="0.01" max={info.amount} className="mt-1 w-full rounded-xl border border-black/15 px-3 py-2.5 text-sm" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder={String(info.amount || '')} /></label>}
                 <label className="block text-xs font-bold">Paid at (optional)<input type="datetime-local" className="mt-1 w-full rounded-xl border border-black/15 px-3 py-2.5 text-sm" value={paidAt} onChange={(e) => setPaidAt(e.target.value)} /></label>
                 <label className="block text-xs font-bold">Payment screenshot (optional)<input type="file" accept="image/png,image/jpeg,image/webp,application/pdf" className="mt-1 block w-full text-xs" onChange={(e) => setFile(e.target.files?.[0] || null)} /></label>
-                <button disabled={busy} className="w-full rounded-xl bg-[#111111] py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50">{busy ? 'Sending…' : 'Send to the shop'}</button>
+                <button disabled={busy} className="w-full rounded-xl bg-[var(--accent)] py-3 text-xs font-black uppercase tracking-wider text-white disabled:opacity-50">{busy ? 'Sending…' : 'Send to the shop'}</button>
               </form>
             ) : (
-              <button type="button" onClick={() => setClaimOpen(true)} className="w-full rounded-xl border-2 border-[#111111] bg-white py-3 text-xs font-black uppercase tracking-wider cursor-pointer">I've Paid</button>
+              <button type="button" onClick={() => setClaimOpen(true)} className="w-full rounded-xl border-2 border-[var(--accent)] bg-white py-3 text-xs font-black uppercase tracking-wider cursor-pointer">I've Paid</button>
             )}
           </>
         )}
