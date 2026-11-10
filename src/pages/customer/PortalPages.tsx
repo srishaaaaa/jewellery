@@ -561,7 +561,7 @@ function VerifyWithCode({ kind, initial, onDone, onCancel }: { kind: 'email' | '
 }
 
 /** Set a first password (customers who came in by code) or change the current one. */
-function ChangePassword({ hasPassword, onDone, onCancel }: { hasPassword: boolean; onDone: (text: string) => void; onCancel: () => void }) {
+function ChangePassword({ hasPassword, phone, onDone, onCancel }: { hasPassword: boolean; phone: string; onDone: (text: string) => void; onCancel: () => void }) {
   const [current, setCurrent] = useState('')
   const [next, setNext] = useState('')
   const [again, setAgain] = useState('')
@@ -579,6 +579,8 @@ function ChangePassword({ hasPassword, onDone, onCancel }: { hasPassword: boolea
   }
   return (
     <form onSubmit={save} className="mt-2 space-y-2 rounded-xl border border-black/10 bg-[#FAFAF7] p-3">
+      {/* The mobile number, hidden, so the browser saves the new password for it instead of keeping the old one. */}
+      <input type="text" name="username" autoComplete="username" value={phone.replace(/\D/g, '').slice(-10)} readOnly tabIndex={-1} aria-hidden="true" className="sr-only" />
       {hasPassword && <input aria-label="Current password" type="password" autoComplete="current-password" placeholder="Current password" className={inputCls} value={current} onChange={(e) => setCurrent(e.target.value)} />}
       <input aria-label="New password" type="password" autoComplete="new-password" placeholder="New password" className={inputCls} value={next} onChange={(e) => setNext(e.target.value)} />
       <input aria-label="New password again" type="password" autoComplete="new-password" placeholder="New password again" className={inputCls} value={again} onChange={(e) => setAgain(e.target.value)} />
@@ -671,7 +673,7 @@ export function PortalProfile() {
             <span className="flex min-w-0 items-center gap-2"><Lock className="h-4 w-4 shrink-0 text-black/50" /><span>Password <b className="block text-sm">{c.has_password ? 'Set' : 'Not set'}</b></span></span>
             {editing !== 'password' && <button type="button" onClick={() => setEditing('password')} className={link}>{c.has_password ? 'Change Password' : 'Set Password'}</button>}
           </div>
-          {editing === 'password' && <ChangePassword hasPassword={c.has_password} onDone={(t) => void done(t)} onCancel={() => setEditing('')} />}
+          {editing === 'password' && <ChangePassword hasPassword={c.has_password} phone={c.phone} onDone={(t) => void done(t)} onCancel={() => setEditing('')} />}
         </div>
       </div>
       <form onSubmit={save} className={`${card} space-y-3`}>

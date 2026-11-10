@@ -17,6 +17,12 @@ const errText = (err: unknown, fallback: string) => (err instanceof Error ? err.
 const isEmail = (s: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(s.trim())
 const mobile10 = (s: string) => s.replace(/\D/g, '').slice(-10)
 
+/** Hidden mobile number on "new password" forms, so the browser saves the new password for this number
+ *  instead of keeping (and later filling in) the old one. */
+function AccountHint({ login }: { login: string }) {
+  return <input type="text" name="username" autoComplete="username" value={login} readOnly tabIndex={-1} aria-hidden="true" className="sr-only" />
+}
+
 function PasswordField({ label, value, onChange, show, onToggle, autoComplete, autoFocus }: { label: string; value: string; onChange: (v: string) => void; show: boolean; onToggle: () => void; autoComplete: string; autoFocus?: boolean }) {
   return (
     <label className="block">
@@ -255,6 +261,7 @@ export default function PortalLogin() {
               <span className="relative block"><KeyRound className={icon} />
                 <input inputMode="numeric" autoComplete="one-time-code" maxLength={6} className={`${field} tracking-[0.4em]`} placeholder="••••••" value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} autoFocus /></span>
             </label>
+            <AccountHint login={login.trim()} />
             <PasswordField label="New password" value={newPassword} onChange={setNewPassword} show={show} onToggle={() => setShow(!show)} autoComplete="new-password" />
             <PasswordField label="New password again" value={confirm} onChange={setConfirm} show={show} onToggle={() => setShow(!show)} autoComplete="new-password" />
             <p className="text-[11px] font-semibold text-black/60">{PASSWORD_RULE}</p>
@@ -267,6 +274,7 @@ export default function PortalLogin() {
         )}
         {step === 'set_new' && (
           <form onSubmit={replaceStarting} className="space-y-4">
+            <AccountHint login={login.trim()} />
             <PasswordField label="New password" value={newPassword} onChange={setNewPassword} show={show} onToggle={() => setShow(!show)} autoComplete="new-password" autoFocus />
             <PasswordField label="New password again" value={confirm} onChange={setConfirm} show={show} onToggle={() => setShow(!show)} autoComplete="new-password" />
             <p className="text-[11px] font-semibold text-black/60">{PASSWORD_RULE}</p>
