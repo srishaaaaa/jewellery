@@ -10,7 +10,7 @@ import {
   Search, Trash2, Plus, Receipt, Printer,
   ShoppingBag, MessageCircle,
   X, ChevronDown, Power, Calculator, Check, Clock, Loader2, ArrowLeft, Copy,
-  Gem,
+  Gem, SlidersHorizontal, UserRound,
 } from 'lucide-react'
 import { toolbarBtn, toolbarBtnDark } from '../components/invoice/invoiceStyle'
 import { PrintSettingsModal } from '../components/invoice/PrintSettingsModal'
@@ -141,6 +141,9 @@ type InvoiceSnap = {
 }
 
 type MixedPart = { method: CounterPaymentMethod; amount: string }
+/** One look for every field on the billing panel. */
+const posLabel = 'mb-1.5 block text-[10px] font-black uppercase tracking-[0.14em] text-[#000000]/70'
+const posField = 'h-10 w-full min-w-0 rounded-lg border border-black/10 bg-white px-3 text-sm font-semibold text-[#000000] shadow-sm transition-colors placeholder:font-normal placeholder:text-black/35 hover:border-black/20 focus:border-[var(--accent)] focus:outline-none'
 const PAYMENT_BUTTON_LABELS: Record<string, string> = { cash: 'Cash', qr: 'UPI', card: 'Card', bank: 'Bank', cheque: 'Cheque', split: 'Mixed' }
 const EMPTY_OLD_GOLD = { description: '', metalType: 'gold', purity: '22K', testedPurity: '', grossWeight: '', stoneWeight: '', meltingDeduction: '', exchangeRate: '', otherDeduction: '' }
 
@@ -366,6 +369,8 @@ export default function Pos(props: PosProps = {}) {
   const [customer, setCustomer] = useState({ name: '', phone: '', address: '', email: '' })
   const [customerBirthday, setCustomerBirthday] = useState('')
   const [customerAnniversary, setCustomerAnniversary] = useState('')
+  // The rarely used customer fields stay folded away until opened (or until something in them is filled)
+  const [moreDetailsOpen, setMoreDetailsOpen] = useState(false)
 
   // Look up a previously-saved customer by phone so returning customers
   // don't need to re-enter their name/address/birthday/anniversary.
@@ -1280,6 +1285,11 @@ export default function Pos(props: PosProps = {}) {
     setCouponError('')
   }
 
+  // "More details" in the customer card: how many of its fields are filled, and whether PAN is needed
+  const extraFilled = [customerBirthday, customerAnniversary, customer.email, billingDate, referenceNumber, remarks, customerGstin, customerAadhaar, customerPan].filter((v) => String(v || '').trim()).length
+  const needsPan = total >= 200000 && !customerPan && !customerAadhaar
+  const showMoreDetails = moreDetailsOpen || needsPan
+
   const getOrderType = (): 'pos_sale' | 'manual_sale' => (billItems.length > 0 && billItems.every((item) => item.source === 'manual') ? 'manual_sale' : 'pos_sale')
 
   const openDepositOrder = () => {
@@ -1953,152 +1963,117 @@ export default function Pos(props: PosProps = {}) {
       </div>
 
       {/* Main Content Split */}
-      <div className="flex flex-col lg:flex-row gap-8 pb-6 lg:h-[calc(100dvh-120px)] lg:overflow-hidden">
+      <div className="flex flex-col gap-5 pb-6 lg:h-[calc(100dvh-120px)] lg:flex-row lg:overflow-hidden">
 
         {/* LEFT COLUMN (approx 68%) */}
-        <div className="w-full lg:w-[60%] xl:w-[65%] flex flex-col gap-6 lg:overflow-y-auto lg:pb-4 hide-scrollbar">
+        <div className="flex w-full min-w-0 flex-col gap-5 lg:w-[62%] lg:overflow-y-auto lg:pb-4 hide-scrollbar xl:w-[66%]">
 
           {/* Customer Details Card */}
-          <div className="flex-shrink-0 bg-white border border-black/10 rounded-xl shadow-sm hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-all duration-300 p-4 sm:p-6">
-            <h3 className="text-base font-black flex items-center gap-3 text-[#000000] mb-6 tracking-tight">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--accent)]"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-              Customer Details
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-6">
-              <div>
-                <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Customer Name</label>
+          <div className="flex-shrink-0 rounded-2xl border border-black/10 bg-white p-4 shadow-sm sm:p-5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+              <h3 className="flex items-center gap-2.5 text-[15px] font-black tracking-tight text-[#000000]">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent-a10)] text-[var(--accent)]"><UserRound className="h-4 w-4" /></span>
+                Customer
+              </h3>
+              <p className="text-[11px] font-semibold text-black/50">Type the mobile number first: a returning customer's details fill in.</p>
+            </div>
+            <div className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[1fr_1fr_1.4fr]">
+              <label className="block min-w-0">
+                <span className={posLabel}>Mobile (WhatsApp) *</span>
                 <input
-                  type="text"
-                  value={customer.name}
-                  onChange={e => setCustomer({...customer, name: e.target.value})}
-                  placeholder="Enter name"
-                  className="w-full bg-white border border-black/10 hover:border-black/10 focus:border-[var(--accent)] focus:bg-white rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Mobile Number (WhatsApp)</label>
-                <input
-                  type="text"
+                  type="text" inputMode="tel"
                   value={customer.phone}
                   onChange={e => setCustomer({...customer, phone: e.target.value})}
                   onBlur={() => void handlePhoneLookup()}
-                  placeholder="Enter WhatsApp number"
-                  className="w-full bg-white border border-black/10 hover:border-black/10 focus:border-[var(--accent)] focus:bg-white rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm"
+                  placeholder="98765 43210"
+                  className={`${posField} ${customer.phone && !normalizePhone(customer.phone) ? '!border-red-400 !bg-red-50' : ''}`}
                 />
-              </div>
-              <div>
-                <DateInputDDMMYYYY
-                  label="Birthday"
-                  value={customerBirthday}
-                  onChange={setCustomerBirthday}
-                  placeholder="DD/MM/YYYY"
-                />
-              </div>
-              <div>
-                <DateInputDDMMYYYY
-                  label="Anniversary"
-                  value={customerAnniversary}
-                  onChange={setCustomerAnniversary}
-                  placeholder="DD/MM/YYYY"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Remarks (Internal)</label>
-                <input
-                  type="text"
-                  value={remarks}
-                  onChange={e => setRemarks(e.target.value)}
-                  placeholder="Optional remarks"
-                  className="w-full bg-white border border-black/10 hover:border-black/10 focus:border-[var(--accent)] focus:bg-white rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Email</label>
-                <input
-                  type="email"
-                  value={customer.email}
-                  onChange={e => setCustomer({...customer, email: e.target.value})}
-                  placeholder="customer@email.com"
-                  className="w-full bg-white border border-black/10 hover:border-black/10 focus:border-[var(--accent)] focus:bg-white rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Address</label>
-                <input
-                  type="text"
-                  value={customer.address}
-                  onChange={e => setCustomer({...customer, address: e.target.value})}
-                  placeholder="Door no., street, area, city"
-                  className="w-full bg-white border border-black/10 hover:border-black/10 focus:border-[var(--accent)] focus:bg-white rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Reference Number</label>
-                <input
-                  type="text"
-                  value={referenceNumber}
-                  onChange={e => setReferenceNumber(e.target.value)}
-                  placeholder="Optional ref no."
-                  className="w-full bg-white border border-black/10 hover:border-black/10 focus:border-[var(--accent)] focus:bg-white rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm"
-                />
-              </div>
-              <div className="min-w-0 overflow-hidden">
-                <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Billing Date & Time (Optional)</label>
-                <input
-                  id="pos-billing-date"
-                  type="datetime-local"
-                  value={billingDate}
-                  onChange={e => setBillingDate(e.target.value)}
-                  className="block w-full max-w-full min-w-0 box-border bg-white border border-black/10 focus:border-[var(--accent)] rounded-lg px-4 py-2.5 text-[#000000] text-sm font-bold focus:outline-none transition-colors cursor-pointer shadow-sm"
-                  title="Format: DD-MM-YYYY"
-                />
-                <p className="mt-1 text-[9px] text-[var(--accent)] font-extrabold uppercase tracking-wider">Blank = now · custom / past allowed</p>
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Customer GSTIN (Optional)</label>
-                <input
-                  type="text"
-                  value={customerGstin}
-                  maxLength={15}
-                  onChange={e => setCustomerGstin(e.target.value.toUpperCase())}
-                  placeholder="For business customers"
-                  className="w-full bg-white border border-black/10 hover:border-black/10 focus:border-[var(--accent)] focus:bg-white rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Aadhaar No. (Optional)</label>
-                <input
-                  type="text" inputMode="numeric"
-                  value={customerAadhaar}
-                  maxLength={14}
-                  onChange={e => setCustomerAadhaar(e.target.value.replace(/[^0-9 ]/g, ''))}
-                  placeholder="12 digits, saved for next time"
-                  className="w-full bg-white border border-black/10 hover:border-black/10 focus:border-[var(--accent)] focus:bg-white rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">PAN (Optional{total >= 200000 ? ', needed for ₹2 lakh+' : ''})</label>
-                <input
-                  type="text"
-                  value={customerPan}
-                  maxLength={10}
-                  onChange={e => setCustomerPan(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-                  placeholder="ABCDE1234F"
-                  className={`w-full bg-white border focus:bg-white rounded-lg px-4 py-2.5 text-[#000000] text-sm font-semibold focus:outline-none focus:border-[var(--accent)] transition-colors placeholder:text-black/40 placeholder:font-normal shadow-sm ${total >= 200000 && !customerPan && !customerAadhaar ? 'border-amber-400' : 'border-black/10'}`}
-                />
-              </div>
+              </label>
+              <label className="block min-w-0">
+                <span className={posLabel}>Customer name *</span>
+                <input type="text" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} placeholder="Full name" className={posField} />
+              </label>
+              <label className="block min-w-0">
+                <span className={posLabel}>Address</span>
+                <input type="text" value={customer.address} onChange={e => setCustomer({...customer, address: e.target.value})} placeholder="Door no., street, area, city" className={posField} />
+              </label>
             </div>
+
+            {/* Everything else, tucked away until needed */}
+            <button
+              type="button"
+              onClick={() => setMoreDetailsOpen(v => !v)}
+              aria-expanded={showMoreDetails}
+              className="mt-4 flex w-full items-center justify-between gap-2 rounded-xl border border-dashed border-black/15 bg-[#FAFAFA] px-3.5 py-2.5 text-left transition-colors hover:border-[var(--accent)] cursor-pointer"
+            >
+              <span className="flex min-w-0 items-center gap-2 text-[11px] font-black uppercase tracking-wider text-[#000000]">
+                <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />
+                <span className="whitespace-nowrap">More details</span>
+                <span className="truncate font-semibold normal-case tracking-normal text-black/50">
+                  {extraFilled > 0 ? `${extraFilled} filled` : 'Birthday, email, bill date, GSTIN, Aadhaar, PAN…'}
+                </span>
+                {needsPan && <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black text-amber-800">PAN needed</span>}
+              </span>
+              <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${showMoreDetails ? 'rotate-180' : ''}`} />
+            </button>
+
+            {showMoreDetails && (
+              <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
+                <fieldset className="min-w-0 space-y-3 rounded-xl border border-black/10 p-3">
+                  <legend className="px-1 text-[10px] font-black uppercase tracking-[0.15em] text-[var(--accent)]">Personal</legend>
+                  <div className="min-w-0"><span className={posLabel}>Birthday</span><DateInputDDMMYYYY value={customerBirthday} onChange={setCustomerBirthday} placeholder="DD/MM/YYYY" className="!h-10 !rounded-lg !px-3 !py-0" /></div>
+                  <div className="min-w-0"><span className={posLabel}>Anniversary</span><DateInputDDMMYYYY value={customerAnniversary} onChange={setCustomerAnniversary} placeholder="DD/MM/YYYY" className="!h-10 !rounded-lg !px-3 !py-0" /></div>
+                  <label className="block min-w-0">
+                    <span className={posLabel}>Email</span>
+                    <input type="email" value={customer.email} onChange={e => setCustomer({...customer, email: e.target.value})} placeholder="customer@email.com" className={posField} />
+                  </label>
+                </fieldset>
+                <fieldset className="min-w-0 space-y-3 rounded-xl border border-black/10 p-3">
+                  <legend className="px-1 text-[10px] font-black uppercase tracking-[0.15em] text-[var(--accent)]">Bill</legend>
+                  <label className="block min-w-0">
+                    <span className={posLabel}>Billing date &amp; time</span>
+                    <input id="pos-billing-date" type="datetime-local" value={billingDate} onChange={e => setBillingDate(e.target.value)} className={`${posField} cursor-pointer`} title="Leave blank for now" />
+                    <span className="mt-1 block text-[10px] font-semibold text-black/45">Blank = now. Past dates allowed.</span>
+                  </label>
+                  <label className="block min-w-0">
+                    <span className={posLabel}>Reference no.</span>
+                    <input type="text" value={referenceNumber} onChange={e => setReferenceNumber(e.target.value)} placeholder="Optional" className={posField} />
+                  </label>
+                  <label className="block min-w-0">
+                    <span className={posLabel}>Remarks (internal)</span>
+                    <input type="text" value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Not printed on the bill" className={posField} />
+                  </label>
+                </fieldset>
+                <fieldset className="min-w-0 space-y-3 rounded-xl border border-black/10 p-3">
+                  <legend className="px-1 text-[10px] font-black uppercase tracking-[0.15em] text-[var(--accent)]">ID &amp; tax</legend>
+                  <label className="block min-w-0">
+                    <span className={posLabel}>Customer GSTIN</span>
+                    <input type="text" value={customerGstin} maxLength={15} onChange={e => setCustomerGstin(e.target.value.toUpperCase())} placeholder="For business customers" className={posField} />
+                  </label>
+                  <label className="block min-w-0">
+                    <span className={posLabel}>Aadhaar no.</span>
+                    <input type="text" inputMode="numeric" value={customerAadhaar} maxLength={14} onChange={e => setCustomerAadhaar(e.target.value.replace(/[^0-9 ]/g, ''))} placeholder="12 digits, saved for next time" className={posField} />
+                  </label>
+                  <label className="block min-w-0">
+                    <span className={posLabel}>PAN{total >= 200000 ? ' (needed for ₹2 lakh+)' : ''}</span>
+                    <input type="text" value={customerPan} maxLength={10} onChange={e => setCustomerPan(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))} placeholder="ABCDE1234F" className={`${posField} ${needsPan ? '!border-amber-400' : ''}`} />
+                  </label>
+                </fieldset>
+              </div>
+            )}
           </div>
 
           {/* Order Items Card */}
-          <div className="flex-1 bg-white border border-black/10 rounded-xl shadow-sm hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-all duration-300 flex flex-col min-h-[400px] overflow-visible">
+          <div className="flex-1 flex min-h-[400px] flex-col overflow-visible rounded-2xl border border-black/10 bg-white shadow-sm">
             {/* Card Header & Barcode Scanner */}
-            <div className="flex flex-col gap-4 px-4 sm:px-6 pt-4 sm:pt-6 pb-4 border-b border-black/10">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base font-black flex items-center gap-3 text-[#000000] tracking-tight">
-                  <Receipt className="w-4 h-4 text-[var(--accent)]" />
-                  Order Items ({items.length})
+            <div className="flex flex-col gap-3 border-b border-black/10 px-4 pb-4 pt-4 sm:px-5 sm:pt-5">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="flex items-center gap-2.5 text-[15px] font-black tracking-tight text-[#000000]">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent-a10)] text-[var(--accent)]"><Receipt className="h-4 w-4" /></span>
+                  Order Items
+                  <span className="rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-black">{items.length}</span>
                 </h3>
+                {items.length > 0 && <span className="text-sm font-black text-[#000000]">{formatCurrency(subtotal)}</span>}
               </div>
 
               {/* Barcode Scanner Bar */}
@@ -2106,13 +2081,13 @@ export default function Pos(props: PosProps = {}) {
                 <BarcodeScannerInput onItemScanned={handleScannedItem} onNotFound={setQuickAddBarcode} clearSignal={scanResetTick} />
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 pt-1">
+              <div className="flex flex-wrap items-center gap-2">
                 {/* Clear Order Button */}
                 <button
                   type="button"
                   onClick={clearAll}
                   disabled={items.length === 0}
-                  className="text-[10px] font-bold uppercase tracking-wider px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 text-[#000000] bg-white border border-black/10 hover:bg-black/5 disabled:opacity-40"
+                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-black/10 bg-white px-3.5 text-[10px] font-bold uppercase tracking-wider text-[#000000] transition-colors hover:bg-black/5 disabled:opacity-40 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Clear Order</span>
@@ -2122,7 +2097,7 @@ export default function Pos(props: PosProps = {}) {
                 <button
                   type="button"
                   onClick={() => setCatalogOpen(true)}
-                  className="text-[10px] font-bold uppercase tracking-wider px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 text-[#000000] bg-white border border-black/10 hover:bg-black/5"
+                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-black/10 bg-white px-3.5 text-[10px] font-bold uppercase tracking-wider text-[#000000] transition-colors hover:bg-black/5 cursor-pointer"
                 >
                   <Search className="w-3.5 h-3.5 text-[var(--accent)]" />
                   <span>Search Catalog</span>
@@ -2131,7 +2106,7 @@ export default function Pos(props: PosProps = {}) {
                 <button
                   type="button"
                   onClick={() => setLoosePickerOpen(true)}
-                  className="text-[10px] font-bold uppercase tracking-wider px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 text-[var(--accent)] bg-[var(--accent-a5)] hover:bg-[var(--accent-a10)] border border-[var(--accent-a20)]"
+                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--accent-a20)] bg-[var(--accent-a5)] px-3.5 text-[10px] font-bold uppercase tracking-wider text-[var(--accent)] transition-colors hover:bg-[var(--accent-a10)] cursor-pointer"
                 >
                   <Gem className="w-3.5 h-3.5" />
                   <span>Loose Stone</span>
@@ -2141,7 +2116,7 @@ export default function Pos(props: PosProps = {}) {
                 <button
                   type="button"
                   onClick={() => setAddUnregisteredOpen(true)}
-                  className="text-[10px] font-bold uppercase tracking-wider px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 text-[var(--accent)] bg-[var(--accent-a5)] hover:bg-[var(--accent-a10)] border border-[var(--accent-a20)]"
+                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--accent-a20)] bg-[var(--accent-a5)] px-3.5 text-[10px] font-bold uppercase tracking-wider text-[var(--accent)] transition-colors hover:bg-[var(--accent-a10)] cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Custom Item</span>
@@ -2150,7 +2125,7 @@ export default function Pos(props: PosProps = {}) {
                 <button
                   type="button"
                   onClick={() => setCalculatorOpen(true)}
-                  className="text-[10px] font-bold uppercase tracking-wider px-4 py-2 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shrink-0 text-[#000000] bg-white border border-black/10 hover:bg-black/5"
+                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-black/10 bg-white px-3.5 text-[10px] font-bold uppercase tracking-wider text-[#000000] transition-colors hover:bg-black/5 cursor-pointer"
                 >
                   <Calculator className="w-3.5 h-3.5 text-[var(--accent)]" />
                   <span>Calculator</span>
@@ -2432,13 +2407,13 @@ export default function Pos(props: PosProps = {}) {
         </div>
 
         {/* RIGHT COLUMN (approx 32%) */}
-        <div className="w-full lg:w-[40%] xl:w-[35%] flex min-h-0 max-lg:min-h-[420px] flex-col gap-6 lg:sticky lg:top-4 h-[calc(100dvh-140px)] max-h-[calc(100dvh-140px)]">
-          <div className="flex min-h-0 h-full max-h-full flex-col overflow-hidden bg-white border border-black/10 rounded-xl shadow-sm hover:shadow-[0_8px_30px_rgb(0,0,0,0.06)] transition-all duration-300">
+        <div className="flex h-[calc(100dvh-140px)] max-h-[calc(100dvh-140px)] min-h-0 w-full min-w-0 flex-col gap-5 max-lg:min-h-[420px] lg:sticky lg:top-4 lg:w-[38%] xl:w-[34%]">
+          <div className="flex min-h-0 h-full max-h-full flex-col overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm">
 
             {/* Header */}
-            <div className="flex items-center justify-between px-4 sm:px-6 py-5 border-b border-black/10 bg-white shrink-0">
-              <h3 className="text-base font-black flex items-center gap-3 text-[#000000] tracking-tight">
-                <ShoppingBag className="w-4 h-4 text-[var(--accent)]" />
+            <div className="flex shrink-0 items-center justify-between border-b border-black/10 bg-white px-4 py-4 sm:px-5">
+              <h3 className="flex items-center gap-2.5 text-[15px] font-black tracking-tight text-[#000000]">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent-a10)] text-[var(--accent)]"><ShoppingBag className="h-4 w-4" /></span>
                 Current Order
               </h3>
               <span className="px-3 py-1 rounded-full border border-black/10 bg-white text-[9px] font-bold tracking-wider uppercase flex items-center gap-1.5 shadow-sm">
@@ -2448,52 +2423,76 @@ export default function Pos(props: PosProps = {}) {
             </div>
 
             {/* Content body */}
-            <div className="min-h-0 flex-1 overflow-y-auto bg-white px-4 sm:px-6 py-5 space-y-4 hide-scrollbar">
+            <div className="min-h-0 flex-1 overflow-y-auto bg-white px-4 py-4 hide-scrollbar sm:px-5 [&>*+*]:mt-4 [&>*+*]:border-t [&>*+*]:border-black/[0.06] [&>*+*]:pt-4">
 
-              {/* Info Table */}
-              <div className="border border-black/10 rounded-xl overflow-hidden text-xs font-semibold shadow-sm">
-                <div className="flex justify-between px-3 py-2 border-b border-black/10 bg-white">
-                  <span className="text-[#000000] uppercase">Source</span>
-                  <span className="text-[#000000] border border-gray-300 bg-gray-100 px-1.5 rounded uppercase">{ordermode.toUpperCase()}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-0 border-b border-black/10">
-                  <div className="p-2 border-r border-black/10">
-                    <span className="text-[10px] text-[#000000] uppercase block mb-0.5">Customer Name</span>
-                    <input
-                      type="text"
-                      value={customer.name}
-                      onChange={e => setCustomer({...customer, name: e.target.value})}
-                      placeholder="Enter name"
-                      className="w-full h-8 px-2 bg-white border border-black/10 rounded-lg text-[12px] font-bold text-[#000000] focus:outline-none focus:border-[var(--accent)]"
-                    />
-                  </div>
-                  <div className="p-2">
-                    <span className="text-[10px] text-[#000000] uppercase block mb-0.5">WhatsApp Number</span>
-                    <input
-                      type="text"
-                      value={customer.phone}
-                      onChange={e => setCustomer({...customer, phone: e.target.value})}
-                      onBlur={() => void handlePhoneLookup()}
-                      placeholder="Enter WhatsApp number"
-                      className={`w-full h-8 px-2 bg-white border rounded-lg text-[12px] font-bold text-[#000000] focus:outline-none ${customer.phone && !normalizePhone(customer.phone) ? 'border-red-400 bg-red-50' : 'border-black/10 focus:border-[var(--accent)]'}`}
-                    />
+              {/* Who and what (the customer is typed on the left) */}
+              <div className="overflow-hidden rounded-xl border border-black/10">
+                <div className="flex items-center gap-3 bg-[#FAFAFA] px-3 py-2.5">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--accent-a10)] text-[12px] font-black text-[var(--accent)]">
+                    {(customer.name.trim() || '?').split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('')}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13px] font-black text-[#000000]">{customer.name.trim() || 'No customer yet'}</p>
+                    <p className={`truncate text-[11px] font-semibold ${customer.phone && !normalizePhone(customer.phone) ? 'text-red-600' : 'text-black/55'}`}>
+                      {customer.phone.trim() ? (normalizePhone(customer.phone) ? `+91 ${customer.phone.replace(/\D/g, '').slice(-10)}` : 'Check the mobile number') : 'Enter name and mobile on the left'}
+                    </p>
                   </div>
                 </div>
-{items.length > 0 && (
-                  <div className="px-3 py-2 bg-white space-y-1 border-b border-black/10 max-h-[80px] overflow-y-auto">
+                {items.length > 0 && (
+                  <div className="max-h-[96px] space-y-1 overflow-y-auto border-t border-black/10 bg-white px-3 py-2">
                     {items.map(item => (
-                <div key={item.id} className="flex justify-between text-[#000000] text-[11px]">
-                        <span className="break-words pr-2">{item.qty}x {item.name}</span>
-                        <span>{formatCurrency(item.lineTotal)}</span>
+                      <div key={item.id} className="flex justify-between gap-2 text-[11px] text-[#000000]">
+                        <span className="min-w-0 break-words">{item.qty}× {item.name}</span>
+                        <span className="shrink-0 font-bold">{formatCurrency(item.lineTotal)}</span>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
 
+              {/* Bill type: Non-GST bill or GST invoice */}
+              <div>
+              <span className={posLabel}>Bill type</span>
+              <div className="grid grid-cols-2 gap-1 rounded-xl bg-black/[0.05] p-1">
+                {([[false, 'Non-GST Bill'], [true, 'GST Invoice']] as const).map(([gst, label]) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setBillGstEnabled(gst)}
+                    className={`h-9 rounded-lg text-[11px] font-black uppercase tracking-wider transition-all cursor-pointer ${billGstEnabled === gst ? 'bg-white text-[#000000] shadow-sm ring-1 ring-black/5' : 'text-black/50 hover:text-black'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {billGstEnabled && (
+                <div className="mt-2 flex gap-2">
+                  <div className="relative shrink-0 z-20">
+                    <select
+                      value={gstType}
+                      onChange={e => setGstType(e.target.value as 'flat'|'percent')}
+                      className="appearance-none h-10 bg-white border border-black/10 rounded-lg pl-2 pr-7 text-[12px] font-black text-[#000000] focus:outline-none focus:border-[var(--accent)] touch-manipulation"
+                    >
+                      <option value="percent">%</option>
+                      <option value="flat">₹</option>
+                    </select>
+                    <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#000000] pointer-events-none" />
+                  </div>
+                  <input
+                    type="number" onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                    value={gstInput}
+                    onChange={e => setGstInput(e.target.value)}
+                    placeholder={gstType === 'percent' ? "e.g. 6" : "0"}
+                    className="w-full h-10 px-3 bg-white border border-black/10 rounded-lg text-[12px] font-black text-[#000000] text-right focus:outline-none focus:border-[var(--accent)]"
+                  />
+                </div>
+              )}
+              </div>
+
               {/* Coupon Code */}
               <div>
-                <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Coupon Code</label>
+                <label className={posLabel}>Coupon Code</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -2508,7 +2507,7 @@ export default function Pos(props: PosProps = {}) {
                     placeholder="Enter code"
                     disabled={appliedCoupon !== null}
                     list="pos-coupons"
-                    className="w-full h-9 px-3 bg-white border border-black/10 rounded-xl text-[12px] font-bold text-[#000000] focus:outline-none focus:border-[var(--accent)] uppercase disabled:bg-gray-100"
+                    className="w-full h-10 px-3 bg-white border border-black/10 rounded-lg text-[12px] font-bold text-[#000000] focus:outline-none focus:border-[var(--accent)] uppercase disabled:bg-gray-100"
                   />
                   <datalist id="pos-coupons">
                     {availableCoupons.map(c => (
@@ -2518,7 +2517,7 @@ export default function Pos(props: PosProps = {}) {
                   {appliedCoupon ? (
                     <button
                       onClick={removeCoupon}
-                      className="h-9 px-3 bg-red-100 text-red-600 hover:bg-red-200 rounded-xl text-[11px] font-black transition-colors shrink-0"
+                      className="h-10 px-3 bg-red-100 text-red-600 hover:bg-red-200 rounded-lg text-[11px] font-black transition-colors shrink-0"
                     >
                       Remove
                     </button>
@@ -2526,7 +2525,7 @@ export default function Pos(props: PosProps = {}) {
                     <button
                       onClick={() => void applyCoupon()}
                       disabled={couponLoading || !couponInput.trim()}
-                      className="h-9 px-3 bg-[#0A0A0A] text-white border border-[var(--accent)] hover:bg-[#1A1A1A] rounded-xl text-[11px] font-black transition-colors disabled:opacity-50 shrink-0"
+                      className="h-10 px-4 bg-[var(--accent)] text-white border border-[var(--accent)] hover:brightness-110 rounded-lg text-[11px] font-black transition-colors disabled:opacity-50 shrink-0"
                     >
                       Apply
                     </button>
@@ -2540,13 +2539,13 @@ export default function Pos(props: PosProps = {}) {
 
               {/* Discount */}
               <div>
-                <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Manual Discount</label>
+                <label className={posLabel}>Manual Discount</label>
                 <div className="flex gap-2">
                   <div className="relative shrink-0 z-20">
                     <select
                       value={manualDiscountType}
                       onChange={e => setManualDiscountType(e.target.value as 'flat'|'percent')}
-                      className="appearance-none h-9 bg-white border border-black/10 rounded-xl pl-2 pr-7 text-[12px] font-black text-[#000000] focus:outline-none focus:border-[var(--accent)] touch-manipulation"
+                      className="appearance-none h-10 bg-white border border-black/10 rounded-lg pl-2 pr-7 text-[12px] font-black text-[#000000] focus:outline-none focus:border-[var(--accent)] touch-manipulation"
                     >
                       <option value="flat">₹</option>
                       <option value="percent">%</option>
@@ -2558,7 +2557,7 @@ export default function Pos(props: PosProps = {}) {
                     value={manualDiscountValue}
                     onChange={e => setManualDiscountValue(e.target.value)}
                     placeholder="0"
-                    className="w-full h-9 px-3 bg-white border border-black/10 rounded-xl text-[12px] font-black text-[#000000] text-right focus:outline-none focus:border-[var(--accent)]"
+                    className="w-full h-10 px-3 bg-white border border-black/10 rounded-lg text-[12px] font-black text-[#000000] text-right focus:outline-none focus:border-[var(--accent)]"
                   />
                 </div>
               </div>
@@ -2571,7 +2570,7 @@ export default function Pos(props: PosProps = {}) {
 
               {/* Savings Scheme (Schema) redemption */}
               <div>
-                <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Savings Scheme</label>
+                <label className={posLabel}>Savings Scheme</label>
                 {appliedScheme ? (
                   <div className="rounded-xl border border-[var(--accent-a30)] bg-[var(--accent-a10)] p-2.5 space-y-2">
                     <div className="flex items-start justify-between gap-2">
@@ -2606,7 +2605,7 @@ export default function Pos(props: PosProps = {}) {
                       </div>
                     )}
                     {appliedScheme.benefitUsed || appliedScheme.benefitForfeited ? (
-                      <p className="text-[10px] font-bold text-[#000000]">{appliedScheme.benefitForfeited ? 'Scheme closed early: its benefit does not apply.' : 'Scheme benefit already used on an earlier bill.'}</p>
+                      <p className="text-[11px] font-semibold text-black/50">{appliedScheme.benefitForfeited ? 'Scheme closed early: its benefit does not apply.' : 'Scheme benefit already used on an earlier bill.'}</p>
                     ) : (
                       <label className="flex items-center justify-between gap-2 text-[11px] font-bold text-[#000000] cursor-pointer">
                         <span className="flex items-center gap-1.5">
@@ -2625,7 +2624,7 @@ export default function Pos(props: PosProps = {}) {
                         value={schemeRules.allowPartialRedemption ? schemeUseAmount : String(appliedSchemeBalance)}
                         disabled={!schemeRules.allowPartialRedemption}
                         onChange={e => setSchemeUseAmount(e.target.value)}
-                        className="w-full h-9 px-3 bg-white border border-black/10 rounded-xl text-[12px] font-black text-[#000000] text-right focus:outline-none focus:border-[var(--accent)] disabled:bg-gray-100"
+                        className="w-full h-10 px-3 bg-white border border-black/10 rounded-lg text-[12px] font-black text-[#000000] text-right focus:outline-none focus:border-[var(--accent)] disabled:bg-gray-100"
                       />
                       {schemeAmountUsed < (Number(schemeUseAmount) || 0) && schemeRules.allowPartialRedemption && (
                         <p className="text-[10px] font-bold text-amber-700 mt-0.5">Limited to {formatCurrency(schemeAmountUsed)} (balance / bill total).</p>
@@ -2633,11 +2632,11 @@ export default function Pos(props: PosProps = {}) {
                     </div>
                   </div>
                 ) : !normalizePhone(customer.phone || '') ? (
-                  <p className="text-[10px] font-bold text-[#000000]">Enter the customer's mobile number to check for savings schemes.</p>
+                  <p className="text-[11px] font-semibold text-black/50">Enter the customer's mobile number to check for savings schemes.</p>
                 ) : schemesLoading ? (
-                  <p className="text-[10px] font-bold text-[#000000]">Checking schemes…</p>
+                  <p className="text-[11px] font-semibold text-black/50">Checking schemes…</p>
                 ) : customerSchemes.filter(sch => sch.status !== 'cancelled' && sch.status !== 'redeemed').length === 0 ? (
-                  <p className="text-[10px] font-bold text-[#000000]">No open savings scheme for this customer.</p>
+                  <p className="text-[11px] font-semibold text-black/50">No open savings scheme for this customer.</p>
                 ) : (
                   <div className="space-y-1.5">
                     {customerSchemes.filter(sch => sch.status !== 'cancelled' && sch.status !== 'redeemed').map(sch => {
@@ -2654,7 +2653,7 @@ export default function Pos(props: PosProps = {}) {
                             type="button"
                             onClick={() => applyScheme(sch)}
                             disabled={!eligibility.eligible}
-                            className="h-8 px-3 bg-[#0A0A0A] text-white border border-[var(--accent)] hover:bg-[#1A1A1A] rounded-xl text-[11px] font-black transition-colors disabled:opacity-40 shrink-0"
+                            className="h-8 px-3 bg-[var(--accent-a5)] text-[var(--accent)] border border-[var(--accent-a30)] hover:bg-[var(--accent-a10)] rounded-xl text-[11px] font-black transition-colors disabled:opacity-40 shrink-0"
                           >
                             Apply
                           </button>
@@ -2668,7 +2667,7 @@ export default function Pos(props: PosProps = {}) {
               {/* Customer advance (incl. exchange credit) */}
               {(appliedAdvance || customerAdvances.length > 0) && (
                 <div>
-                  <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Customer Advance</label>
+                  <label className={posLabel}>Customer Advance</label>
                   {appliedAdvance ? (
                     <div className="rounded-xl border border-[var(--accent-a30)] bg-[var(--accent-a10)] p-2.5 space-y-2">
                       <div className="flex items-start justify-between gap-2">
@@ -2683,7 +2682,7 @@ export default function Pos(props: PosProps = {}) {
                         value={advanceUseAmount}
                         onChange={e => setAdvanceUseAmount(e.target.value)}
                         aria-label="Advance amount to adjust"
-                        className="w-full h-9 px-3 bg-white border border-black/10 rounded-xl text-[12px] font-black text-[#000000] text-right focus:outline-none focus:border-[var(--accent)]"
+                        className="w-full h-10 px-3 bg-white border border-black/10 rounded-lg text-[12px] font-black text-[#000000] text-right focus:outline-none focus:border-[var(--accent)]"
                       />
                     </div>
                   ) : (
@@ -2692,9 +2691,9 @@ export default function Pos(props: PosProps = {}) {
                         <div key={adv.id} className="flex items-center justify-between gap-2 rounded-xl border border-black/10 bg-white px-2.5 py-2">
                           <div className="min-w-0">
                             <p className="text-[11px] font-black text-[#000000] break-words">{adv.receiptNumber}{adv.source === 'exchange' ? ' · Exchange credit' : ''}</p>
-                            <p className="text-[10px] font-bold text-[#000000]">Balance {formatCurrency(adv.balance)}{adv.purpose ? ` · ${adv.purpose}` : ''}</p>
+                            <p className="text-[11px] font-semibold text-black/50">Balance {formatCurrency(adv.balance)}{adv.purpose ? ` · ${adv.purpose}` : ''}</p>
                           </div>
-                          <button type="button" onClick={() => applyAdvance(adv)} className="h-8 px-3 bg-[#0A0A0A] text-white border border-[var(--accent)] hover:bg-[#1A1A1A] rounded-xl text-[11px] font-black transition-colors shrink-0">Use</button>
+                          <button type="button" onClick={() => applyAdvance(adv)} className="h-8 px-3 bg-[var(--accent-a5)] text-[var(--accent)] border border-[var(--accent-a30)] hover:bg-[var(--accent-a10)] rounded-xl text-[11px] font-black transition-colors shrink-0">Use</button>
                         </div>
                       ))}
                     </div>
@@ -2705,18 +2704,18 @@ export default function Pos(props: PosProps = {}) {
               {/* Old gold taken in exchange */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em]">Old Gold Exchange</label>
-                  <button type="button" onClick={() => { setOldGoldForm(EMPTY_OLD_GOLD); setOldGoldOpen(true) }} className="h-7 px-2.5 bg-[#0A0A0A] text-white border border-[var(--accent)] hover:bg-[#1A1A1A] rounded-lg text-[10px] font-black">+ Add</button>
+                  <label className="block text-[10px] font-black uppercase tracking-[0.14em] text-[#000000]/70">Old Gold Exchange</label>
+                  <button type="button" onClick={() => { setOldGoldForm(EMPTY_OLD_GOLD); setOldGoldOpen(true) }} className="h-7 px-2.5 bg-[var(--accent-a5)] text-[var(--accent)] border border-[var(--accent-a30)] hover:bg-[var(--accent-a10)] rounded-lg text-[10px] font-black">+ Add</button>
                 </div>
                 {oldGoldEntries.length === 0 ? (
-                  <p className="text-[10px] font-bold text-[#000000]">Customer giving old gold / silver in part-payment? Add it here.</p>
+                  <p className="text-[11px] font-semibold text-black/50">Customer giving old gold / silver in part-payment? Add it here.</p>
                 ) : (
                   <div className="space-y-1.5">
                     {oldGoldEntries.map((e, idx) => (
                       <div key={idx} className="flex items-center justify-between gap-2 rounded-xl border border-black/10 bg-white px-2.5 py-2">
                         <div className="min-w-0">
                           <p className="text-[11px] font-black text-[#000000] break-words">{e.description || metalLabel(normalizeMetalType(e.metalType), e.purity)}{e.testedPurity != null ? ` · tested ${e.testedPurity}%` : ''}</p>
-                          <p className="text-[10px] font-bold text-[#000000]">Net {formatWeight(e.netWeight)} @ {formatCurrency(e.exchangeRate)}/g{e.meltingDeductionPercent ? ` − ${e.meltingDeductionPercent}% melting` : ''}</p>
+                          <p className="text-[11px] font-semibold text-black/50">Net {formatWeight(e.netWeight)} @ {formatCurrency(e.exchangeRate)}/g{e.meltingDeductionPercent ? ` − ${e.meltingDeductionPercent}% melting` : ''}</p>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <span className="text-[12px] font-black text-[var(--accent-dark)]">{formatCurrency(e.netValue)}</span>
@@ -2728,47 +2727,11 @@ export default function Pos(props: PosProps = {}) {
                 )}
               </div>
 
-              {/* Bill type: Non-GST bill or GST invoice */}
-              <div className="grid grid-cols-2 gap-1 rounded-full border border-black/10 bg-white p-1">
-                {([[false, 'Non-GST Bill'], [true, 'GST Invoice']] as const).map(([gst, label]) => (
-                  <button
-                    key={label}
-                    type="button"
-                    onClick={() => setBillGstEnabled(gst)}
-                    className={`h-10 rounded-full text-[11px] font-black uppercase tracking-wider transition-colors cursor-pointer ${billGstEnabled === gst ? 'bg-[#0A0A0A] text-white shadow-sm' : 'text-[#000000] hover:bg-black/5'}`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-
-              {billGstEnabled && (
-                <div className="flex gap-2">
-                  <div className="relative shrink-0 z-20">
-                    <select
-                      value={gstType}
-                      onChange={e => setGstType(e.target.value as 'flat'|'percent')}
-                      className="appearance-none h-9 bg-white border border-black/10 rounded-xl pl-2 pr-7 text-[12px] font-black text-[#000000] focus:outline-none focus:border-[var(--accent)] touch-manipulation"
-                    >
-                      <option value="percent">%</option>
-                      <option value="flat">₹</option>
-                    </select>
-                    <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#000000] pointer-events-none" />
-                  </div>
-                  <input
-                    type="number" onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                    value={gstInput}
-                    onChange={e => setGstInput(e.target.value)}
-                    placeholder={gstType === 'percent' ? "e.g. 6" : "0"}
-                    className="w-full h-9 px-3 bg-white border border-black/10 rounded-xl text-[12px] font-black text-[#000000] text-right focus:outline-none focus:border-[var(--accent)]"
-                  />
-                </div>
-              )}
-
               {/* Summary calculations */}
-              <div className="bg-[#FAFAF8] rounded-xl border border-black/10 p-2.5 space-y-1.5">
+              <div className="space-y-2 rounded-xl border border-black/10 bg-[#FAFAFA] p-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#000000]/70">Price breakdown</p>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-black text-[#000000]">{jewelleryBreakdown.allGold ? 'Gold Value' : 'Metal Value'}</span>
+                  <span className="text-[12px] font-semibold text-black/65">{jewelleryBreakdown.allGold ? 'Gold Value' : 'Metal Value'}</span>
                   <div className="flex items-center gap-1.5">
                     {jewelleryBreakdown.metal > 0 && <span className="text-[12px] font-black text-[#000000] whitespace-nowrap">{formatCurrency(jewelleryBreakdown.metal)} +</span>}
                     <input
@@ -2777,12 +2740,12 @@ export default function Pos(props: PosProps = {}) {
                       onChange={e => setManualGold(e.target.value)}
                       placeholder="0"
                       aria-label="Gold Value (enter manually)"
-                      className="w-24 h-8 px-2 bg-white border border-black/10 rounded-lg text-[12px] font-black text-[#000000] text-right focus:outline-none focus:border-[var(--accent)]"
+                      className="w-28 h-9 px-2 bg-white border border-black/10 rounded-lg text-[12px] font-black text-[#000000] text-right focus:outline-none focus:border-[var(--accent)]"
                     />
                   </div>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-black text-[#000000]">Making &amp; Wastage</span>
+                  <span className="text-[12px] font-semibold text-black/65">Making &amp; Wastage</span>
                   <div className="flex items-center gap-1.5">
                     {jewelleryBreakdown.makingWastage > 0 && <span className="text-[12px] font-black text-[#000000] whitespace-nowrap">{formatCurrency(jewelleryBreakdown.makingWastage)} +</span>}
                     <input
@@ -2791,12 +2754,12 @@ export default function Pos(props: PosProps = {}) {
                       onChange={e => setManualMaking(e.target.value)}
                       placeholder="0"
                       aria-label="Making &amp; Wastage (enter manually)"
-                      className="w-24 h-8 px-2 bg-white border border-black/10 rounded-lg text-[12px] font-black text-[#000000] text-right focus:outline-none focus:border-[var(--accent)]"
+                      className="w-28 h-9 px-2 bg-white border border-black/10 rounded-lg text-[12px] font-black text-[#000000] text-right focus:outline-none focus:border-[var(--accent)]"
                     />
                   </div>
                 </div>
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-black text-[#000000]">Stone Charges</span>
+                  <span className="text-[12px] font-semibold text-black/65">Stone Charges</span>
                   <div className="flex items-center gap-1.5">
                     {jewelleryBreakdown.stone > 0 && <span className="text-[12px] font-black text-[#000000] whitespace-nowrap">{formatCurrency(jewelleryBreakdown.stone)} +</span>}
                     <input
@@ -2805,47 +2768,47 @@ export default function Pos(props: PosProps = {}) {
                       onChange={e => setManualStone(e.target.value)}
                       placeholder="0"
                       aria-label="Stone Charges (enter manually)"
-                      className="w-24 h-8 px-2 bg-white border border-black/10 rounded-lg text-[12px] font-black text-[#000000] text-right focus:outline-none focus:border-[var(--accent)]"
+                      className="w-28 h-9 px-2 bg-white border border-black/10 rounded-lg text-[12px] font-black text-[#000000] text-right focus:outline-none focus:border-[var(--accent)]"
                     />
                   </div>
                 </div>
                 {jewelleryBreakdown.other > 0 && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-black text-[#000000]">Other Charges</span>
+                    <span className="text-[12px] font-semibold text-black/65">Other Charges</span>
                     <span className="text-[12px] font-black text-[#000000]">{formatCurrency(jewelleryBreakdown.other)}</span>
                   </div>
                 )}
-                <div className="h-px bg-gray-200"></div>
+                <div className="h-px bg-black/10"></div>
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black text-[#000000]">Subtotal ({billItems.length} items)</span>
+                  <span className="text-[12px] font-semibold text-black/65">Subtotal ({billItems.length} items)</span>
                   <span className="text-[12px] font-black text-[#000000]">{formatCurrency(subtotal)}</span>
                 </div>
 
                 {schemeDiscount > 0 && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-black text-[#000000]">Scheme Benefit</span>
+                    <span className="text-[12px] font-semibold text-black/65">Scheme Benefit</span>
                     <span className="text-[12px] font-black text-[var(--accent-dark)]">−{formatCurrency(schemeDiscount)}</span>
                   </div>
                 )}
 
                 {billGstEnabled && totalGst > 0 && (
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-black text-[#000000]">GST Amount</span>
+                    <span className="text-[12px] font-semibold text-black/65">GST Amount</span>
                     <span className="text-[12px] font-black text-[#000000]">{formatCurrency(totalGst)}</span>
                   </div>
                 )}
 
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-black text-[#000000]">Delivery</span>
+                  <span className="text-[12px] font-semibold text-black/65">Delivery</span>
                   <input
                     type="number" onWheel={(e) => (e.target as HTMLInputElement).blur()}
                     value={shipping}
                     onChange={e => setShipping(e.target.value)}
-                    className="w-20 h-8 px-2 bg-white border border-black/10 rounded-lg text-[12px] font-black text-[#000000] text-right focus:outline-none focus:border-[var(--accent)]"
+                    className="w-28 h-9 px-2 bg-white border border-black/10 rounded-lg text-[12px] font-black text-[#000000] text-right focus:outline-none focus:border-[var(--accent)]"
                   />
                 </div>
 
-                <div className="h-px bg-gray-200"></div>
+                <div className="h-px bg-black/10"></div>
 
                 {/* Grand Total */}
                 <div className="flex items-center justify-between pt-0.5">
@@ -2856,19 +2819,19 @@ export default function Pos(props: PosProps = {}) {
                   <>
                     {schemeAmountUsed > 0 && (
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-black text-[#000000]">Paid from Scheme</span>
+                        <span className="text-[12px] font-semibold text-black/65">Paid from Scheme</span>
                         <span className="text-[12px] font-black text-[var(--accent-dark)]">−{formatCurrency(schemeAmountUsed)}</span>
                       </div>
                     )}
                     {advanceAmountUsed > 0 && (
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-black text-[#000000]">Advance Adjusted</span>
+                        <span className="text-[12px] font-semibold text-black/65">Advance Adjusted</span>
                         <span className="text-[12px] font-black text-[var(--accent-dark)]">−{formatCurrency(advanceAmountUsed)}</span>
                       </div>
                     )}
                     {exchangeTotal > 0 && (
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-black text-[#000000]">Old Gold Exchange</span>
+                        <span className="text-[12px] font-semibold text-black/65">Old Gold Exchange</span>
                         <span className="text-[12px] font-black text-[var(--accent-dark)]">−{formatCurrency(exchangeTotal)}</span>
                       </div>
                     )}
@@ -2883,17 +2846,17 @@ export default function Pos(props: PosProps = {}) {
               {/* Payment Mode Selector — only applies when the customer is paying now */}
               {paymentType !== 'credit' && (
                 <div>
-                  <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-2">Payment Mode</label>
-                  <div className="grid grid-cols-3 gap-1.5">
+                  <label className={posLabel}>Payment Mode</label>
+                  <div className="grid grid-cols-3 gap-2">
                     {([...COUNTER_PAYMENT_METHODS, 'split'] as const).map(mode => (
                       <button
                         key={mode}
                         type="button"
                         onClick={() => setPaymentType(mode)}
-                        className={`py-2 rounded-xl text-[10px] font-bold uppercase tracking-[0.15em] border-2 transition-colors ${
+                        className={`h-10 rounded-lg text-[10px] font-black uppercase tracking-[0.12em] border transition-colors cursor-pointer ${
                           paymentType === mode
-                            ? 'bg-[#0A0A0A] text-white border-[#0A0A0A]'
-                            : 'bg-white text-[#000000] border-black/10 hover:border-gray-300'
+                            ? 'bg-[var(--accent)] text-white border-[var(--accent)] shadow-sm'
+                            : 'bg-white text-[#000000] border-black/10 hover:border-black/30'
                         }`}
                       >
                         {PAYMENT_BUTTON_LABELS[mode]}
@@ -2924,7 +2887,7 @@ export default function Pos(props: PosProps = {}) {
                   if (paymentType !== 'credit' && (appliedScheme || appliedAdvance || oldGoldEntries.length)) { setError('A scheme, advance or old gold cannot be used on a credit bill. Remove them first.'); return }
                   setPaymentType(prev => prev === 'credit' ? 'cash' : 'credit')
                 }}
-                className={`w-full flex items-center justify-between gap-2 rounded-xl border-2 px-3 py-2.5 transition-colors ${
+                className={`w-full flex h-11 items-center justify-between gap-2 rounded-lg border px-3 transition-colors cursor-pointer ${
                   paymentType === 'credit'
                     ? 'bg-amber-600 border-amber-600 text-white'
                     : 'bg-white border-amber-300 text-amber-800 hover:bg-amber-50'
@@ -2940,7 +2903,7 @@ export default function Pos(props: PosProps = {}) {
               {ordermode !== 'online' && (
               <div>
                 {paymentType === 'credit' ? (
-                  <div className="border-2 border-amber-300 rounded-xl p-2.5 bg-amber-50">
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
                     <label className="block text-[10px] font-black text-amber-900 tracking-wider uppercase mb-0.5">
                       Credit Sale — Due Date <span className="text-red-500">*</span>
                     </label>
@@ -2956,8 +2919,8 @@ export default function Pos(props: PosProps = {}) {
                     </p>
                   </div>
                 ) : paymentType === 'split' ? (
-                <div className="border border-black/10 rounded-xl p-2.5 bg-white space-y-2">
-                  <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em]">
+                <div className="space-y-2 rounded-xl border border-black/10 bg-[#FAFAFA] p-3">
+                  <label className="block text-[10px] font-black uppercase tracking-[0.14em] text-[#000000]/70">
                     Mixed Payment (₹)
                   </label>
                   {mixedParts.map((part, idx) => (
@@ -2966,7 +2929,7 @@ export default function Pos(props: PosProps = {}) {
                         value={part.method}
                         onChange={e => setMixedParts((cur) => cur.map((p2, i) => (i === idx ? { ...p2, method: e.target.value as CounterPaymentMethod } : p2)))}
                         aria-label={`Payment ${idx + 1} method`}
-                        className="h-9 rounded-xl border border-black/10 bg-white px-2 text-[11px] font-black text-[#000000] focus:outline-none focus:border-[var(--accent)]"
+                        className="h-10 rounded-lg border border-black/10 bg-white px-2 text-[11px] font-black text-[#000000] focus:outline-none focus:border-[var(--accent)]"
                       >
                         {COUNTER_PAYMENT_METHODS.map(m => (
                           <option key={m} value={m} disabled={m !== part.method && mixedParts.some((p2) => p2.method === m)}>{formatPaymentMode(m)}</option>
@@ -2986,7 +2949,7 @@ export default function Pos(props: PosProps = {}) {
                         }}
                         placeholder="0.00"
                         aria-label={`Payment ${idx + 1} amount`}
-                        className="w-full h-9 px-3 bg-white border border-black/10 rounded-xl text-[13px] font-black text-[#000000] focus:outline-none focus:border-[var(--accent)]"
+                        className="w-full h-10 px-3 bg-white border border-black/10 rounded-lg text-[13px] font-black text-[#000000] focus:outline-none focus:border-[var(--accent)]"
                       />
                       <button
                         type="button"
@@ -3017,8 +2980,8 @@ export default function Pos(props: PosProps = {}) {
                   )}
                 </div>
                 ) : (
-                <div className="border border-black/10 rounded-xl p-2.5 bg-white">
-                  <label className="block text-[10px] font-bold text-[#000000] uppercase tracking-[0.15em] mb-0.5">
+                <div className="rounded-xl border border-black/10 bg-[#FAFAFA] p-3">
+                  <label className={posLabel}>
                     {PAYMENT_BUTTON_LABELS[paymentType] || 'Cash'} — Amount Received (₹)
                   </label>
                   <input
@@ -3026,7 +2989,7 @@ export default function Pos(props: PosProps = {}) {
                     value={cashReceived}
                     onChange={e => setCashReceived(e.target.value)}
                     placeholder="0.00"
-                    className="w-full h-9 px-3 bg-white border border-black/10 rounded-xl text-[13px] font-black text-[#000000] focus:outline-none focus:border-[var(--accent)]"
+                    className="w-full h-10 px-3 bg-white border border-black/10 rounded-lg text-[13px] font-black text-[#000000] focus:outline-none focus:border-[var(--accent)]"
                   />
                   {cashReceivedNum > 0 && (
                     <div className="mt-2 flex justify-between items-center bg-white px-3 py-1.5 rounded-lg border border-black/10">
@@ -3042,7 +3005,7 @@ export default function Pos(props: PosProps = {}) {
                     onChange={e => setPaymentRef(e.target.value)}
                     placeholder={paymentType === 'cheque' ? 'Cheque number' : 'Reference / Txn no. (optional)'}
                     aria-label="Payment reference number"
-                    className="mt-2 w-full h-9 px-3 bg-white border border-black/10 rounded-xl text-[12px] font-bold text-[#000000] focus:outline-none focus:border-[var(--accent)]"
+                    className="mt-2 w-full h-10 px-3 bg-white border border-black/10 rounded-lg text-[12px] font-bold text-[#000000] focus:outline-none focus:border-[var(--accent)]"
                   />
                 )}
               </div>
@@ -3056,40 +3019,49 @@ export default function Pos(props: PosProps = {}) {
             </div>
 
             {/* Action Buttons Fixed Footer */}
-            <div className="shrink-0 border-t border-black/10 bg-white p-3 shadow-[0_-8px_20px_rgba(0,0,0,0.04)]">
-              {quoteSaved && <p className="mb-2 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 text-[10px] font-bold text-emerald-800">{quoteSaved}</p>}
-              <button
-                type="button"
-                onClick={() => { setQuoteSaved(''); setQuoteValidUntil(toLocalDateStr(new Date())); setQuoteNotes(''); setQuoteOpen(true) }}
-                disabled={saving || billItems.length === 0}
-                className="mb-2 w-full min-h-[36px] rounded-xl border border-gray-300 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000] transition-colors hover:border-[#0A0A0A] disabled:opacity-40 cursor-pointer"
-              >
-                Save as Quotation
-              </button>
+            <div className="shrink-0 border-t border-black/10 bg-white px-4 pb-4 pt-3 shadow-[0_-8px_20px_rgba(0,0,0,0.04)] sm:px-5">
+              {quoteSaved && <p className="mb-2 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-bold text-emerald-800">{quoteSaved}</p>}
+              <div className="mb-3 flex items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-black/50">{adjustmentsTotal > 0 ? 'To collect' : 'Grand total'}</p>
+                  <p className="truncate text-[26px] font-black leading-tight tracking-tight text-[#000000]">{formatCurrency(adjustmentsTotal > 0 ? payable : total)}</p>
+                </div>
+                <p className="shrink-0 pb-1 text-right text-[11px] font-semibold text-black/50">
+                  {billItems.length} item{billItems.length === 1 ? '' : 's'}{billGstEnabled ? ' · GST invoice' : ''}{paymentType === 'credit' ? ' · on credit' : ''}
+                </p>
+              </div>
               {/* Complete Sale — saves the bill */}
               <button
                 type="button"
                 onClick={generateBill}
                 disabled={saving}
-                className={`w-full mt-2 bg-[var(--accent)] hover:bg-[#27272A] text-white py-3 rounded-lg font-black text-[11px] uppercase tracking-[0.1em] flex items-center justify-center gap-2 transition-all active:scale-[0.98] shadow-[0_4px_14px_rgba(63,63,70,0.35)] ${saving ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+                className={`flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[var(--accent)] text-[12px] font-black uppercase tracking-[0.1em] text-white shadow-[0_6px_16px_rgba(0,0,0,0.18)] transition-all hover:brightness-110 active:scale-[0.99] ${saving ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
               >
                 {saving ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /><span>Processing Sale...</span></>
+                  <><Loader2 className="h-4 w-4 animate-spin" /><span>Processing Sale...</span></>
                 ) : (
-                  <><Check className="w-4 h-4" /><span>Complete Sale</span></>
+                  <><Check className="h-4 w-4" /><span>Complete Sale</span></>
                 )}
               </button>
-
-              {/* Save as Advance Order — partial payment hold, not counted as revenue */}
-              <button
-                type="button"
-                onClick={openDepositOrder}
-                disabled={saving || billItems.length === 0}
-                className={`w-full mt-2 bg-white border-2 border-[#F59E0B] hover:bg-[#FEF3C7] text-[#B45309] py-3 rounded-lg font-black text-[10px] uppercase tracking-[0.1em] flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60 ${saving ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-              >
-                <Clock className="w-4 h-4" />
-                <span>Save as Advance Order</span>
-              </button>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setQuoteSaved(''); setQuoteValidUntil(toLocalDateStr(new Date())); setQuoteNotes(''); setQuoteOpen(true) }}
+                  disabled={saving || billItems.length === 0}
+                  className="flex h-10 items-center justify-center gap-1.5 rounded-lg border border-black/15 bg-white text-[10px] font-black uppercase tracking-[0.1em] text-[#000000] transition-colors hover:border-black/40 disabled:opacity-40 cursor-pointer"
+                >
+                  <Receipt className="h-3.5 w-3.5" /> Quotation
+                </button>
+                {/* Save as Advance Order — partial payment hold, not counted as revenue */}
+                <button
+                  type="button"
+                  onClick={openDepositOrder}
+                  disabled={saving || billItems.length === 0}
+                  className={`flex h-10 items-center justify-center gap-1.5 rounded-lg border border-amber-400 bg-amber-50 text-[10px] font-black uppercase tracking-[0.1em] text-amber-800 transition-colors hover:bg-amber-100 disabled:opacity-40 ${saving ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  <Clock className="h-3.5 w-3.5" /> Advance Order
+                </button>
+              </div>
             </div>
           </div>
         </div>
