@@ -479,6 +479,10 @@ export default function Pos(props: PosProps = {}) {
 
   // Jewellery: live metal rates and the customer's savings schemes
   const rates = useMetalRateStore((s) => s.rates)
+  // Header chips: today's gold (24K / 22K / 18K) and silver rates, where the shop has set them
+  const todayRates = useMemo(() => ([['gold', '24K', 'Gold 24K'], ['gold', '22K', 'Gold 22K'], ['gold', '18K', 'Gold 18K'], ['silver', '999', 'Silver']] as const)
+    .map(([metal, purity, label]) => ({ label, silver: metal === 'silver', rate: Number(rates[`${metal}:${purity}`]?.ratePerGram || 0) || Number(Object.values(rates).find((r) => r.metalType === metal && (metal === 'silver' || r.purity === purity))?.ratePerGram || 0) }))
+    .filter((r) => r.rate > 0), [rates])
   const [expandedJewelleryId, setExpandedJewelleryId] = useState<string | number | null>(null)
   const [schemeRules, setSchemeRules] = useState<SchemeRules>(() => normalizeSchemeRules(null))
   const [customerSchemes, setCustomerSchemes] = useState<JewelleryScheme[]>([])
@@ -1888,7 +1892,7 @@ export default function Pos(props: PosProps = {}) {
 
   // ══ MAIN POS SCREEN ══════════════════════════════════════════════════
   return (
-    <div data-embedded={embeddedMode} data-panel={mobilePanelView} className={`flex flex-col h-full bg-white print:hidden overflow-y-auto overflow-x-hidden hide-scrollbar ${embeddedMode ? '' : 'p-4 sm:p-6'}`}>
+    <div data-embedded={embeddedMode} data-panel={mobilePanelView} className={`flex flex-col h-full bg-[#FAFAF8] print:hidden overflow-y-auto overflow-x-hidden hide-scrollbar ${embeddedMode ? '' : 'p-4 sm:p-6'}`}>
       {/* Online / offline toggle: shown in the dashboard top bar when embedded, like IGMOLS */}
       {embeddedMode && headerSlot && createPortal(
         <div className="flex items-center bg-[#FFFFFF]/60 border border-black/10 rounded-full p-1 shadow-sm">
@@ -1915,12 +1919,25 @@ export default function Pos(props: PosProps = {}) {
       {/* Subheader accent bar and title */}
       <div className="shrink-0 mb-4">
         <div className="flex flex-wrap justify-between items-center gap-3 w-full">
-          <div className="flex items-center gap-4">
-            <span className="w-1.5 h-8 bg-[var(--accent)] rounded-full"></span>
-            <div>
-              <h2 className="text-xl font-black text-[#000000] tracking-tight">POS Billing Panel</h2>
-              <p className="text-[11px] text-[#000000] font-semibold mt-0.5">Quick Invoice generator & database synced checkout</p>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-5 gap-y-3">
+            <div className="flex items-center gap-3">
+              <span className="h-9 w-1.5 rounded-full bg-[var(--accent)]"></span>
+              <div>
+                <h2 className="text-xl font-black tracking-tight text-[#000000]">POS Billing Panel</h2>
+                <p className="mt-0.5 text-[11px] font-semibold text-black/55">{new Date().toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'short', year: 'numeric' })}{role ? ` · ${role === 'admin' ? 'Admin' : 'Staff'}` : ''}</p>
+              </div>
             </div>
+            {todayRates.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5" aria-label="Today's rates">
+                {todayRates.map((r) => (
+                  <span key={r.label} className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[11px] shadow-sm">
+                    <span className={`h-2 w-2 rounded-full ${r.silver ? 'bg-slate-400' : 'bg-amber-400'}`} />
+                    <span className="font-bold text-black/55">{r.label}</span>
+                    <span className="font-black text-[#000000]">{formatCurrency(r.rate)}<span className="font-semibold text-black/45">/g</span></span>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           {!embeddedMode && (
             <div className="flex flex-wrap items-center gap-2">
@@ -1966,10 +1983,11 @@ export default function Pos(props: PosProps = {}) {
       <div className="flex flex-col gap-5 pb-6 lg:h-[calc(100dvh-120px)] lg:flex-row lg:overflow-hidden">
 
         {/* LEFT COLUMN (approx 68%) */}
-        <div className="flex w-full min-w-0 flex-col gap-5 lg:w-[62%] lg:overflow-y-auto lg:pb-4 hide-scrollbar xl:w-[66%]">
+        <div className="flex w-full min-w-0 flex-col gap-5 lg:flex-1 lg:overflow-y-auto lg:pb-4 hide-scrollbar">
 
           {/* Customer Details Card */}
-          <div className="flex-shrink-0 rounded-2xl border border-black/10 bg-white p-4 shadow-sm sm:p-5">
+          <div className="flex-shrink-0 relative rounded-2xl border border-black/10 bg-white p-4 shadow-sm sm:p-5">
+            <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[3px] rounded-t-2xl bg-gradient-to-r from-[var(--accent)] via-[var(--accent-a30)] to-transparent" />
             <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
               <h3 className="flex items-center gap-2.5 text-[15px] font-black tracking-tight text-[#000000]">
                 <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent-a10)] text-[var(--accent)]"><UserRound className="h-4 w-4" /></span>
@@ -1977,7 +1995,7 @@ export default function Pos(props: PosProps = {}) {
               </h3>
               <p className="text-[11px] font-semibold text-black/50">Type the mobile number first: a returning customer's details fill in.</p>
             </div>
-            <div className="grid grid-cols-1 gap-x-4 gap-y-3 md:grid-cols-[1fr_1fr_1.4fr]">
+            <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2 2xl:grid-cols-[1fr_1fr_1.4fr]">
               <label className="block min-w-0">
                 <span className={posLabel}>Mobile (WhatsApp) *</span>
                 <input
@@ -1993,7 +2011,7 @@ export default function Pos(props: PosProps = {}) {
                 <span className={posLabel}>Customer name *</span>
                 <input type="text" value={customer.name} onChange={e => setCustomer({...customer, name: e.target.value})} placeholder="Full name" className={posField} />
               </label>
-              <label className="block min-w-0">
+              <label className="block min-w-0 sm:col-span-2 2xl:col-span-1">
                 <span className={posLabel}>Address</span>
                 <input type="text" value={customer.address} onChange={e => setCustomer({...customer, address: e.target.value})} placeholder="Door no., street, area, city" className={posField} />
               </label>
@@ -2064,7 +2082,8 @@ export default function Pos(props: PosProps = {}) {
           </div>
 
           {/* Order Items Card */}
-          <div className="flex-1 flex min-h-[400px] flex-col overflow-visible rounded-2xl border border-black/10 bg-white shadow-sm">
+          <div className="flex-1 flex min-h-[400px] flex-col overflow-visible relative rounded-2xl border border-black/10 bg-white shadow-sm">
+            <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[3px] rounded-t-2xl bg-gradient-to-r from-[var(--accent)] via-[var(--accent-a30)] to-transparent" />
             {/* Card Header & Barcode Scanner */}
             <div className="flex flex-col gap-3 border-b border-black/10 px-4 pb-4 pt-4 sm:px-5 sm:pt-5">
               <div className="flex items-center justify-between gap-2">
@@ -2073,7 +2092,11 @@ export default function Pos(props: PosProps = {}) {
                   Order Items
                   <span className="rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-black">{items.length}</span>
                 </h3>
-                {items.length > 0 && <span className="text-sm font-black text-[#000000]">{formatCurrency(subtotal)}</span>}
+                <div className="flex items-center gap-2">
+                  {items.length > 0 && <span className="mr-1 text-sm font-black text-[#000000]">{formatCurrency(subtotal)}</span>}
+                  <button type="button" onClick={() => setCalculatorOpen(true)} title="Calculator" aria-label="Calculator" className="flex h-9 w-9 items-center justify-center rounded-lg border border-black/10 bg-white text-[#000000] transition-colors hover:bg-black/5 cursor-pointer"><Calculator className="h-4 w-4" /></button>
+                  <button type="button" onClick={clearAll} disabled={items.length === 0} title="Clear order" aria-label="Clear order" className="flex h-9 w-9 items-center justify-center rounded-lg border border-black/10 bg-white text-red-600 transition-colors hover:bg-red-50 disabled:text-black/25 disabled:hover:bg-white cursor-pointer disabled:cursor-not-allowed"><Trash2 className="h-4 w-4" /></button>
+                </div>
               </div>
 
               {/* Barcode Scanner Bar */}
@@ -2081,23 +2104,12 @@ export default function Pos(props: PosProps = {}) {
                 <BarcodeScannerInput onItemScanned={handleScannedItem} onNotFound={setQuickAddBarcode} clearSignal={scanResetTick} />
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Clear Order Button */}
-                <button
-                  type="button"
-                  onClick={clearAll}
-                  disabled={items.length === 0}
-                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-black/10 bg-white px-3.5 text-[10px] font-bold uppercase tracking-wider text-[#000000] transition-colors hover:bg-black/5 disabled:opacity-40 cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Clear Order</span>
-                </button>
-
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {/* Button 1: Search Catalog */}
                 <button
                   type="button"
                   onClick={() => setCatalogOpen(true)}
-                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-black/10 bg-white px-3.5 text-[10px] font-bold uppercase tracking-wider text-[#000000] transition-colors hover:bg-black/5 cursor-pointer"
+                  className="flex h-10 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-black/10 bg-white px-3.5 text-[10px] font-bold uppercase tracking-wider text-[#000000] transition-colors hover:border-[var(--accent)] hover:bg-black/[0.03] cursor-pointer"
                 >
                   <Search className="w-3.5 h-3.5 text-[var(--accent)]" />
                   <span>Search Catalog</span>
@@ -2106,7 +2118,7 @@ export default function Pos(props: PosProps = {}) {
                 <button
                   type="button"
                   onClick={() => setLoosePickerOpen(true)}
-                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--accent-a20)] bg-[var(--accent-a5)] px-3.5 text-[10px] font-bold uppercase tracking-wider text-[var(--accent)] transition-colors hover:bg-[var(--accent-a10)] cursor-pointer"
+                  className="flex h-10 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-black/10 bg-white px-3.5 text-[10px] font-bold uppercase tracking-wider text-[#000000] transition-colors hover:border-[var(--accent)] hover:bg-black/[0.03] cursor-pointer"
                 >
                   <Gem className="w-3.5 h-3.5" />
                   <span>Loose Stone</span>
@@ -2116,20 +2128,12 @@ export default function Pos(props: PosProps = {}) {
                 <button
                   type="button"
                   onClick={() => setAddUnregisteredOpen(true)}
-                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-[var(--accent-a20)] bg-[var(--accent-a5)] px-3.5 text-[10px] font-bold uppercase tracking-wider text-[var(--accent)] transition-colors hover:bg-[var(--accent-a10)] cursor-pointer"
+                  className="flex h-10 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border border-black/10 bg-white px-3.5 text-[10px] font-bold uppercase tracking-wider text-[#000000] transition-colors hover:border-[var(--accent)] hover:bg-black/[0.03] cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Custom Item</span>
                 </button>
 
-                <button
-                  type="button"
-                  onClick={() => setCalculatorOpen(true)}
-                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-black/10 bg-white px-3.5 text-[10px] font-bold uppercase tracking-wider text-[#000000] transition-colors hover:bg-black/5 cursor-pointer"
-                >
-                  <Calculator className="w-3.5 h-3.5 text-[var(--accent)]" />
-                  <span>Calculator</span>
-                </button>
               </div>
             </div>
 
@@ -2144,9 +2148,10 @@ export default function Pos(props: PosProps = {}) {
             {/* Table Body */}
             <div className="flex-1 overflow-y-auto p-3 space-y-3 md:space-y-2">
               {items.length === 0 && (
-                <div className="flex flex-col items-center justify-center h-full text-[#000000]/60">
-                  <ShoppingBag size={40} className="mb-3 opacity-20" />
-                  <p className="text-[13px] font-bold">No items added yet</p>
+                <div className="flex h-full min-h-[260px] flex-col items-center justify-center px-4 py-10 text-center">
+                  <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--accent-a10)] text-[var(--accent)]"><ShoppingBag className="h-6 w-6" /></span>
+                  <p className="mt-4 text-[15px] font-black text-[#000000]">No items yet</p>
+                  <p className="mt-1 max-w-xs text-[12px] font-semibold leading-relaxed text-black/50">Scan a tag above, or use Search Catalog, Loose Stone or Add Custom Item.</p>
                 </div>
               )}
 
@@ -2407,8 +2412,9 @@ export default function Pos(props: PosProps = {}) {
         </div>
 
         {/* RIGHT COLUMN (approx 32%) */}
-        <div className="flex h-[calc(100dvh-140px)] max-h-[calc(100dvh-140px)] min-h-0 w-full min-w-0 flex-col gap-5 max-lg:min-h-[420px] lg:sticky lg:top-4 lg:w-[38%] xl:w-[34%]">
-          <div className="flex min-h-0 h-full max-h-full flex-col overflow-hidden rounded-2xl border border-black/10 bg-white shadow-sm">
+        <div className="flex h-[calc(100dvh-140px)] max-h-[calc(100dvh-140px)] min-h-0 w-full min-w-0 flex-col gap-5 max-lg:min-h-[420px] lg:sticky lg:top-4 lg:w-[380px] lg:shrink-0 xl:w-[420px] 2xl:w-[460px]">
+          <div className="flex min-h-0 h-full max-h-full flex-col overflow-hidden relative rounded-2xl border border-black/10 bg-white shadow-sm">
+            <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[3px] rounded-t-2xl bg-gradient-to-r from-[var(--accent)] via-[var(--accent-a30)] to-transparent" />
 
             {/* Header */}
             <div className="flex shrink-0 items-center justify-between border-b border-black/10 bg-white px-4 py-4 sm:px-5">
