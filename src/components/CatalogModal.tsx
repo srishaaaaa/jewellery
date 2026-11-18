@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
-import { X, Search, ShoppingBag, Edit2, Trash2, MapPin, Package, Gift } from 'lucide-react'
+import { X, Search, ShoppingBag, Edit2, Trash2, MapPin, Gift, Plus } from 'lucide-react'
 import { useProductStore, type Product } from '../store/store'
 import { supabase } from '../lib/supabase'
 import { useSound } from '../context/SoundContext'
@@ -188,33 +188,35 @@ export default function CatalogModal({ isOpen, onClose, onAdd, onAddFree }: Cata
           </>
         ) : (
           <>
-            <div className="flex items-center justify-between p-5 border-b border-black/10 bg-white">
-              <h2 className="text-[18px] font-black text-[#000000] flex items-center gap-2">
-                <Search size={18} className="text-[var(--accent)]" />
+            <div className="flex items-center justify-between gap-3 border-b border-black/10 bg-white px-4 py-3.5 sm:px-5">
+              <h2 className="flex items-center gap-2.5 text-[17px] font-black text-[#000000]">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--accent-a10)] text-[var(--accent)]"><Search size={16} /></span>
                 Search Catalog
+                {!loading && !error && <span className="rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-black">{filtered.length}</span>}
               </h2>
               <button onClick={onClose} className="p-2 rounded-xl hover:bg-black/5 text-[#000000]">
                 <X size={20} />
               </button>
             </div>
-            <div className="p-3 sm:p-4 border-b border-black/10 bg-white space-y-3">
+            <div className="space-y-3 border-b border-black/10 bg-white px-4 pb-3 pt-3 sm:px-5">
               <div className="relative">
                 <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#000000]" />
                 <input type="text" value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search name, HUID, SKU, barcode, design no. or purity..."
-                  className="w-full pl-10 pr-4 py-3 bg-white border border-black/10 rounded-xl focus:outline-none focus:border-[var(--accent)] text-[13px] font-bold text-[#000000]" />
+                  autoFocus
+                  className="h-11 w-full rounded-xl border border-black/10 bg-[#FAFAFA] pl-10 pr-4 text-[13px] font-bold text-[#000000] focus:border-[var(--accent)] focus:bg-white focus:outline-none" />
               </div>
-              <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+              <div className="hide-scrollbar flex gap-1.5 overflow-x-auto">
                 {categories.map(cat => (
-                  <button key={cat} onClick={() => setActiveCategory(cat)}
-                    className={`px-4 py-2 rounded-xl text-[11px] font-black uppercase tracking-wider whitespace-nowrap transition-colors ${activeCategory === cat ? 'bg-[var(--accent)] text-white' : 'bg-white text-[#000000] hover:bg-black/[0.03] border border-black/10'}`}>
+                  <button key={cat} type="button" onClick={() => setActiveCategory(cat)}
+                    className={`h-8 shrink-0 whitespace-nowrap rounded-full border px-3.5 text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer ${activeCategory === cat ? 'border-[var(--accent)] bg-[var(--accent)] text-white' : 'border-black/10 bg-white text-[#000000] hover:border-black/30'}`}>
                     {cat}
                   </button>
                 ))}
               </div>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4 bg-white">
+            <div className="min-h-0 flex-1 overflow-y-auto bg-[#FAFAF8] p-3 sm:p-4">
               {loading ? (
                 <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-[#000000]/70">
                   <span className="h-7 w-7 animate-spin rounded-full border-2 border-black/10 border-t-[var(--accent)]" />
@@ -231,63 +233,65 @@ export default function CatalogModal({ isOpen, onClose, onAdd, onAddFree }: Cata
                   <p className="text-[14px] font-bold">No items found</p>
                 </div>
               ) : (
-                <div className="flex flex-col gap-3">
-                  {filtered.map(product => (
-                    <div key={product.id}
-                      className="bg-white border border-black/10 rounded-2xl p-4 hover:border-[var(--accent-a40)] hover:shadow-md transition-all group">
-                      <div className="flex items-start justify-between gap-3">
-                        <div onClick={() => onAdd(product)} className="cursor-pointer flex-1 min-w-0">
-                          <h4 className="text-[15px] font-black text-[#000000] leading-tight break-words group-hover:text-[var(--accent)] transition-colors">{product.name}</h4>
-                          {product.location && /^[a-zA-Z0-9\s,\-./]+$/.test(product.location) && (
-                            <p className="flex items-center gap-1 text-[10px] font-bold text-[var(--accent)] mt-1">
-                              <MapPin size={11} /> {product.location}
-                            </p>
-                          )}
-                          <span className="inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-600 text-[10px] font-bold uppercase tracking-widest">
-                            <Package size={12} /> {product.metalType ? metalLabel(product.metalType, product.purity) : 'Item'}
-                          </span>
-                          {product.metalType && (product.netWeight || product.huid) ? (
-                            <p className="text-[11px] font-bold text-[#000000] mt-1">
-                              {product.netWeight ? `Net ${formatWeight(product.netWeight)}` : ''}{product.netWeight && product.huid ? ' • ' : ''}{(product.pieces?.length ?? 0) > 1 ? `${product.pieces!.length} numbered pieces` : product.huid ? `HUID ${product.huid}` : ''}
-                            </p>
-                          ) : null}
-                        </div>
-                        <div className="flex gap-1.5 shrink-0 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-                          <button onClick={(e) => { e.stopPropagation(); startEdit(product) }} title="Edit product"
-                            className="p-2 rounded-lg bg-white border border-black/10 text-[#000000] hover:text-[var(--accent)] hover:border-[var(--accent-a40)] shadow-sm transition-colors">
-                            <Edit2 size={15} />
-                          </button>
-                          <button onClick={(e) => { e.stopPropagation(); void handleDelete(product) }} title="Delete product"
-                            className="p-2 rounded-lg bg-white border border-black/10 text-red-400 hover:text-red-600 hover:border-red-300 shadow-sm transition-colors">
-                            <Trash2 size={15} />
-                          </button>
-                        </div>
-                      </div>
-                      <div onClick={() => onAdd(product)} className="cursor-pointer flex items-end justify-between mt-3 pt-3 border-t border-black/10">
-                        <div>
-                          {(() => {
-                            const livePrice = currentProductPrice(product, rates)
-                            return livePrice == null
-                              ? <span className="text-[13px] font-black text-amber-700">Rate missing — update Metal Rates</span>
-                              : <span className="text-[18px] font-black text-[#000000]">₹{livePrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
-                          })()}
-                          {!!product.purchasePrice && (
-                            <p className="text-[11px] font-semibold text-[#9CA3AF] mt-0.5">Cost: ₹{product.purchasePrice}</p>
-                          )}
-                        </div>
-                        <div className="flex flex-wrap items-center justify-end gap-1.5">
-                          {onAddFree && (
-                            <button type="button" onClick={(e) => { e.stopPropagation(); onAddFree(product) }}
-                              title="Add at ₹0 as a free gift. It still comes out of stock."
-                              className="flex items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2.5 py-1.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 hover:bg-emerald-100 cursor-pointer">
-                              <Gift size={12} /> Free
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {filtered.map(product => {
+                    const livePrice = currentProductPrice(product, rates)
+                    const metal = String(product.metalType || '').toLowerCase()
+                    const tone = metal === 'gold' ? 'border-amber-200 bg-amber-50 text-amber-800' : metal === 'silver' ? 'border-slate-200 bg-slate-50 text-slate-700' : metal ? 'border-sky-200 bg-sky-50 text-sky-800' : 'border-black/10 bg-black/[0.03] text-black/70'
+                    const showLocation = product.location && /^[a-zA-Z0-9\s,\-./]+$/.test(product.location)
+                    return (
+                      <div key={product.id}
+                        className="group flex min-w-0 flex-col rounded-2xl border border-black/10 bg-white p-3.5 transition-all hover:border-[var(--accent)] hover:shadow-md">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="truncate rounded-full bg-black/[0.04] px-2.5 py-1 text-[9px] font-black uppercase tracking-wider text-black/60">{product.category || 'Item'}</span>
+                          <div className="flex shrink-0 gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+                            <button type="button" onClick={(e) => { e.stopPropagation(); startEdit(product) }} title="Edit product" aria-label={`Edit ${product.name}`}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg border border-black/10 bg-white text-[#000000] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] cursor-pointer">
+                              <Edit2 size={13} />
                             </button>
-                          )}
-                          <span className="text-[10px] font-black text-[#000000] uppercase tracking-wider bg-white px-2.5 py-1.5 rounded-lg border border-black/10">{product.category}</span>
+                            <button type="button" onClick={(e) => { e.stopPropagation(); void handleDelete(product) }} title="Delete product" aria-label={`Delete ${product.name}`}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg border border-black/10 bg-white text-red-500 transition-colors hover:border-red-300 hover:text-red-600 cursor-pointer">
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        </div>
+
+                        <button type="button" onClick={() => onAdd(product)} className="mt-2.5 flex min-w-0 flex-1 flex-col items-start justify-start text-left cursor-pointer">
+                          <h4 className="line-clamp-2 text-[14px] font-black leading-snug text-[#000000] transition-colors group-hover:text-[var(--accent)]">{product.name}</h4>
+                          {showLocation && <p className="mt-0.5 flex items-center gap-1 text-[10px] font-bold text-black/50"><MapPin size={11} /> {product.location}</p>}
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                            <span className={`rounded-md border px-2 py-0.5 text-[10px] font-black uppercase tracking-wider ${tone}`}>{product.metalType ? metalLabel(product.metalType, product.purity) : 'Item'}</span>
+                            {product.metalType && product.netWeight ? <span className="text-[11px] font-bold text-black/70">{formatWeight(product.netWeight)}</span> : null}
+                          </div>
+                          {product.metalType && ((product.pieces?.length ?? 0) > 1 || product.huid) ? (
+                            <p className="mt-1 truncate text-[10px] font-semibold text-black/45">{(product.pieces?.length ?? 0) > 1 ? `${product.pieces!.length} numbered pieces` : `HUID ${product.huid}`}</p>
+                          ) : null}
+                        </button>
+
+                        <div className="mt-3 flex items-end justify-between gap-2 border-t border-black/[0.07] pt-3">
+                          <div className="min-w-0">
+                            {livePrice == null
+                              ? <span className="text-[11px] font-black text-amber-700">Rate missing: update Metal Rates</span>
+                              : <span className="block truncate text-[17px] font-black leading-tight text-[#000000]">₹{livePrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>}
+                            {!!product.purchasePrice && <span className="block truncate text-[10px] font-semibold text-black/40">Cost ₹{Number(product.purchasePrice).toLocaleString('en-IN')}</span>}
+                          </div>
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {onAddFree && (
+                              <button type="button" onClick={(e) => { e.stopPropagation(); onAddFree(product) }}
+                                title="Add at ₹0 as a free gift. It still comes out of stock."
+                                className="flex h-8 items-center gap-1 rounded-lg border border-emerald-300 bg-emerald-50 px-2 text-[10px] font-black uppercase tracking-wider text-emerald-700 transition-colors hover:bg-emerald-100 cursor-pointer">
+                                <Gift size={12} /> Free
+                              </button>
+                            )}
+                            <button type="button" onClick={() => onAdd(product)}
+                              className="flex h-8 items-center gap-1 rounded-lg bg-[var(--accent)] px-3 text-[10px] font-black uppercase tracking-wider text-white transition-all hover:brightness-110 cursor-pointer">
+                              <Plus size={13} /> Add
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
