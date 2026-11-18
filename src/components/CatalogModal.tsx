@@ -203,7 +203,7 @@ export default function CatalogModal({ isOpen, onClose, onAdd, onAddFree }: Cata
                 <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#000000]" />
                 <input type="text" value={search}
                   onChange={e => setSearch(e.target.value)}
-                  placeholder="Search name, HUID, SKU, barcode, design no. or purity..."
+                  placeholder="Name, HUID, SKU, barcode or purity"
                   autoFocus
                   className="h-11 w-full rounded-xl border border-black/10 bg-[#FAFAFA] pl-10 pr-4 text-[13px] font-bold text-[#000000] focus:border-[var(--accent)] focus:bg-white focus:outline-none" />
               </div>

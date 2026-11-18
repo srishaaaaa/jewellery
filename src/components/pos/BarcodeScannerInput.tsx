@@ -366,7 +366,7 @@ export const BarcodeScannerInput: React.FC<BarcodeScannerInputProps> = ({
           <input
             ref={inputRef}
             type="text"
-            placeholder="Scan barcode with machine, camera, or type code..."
+            placeholder="Scan or type a barcode"
             value={manualCode}
             onChange={(e) => setManualCode(e.target.value)}
             onClick={handleInputBarClick}

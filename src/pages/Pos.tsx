@@ -2027,7 +2027,7 @@ export default function Pos(props: PosProps = {}) {
               <span className="flex min-w-0 items-center gap-2 text-[11px] font-black uppercase tracking-wider text-[#000000]">
                 <SlidersHorizontal className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" />
                 <span className="whitespace-nowrap">More details</span>
-                <span className="truncate font-semibold normal-case tracking-normal text-black/50">
+                <span className={`truncate font-semibold normal-case tracking-normal text-black/50 ${extraFilled > 0 ? '' : 'hidden md:inline'}`}>
                   {extraFilled > 0 ? `${extraFilled} filled` : 'Birthday, email, bill date, GSTIN, Aadhaar, PAN…'}
                 </span>
                 {needsPan && <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black text-amber-800">PAN needed</span>}
