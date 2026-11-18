@@ -38,7 +38,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 import { debounce } from '../lib/debounce'
 import { useAuthStore, useProductStore, useAdminAuthStore, useSettingsStore, DEFAULT_STAFF_PANELS } from '../store/store'
-import { formatPaymentMode, formatCurrency, normalizeOrderMode, toNumber } from '../lib/retail'
+import { addBillPayments, emptyPaymentTotals, formatPaymentMode, formatCurrency, normalizeOrderMode, PAYMENT_BOXES, toNumber } from '../lib/retail'
 import { normalizeStructuredOrderItem, formatInvoiceNo, paymentSplitRows } from '../lib/retail'
 import { gstSplit } from '../lib/gst'
 import { DetailDrawer } from '../components/DetailDrawer'
@@ -106,7 +106,7 @@ export type DashboardOrder = {
   created_at: string; total: number; status: string; order_mode: string; order_type: string; user_id: string | null; items: unknown
   coupon_code: string; discount_amount: number; manual_discount_amount: number; delivery_charge: number
   total_gst: number; payment_mode: string; payment_method?: string; invoice_pdf_url: string; remarks?: string; reference_number?: string
-  is_credit?: boolean; credit_due_date?: string | null; credit_status?: string | null; credit_paid_at?: string | null
+  is_credit?: boolean; credit_due_date?: string | null; credit_status?: string | null; credit_paid_at?: string | null; credit_paid_method?: string | null
   split_details?: Record<string, unknown> | null
   scheme_number?: string | null; scheme_amount_used?: number; scheme_discount?: number; scheme_balance_after?: number | null
   advance_amount_used?: number; exchange_amount?: number; customer_gstin?: string | null
@@ -337,6 +337,8 @@ export default function Dashboard() {
   const [returnsList, setReturnsList] = useState<SalesReturn[]>([])
   const [customerAdvances, setCustomerAdvances] = useState<CustomerAdvance[]>([])
   const [changeRows, setChangeRows] = useState<Array<{ id: string; created_at: string; change_returned: number }>>([])
+  // Payments recorded later on credit bills (each part under the method it was paid by)
+  const [creditPayments, setCreditPayments] = useState<Record<string, Array<{ amount: number; method: string }>>>({})
   const [advanceList, setAdvanceList] = useState<AdvanceOrder[]>([])
   const netRules = useSettingsStore(s => s.settings?.posPermissions)
 
@@ -418,6 +420,7 @@ export default function Dashboard() {
       credit_due_date: row.credit_due_date ? String(row.credit_due_date) : null,
       credit_status: row.credit_status ? String(row.credit_status) : null,
       credit_paid_at: row.credit_paid_at ? String(row.credit_paid_at) : null,
+      credit_paid_method: row.credit_paid_method ? String(row.credit_paid_method) : null,
     }
   }
 
@@ -833,6 +836,14 @@ export default function Dashboard() {
 
     return {
       totalCompletedRevenue: completedRevenue,
+      paymentTotals: (() => {
+        const t = emptyPaymentTotals()
+        for (const o of billableCompleted) {
+          const later = o.is_credit ? (creditPayments[o.id] || (o.credit_paid_method && o.credit_paid_method !== 'mixed' ? [{ amount: getOrderTotal(o) - Number(o.scheme_amount_used || 0) - Number(o.advance_amount_used || 0) - Number(o.exchange_amount || 0), method: o.credit_paid_method }] : undefined)) : undefined
+          addBillPayments(t, { ...o, total: getOrderTotal(o) }, later)
+        }
+        return t
+      })(),
       averageRevenuePerBill,
       todaySales,
       todayCompletedOrdersCount,
@@ -911,7 +922,7 @@ export default function Dashboard() {
       gstBillCount: gstBills.length,
       nonGstBillCount: nonGstBills.length,
     }
-  }, [orders, orderItems, products, expenses, oldGold, supplierPurchases, advanceList, returnsList, customerAdvances, changeRows, netRules, analyticsDateFrom, analyticsDateTo, analyticsBillKind])
+  }, [orders, orderItems, products, expenses, oldGold, supplierPurchases, advanceList, returnsList, customerAdvances, changeRows, creditPayments, netRules, analyticsDateFrom, analyticsDateTo, analyticsBillKind])
 
   // Bill-type filtered results for Order Management table (client-side, instant)
   const filteredSearchResults = useMemo(() => {
@@ -939,7 +950,7 @@ export default function Dashboard() {
       const productsPromise = fetchProducts(true)
       const [oRes, couponRes, expList] = await Promise.all([
         supabase.from('orders')
-          .select('id, invoice_no, customer_name, phone, address, created_at, total, status, order_mode, order_type, user_id, items, coupon_code, discount_amount, manual_discount_amount, delivery_charge, total_gst, gst_amount, payment_mode, payment_method, split_details, invoice_pdf_url, remarks, reference_number, is_credit, credit_due_date, credit_status, credit_paid_at')
+          .select('id, invoice_no, customer_name, phone, address, created_at, total, status, order_mode, order_type, user_id, items, coupon_code, discount_amount, manual_discount_amount, delivery_charge, total_gst, gst_amount, payment_mode, payment_method, split_details, invoice_pdf_url, remarks, reference_number, is_credit, credit_due_date, credit_status, credit_paid_at, credit_paid_method')
           .order('created_at', { ascending: false })
           .limit(1000),
         supabase.from('coupons')
@@ -963,6 +974,17 @@ export default function Dashboard() {
       purchaseService.list().then(setSupplierPurchases).catch(() => setSupplierPurchases([]))
       listAdvanceOrders().then(setAdvanceList).catch(() => setAdvanceList([]))
 
+      const creditIds = mappedOrders.filter(o => o.is_credit && o.credit_status === 'paid').map(o => o.id)
+      if (creditIds.length) {
+        Promise.resolve(supabase.from('order_payments').select('order_id, amount, payment_method').in('order_id', creditIds.slice(0, 500)))
+          .then(({ data, error: payErr }) => {
+            if (payErr) return
+            const byOrder: Record<string, Array<{ amount: number; method: string }>> = {}
+            for (const r of (data || []) as Array<{ order_id: string; amount: number; payment_method: string }>) (byOrder[r.order_id] ||= []).push({ amount: Number(r.amount) || 0, method: r.payment_method })
+            setCreditPayments(byOrder)
+          })
+          .catch(() => undefined)
+      } else setCreditPayments({})
       const orderIds = mappedOrders.map(o => o.id).filter(Boolean)
       if (orderIds.length > 0) {
         let oi: unknown[] | null = null
@@ -2728,6 +2750,31 @@ export default function Dashboard() {
                       <p className="text-xs text-[#000000] leading-snug" title={card.helper}>{card.helper}</p>
                     </div>
                   ))}
+                </div>
+
+                {/* Money taken by payment method: a mixed payment counts each part under its own method */}
+                <div className="rounded-2xl border border-black/10 bg-white p-4 shadow-sm sm:p-5">
+                  <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+                    <h3 className="text-[15px] font-black text-[#000000]">Collections by Payment Method</h3>
+                    <p className="text-[11px] font-semibold text-black/50">Split bills are divided: ₹200 cash + ₹300 UPI counts ₹200 in Cash and ₹300 in UPI.</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                    {PAYMENT_BOXES.filter(([k]) => ['cash', 'upi', 'card', 'bank', 'cheque'].includes(k) || analytics.paymentTotals[k].amount > 0).map(([k, label]) => {
+                      const v = analytics.paymentTotals[k]
+                      const share = analytics.totalCompletedRevenue > 0 ? Math.round((v.amount / analytics.totalCompletedRevenue) * 100) : 0
+                      return (
+                        <div key={k} className="min-w-0 rounded-xl border border-black/10 bg-[#FAFAFA] p-3.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="min-w-0 break-words text-[11px] font-black uppercase tracking-wider text-black/60">{label}</p>
+                            <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-black/60 ring-1 ring-black/10">{share}%</span>
+                          </div>
+                          <p className="mt-1.5 truncate text-[19px] font-black leading-tight text-[#000000]">{formatCurrency(v.amount)}</p>
+                          <p className="mt-0.5 text-[11px] font-semibold text-black/50">{v.bills} bill{v.bills === 1 ? '' : 's'}</p>
+                          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/[0.06]"><div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(100, share)}%` }} /></div>
+                        </div>
+                      )
+                    })}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">

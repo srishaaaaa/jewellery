@@ -44,7 +44,7 @@ const RMIcon = ({ size = 16, className = '' }: { size?: number; className?: stri
   </svg>
 )
 import { useAuthStore, useProductStore, type Product } from '../store/store'
-import { formatInvoiceNo, formatCurrency, normalizeOrderMode, toNumber } from '../lib/retail'
+import { addBillPayments, emptyPaymentTotals, formatInvoiceNo, formatCurrency, normalizeOrderMode, toNumber } from '../lib/retail'
 import { getPresetRange, startOfWeekMonday, toLocalDateStr } from '../lib/dateRanges'
 import { csvDate, csvPhone, toCsv } from '../lib/csv'
 
@@ -126,7 +126,6 @@ type AnalyticsModel = {
 
 const normalizeStatus = (value: unknown) => String(value || '').trim().toLowerCase()
 const normalizeOrderType = (value: unknown) => String(value || '').trim().toLowerCase() || 'pos_sale'
-const normalizePaymentMethod = (value: unknown) => String(value || '').trim().toLowerCase()
 const isCompletedStatus = (value: unknown) => {
   const status = normalizeStatus(value)
   return status === 'completed' || status === 'paid'
@@ -268,7 +267,7 @@ export default function BillingAnalytics() {
       const [ordersRes] = await Promise.all([
         supabase
           .from('orders')
-          .select('id, invoice_no, customer_name, phone, address, created_at, total, status, order_mode, order_type, items, coupon_code, discount_amount, delivery_charge')
+          .select('id, invoice_no, customer_name, phone, address, created_at, total, status, order_mode, order_type, items, coupon_code, discount_amount, delivery_charge, payment_mode, payment_method, split_details')
           .order('created_at', { ascending: false })
           .limit(1000),
         fetchProducts(true),
@@ -337,16 +336,12 @@ export default function BillingAnalytics() {
     const onlinePosRevenue = onlinePOS.reduce((sum, order) => sum + toNumber(order.total, 0), 0)
     const manualRevenue = manualSales.reduce((sum, order) => sum + toNumber(order.total, 0), 0)
 
-    // Payment mode breakdown
-    const cashRevenue = billableCompleted
-      .filter((order) => normalizePaymentMethod(order.payment_method) === 'cash')
-      .reduce((sum, order) => sum + toNumber(order.total, 0), 0)
-    const cardRevenue = billableCompleted
-      .filter((order) => normalizePaymentMethod(order.payment_method) === 'card')
-      .reduce((sum, order) => sum + toNumber(order.total, 0), 0)
-    const qrRevenue = billableCompleted
-      .filter((order) => normalizePaymentMethod(order.payment_method) === 'upi')
-      .reduce((sum, order) => sum + toNumber(order.total, 0), 0)
+    // Payment mode breakdown: a mixed payment counts each part under its own method
+    const byMethod = emptyPaymentTotals()
+    billableCompleted.forEach((order) => addBillPayments(byMethod, order as Parameters<typeof addBillPayments>[1]))
+    const cashRevenue = byMethod.cash.amount
+    const cardRevenue = byMethod.card.amount
+    const qrRevenue = byMethod.upi.amount
 
     // Credit metrics: will be enabled once database is migrated with is_credit and credit_status columns
     const totalCreditSales = 0

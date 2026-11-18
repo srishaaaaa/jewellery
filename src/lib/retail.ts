@@ -110,6 +110,60 @@ export const splitPaymentParts = (splitDetails: unknown): Array<[string, number]
 export const paymentSplitRows = (splitDetails: unknown): Array<[string, number]> =>
   splitPaymentParts(splitDetails).map(([k, v]) => [PAYMENT_LABELS[k] || k, v])
 
+// ── Money taken, by payment method ──────────────────────────────────────────
+/** Boxes in display order: counter methods, then money settled from the customer's scheme / advance / old gold. */
+export const PAYMENT_BOXES = [
+  ['cash', 'Cash'], ['upi', 'UPI'], ['card', 'Card'], ['bank', 'Bank'], ['cheque', 'Cheque'],
+  ['scheme', 'Scheme'], ['advance', 'Advance'], ['exchange', 'Old Gold'], ['other', 'Other'],
+] as const
+export type PaymentBoxKey = typeof PAYMENT_BOXES[number][0]
+export type PaymentTotals = Record<PaymentBoxKey, { amount: number; bills: number }>
+
+export const paymentBoxKey = (method: unknown): PaymentBoxKey => {
+  const m = String(method || '').trim().toLowerCase()
+  if (m === 'qr' || m === 'upi' || m === 'online') return 'upi'
+  if (m === 'cash' || m === 'card' || m === 'bank' || m === 'cheque') return m
+  return 'other'
+}
+
+export const emptyPaymentTotals = (): PaymentTotals =>
+  Object.fromEntries(PAYMENT_BOXES.map(([k]) => [k, { amount: 0, bills: 0 }])) as PaymentTotals
+
+type PaymentBill = {
+  total: unknown; payment_mode?: unknown; payment_method?: unknown; split_details?: unknown
+  scheme_amount_used?: unknown; advance_amount_used?: unknown; exchange_amount?: unknown
+}
+
+/**
+ * Adds one bill to the totals. A mixed payment counts each part under its own method (₹200 cash + ₹300 UPI ->
+ * ₹200 in Cash, ₹300 in UPI). Money from a scheme, an advance or old gold goes to its own box. For a credit bill
+ * paid later, pass its payments (each part payment under the method it was paid by).
+ */
+export const addBillPayments = (totals: PaymentTotals, bill: PaymentBill, laterPayments?: Array<{ amount: unknown; method: unknown }>) => {
+  const used = new Set<PaymentBoxKey>()
+  const put = (key: PaymentBoxKey, amount: number) => {
+    if (!(amount > 0)) return
+    totals[key].amount = Math.round((totals[key].amount + amount) * 100) / 100
+    used.add(key)
+  }
+  const total = Number(bill.total) || 0
+  const scheme = Number(bill.scheme_amount_used) || 0
+  const advance = Number(bill.advance_amount_used) || 0
+  const exchange = Number(bill.exchange_amount) || 0
+  put('scheme', scheme); put('advance', advance); put('exchange', exchange)
+  const counter = Math.max(0, Math.round((total - scheme - advance - exchange) * 100) / 100)
+  const mode = String(bill.payment_mode || bill.payment_method || '').trim().toLowerCase()
+  const parts = splitPaymentParts(bill.split_details)
+  if (laterPayments && laterPayments.length) {
+    for (const p of laterPayments) put(paymentBoxKey(p.method), Number(p.amount) || 0)
+  } else if (mode === 'split' && parts.length) {
+    for (const [k, v] of parts) put(paymentBoxKey(k), v)
+  } else {
+    put(paymentBoxKey(mode), counter)
+  }
+  used.forEach((k) => { totals[k].bills += 1 })
+}
+
 /** "Paid from Scheme (SCH000001 · 1.000 g @ ₹7,000/g)" */
 export const schemePaidLabel = (schemeNumber?: string | null, gramsUsed?: number | null, goldRate?: number | null) => {
   const grams = gramsUsed && gramsUsed > 0 && goldRate && goldRate > 0 ? ` · ${gramsUsed.toFixed(3)} g @ ${formatCurrency(goldRate)}/g` : ''
