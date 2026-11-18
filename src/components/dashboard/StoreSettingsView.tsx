@@ -3,7 +3,7 @@ import { UpiSettingsCard } from './UpiSettingsCard'
 import { CustomerRemindersCard } from './CustomerRemindersCard'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { ALERT_KINDS, LEAD_LABELS, type AlertLead } from '../../lib/alertSettings'
-import { Store, Phone, MapPin, Palette, Package, SlidersHorizontal, Lock, RefreshCw, Camera, Trash2, X, Check, AlertCircle, Save, Receipt, ShieldCheck } from 'lucide-react'
+import { Store, Phone, MapPin, Palette, Package, SlidersHorizontal, Lock, RefreshCw, Camera, Trash2, X, Check, AlertCircle, Save, Receipt, ShieldCheck, BellRing, TrendingUp } from 'lucide-react'
 import { useSettingsStore, useAdminAuthStore, useProductStore, DEFAULT_POS_PERMISSIONS } from '../../store/store'
 import { auditService } from '../../services/auditService'
 import AuditLogView from './AuditLogView'
@@ -207,290 +207,318 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
         <div className="p-10 text-center text-xs font-bold text-[#000000]">Loading settings...</div>
       ) : (
         <form id="store-settings-form" onSubmit={handleSave} className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Shop Profile */}
-            <SectionCard icon={Store} title="Shop Profile" subtitle="Logo, owner and shop name">
-              <div className="flex items-center gap-4 mb-5">
-                <div className="relative shrink-0">
-                  <div className="w-16 h-16 rounded-xl overflow-hidden border border-black/10">
-                    <img src={logoSrc} alt={BRAND_EN} className="w-full h-full object-cover" />
+          {/* Two independent columns: each card is only as tall as its content, so there are no gaps */}
+          <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
+            <div className="min-w-0 space-y-6">
+              {/* Shop Profile */}
+              <SectionCard icon={Store} title="Shop Profile" subtitle="Logo, owner and shop name">
+                <div className="flex items-center gap-4 mb-5">
+                  <div className="relative shrink-0">
+                    <div className="w-16 h-16 rounded-xl overflow-hidden border border-black/10">
+                      <img src={logoSrc} alt={BRAND_EN} className="w-full h-full object-cover" />
+                    </div>
+                    <input
+                      ref={logoInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      className="hidden"
+                      onChange={e => { const f = e.target.files?.[0]; if (f) void handleLogoFile(f) }}
+                    />
                   </div>
-                  <input
-                    ref={logoInputRef}
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                    className="hidden"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) void handleLogoFile(f) }}
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => logoInputRef.current?.click()}
-                    disabled={logoUploading || !isSupabaseConfigured}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-black/10 rounded-lg text-[11px] font-black text-[#000000] hover:bg-black/[0.03] transition-colors disabled:opacity-60"
-                  >
-                    {logoUploading ? <RefreshCw size={12} className="animate-spin" /> : <Camera size={12} />} REPLACE LOGO
-                  </button>
-                  {hasCustomLogo && (
+                  <div className="flex flex-col gap-1.5">
                     <button
                       type="button"
-                      onClick={() => void handleRemoveLogo()}
-                      disabled={logoRemoving}
-                      className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg text-[11px] font-black text-red-600 hover:bg-red-100 transition-colors disabled:opacity-60"
+                      onClick={() => logoInputRef.current?.click()}
+                      disabled={logoUploading || !isSupabaseConfigured}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-black/10 rounded-lg text-[11px] font-black text-[#000000] hover:bg-black/[0.03] transition-colors disabled:opacity-60"
                     >
-                      <Trash2 size={12} /> REMOVE
+                      {logoUploading ? <RefreshCw size={12} className="animate-spin" /> : <Camera size={12} />} REPLACE LOGO
                     </button>
-                  )}
-                  {logoErr && <p className="text-[11px] text-red-600">{logoErr}</p>}
-                  {!isSupabaseConfigured && <p className="text-[11px] text-amber-700">Connect Supabase to enable logo uploads.</p>}
+                    {hasCustomLogo && (
+                      <button
+                        type="button"
+                        onClick={() => void handleRemoveLogo()}
+                        disabled={logoRemoving}
+                        className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg text-[11px] font-black text-red-600 hover:bg-red-100 transition-colors disabled:opacity-60"
+                      >
+                        <Trash2 size={12} /> REMOVE
+                      </button>
+                    )}
+                    {logoErr && <p className="text-[11px] text-red-600">{logoErr}</p>}
+                    {!isSupabaseConfigured && <p className="text-[11px] text-amber-700">Connect Supabase to enable logo uploads.</p>}
+                  </div>
                 </div>
-              </div>
-              <div className="space-y-3.5">
-                <Field label="Full Name">
-                  <input className={inputCls} value={form.ownerName} onChange={e => setForm(f => ({ ...f, ownerName: e.target.value }))} />
-                </Field>
-                <Field label="Shop Name">
-                  <input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
-                </Field>
-                <Field label="Business Type">
-                  <input className={inputCls} placeholder="e.g. General Store / Provisions" value={form.businessType} onChange={e => setForm(f => ({ ...f, businessType: e.target.value }))} />
-                </Field>
-              </div>
-            </SectionCard>
-
-            {/* Contact Details */}
-            <SectionCard icon={Phone} title="Contact Details" subtitle="Shop contact only — customer details are unaffected">
-              <div className="space-y-3.5">
-                <Field label="Phone Number">
-                  <input className={inputCls} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
-                </Field>
-                <Field label="Shop Contact Number">
-                  <input className={inputCls} value={form.shopContactNumber} onChange={e => setForm(f => ({ ...f, shopContactNumber: e.target.value }))} />
-                </Field>
-                <Field label="Email ID">
-                  <input type="email" className={inputCls} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
-                </Field>
-              </div>
-            </SectionCard>
-
-            {/* Shop Information */}
-            <SectionCard icon={MapPin} title="Shop Information" subtitle="Address and social profile">
-              <div className="space-y-3.5">
-                <Field label="Shop Address">
-                  <textarea rows={3} className={`${inputCls} resize-none`} value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
-                </Field>
-                <Field label="Instagram ID">
-                  <div className={`${inputCls} flex items-center gap-1`}>
-                    <span className="text-[#9CA3AF]">@</span>
+                <div className="space-y-3.5">
+                  <Field label="Full Name">
+                    <input className={inputCls} value={form.ownerName} onChange={e => setForm(f => ({ ...f, ownerName: e.target.value }))} />
+                  </Field>
+                  <Field label="Shop Name">
+                    <input className={inputCls} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+                  </Field>
+                  <Field label="Business Type">
+                    <input className={inputCls} placeholder="e.g. General Store / Provisions" value={form.businessType} onChange={e => setForm(f => ({ ...f, businessType: e.target.value }))} />
+                  </Field>
+                </div>
+              </SectionCard>
+              {/* Shop Information */}
+              <SectionCard icon={MapPin} title="Shop Information" subtitle="Address and social profile">
+                <div className="space-y-3.5">
+                  <Field label="Shop Address">
+                    <textarea rows={3} className={`${inputCls} resize-none`} value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} />
+                  </Field>
+                  <Field label="Instagram ID">
+                    <div className={`${inputCls} flex items-center gap-1`}>
+                      <span className="text-[#9CA3AF]">@</span>
+                      <input
+                        className="flex-1 bg-transparent outline-none"
+                        value={instagramHandleClean}
+                        onChange={e => setForm(f => ({ ...f, instagramHandle: e.target.value.replace(/^@+/, '') }))}
+                      />
+                    </div>
+                    {instagramHandleClean && (
+                      <a
+                        href={`https://www.instagram.com/${instagramHandleClean}/`}
+                        target="_blank" rel="noopener noreferrer"
+                        className="mt-1.5 inline-block text-[11px] font-bold text-[var(--accent)] hover:underline break-all"
+                      >
+                        https://www.instagram.com/{instagramHandleClean}/
+                      </a>
+                    )}
+                  </Field>
+                </div>
+              </SectionCard>
+              {/* GST details printed on invoices */}
+              <SectionCard icon={Receipt} title="Invoice GST Details" subtitle="Printed on every invoice">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="sm:col-span-3">
+                    <Field label="GSTIN">
+                      <input className={inputCls} value={form.gstin} maxLength={15} placeholder="e.g. 33ABCDE1234F1Z5"
+                        onChange={e => setForm(f => ({ ...f, gstin: e.target.value.toUpperCase() }))} />
+                    </Field>
+                  </div>
+                  <div className="sm:col-span-2">
+                    <Field label="State">
+                      <input className={inputCls} value={form.stateName} placeholder="e.g. Tamil Nadu"
+                        onChange={e => setForm(f => ({ ...f, stateName: e.target.value }))} />
+                    </Field>
+                  </div>
+                  <Field label="State Code">
+                    <input className={inputCls} value={form.stateCode} maxLength={2} placeholder="e.g. 33"
+                      onChange={e => setForm(f => ({ ...f, stateCode: e.target.value.replace(/\D/g, '') }))} />
+                  </Field>
+                </div>
+              </SectionCard>
+              {/* Billing & Inventory Thresholds */}
+              <SectionCard icon={SlidersHorizontal} title="Billing & Inventory Thresholds" subtitle="Low-stock alerts and GST billing">
+                <div className="flex flex-col gap-4">
+                  <div className="flex-1">
+                    <Field label="Default Low Stock Threshold">
+                      <NumberInput
+                        min={0} className={inputCls}
+                        value={form.lowStockThreshold}
+                        onCommit={n => setForm(f => ({ ...f, lowStockThreshold: n }))}
+                      />
+                    </Field>
+                    <p className="text-[11px] text-[#000000] mt-1.5">Starting value for new products. Each product can have its own limit in Add / Edit Products, and that one is used for its alerts.</p>
+                    <button
+                      type="button"
+                      onClick={() => void applyThresholdToAll()}
+                      disabled={applyingThreshold || !isSupabaseConfigured || products.length === 0}
+                      className="mt-2 rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[11px] font-bold text-[#000000] hover:bg-black/[0.03] disabled:opacity-50 cursor-pointer disabled:cursor-default"
+                    >
+                      {applyingThreshold ? 'Applying…' : `Apply ${form.lowStockThreshold} to all products`}
+                    </button>
+                    {applyMsg && (
+                      <p className={`mt-1 text-[11px] font-semibold ${applyMsg.type === 'ok' ? 'text-emerald-700' : 'text-red-600'}`}>{applyMsg.text}</p>
+                    )}
+                  </div>
+                  <label className="flex items-start gap-2.5 sm:mt-6 cursor-pointer">
                     <input
-                      className="flex-1 bg-transparent outline-none"
-                      value={instagramHandleClean}
-                      onChange={e => setForm(f => ({ ...f, instagramHandle: e.target.value.replace(/^@+/, '') }))}
+                      type="checkbox" checked={form.gstEnabled}
+                      onChange={e => setForm(f => ({ ...f, gstEnabled: e.target.checked }))}
+                      className="mt-0.5 w-4 h-4 accent-[var(--accent)]"
+                    />
+                    <span>
+                      <span className="block text-xs font-bold text-[#000000]">Enable GST Billing in POS</span>
+                      <span className="block text-[11px] text-[#000000]">When enabled, GST line items are computed on invoices.</span>
+                    </span>
+                  </label>
+                </div>
+              </SectionCard>
+              {/* Product Catalogue */}
+              <SectionCard icon={Package} title="Product Catalogue" subtitle="Uses the existing product & category system — nothing is duplicated">
+                <div className="flex flex-wrap items-center gap-3 mb-4">
+                  <button
+                    type="button"
+                    onClick={onAddProduct}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-[#111111] hover:bg-[#1A1A1A] text-white rounded-xl text-xs font-black transition-colors"
+                  >
+                    + ADD PRODUCT TO CATALOGUE
+                  </button>
+                  <span className="text-xs font-semibold text-[#000000]">{catalogueItemCount} items in the catalogue</span>
+                </div>
+                {catalogueCategories.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {catalogueCategories.map(([name, count]) => (
+                      <span key={name} className="px-3 py-1.5 rounded-full bg-white border border-black/10 text-[11px] font-bold text-[#000000]">
+                        {name} · {count}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-[#9CA3AF]">No products yet — add your first product from the Inventory screen.</p>
+                )}
+                <p className="mt-3 text-[11px] text-[#9CA3AF]">
+                  Product name, category, image, price and stock are managed on the existing inventory screen.
+                </p>
+              </SectionCard>
+              <SectionCard icon={TrendingUp} title="Net Profit Calculation" subtitle="Money going out, taken off the amount received">
+              <div className="space-y-3">
+                  <p className="text-[11px] text-[#000000]/70">Each one that is on is taken off the amount received (Net Earnings on the Analytics dashboard).</p>
+                  {([
+                    ['netProfitIncludeExpenses', 'Subtract expenses', 'Expense Tracker entries in the period.'],
+                    ['netProfitIncludePurchases', 'Subtract supplier purchases', 'What you bought from suppliers in the period (Purchases).'],
+                    ['netProfitIncludeCounterOldGold', 'Subtract old gold bought at the counter', 'Old gold bought at the Sales Desk — paid out or given as store credit.'],
+                    ['netProfitIncludeOldGold', 'Subtract old gold taken on bills', 'Old gold the customer gave as part-payment on a bill.'],
+                    ['netProfitIncludeRefunds', 'Subtract refunds', 'Money given back on approved returns (refund type).'],
+                    ['netProfitIncludeCancelledAdvances', 'Subtract cancelled advances', 'Customer advances cancelled and refunded at the Sales Desk.'],
+                    ['netProfitIncludeChange', 'Subtract change returned', 'Change given back on cash bills. Usually off: the amount received is already the bill amount, not the cash handed over.'],
+                  ] as const).map(([key, label, hint]) => (
+                    <div key={key} className="flex items-start justify-between gap-4">
+                      <span>
+                        <span className="block text-xs font-bold text-[#000000]">{label}</span>
+                        <span className="block text-[11px] text-[#000000]">{hint}</span>
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={form.posPermissions[key]}
+                        aria-label={label}
+                        onClick={() => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, [key]: !f.posPermissions[key] } }))}
+                        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors cursor-pointer ${form.posPermissions[key] ? 'bg-[var(--accent)]' : 'bg-black/20'}`}
+                      >
+                        <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${form.posPermissions[key] ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </SectionCard>
+            </div>
+            <div className="min-w-0 space-y-6">
+              {/* Contact Details */}
+              <SectionCard icon={Phone} title="Contact Details" subtitle="Shop contact only — customer details are unaffected">
+                <div className="space-y-3.5">
+                  <Field label="Phone Number">
+                    <input className={inputCls} value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} />
+                  </Field>
+                  <Field label="Shop Contact Number">
+                    <input className={inputCls} value={form.shopContactNumber} onChange={e => setForm(f => ({ ...f, shopContactNumber: e.target.value }))} />
+                  </Field>
+                  <Field label="Email ID">
+                    <input type="email" className={inputCls} value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
+                  </Field>
+                </div>
+              </SectionCard>
+              {/* Appearance */}
+              <SectionCard icon={Palette} title="Appearance" subtitle="Preferred colour theme — selected card colour + white stays the app theme">
+                <div className="grid grid-cols-6 sm:grid-cols-8 gap-2 mb-4">
+                  {ACCENT_SWATCHES.map(hex => (
+                    <button
+                      key={hex}
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, accentColor: hex }))}
+                      className={`w-full aspect-square rounded-lg border-2 transition-transform hover:scale-105 ${form.accentColor.toLowerCase() === hex.toLowerCase() ? 'border-[#111111] ring-2 ring-offset-1 ring-[#111111]' : 'border-transparent'}`}
+                      style={{ backgroundColor: hex }}
+                      aria-label={hex}
+                      title={hex}
+                    />
+                  ))}
+                </div>
+                <Field label="Custom Colour">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="color"
+                      value={/^#[0-9A-Fa-f]{6}$/.test(form.accentColor) ? form.accentColor : BRAND_ACCENT}
+                      onChange={e => setForm(f => ({ ...f, accentColor: e.target.value }))}
+                      className="w-11 h-11 shrink-0 rounded-xl border border-black/10 cursor-pointer bg-white p-1"
+                    />
+                    <input
+                      className={`${inputCls} flex-1 uppercase`}
+                      value={form.accentColor}
+                      onChange={e => setForm(f => ({ ...f, accentColor: e.target.value }))}
+                      placeholder="#CA8A04"
                     />
                   </div>
-                  {instagramHandleClean && (
-                    <a
-                      href={`https://www.instagram.com/${instagramHandleClean}/`}
-                      target="_blank" rel="noopener noreferrer"
-                      className="mt-1.5 inline-block text-[11px] font-bold text-[var(--accent)] hover:underline break-all"
-                    >
-                      https://www.instagram.com/{instagramHandleClean}/
-                    </a>
-                  )}
                 </Field>
-              </div>
-            </SectionCard>
-
-            {/* Appearance */}
-            <SectionCard icon={Palette} title="Appearance" subtitle="Preferred colour theme — selected card colour + white stays the app theme">
-              <div className="grid grid-cols-6 sm:grid-cols-8 gap-2 mb-4">
-                {ACCENT_SWATCHES.map(hex => (
-                  <button
-                    key={hex}
-                    type="button"
-                    onClick={() => setForm(f => ({ ...f, accentColor: hex }))}
-                    className={`w-full aspect-square rounded-lg border-2 transition-transform hover:scale-105 ${form.accentColor.toLowerCase() === hex.toLowerCase() ? 'border-[#111111] ring-2 ring-offset-1 ring-[#111111]' : 'border-transparent'}`}
-                    style={{ backgroundColor: hex }}
-                    aria-label={hex}
-                    title={hex}
-                  />
-                ))}
-              </div>
-              <Field label="Custom Colour">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={/^#[0-9A-Fa-f]{6}$/.test(form.accentColor) ? form.accentColor : BRAND_ACCENT}
-                    onChange={e => setForm(f => ({ ...f, accentColor: e.target.value }))}
-                    className="w-11 h-11 shrink-0 rounded-xl border border-black/10 cursor-pointer bg-white p-1"
-                  />
-                  <input
-                    className={`${inputCls} flex-1 uppercase`}
-                    value={form.accentColor}
-                    onChange={e => setForm(f => ({ ...f, accentColor: e.target.value }))}
-                    placeholder="#CA8A04"
-                  />
+                <div className="mt-4 rounded-xl p-4 text-white" style={{ backgroundColor: /^#[0-9A-Fa-f]{6}$/.test(form.accentColor) ? form.accentColor : BRAND_ACCENT }}>
+                  <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Card Preview</p>
+                  <p className="text-xs font-bold mt-0.5">Selected colour + white stays the app theme.</p>
                 </div>
-              </Field>
-              <div className="mt-4 rounded-xl p-4 text-white" style={{ backgroundColor: /^#[0-9A-Fa-f]{6}$/.test(form.accentColor) ? form.accentColor : BRAND_ACCENT }}>
-                <p className="text-[10px] font-bold uppercase tracking-widest opacity-80">Card Preview</p>
-                <p className="text-xs font-bold mt-0.5">Selected colour + white stays the app theme.</p>
-              </div>
-              <p className="mt-3 text-[11px] text-[#9CA3AF]">
-                White backgrounds, layout and components are unchanged — only the accent colour follows this setting.
-              </p>
-            </SectionCard>
-          </div>
-
-          {/* Product Catalogue */}
-          <SectionCard icon={Package} title="Product Catalogue" subtitle="Uses the existing product & category system — nothing is duplicated">
-            <div className="flex flex-wrap items-center gap-3 mb-4">
-              <button
-                type="button"
-                onClick={onAddProduct}
-                className="flex items-center gap-1.5 px-4 py-2 bg-[#111111] hover:bg-[#1A1A1A] text-white rounded-xl text-xs font-black transition-colors"
-              >
-                + ADD PRODUCT TO CATALOGUE
-              </button>
-              <span className="text-xs font-semibold text-[#000000]">{catalogueItemCount} items in the catalogue</span>
-            </div>
-            {catalogueCategories.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {catalogueCategories.map(([name, count]) => (
-                  <span key={name} className="px-3 py-1.5 rounded-full bg-white border border-black/10 text-[11px] font-bold text-[#000000]">
-                    {name} · {count}
-                  </span>
-                ))}
-              </div>
-            ) : (
-              <p className="text-xs text-[#9CA3AF]">No products yet — add your first product from the Inventory screen.</p>
-            )}
-            <p className="mt-3 text-[11px] text-[#9CA3AF]">
-              Product name, category, image, price and stock are managed on the existing inventory screen.
-            </p>
-          </SectionCard>
-
-          {/* Billing & Inventory Thresholds */}
-          <SectionCard icon={SlidersHorizontal} title="Billing & Inventory Thresholds">
-            <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-              <div className="flex-1">
-                <Field label="Default Low Stock Threshold">
-                  <NumberInput
-                    min={0} className={inputCls}
-                    value={form.lowStockThreshold}
-                    onCommit={n => setForm(f => ({ ...f, lowStockThreshold: n }))}
-                  />
-                </Field>
-                <p className="text-[11px] text-[#000000] mt-1.5">Starting value for new products. Each product can have its own limit in Add / Edit Products, and that one is used for its alerts.</p>
-                <button
-                  type="button"
-                  onClick={() => void applyThresholdToAll()}
-                  disabled={applyingThreshold || !isSupabaseConfigured || products.length === 0}
-                  className="mt-2 rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[11px] font-bold text-[#000000] hover:bg-black/[0.03] disabled:opacity-50 cursor-pointer disabled:cursor-default"
-                >
-                  {applyingThreshold ? 'Applying…' : `Apply ${form.lowStockThreshold} to all products`}
-                </button>
-                {applyMsg && (
-                  <p className={`mt-1 text-[11px] font-semibold ${applyMsg.type === 'ok' ? 'text-emerald-700' : 'text-red-600'}`}>{applyMsg.text}</p>
-                )}
-              </div>
-              <label className="flex items-start gap-2.5 sm:mt-6 cursor-pointer">
-                <input
-                  type="checkbox" checked={form.gstEnabled}
-                  onChange={e => setForm(f => ({ ...f, gstEnabled: e.target.checked }))}
-                  className="mt-0.5 w-4 h-4 accent-[var(--accent)]"
-                />
-                <span>
-                  <span className="block text-xs font-bold text-[#000000]">Enable GST Billing in POS</span>
-                  <span className="block text-[11px] text-[#000000]">When enabled, GST line items are computed on invoices.</span>
-                </span>
-              </label>
-            </div>
-          </SectionCard>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* GST details printed on invoices */}
-            <SectionCard icon={Receipt} title="Invoice GST Details" subtitle="Printed on every invoice">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="sm:col-span-3">
-                  <Field label="GSTIN">
-                    <input className={inputCls} value={form.gstin} maxLength={15} placeholder="e.g. 33ABCDE1234F1Z5"
-                      onChange={e => setForm(f => ({ ...f, gstin: e.target.value.toUpperCase() }))} />
-                  </Field>
-                </div>
-                <div className="sm:col-span-2">
-                  <Field label="State">
-                    <input className={inputCls} value={form.stateName} placeholder="e.g. Tamil Nadu"
-                      onChange={e => setForm(f => ({ ...f, stateName: e.target.value }))} />
-                  </Field>
-                </div>
-                <Field label="State Code">
-                  <input className={inputCls} value={form.stateCode} maxLength={2} placeholder="e.g. 33"
-                    onChange={e => setForm(f => ({ ...f, stateCode: e.target.value.replace(/\D/g, '') }))} />
-                </Field>
-              </div>
-            </SectionCard>
-
-            {/* What staff may do at the counter */}
-            <SectionCard icon={ShieldCheck} title="Staff Permissions" subtitle="Limits for staff logins (admin is not limited)">
-              <div className="space-y-4">
-                <div>
-                  <Field label="Maximum staff discount (% of bill)">
-                    <NumberInput
-                      min={0} className={inputCls}
-                      value={form.posPermissions.staffMaxDiscountPercent}
-                      onCommit={n => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, staffMaxDiscountPercent: Math.min(100, n) } }))}
+                <p className="mt-3 text-[11px] text-[#9CA3AF]">
+                  White backgrounds, layout and components are unchanged — only the accent colour follows this setting.
+                </p>
+              </SectionCard>
+              {/* What staff may do at the counter */}
+              <SectionCard icon={ShieldCheck} title="Staff Permissions" subtitle="Limits for staff logins (admin is not limited)">
+                <div className="space-y-4">
+                  <div>
+                    <Field label="Maximum staff discount (% of bill)">
+                      <NumberInput
+                        min={0} className={inputCls}
+                        value={form.posPermissions.staffMaxDiscountPercent}
+                        onCommit={n => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, staffMaxDiscountPercent: Math.min(100, n) } }))}
+                      />
+                    </Field>
+                    <p className="text-[11px] text-[#000000] mt-1.5">Staff cannot give a manual discount above this. A larger discount needs the admin login. 0 = no manual discounts by staff.</p>
+                  </div>
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox" checked={form.posPermissions.staffCanCustomiseSchemes}
+                      onChange={e => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, staffCanCustomiseSchemes: e.target.checked } }))}
+                      className="mt-0.5 w-4 h-4 accent-[var(--accent)]"
                     />
-                  </Field>
-                  <p className="text-[11px] text-[#000000] mt-1.5">Staff cannot give a manual discount above this. A larger discount needs the admin login. 0 = no manual discounts by staff.</p>
-                </div>
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox" checked={form.posPermissions.staffCanCustomiseSchemes}
-                    onChange={e => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, staffCanCustomiseSchemes: e.target.checked } }))}
-                    className="mt-0.5 w-4 h-4 accent-[var(--accent)]"
-                  />
-                  <span>
-                    <span className="block text-xs font-bold text-[#000000]">Staff may change scheme terms</span>
-                    <span className="block text-[11px] text-[#000000]">Off: staff enrol customers only on the scheme types set up by admin, with their fixed terms.</span>
-                  </span>
-                </label>
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox" checked={form.posPermissions.staffCanOverrideStonePrice}
-                    onChange={e => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, staffCanOverrideStonePrice: e.target.checked } }))}
-                    className="mt-0.5 w-4 h-4 accent-[var(--accent)]"
-                  />
-                  <span>
-                    <span className="block text-xs font-bold text-[#000000]">Staff may change stone price-list rates</span>
-                    <span className="block text-[11px] text-[#000000]">Off: only the admin can replace a diamond / gemstone / pearl list rate with a negotiated price. Every change needs a reason and is logged.</span>
-                  </span>
-                </label>
-                <div>
-                  <Field label="Cash limit per bill / advance (₹)">
-                    <NumberInput
-                      min={1} className={inputCls}
-                      value={form.posPermissions.cashLimit}
-                      onCommit={n => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, cashLimit: n > 0 ? n : 199500 } }))}
+                    <span>
+                      <span className="block text-xs font-bold text-[#000000]">Staff may change scheme terms</span>
+                      <span className="block text-[11px] text-[#000000]">Off: staff enrol customers only on the scheme types set up by admin, with their fixed terms.</span>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox" checked={form.posPermissions.staffCanOverrideStonePrice}
+                      onChange={e => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, staffCanOverrideStonePrice: e.target.checked } }))}
+                      className="mt-0.5 w-4 h-4 accent-[var(--accent)]"
                     />
-                  </Field>
-                  <p className="text-[11px] text-[#000000] mt-1.5">Cash above this is refused (Income Tax s.269ST does not allow ₹2,00,000 or more in cash). The rest must be UPI, card, bank or cheque.</p>
+                    <span>
+                      <span className="block text-xs font-bold text-[#000000]">Staff may change stone price-list rates</span>
+                      <span className="block text-[11px] text-[#000000]">Off: only the admin can replace a diamond / gemstone / pearl list rate with a negotiated price. Every change needs a reason and is logged.</span>
+                    </span>
+                  </label>
+                  <div>
+                    <Field label="Cash limit per bill / advance (₹)">
+                      <NumberInput
+                        min={1} className={inputCls}
+                        value={form.posPermissions.cashLimit}
+                        onCommit={n => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, cashLimit: n > 0 ? n : 199500 } }))}
+                      />
+                    </Field>
+                    <p className="text-[11px] text-[#000000] mt-1.5">Cash above this is refused (Income Tax s.269ST does not allow ₹2,00,000 or more in cash). The rest must be UPI, card, bank or cheque.</p>
+                  </div>
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox" checked={form.posPermissions.allowCashAboveLimit}
+                      onChange={e => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, allowCashAboveLimit: e.target.checked } }))}
+                      className="mt-0.5 w-4 h-4 accent-[var(--accent)]"
+                    />
+                    <span>
+                      <span className="block text-xs font-bold text-[#000000]">Admin may accept cash above the limit</span>
+                      <span className="block text-[11px] text-[#000000]">On: the admin login can take more cash after confirming. Staff can never go above the limit.</span>
+                    </span>
+                  </label>
+                  <p className="text-[11px] text-[#000000]">Staff never change metal rates, Schema rules, invoices, completed payments, stock quantities or settings.</p>
                 </div>
-                <label className="flex items-start gap-2.5 cursor-pointer">
-                  <input
-                    type="checkbox" checked={form.posPermissions.allowCashAboveLimit}
-                    onChange={e => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, allowCashAboveLimit: e.target.checked } }))}
-                    className="mt-0.5 w-4 h-4 accent-[var(--accent)]"
-                  />
-                  <span>
-                    <span className="block text-xs font-bold text-[#000000]">Admin may accept cash above the limit</span>
-                    <span className="block text-[11px] text-[#000000]">On: the admin login can take more cash after confirming. Staff can never go above the limit.</span>
-                  </span>
-                </label>
-                <p className="text-[11px] text-[#000000]">Staff never change metal rates, Schema rules, invoices, completed payments, stock quantities or settings.</p>
-                <div className="pt-3 border-t border-black/10 space-y-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Alerts & Reminders</p>
+              </SectionCard>
+              <SectionCard icon={BellRing} title="Alerts & Reminders" subtitle="Pop-ups and alarms for things that are due">
+              <div className="space-y-3">
                   {([
                     ['notifications', 'Notifications', 'On: a pop-up (and a phone / desktop notification) when something is due. Off: no alerts at all.'],
                     ['sound', 'Alert sound', 'On: an alarm sounds with the pop-up until you press Done. Off: pop-up only.'],
@@ -533,39 +561,10 @@ export default function StoreSettingsView({ onAddProduct }: StoreSettingsViewPro
                     ))}
                   </div>
                 </div>
-                <div className="pt-3 border-t border-black/10 space-y-3">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#000000]">Net Profit calculation — money going out</p>
-                  <p className="text-[11px] text-[#000000]/70">Each one that is on is taken off the amount received (Net Earnings on the Analytics dashboard).</p>
-                  {([
-                    ['netProfitIncludeExpenses', 'Subtract expenses', 'Expense Tracker entries in the period.'],
-                    ['netProfitIncludePurchases', 'Subtract supplier purchases', 'What you bought from suppliers in the period (Purchases).'],
-                    ['netProfitIncludeCounterOldGold', 'Subtract old gold bought at the counter', 'Old gold bought at the Sales Desk — paid out or given as store credit.'],
-                    ['netProfitIncludeOldGold', 'Subtract old gold taken on bills', 'Old gold the customer gave as part-payment on a bill.'],
-                    ['netProfitIncludeRefunds', 'Subtract refunds', 'Money given back on approved returns (refund type).'],
-                    ['netProfitIncludeCancelledAdvances', 'Subtract cancelled advances', 'Customer advances cancelled and refunded at the Sales Desk.'],
-                    ['netProfitIncludeChange', 'Subtract change returned', 'Change given back on cash bills. Usually off: the amount received is already the bill amount, not the cash handed over.'],
-                  ] as const).map(([key, label, hint]) => (
-                    <div key={key} className="flex items-start justify-between gap-4">
-                      <span>
-                        <span className="block text-xs font-bold text-[#000000]">{label}</span>
-                        <span className="block text-[11px] text-[#000000]">{hint}</span>
-                      </span>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={form.posPermissions[key]}
-                        aria-label={label}
-                        onClick={() => setForm(f => ({ ...f, posPermissions: { ...f.posPermissions, [key]: !f.posPermissions[key] } }))}
-                        className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors cursor-pointer ${form.posPermissions[key] ? 'bg-[var(--accent)]' : 'bg-black/20'}`}
-                      >
-                        <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${form.posPermissions[key] ? 'translate-x-5' : 'translate-x-0.5'}`} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </SectionCard>
+              </SectionCard>
+            </div>
           </div>
+
 
           {/* Login passcodes + staff access (admin); other logins just change their own password */}
           {role === 'admin' && <UpiSettingsCard />}
@@ -645,12 +644,12 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function SectionCard({ icon: Icon, title, subtitle, children }: { icon: typeof Store; title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-xl border border-black/10 p-4 sm:p-6 shadow-sm">
-      <div className="flex items-start gap-2 mb-5">
-        <Icon size={16} className="text-[var(--accent)] mt-0.5 shrink-0" />
-        <div>
-          <h3 className="text-xs font-black text-[#000000]">{title}</h3>
-          {subtitle && <p className="text-[11px] text-[#000000] mt-0.5">{subtitle}</p>}
+    <div className="min-w-0 rounded-2xl border border-black/10 bg-white p-4 shadow-sm sm:p-5">
+      <div className="mb-4 flex items-center gap-3 border-b border-black/[0.06] pb-3.5">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-a10)] text-[var(--accent)]"><Icon size={16} /></span>
+        <div className="min-w-0">
+          <h3 className="text-[13px] font-black text-[#000000]">{title}</h3>
+          {subtitle && <p className="mt-0.5 text-[11px] font-semibold text-black/50">{subtitle}</p>}
         </div>
       </div>
       {children}
